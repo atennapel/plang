@@ -95,7 +95,7 @@ function _eval(s, cb) {
         var _compiled = _compile(_expr);
         var _evalled = eval(_compiled);
         global[name] = _evalled;
-        _env.typings[name] = _type;
+        _env.typings[name] = _tc.generalize(_type);
         return cb(_stringify(_evalled) + ' : ' + _T.toString(_type));
       } catch(e) {
         return cb(''+e, true);
@@ -117,7 +117,7 @@ function _eval(s, cb) {
           var _label = _row.label;
           var _ltype = _row.type;
           global[_label] = _evalled[_label];
-          _env.typings[_label] = _ltype;
+          _env.typings[_label] = _tc.generalize(_ltype);
           _row = _row.rest;
         }
         return cb('Defined type ' + name);
@@ -141,7 +141,7 @@ function _eval(s, cb) {
                 var _compiled = _compile(_expr);
                 var _evalled = eval(_compiled);
                 global[name] = _evalled;
-                _env.typings[name] = _type;
+                _env.typings[name] = _tc.generalize(_type);
                 return cb(_T.toString(_type));
               } catch(e) {
                 return cb(''+e, true);
@@ -161,7 +161,7 @@ function _eval(s, cb) {
               var _compiled = _compile(_expr);
               var _evalled = eval(_compiled);
               global[name] = _evalled;
-              _env.typings[name] = _type;
+              _env.typings[name] = _tc.generalize(_type);
               return cb(_T.toString(_type));
             } catch(e) {
               return cb(''+e, true);
@@ -193,7 +193,7 @@ function _eval(s, cb) {
                   var _label = _c.label;
                   var _ctype = _c.type;
                   global[_label] = _evalled[_label];
-                  _env.typings[_label] = _ctype;
+                  _env.typings[_label] = _tc.generalize(_ctype);
                   _c = _c.rest;
                 }
 
@@ -216,7 +216,7 @@ function _eval(s, cb) {
               var _compiled = _compile(_expr);
               var _evalled = eval(_compiled);
               global[name] = _evalled;
-              _env.typings[name] = _type;
+              _env.typings[name] = _tc.generalize(_type);
               return cb(_T.toString(_type));
             } catch(e) {
               return cb(''+e, true);
@@ -239,7 +239,7 @@ function _eval(s, cb) {
               try {
                 var _evalled = t;
                 global[name] = _evalled;
-                _env.typings[name] = _T.TStr;
+                _env.typings[name] = _tc.generalize(_T.TStr);
                 return cb('Read file: ' + s);
               } catch(e) {
                 return cb(''+e, true);
@@ -256,7 +256,7 @@ function _eval(s, cb) {
             try {
               var _evalled = _file;
               global[name] = _evalled;
-              _env.typings[name] = _T.TStr;
+              _env.typings[name] = _tc.generalize(_T.TStr);
               return cb('Read file: ' + s);
             } catch(e) {
               return cb(''+e, true);
