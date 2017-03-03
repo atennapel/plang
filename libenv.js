@@ -1,11 +1,19 @@
 var T = require('./types');
 var K = require('./kinds');
+var tc = require('./typechecker');
 
 var obj = function() {
   var l = arguments.length;
   if(l % 2 !== 0) throw new Error('Invalid number of arguments for obj');
   var n = {};
   for(var i = 0; i < l; i += 2) n[arguments[i]] = arguments[i + 1];
+  return n;
+};
+
+var mapo = function(f, o) {
+  var n = {};
+  for(var k in o)
+    n[k] = f(o[k]);
   return n;
 };
 
@@ -35,7 +43,7 @@ var ioE = T.tvar('e', K.krow, obj('Log', true, 'Prompt', true, 'Alert', true));
 var fetchE = T.tvar('e', K.krow, obj('Fetch', true));
 
 var env = {
-  typings: {
+  typings: mapo(tc.generalize, {
     str: tarr(a, Str),
     eq: tarr(a, tarr(a, Bool)),
 
@@ -112,7 +120,7 @@ var env = {
     arrSingleton: tarr(a, tapp(Arr, a, K.kstar)),
     arrRange: tarr(Float, Float, Float, tapp(Arr, Float, K.kstar)),
     arrFilter: tarr(tarr(a, Bool), tapp(Arr, a, K.kstar), tapp(Arr, a, K.kstar)),
-  },
+  }),
   types: {
     Bool: {con: Bool, args: [], cases: {True: [], False: []}},
     Float: {con: Float, args: [], cases: {}},

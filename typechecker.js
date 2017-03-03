@@ -15,7 +15,7 @@ var E = require('./exprs');
 var clone = (o, key, val) => {
   var n = {};
   for(var k in o) n[k] = o[k];
-  n[key] = val;
+  if(key) n[key] = val;
   return n;
 };
 
@@ -161,18 +161,44 @@ var free = (t_, vars_) => {
   var vars = vars_ || {};
   if(t.tag === T.TVar) {
     vars[t.id] = true;
-    return vars;
   } else if(t.tag === T.TApp) {
     free(t.left, vars);
     free(t.right, vars);
-    return vars;
   } else if(t.tag === T.TRowExtend) {
     free(t.type, vars);
     free(t.rest, vars);
-    return vars;
+  } else if(t.tag === T.TScheme) {
+    free(t.type, vars);
+    var tvars = t.vars;
+    for(var i = 0, l = tvars.length; i < l; i++)
+      delete vars[tvars[i].id];
   }
   return vars;
-}
+};
+
+var freeEnv = (env, vars_) => {
+  var vars = vars_ || {};
+  for(var k in env)
+    free(env[k], vars);
+  return vars;
+};
+
+var subst = (sub, t) => {
+  if(t.tag === T.TVar && sub[t.id]) {
+    return sub[t.id];
+  } else if(t.tag === T.TApp) {
+    return T.tapp(subst(sub, t.left), subst(sub, t.right), t.kind)
+  } else if(t.tag === T.TRowExtend) {
+    return T.trowextend(t.label, subst(sub, t.type), subst(sub, t.rest));
+  } else if(t.tag === T.TScheme) {
+    var nsub = clone(sub);
+    var vars = t.vars;
+    for(var i = 0, l = vars.length; i < l; i++)
+      delete nsub[vars[i].id];
+    return T.tscheme(vars, subst(nsub, t.type));
+  }
+  return t;
+};
 
 var prune = t => {
   t.kind = pruneKind(t.kind);
@@ -241,10 +267,10 @@ var bind = (v, t) => {
   if(occurs(v, t))
     T.terr('Recursive unification ' + T.toString(v) + ' and ' + T.toString(t));
   if(t.tag === T.TVar) {
-    t.kind = pruneKind(t.kind);
-    t.lacks = union(v.lacks, t.lacks);
-    t.value = v.value || t.value;
-    v.instance = t;
+    var m = T.tvar(v.name,
+      pruneKind(t.kind), union(v.lacks, t.lacks), v.value || t.value);
+    v.instance = m;
+    t.instance = m;
     return;
   }
   if(v.value && T.isEff(t))
@@ -295,51 +321,46 @@ var freshKind = (k_, mappings_) => {
   return k;
 };
 
-var fresh = (t_, nonGeneric, mappings_) => {
-  var mappings = mappings_ || {};
-  var t = prune(t_);
-  // console.log('fresh:',T.toString(t),'{'+Object.keys(nonGeneric).join(' ; ')+'}')
-  if(t.tag === T.TVar && !nonGeneric[t.id]) {
-    if(!mappings[t.id])
-      mappings[t.id] = T.tvar(t.name, t.kind, t.lacks, t.value);
-    return mappings[t.id];
-  } else if(t.tag === T.TApp)
-    return tapp(
-      fresh(t.left, nonGeneric, mappings),
-      fresh(t.right, nonGeneric, mappings)
-    );
-  else if(t.tag === T.TRowExtend)
-    return T.trowextend(
-      t.label,
-      fresh(t.type, nonGeneric, mappings),
-      fresh(t.rest, nonGeneric, mappings)
-    );
-  return t;
+var freshADT = (adt, mappings) => {
+  var args = adt.args.map(t => mappings[t.id] =
+    T.tvar(t.name, t.kind, t.lacks, t.value));
+  return args.length === 0? adt.con: tapp.apply(null, [adt.con].concat(args));
 };
 
-var freshADT = (adt, nonGeneric, mappings) => {
-  var con = fresh(adt.con, nonGeneric, mappings);
-  return adt.args.length === 0?
-    con:
-    tapp.apply(null,
-      [con].concat(adt.args.map(t => fresh(t, nonGeneric, mappings))));
+var instantiate = scheme => {
+  var sub = {};
+  scheme.vars.forEach(v =>
+    sub[v.id] = T.tvar(v.name, v.kind, v.lacks, v.value));
+  return subst(sub, scheme.type);
 };
 
+var generalize = (type, env) => {
+  var vars = {};
+  var freetype = free(type, vars);
+  var freevars = freeEnv(env || {});
+  for(var id in freevars) delete vars[id];
+  var avars = [];
+  for(var id in vars) {
+    var v = T.getTVar(id);
+    if(v) avars.push(v);
+  }
+  return T.tscheme(avars, type);
+};
 
-var getType = (name, env, nonGeneric) => {
+var getType = (name, env) => {
   if(!env[name]) T.terr('Undefined variable: ' + name);
-  return fresh(env[name], nonGeneric);
+  return instantiate(env[name]);
 }
 
-var infer = (env, e, nonGeneric) => {
+var infer = (env, e) => {
   // console.log('infer: ' + E.toString(e));
   if(e.tag === E.Var) {
-    var type = getType(e.name, env.typings, nonGeneric);
+    var type = getType(e.name, env.typings);
     e.meta.type = type;
     return type;
   } else if(e.tag === E.App) {
-    var fntype = infer(env, e.left, nonGeneric);
-    var argtype = infer(env, e.right, nonGeneric);
+    var fntype = infer(env, e.left);
+    var argtype = infer(env, e.right);
     var restype = T.tvar('r', K.kstar);
     unify(env, fntype, tarr(argtype, restype));
     var type = prune(restype);
@@ -347,23 +368,23 @@ var infer = (env, e, nonGeneric) => {
     return type;
   } else if(e.tag === E.Lam) {
     var argtype = T.tvar(e.arg, K.kstar);
-    var newEnv = clone(env, 'typings', clone(env.typings, e.arg, argtype));
-    var newNonGeneric = clone(nonGeneric, argtype.id, true);
-    var restype = infer(newEnv, e.body, newNonGeneric);
+    var newEnv = clone(env, 'typings',
+      clone(env.typings, e.arg, T.tscheme([], argtype)));
+    var restype = infer(newEnv, e.body);
     var type = prune(tarr(argtype, restype));
     e.meta.type = type;
     return type;
   } else if(e.tag === E.Let) {
     if(e.meta.effect) {
-      var valtype = infer(env, e.val, nonGeneric);
+      var valtype = infer(env, e.val);
       var eff = T.tvar('e', K.krow);
       var puretype = T.tvar('t', K.kstar, null, true);
       unify(env, valtype, T.teff(eff, puretype));
       puretype = prune(puretype);
       var newEnv =
-        clone(env, 'typings', clone(env.typings, e.arg, puretype));
-      var newNonGeneric = union(nonGeneric, free(puretype));
-      var res = infer(newEnv, e.body, newNonGeneric);
+        clone(env, 'typings', clone(env.typings, e.arg,
+          T.tscheme([], puretype)));
+      var res = infer(newEnv, e.body);
       var reff = T.tvar('e', K.krow);
       unify(env, res, T.teff(reff, T.tvar('t', K.kstar, null, true)));
       unify(env, eff, reff);
@@ -371,44 +392,46 @@ var infer = (env, e, nonGeneric) => {
       e.meta.type = type;
       return type;
     } else if(!e.meta.recursive) {
-      var valtype = infer(env, e.val, nonGeneric);
-      var newEnv = clone(env, 'typings', clone(env.typings, e.arg, valtype));
-      var res = infer(newEnv, e.body, nonGeneric);
+      var valtype = infer(env, e.val);
+      var newEnv = clone(env, 'typings',
+        clone(env.typings, e.arg, generalize(valtype, env.typings)));
+      var res = infer(newEnv, e.body);
       var type = prune(res);
       e.meta.type = type;
       return type;
     } else {
       var valtype = T.tvar(e.arg, K.kstar);
-      var newEnv = clone(env, 'typings', clone(env.typings, e.arg, valtype));
-      var newNonGeneric = clone(nonGeneric, valtype.id, true);
-      var ivaltype = infer(newEnv, e.val, newNonGeneric);
+      var newEnv = clone(env, 'typings',
+        clone(env.typings, e.arg, T.tscheme([], valtype)));
+      var ivaltype = infer(newEnv, e.val);
       unify(env, ivaltype, valtype);
       var newNewEnv =
-        clone(env, 'typings', clone(env.typings, e.arg, prune(ivaltype)));
-      var res = infer(newNewEnv, e.body, nonGeneric);
+        clone(env, 'typings',
+          clone(env.typings, e.arg, generalize(prune(ivaltype), env.typings)));
+      var res = infer(newNewEnv, e.body);
       var type = prune(res);
       e.meta.type = type;
       return type;
     }
   } else if(e.tag === E.If) {
-    var ctype = infer(env, e.cond, nonGeneric);
+    var ctype = infer(env, e.cond);
     unify(env, ctype, T.TBool);
-    var ctrue = infer(env, e.bodyTrue, nonGeneric);
-    var cfalse = infer(env, e.bodyFalse, nonGeneric);
+    var ctrue = infer(env, e.bodyTrue);
+    var cfalse = infer(env, e.bodyFalse);
     unify(env, ctrue, cfalse);
     var type = prune(ctrue);
     e.meta.type = type;
     return type;
   } else if(e.tag === E.Anno) {
     var etype = checkType(env, e.type);
-    var itype = infer(env, e.expr, nonGeneric);
+    var itype = infer(env, e.expr);
     unify(env, etype, itype);
     var type = prune(etype);
     e.meta.type = type;
     return type;
   } else if(e.tag === E.Record) {
     var nmap = {};
-    for(var k in e.map) nmap[k] = infer(env, e.map[k], nonGeneric);
+    for(var k in e.map) nmap[k] = infer(env, e.map[k]);
     var type = prune(treco(nmap));
     e.meta.type = type;
     return type;
@@ -467,11 +490,11 @@ var infer = (env, e, nonGeneric) => {
     var retfound = false;
     for(var name in e.map) {
       if(name === 'return') {
-        var type = infer(env, e.map[name], nonGeneric);
+        var type = infer(env, e.map[name]);
         unify(env, type, tarr(a, bc));
         retfound = true;
       } else {
-        var type = infer(env, e.map[name], nonGeneric);
+        var type = infer(env, e.map[name]);
         var ai = T.tvar('ai', K.kstar, null, true);
         var bi = T.tvar('bi', K.kstar, null, true);
         unify(env, type, tarr(ai, tarr(bi, bc), bc));
@@ -498,23 +521,23 @@ var infer = (env, e, nonGeneric) => {
         placeholder = true;
         unify(env,
           tarr(prune(t), prune(r)),
-          infer(env, cases[name], nonGeneric)
+          infer(env, cases[name])
         );
       } else {
         if(!env.cases[name]) T.terr('Undefined constructor: ' + name);
         if(!adt) {
           adt = env.types[env.cases[name]];
           allCases = adt.cases;
-          adttype = freshADT(adt, nonGeneric, mappings);
+          adttype = freshADT(adt, mappings);
           unify(env, t, adttype);
         }
         var caseTypes =
-          adt.cases[name].map(t => prune(fresh(t, nonGeneric, mappings)));
+          adt.cases[name].map(t => prune(subst(mappings, t)));
         if(caseTypes.length === 0) caseTypes.push(T.TUnit);
         var fnType = prune(tarr.apply(null, caseTypes.concat([prune(r)])));
         unify(env,
           fnType,
-          infer(env, cases[name], nonGeneric)
+          infer(env, cases[name])
         );
       }
     }
@@ -536,17 +559,17 @@ var infer = (env, e, nonGeneric) => {
     var r = e.args.length === 0? con: tapp.apply(null, [con].concat(e.args));
     for(var k in e.cases) {
       env.cases[k] = e.name;
-      typings[k] = e.cases[k].length === 0? r:
-        tarr.apply(null, e.cases[k].concat([r]))
+      typings[k] = generalize(e.cases[k].length === 0? r:
+        tarr.apply(null, e.cases[k].concat([r])))
     }
     env.types[e.name].con = prune(con);
-    var type = prune(infer(clone(env, 'typings', typings), e.body, nonGeneric));
+    var type = prune(infer(clone(env, 'typings', typings), e.body));
     e.meta.type = type;
     return type;
   } else if(e.tag === E.List) {
     var t = T.tvar('t', K.kstar);
     for(var i = 0, a = e.arr, l = a.length; i < l; i++)
-      unify(env, t, infer(env, a[i], nonGeneric));
+      unify(env, t, infer(env, a[i]));
     var type = tapp(T.TArray, t);
     e.meta.type = type;
     return type;
@@ -567,7 +590,7 @@ var infer = (env, e, nonGeneric) => {
 };
 
 var runInfer = (e, env) => {
-  var t = prune(infer(makeEnv(env), e, {}));
+  var t = prune(infer(makeEnv(env), e));
   E.each(e => e.meta.type = prune(e.meta.type), e);
   return t;
 };
@@ -583,6 +606,7 @@ var makeEnv = env_ => {
 module.exports = {
   infer: runInfer,
   makeEnv,
+  generalize,
 
   tapp,
   tarr,

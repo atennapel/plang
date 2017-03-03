@@ -99,6 +99,14 @@ var flattenTApp = t => {
   return {fn: t, args: []}
 };
 
+var TScheme = 'TScheme';
+var tscheme = (vars, type) => ({
+  tag: TScheme,
+  vars,
+  type,
+  kind: type.kind,
+});
+
 var effectToStringR = t =>
   t.tag === TRowExtend?
     [
@@ -148,6 +156,8 @@ var toString = t =>
   t.tag === TApp? tappToString(t.left, t.right, true):
   t.tag === TRowEmpty? '{}':
   t.tag === TRowExtend? '{' + rowToString(t, true) + '}':
+  t.tag === TScheme? 'forall ' + t.vars.map(toString).join(' ') +
+    ' . ' + toString(t.type):
   terr('Not a type tag: ' + t.tag);
 
 module.exports = {
@@ -187,6 +197,9 @@ module.exports = {
   TArray,
 
   flattenTApp,
+
+  TScheme,
+  tscheme,
 
   terr,
   toString,
