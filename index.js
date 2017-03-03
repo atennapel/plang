@@ -16,16 +16,20 @@ input.focus();
 input.onkeydown = function(keyEvent) {
 	var val = input.value;
 	var txt = (val || '').trim();
-	if(keyEvent.keyCode === 13 && keyEvent.ctrlKey && txt) {
-    keyEvent.preventDefault();
-		hist.push(val);
-		index = hist.length;
-		input.value = '';
-		var div = document.createElement('div');
-		div.innerHTML = val;
-		div.className = 'line input';
-		content.insertBefore(div, input);
-		getOutput(txt, addResult);
+	if(keyEvent.keyCode === 13) {
+		keyEvent.preventDefault();
+		if(keyEvent.ctrlKey) {	
+			input.value += '\n';
+		} else if(txt) {
+			hist.push(val);
+			index = hist.length;
+			input.value = '';
+			var div = document.createElement('div');
+			div.innerHTML = val;
+			div.className = 'line input';
+			content.insertBefore(div, input);
+			getOutput(txt, addResult);
+		}
 	} else if(keyEvent.keyCode === 38 && keyEvent.ctrlKey && index > 0) {
 		keyEvent.preventDefault();
 		input.value = hist[--index];
@@ -48,3 +52,4 @@ function addResult(msg, err) {
 	content.scrollTop = content.scrollHeight;
 	return divout;
 }
+
