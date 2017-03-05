@@ -40,7 +40,8 @@ var v = T.tvar('v', K.kstar, null, true);
 var w = T.tvar('w', K.kstar, null, true);
 
 var ioE = T.tvar('e', K.krow, obj('Log', true, 'Prompt', true, 'Alert', true));
-var fetchE = T.tvar('e', K.krow, obj('Fetch', true));
+var fetchE1 = T.tvar('e', K.krow, obj('Fetch', true));
+var fetchE2 = T.tvar('e', K.krow, obj('Fetch', true, 'Err', true));
 
 var env = {
   typings: mapo(tc.generalize, {
@@ -105,12 +106,23 @@ var env = {
       Alert: tarr(Str, Unit),
     }, ioE), w), T.teff(ioE, w)),
 
-    _fetch: tarr(T.teff(T.trow({
-      Fetch: tarr(Str, Str),
-    }, fetchE), w), T.teff(fetchE, w)),
+    _fetch: tarr(Str, T.teff(
+      T.trow({Fetch: tarr(Str, Str)}, T.tvar('e', K.krow, obj('Fetch', true))),
+      Str
+    )),
+    _doFetch: tarr(
+      T.teff(T.trow({
+        Fetch: tarr(Str, Str),
+      }, fetchE1), w),
+      T.teff(T.trow({
+        Err: tarr(Str, a),
+      }, fetchE2), w)
+    ),
 
     True: Bool,
     False: Bool,
+
+    strConcat: tarr(Str, Str, Str),
 
     arrSize: tarr(tapp(Arr, a, K.kstar), Float),
     arrMap: tarr(tarr(a, b), tapp(Arr, a, K.kstar), tapp(Arr, b, K.kstar)),

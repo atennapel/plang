@@ -244,6 +244,8 @@ function arrConcat(a) {return function(b) {
   return r;
 }}
 
+function strConcat(a) {return function(b) {return a + b}}
+
 // io
 var _log = _perform('Log');
 var _prompt = _perform('Prompt');
@@ -252,4 +254,14 @@ var _io = _handle({
   Log: s => k => {console.log(s); return k(_unit)},
   Alert: s => k => {alert(s); return k(_unit)},
   Prompt: s => k => k(prompt(s) || ''),
+});
+
+var _fetch = _perform('Fetch');
+var _doFetch = _handle({
+  Fetch: url => k => {
+    fetch(url, {mode: 'no-cors'})
+      .then(x => x.text())
+      .then(k)
+      .catch(e => _perform('Err')(''+e))
+  },
 });

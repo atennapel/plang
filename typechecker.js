@@ -1,6 +1,5 @@
 /*
 Typeclasses
-check letr and recursion in general
 Make parser async
 Case matching for numbers and unit and arrays
 Pattern matching
