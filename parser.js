@@ -117,6 +117,11 @@ function handleAppRR(r_) {
         null,
         r.slice(1).map((v, i, a) => i < a.length - 1? labelFrom(v): v)
       );
+    if(name === 'ifn')
+      return E.ilam.apply(
+        null,
+        r.slice(1).map((v, i, a) => i < a.length - 1? labelFrom(v): v)
+      );
     if(name === 'let')
       return E.lete.apply(
         null,
@@ -131,6 +136,20 @@ function handleAppRR(r_) {
           (v, i, a) => i % 2 === 0 && i < a.length - 1? labelFrom(v): v
         )
       );
+    if(name === 'ilet')
+      return E.ilet.apply(
+        null,
+        r.slice(1).map(
+          (v, i, a) => i % 2 === 0 && i < a.length - 1? labelFrom(v): v
+        )
+      );
+    if(name === 'iletr')
+      return E.iletr.apply(
+        null,
+        r.slice(1).map(
+          (v, i, a) => i % 2 === 0 && i < a.length - 1? labelFrom(v): v
+        )
+      );
     if(name === 'do')
       return E.doe.apply(
         null,
@@ -140,6 +159,8 @@ function handleAppRR(r_) {
       );
     if(name === 'if')
       return E.iff.apply(null, r.slice(1));
+    if(name === 'iapp')
+      return E.iapp.apply(null, r.slice(1));
 
     if(name === 'type')
       return handleAppRR([handleType(
@@ -385,6 +406,7 @@ function parse(s) {
       else if(c === '<' && s[i+1] === '-')
         r.push(op('<-', E.vr('do'), 3, true)), i++;
 
+      else if(c === '\\' && s[i+1] === '\\') r.push(E.vr('ifn')), i++;
       else if(c === '\\') r.push(E.vr('fn'));
 
       else if(c === '.' && s[i+1] === '+')
@@ -398,6 +420,8 @@ function parse(s) {
 
       else if(c === ':')
         r.push(op(':', E.vr('anno'), 2, true));
+      else if(c === '@')
+        r.push(op('@', E.vr('iapp'), 2, true));
       else if(c === '!')
         r.push(op('!', E.vr('perform'), 1, true));
 

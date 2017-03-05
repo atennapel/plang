@@ -142,6 +142,9 @@ var checkTypeR = (env, t) => {
     tapp(checkType(env, t.left), checkType(env, t.right));
   } else if(t.tag === T.TCon) {
     return checkCon(env, t);
+  } else if(t.tag === T.TImpl) {
+    t.impl = checkType(env, t.impl);
+    t.type = checkType(env, t.type);
   }
   return t;
 };
@@ -152,6 +155,7 @@ var occurs = (v, t_) => {
   if(v === t || (t.tag === T.TVar && v.id === t.id)) return true;
   if(t.tag === T.TApp) return occurs(v, t.left) || occurs(v, t.right);
   if(t.tag === T.TRowExtend) return occurs(v, t.type) || occurs(v, t.rest);
+  if(t.tag === T.TImpl) return occurs(v, t.impl) || occurs(v, t.type);
   return false;
 };
 
@@ -166,6 +170,9 @@ var free = (t_, vars_) => {
   } else if(t.tag === T.TRowExtend) {
     free(t.type, vars);
     free(t.rest, vars);
+  } else if(t.tag === T.TImpl) {
+    free(t.impl, vars);
+    free(t.type, vars);
   } else if(t.tag === T.TScheme) {
     free(t.type, vars);
     var tvars = t.vars;
@@ -189,6 +196,8 @@ var subst = (sub, t) => {
     return T.tapp(subst(sub, t.left), subst(sub, t.right), t.kind)
   } else if(t.tag === T.TRowExtend) {
     return T.trowextend(t.label, subst(sub, t.type), subst(sub, t.rest));
+  } else if(t.tag === T.TImpl) {
+    return T.timpl(subst(sub, t.impl), subst(sub, t.type));
   } else if(t.tag === T.TScheme) {
     var nsub = clone(sub);
     var vars = t.vars;
@@ -209,6 +218,9 @@ var prune = t => {
   } else if(t.tag === T.TRowExtend) {
     t.type = prune(t.type);
     t.rest = prune(t.rest);
+  } else if(t.tag === T.TImpl) {
+    t.impl = prune(t.impl);
+    t.type = prune(t.type);
   }
   return t;
 };
@@ -279,6 +291,28 @@ var bind = (v, t) => {
   return;
 };
 
+var checkImpl = (env, impl, type) => {
+  unify(env, impl.type, type);
+  var g = generalize(prune(impl.impl), env.typings);
+  var found = [];
+  for(var k in env.impl) {
+    var t = instantiate(env.typings[k]);
+    try {
+      unify(env, instantiate(g), t);
+      found.push(k);
+    } catch(e) {
+      if(!(e instanceof TypeError)) throw e;
+    }
+  }
+  if(found.length === 0)
+    T.terr('No instance found for ' + T.toString(impl.impl));
+  if(found.length > 1)
+    T.terr('More than one instance found for ' + T.toString(impl.impl) + ': ' +
+      found.join(', '));
+  unify(env, prune(impl.impl), instantiate(env.typings[found[0]]));
+  return found[0];
+};
+
 var unify = (env, a_, b_) => {
   var a = prune(a_);
   var b = prune(b_);
@@ -294,15 +328,20 @@ var unify = (env, a_, b_) => {
   else if(a.tag === T.TCon && b.tag === T.TCon && a.name === b.name) return;
   else if(a.tag === T.TApp && b.tag === T.TApp) {
     unify(env, a.left, b.left);
-    unify(env, prune(a.right), prune(b.right));
+    unify(env, a.right, b.right);
     return;
   } else if(a.tag === T.TRowExtend && b.tag === T.TRowExtend) {
     var r = rewriteRow(b, a.label);
     // var m = rowParts(a.rest);
-    unify(env, prune(a.type), prune(r.type));
-    unify(env, prune(a.rest), prune(r.rest));
+    unify(env, a.type, r.type);
+    unify(env, a.rest, r.rest);
     return;
-  }
+  } else if(a.tag === T.TImpl && b.tag === T.TImpl) {
+    unify(env, a.impl, b.impl);
+    unify(env, a.type, b.type);
+    return;
+  } else if(a.tag === T.TImpl) return checkImpl(env, a, b);
+  else if(b.tag === T.TImpl) return checkImpl(env, b, a);
   T.terr('Cannot unify ' + T.toString(a) + ' and ' + T.toString(b));
 };
 
@@ -360,17 +399,36 @@ var infer = (env, e) => {
   } else if(e.tag === E.App) {
     var fntype = infer(env, e.left);
     var argtype = infer(env, e.right);
-    var restype = T.tvar('r', K.kstar);
-    unify(env, fntype, tarr(argtype, restype));
-    var type = prune(restype);
-    e.meta.type = type;
-    return type;
+    if(e.meta.impl) {
+      var impltype;
+      if(fntype.tag === T.TImpl)
+        impltype = fntype;
+      else if(fntype.tag === T.TVar)
+        impltype = T.timpl(T.tvar('i', K.kstar), T.tvar('t', K.kstar));
+      else
+        T.terr(
+          'Cannot implicitly apply, left side is not an implicit function: ' +
+            E.toString(e));
+      unify(env, impltype.impl, argtype);
+      var type = prune(impltype.type);
+      e.meta.type = type;
+      return type;
+    } else {
+      var restype = T.tvar('r', K.kstar);
+      var impl = unify(env, fntype, tarr(argtype, restype));
+      var type = prune(restype);
+      e.meta.type = type;
+      e.meta.impl = impl;
+      return type;
+    }
   } else if(e.tag === E.Lam) {
     var argtype = T.tvar(e.arg, K.kstar);
     var newEnv = clone(env, 'typings',
       clone(env.typings, e.arg, T.tscheme([], argtype)));
     var restype = infer(newEnv, e.body);
-    var type = prune(tarr(argtype, restype));
+    var type = prune(e.meta.impl?
+      T.timpl(argtype, restype):
+      tarr(argtype, restype));
     e.meta.type = type;
     return type;
   } else if(e.tag === E.Let) {
@@ -394,6 +452,7 @@ var infer = (env, e) => {
       var valtype = infer(env, e.val);
       var newEnv = clone(env, 'typings',
         clone(env.typings, e.arg, generalize(valtype, env.typings)));
+      if(e.meta.impl) newEnv.impl[e.arg] = true;
       var res = infer(newEnv, e.body);
       var type = prune(res);
       e.meta.type = type;
@@ -402,10 +461,11 @@ var infer = (env, e) => {
       var valtype = T.tvar(e.arg, K.kstar);
       var newEnv = clone(env, 'typings',
         clone(env.typings, e.arg, T.tscheme([], valtype)));
+      if(e.meta.impl) newEnv.impl[e.arg] = true;
       var ivaltype = infer(newEnv, e.val);
       unify(env, ivaltype, valtype);
       var newNewEnv =
-        clone(env, 'typings',
+        clone(newEnv, 'typings',
           clone(env.typings, e.arg, generalize(prune(ivaltype), env.typings)));
       var res = infer(newNewEnv, e.body);
       var type = prune(res);
@@ -599,6 +659,7 @@ var makeEnv = env_ => {
   env.typings = env.typings || {};
   env.types = env.types || {};
   env.cases = env.cases || {};
+  env.impl = env.impl || {};
   return env;
 };
 

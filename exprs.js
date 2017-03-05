@@ -23,6 +23,13 @@ var app = function() {
   for(var i = 2; i < l; i++) c = app2(c, arguments[i]);
   return c;
 };
+var iapp = function() {
+  var l = arguments.length;
+  if(l < 2) serr('app needs at least two arguments');
+  var c = app2(arguments[0], arguments[1], {impl: true});
+  for(var i = 2; i < l; i++) c = app2(c, arguments[i], {impl: true});
+  return c;
+};
 
 var Lam = 'Lam';
 var lam2 = (arg, body, meta) => ({
@@ -36,6 +43,13 @@ var lam = function() {
   if(l < 2) serr('lam needs at least 2 arguments');
   var c = lam2(arguments[l - 2], arguments[l - 1]);
   for(var i = l - 3; i >= 0; i--) c = lam2(arguments[i], c);
+  return c;
+};
+var ilam = function() {
+  var l = arguments.length;
+  if(l < 2) serr('lam needs at least 2 arguments');
+  var c = lam2(arguments[l - 2], arguments[l - 1], {impl: true});
+  for(var i = l - 3; i >= 0; i--) c = lam2(arguments[i], c, {impl: true});
   return c;
 };
 
@@ -61,6 +75,23 @@ function letr() {
     {recursive: true});
   for(var i = l-4; i >= 0; i -= 2)
     c = lete3(arguments[i-1], arguments[i], c, {recursive: true});
+  return c;
+};
+function ilet() {
+  if(arguments.length < 3) serr('lete needs at least 3 arguments');
+  var l = arguments.length;
+  var c = lete3(arguments[l-3], arguments[l-2], arguments[l-1], {impl: true});
+  for(var i = l-4; i >= 0; i -= 2)
+    c = lete3(arguments[i-1], arguments[i], c, {impl: true});
+  return c;
+};
+function iletr() {
+  if(arguments.length < 3) serr('letr needs at least 3 arguments');
+  var l = arguments.length;
+  var c = lete3(arguments[l-3], arguments[l-2], arguments[l-1],
+    {recursive: true, impl: true});
+  for(var i = l-4; i >= 0; i -= 2)
+    c = lete3(arguments[i-1], arguments[i], c, {recursive: true, impl: true});
   return c;
 };
 function doe() {
@@ -221,10 +252,17 @@ var appToString = (left, right, toplevel) =>
   (toplevel? '': ')');
 var toString = e =>
   e.tag === Var? e.name:
-  e.tag === App? appToString(e.left, e.right, true):
-  e.tag === Lam? lamToString(e.arg, e.body, true):
+  e.tag === App?
+    e.meta.impl?
+      '(' + toString(e.left) + ' {' + toString(e.right) + '})':
+      appToString(e.left, e.right, true):
+  e.tag === Lam?
+    e.meta.impl?
+      '(\\' + e.arg + ' => ' + toString(e.body) + ')':
+      lamToString(e.arg, e.body, true):
   e.tag === Let? '(' +
-    (e.meta.effect? 'do ': 'let' + (e.meta.recursive? 'r ': ' ')) + e.arg +
+    (e.meta.effect? 'do ': (e.meta.impl? 'i': '') + 'let' +
+      (e.meta.recursive? 'r ': ' ')) + e.arg +
     ' = ' + toString(e.val) + ' in ' + toString(e.body) + ')':
   e.tag === If?
     '(if ' + toString(e.cond) + ' then ' +
@@ -298,13 +336,17 @@ module.exports = {
 
   App,
   app,
+  iapp,
 
   Lam,
   lam,
+  ilam,
 
   Let,
   lete,
   letr,
+  ilet,
+  iletr,
   doe,
 
   Type,

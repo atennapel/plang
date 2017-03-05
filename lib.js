@@ -185,6 +185,8 @@ function mul(a) {return function(b) {return a * b}}
 function div(a) {return function(b) {return a / b}}
 function rem(a) {return function(b) {return a % b}}
 
+function floatToString(n) {return '' + n}
+
 // array
 function arrSize(a) {return a.length}
 

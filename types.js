@@ -62,6 +62,14 @@ var trow = (o, v) => {
   return c;
 };
 
+var TImpl = 'TImpl';
+var timpl = (impl, type) => ({
+  tag: TImpl,
+  impl,
+  type,
+  kind: type.kind,
+});
+
 var TEff = tcon('Eff', K.karr(K.krow, K.kstar, K.kstar));
 var TArr = tcon('->', K.karr(K.kstar, K.kstar, K.kstar));
 var TRec = tcon('Rec', K.karr(K.krow, K.kstar));
@@ -158,6 +166,7 @@ var toString = t =>
   t.tag === TRowExtend? '{' + rowToString(t, true) + '}':
   t.tag === TScheme? 'forall ' + t.vars.map(toString).join(' ') +
     ' . ' + toString(t.type):
+  t.tag === TImpl? '(' + toString(t.impl) + ' => ' + toString(t.type) + ')':
   terr('Not a type tag: ' + t.tag);
 
 module.exports = {
@@ -178,6 +187,9 @@ module.exports = {
   trowextend,
 
   trow,
+
+  TImpl,
+  timpl,
 
   TUnit,
   isUnit,

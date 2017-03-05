@@ -72,6 +72,8 @@ var env = {
     rem: tarr(Float, tarr(Float, Float)),
     floor: tarr(Float, Float),
 
+    floatToString: tarr(Float, Str),
+
     ret: tarr(a, T.teff(T.tvar('e', K.krow), a)),
     pure: tarr(T.teff(T.trowempty, a), a),
 
@@ -148,6 +150,8 @@ var env = {
   cases: {
     True: 'Bool',
     False: 'Bool',
+  },
+  impl: {
   },
 };
 

@@ -4,7 +4,8 @@ function compile(e) {
   if(e.tag === E.Var)
     return e.name;
   if(e.tag === E.App)
-    return compile(e.left) + '(' + compile(e.right) + ')';
+    return compile(e.left) + (e.meta.impl? '(' + e.meta.impl + ')': '') +
+      '(' + compile(e.right) + ')';
   if(e.tag === E.Lam)
     return '(' + e.arg + ' => ' + compile(e.body) + ')';
   if(e.tag === E.Let)
