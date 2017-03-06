@@ -28,6 +28,7 @@ var Str = T.TStr;
 
 var Eff = T.TEff;
 var TArr = T.TArr;
+var Lazy = T.TLazy;
 var Rec = T.TRec;
 
 var Arr = T.TArray;
@@ -45,8 +46,13 @@ var fetchE2 = T.tvar('e', K.krow, obj('Fetch', true, 'Err', true));
 
 var env = {
   typings: mapo(tc.generalize, {
-    str: tarr(a, Str),
-    eq: tarr(a, tarr(a, Bool)),
+    _str: tarr(a, Str),
+    _eq: tarr(a, tarr(a, Bool)),
+
+    _gt: tarr(a, tarr(a, Bool)),
+    _lt: tarr(a, tarr(a, Bool)),
+    _geq: tarr(a, tarr(a, Bool)),
+    _leq: tarr(a, tarr(a, Bool)),
 
     id: tarr(a, a),
     k: tarr(a, tarr(b, a)),
@@ -55,24 +61,32 @@ var env = {
       tarr(b, tarr(a, c))
     ),
 
-    gt: tarr(a, tarr(a, Bool)),
-    lt: tarr(a, tarr(a, Bool)),
-    geq: tarr(a, tarr(a, Bool)),
-    leq: tarr(a, tarr(a, Bool)),
+    lazy: tarr(tarr(Unit, a), tapp(Lazy, a, K.kstar)),
+    force: tarr(tapp(Lazy, a, K.kstar), a),
 
     not: tarr(Bool, Bool),
     or: tarr(Bool, tarr(Bool, Bool)),
     and: tarr(Bool, tarr(Bool, Bool)),
 
-    neg: tarr(Float, Float),
-    add: tarr(Float, tarr(Float, Float)),
-    sub: tarr(Float, tarr(Float, Float)),
-    mul: tarr(Float, tarr(Float, Float)),
-    div: tarr(Float, tarr(Float, Float)),
-    rem: tarr(Float, tarr(Float, Float)),
-    floor: tarr(Float, Float),
+    negFloat: tarr(Float, Float),
+    addFloat: tarr(Float, tarr(Float, Float)),
+    subFloat: tarr(Float, tarr(Float, Float)),
+    mulFloat: tarr(Float, tarr(Float, Float)),
+    divFloat: tarr(Float, tarr(Float, Float)),
+    remFloat: tarr(Float, tarr(Float, Float)),
 
+    negInt: tarr(Int, Int),
+    addInt: tarr(Int, tarr(Int, Int)),
+    subInt: tarr(Int, tarr(Int, Int)),
+    mulInt: tarr(Int, tarr(Int, Int)),
+    divInt: tarr(Int, tarr(Int, Int)),
+    remInt: tarr(Int, tarr(Int, Int)),
+
+    floor: tarr(Float, Float),
+    intToFloat: tarr(Int, Float),
+    floatToInt: tarr(Float, Int),
     floatToString: tarr(Float, Str),
+    intToString: tarr(Int, Str),
 
     ret: tarr(a, T.teff(T.tvar('e', K.krow), a)),
     pure: tarr(T.teff(T.trowempty, a), a),
@@ -135,6 +149,7 @@ var env = {
     arrRange: tarr(Float, Float, Float, tapp(Arr, Float, K.kstar)),
     arrFilter: tarr(tarr(a, Bool), tapp(Arr, a, K.kstar), tapp(Arr, a, K.kstar)),
     arrJoin: tarr(Str, tapp(Arr, Str, K.kstar), Str),
+    _arrEq: tarr(tarr(a, a, Bool), tapp(Arr, a, K.kstar), tapp(Arr, a, K.kstar), Bool),
   }),
   types: {
     Bool: {con: Bool, args: [], cases: {True: [], False: []}},
@@ -147,6 +162,7 @@ var env = {
     Rec: {con: Rec, args: [], cases: {}},
 
     Array: {con: Arr, args: [], cases: {}},
+    Lazy: {con: Lazy, args: [], cases: {}},
   },
   cases: {
     True: 'Bool',

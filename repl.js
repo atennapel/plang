@@ -22,7 +22,7 @@ function _stringify(x) {
   ) return '' + x;
   if(t === 'string') return JSON.stringify(x);
   if(t === 'function') return '[Function]';
-  if(x._fc || x._fcr || x._fo) return x.toString(_stringify);
+  if(x._fc || x._fcr || x._fo || x._fl) return x.toString(_stringify);
   if(x instanceof Promise) return '(Promise)';
   if(Array.isArray(x))
     return '[' + x.map(_stringify).join(', ') + ']';
@@ -293,6 +293,10 @@ function _eval(s, cb) {
           cb(''+e, true);
         }
       }
+    } else if(action === '@prelude') {
+      _eval(':use @Prelude', cb);
+    } else if(action === 'prelude') {
+      _eval(':use lib/Prelude.l', cb);
     } else return cb('Invalid action: ' + action, true);
   } else {
     try {
@@ -308,5 +312,6 @@ function _eval(s, cb) {
 }
 
 module.exports = {
-  eval: _eval
+  eval: _eval,
+  init,
 };

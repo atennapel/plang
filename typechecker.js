@@ -1,6 +1,13 @@
 /*
+Test unit and (+ 1)
+add auto Lazy support
+
+Auto import Prelude
 Importing of types
 Module system!!
+
+Add pointed
+Maybe subclassing of instances?
 
 Make parser async
 Case matching for numbers and unit and arrays
@@ -651,7 +658,7 @@ var infer = (env, e) => {
     consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Int) {
-    var type = T.TFloat;
+    var type = T.TInt;
     e.meta.type = type;
     consumeConstraints(e, env);
     return type;

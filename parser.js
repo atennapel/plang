@@ -202,6 +202,11 @@ function handleAppRR(r_) {
       return handleAppRR([
         E.perform(labelFrom(r[1]))
       ].concat(r.slice(2)));
+
+    if(name === 'delay')
+      return handleAppRR([
+        E.app(E.vr('lazy'), E.lam('_', r[1]))
+      ].concat(r.slice(2)));
   }
   return E.app.apply(null, r);
 }
@@ -424,6 +429,8 @@ function parse(s) {
         r.push(op('@', E.vr('iapp'), 2, true));
       else if(c === '!')
         r.push(op('!', E.vr('perform'), 1, true));
+      else if(c === '&')
+        r.push(op('&', E.vr('delay'), 1, true));
 
       else if(c === '+')
         r.push(op('+', E.vr('add'), 2));

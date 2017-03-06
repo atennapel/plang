@@ -124,7 +124,7 @@ var True = true;
 var False = false;
 
 // util
-function str(x) {
+function _str(x) {
   var t = typeof x;
   if(
     t === 'number' ||
@@ -134,7 +134,8 @@ function str(x) {
   ) return '' + x;
   if(t === 'string') return x;
   if(t === 'function') return '[Function]';
-  if(x instanceof _Cont || x instanceof _Ret || x instanceof _FO)
+  if(x instanceof _Cont || x instanceof _Ret ||
+      x instanceof _FO || x instanceof _Lazy)
     return x.toString(str);
   if(x instanceof Promise)
     return '(Promise)';
@@ -145,7 +146,7 @@ function str(x) {
   return '{' + r.join(', ') + '}';
 }
 
-function eq(a) {return function(b) {
+function _eq(a) {return function(b) {
   var t = typeof a;
   if(
     t === 'number' ||
@@ -167,25 +168,35 @@ function eq(a) {return function(b) {
 }}
 
 // operators
-function gt(a) {return function(b) {return (a > b)}}
-function lt(a) {return function(b) {return (a < b)}}
-function geq(a) {return function(b) {return (a >= b)}}
-function leq(a) {return function(b) {return (a <= b)}}
+function _gt(a) {return function(b) {return (a > b)}}
+function _lt(a) {return function(b) {return (a < b)}}
+function _geq(a) {return function(b) {return (a >= b)}}
+function _leq(a) {return function(b) {return (a <= b)}}
 
 function not(a) {return (!(a))}
 function or(a) {return function(b) {return ((a) || (b))}}
 function and(a) {return function(b) {return ((a) && (b))}}
 
-function neg(a) {return -a}
+function negFloat(a) {return -a}
+function negInt(a) {return -(0|a)}
 function floor(a) {return Math.floor(a)}
 
-function add(a) {return function(b) {return a + b}}
-function sub(a) {return function(b) {return a - b}}
-function mul(a) {return function(b) {return a * b}}
-function div(a) {return function(b) {return a / b}}
-function rem(a) {return function(b) {return a % b}}
+function addFloat(a) {return function(b) {return a + b}}
+function subFloat(a) {return function(b) {return a - b}}
+function mulFloat(a) {return function(b) {return a * b}}
+function divFloat(a) {return function(b) {return a / b}}
+function remFloat(a) {return function(b) {return a % b}}
+
+function addInt(a) {return function(b) {return 0|a + b}}
+function subInt(a) {return function(b) {return 0|a - b}}
+function mulInt(a) {return function(b) {return 0|a * b}}
+function divInt(a) {return function(b) {return 0|a / b}}
+function remInt(a) {return function(b) {return 0|a % b}}
 
 function floatToString(n) {return '' + n}
+function intToString(n) {return '' + (0|n)}
+function floatToInt(n) {return 0|n}
+function intToFloat(n) {return n}
 
 // array
 function arrSize(a) {return a.length}
@@ -245,6 +256,14 @@ function arrAppend(a) {return function(b) {
   for(var i = 0; i < lb; i++) r[la + i] = b[i];
   return r;
 }}
+function _arrEq(eq) {return function(a) {return function(b) {
+  var l = a.length;
+  if(b.length !== l) return false;
+  if(l === 0) return true;
+  for(var i = 0; i < l; i++)
+    if(!eq(a[i])(b[i])) return false;
+  return true;
+}}}
 
 function arrJoin(s) {return function(a) {return a.join(s)}}
 
@@ -269,3 +288,23 @@ var _doFetch = _handle({
       .catch(e => _perform('Err')(''+e))
   },
 });
+
+// Lazy
+function _Lazy(fn) {
+  this._fl = true;
+  this.val = null;
+  this.forced = false;
+  this.fn = fn;
+}
+_Lazy.prototype.toString = function(str) {
+  return this.forced? '(Lazy ' + str(this.val) + ')': '(Lazy ...)';
+};
+_Lazy.prototype.force = function() {
+  if(!this.forced) {
+    this.forced = true;
+    this.val = this.fn(_unit);
+  }
+  return this.val;
+};
+function lazy(f) {return new _Lazy(f)}
+function force(l) {return l.force()}
