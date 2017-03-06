@@ -313,5 +313,4 @@ function _eval(s, cb) {
 
 module.exports = {
   eval: _eval,
-  init,
 };
