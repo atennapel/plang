@@ -396,8 +396,6 @@ var consumeConstraints = (e, env) => {
 
 var infer = (env, e) => {
   // console.log('infer: ' + E.toString(e));
-  env.constraints = env.constraints || [];
-  env.constraintsl = env.constraintsl || 0;
   if(e.tag === E.Var) {
     var type = getType(e.name, env.typings);
     e.meta.type = type;
@@ -719,8 +717,11 @@ var flatten = a =>
   a.map(x => Array.isArray(x)? flatten(x): [x])
     .reduce((a, b) => a.concat(b), []);
 
-var runInfer = (e, env) => {
-  var t = prune(infer(makeEnv(env), e));
+var runInfer = (e, env_) => {
+  var env = makeEnv(env_);
+  env.constraints = [];
+  env.constraintsl = 0;
+  var t = prune(infer(env, e));
   var solved = handleConstraints(env.constraints);
   E.each(e => {
     e.meta.type = prune(e.meta.type);
