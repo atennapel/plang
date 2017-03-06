@@ -6,6 +6,8 @@ Auto import Prelude
 Importing of types
 Module system!!
 
+Add Aff (or figure out asynchronous effects)
+
 Add pointed
 Maybe subclassing of instances?
 
