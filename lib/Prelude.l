@@ -223,9 +223,9 @@ ilet strOrd (Ord {
   append append
   unit unit
 
-  implicit_floatPlusMonod floatPlusMonoid
+  implicit_floatPlusMonoid floatPlusMonoid
   implicit_floatMultMonoid floatMultMonoid
-  implicit_intPlusMonod intPlusMonoid
+  implicit_intPlusMonoid intPlusMonoid
   implicit_intMultMonoid intMultMonoid
   implicit_strMonoid strMonoid
   implicit_arrMonoid arrMonoid
