@@ -279,16 +279,6 @@ var _io = _handle({
   Prompt: s => k => k(prompt(s) || ''),
 });
 
-var _fetch = _perform('Fetch');
-var _doFetch = _handle({
-  Fetch: url => k => {
-    fetch(url, {mode: 'no-cors'})
-      .then(x => x.text())
-      .then(k)
-      .catch(e => _perform('Err')(''+e))
-  },
-});
-
 // Lazy
 function _Lazy(fn) {
   this._fl = true;
@@ -307,4 +297,10 @@ _Lazy.prototype.force = function() {
   return this.val;
 };
 function lazy(f) {return new _Lazy(f)}
+function lazyOf(v) {
+  var l = new _Lazy(null);
+  l.val = v;
+  l.forced = true;
+  return l;
+}
 function force(l) {return l.force()}

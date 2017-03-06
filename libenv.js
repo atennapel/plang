@@ -41,8 +41,6 @@ var v = T.tvar('v', K.kstar, null, true);
 var w = T.tvar('w', K.kstar, null, true);
 
 var ioE = T.tvar('e', K.krow, obj('Log', true, 'Prompt', true, 'Alert', true));
-var fetchE1 = T.tvar('e', K.krow, obj('Fetch', true));
-var fetchE2 = T.tvar('e', K.krow, obj('Fetch', true, 'Err', true));
 
 var env = {
   typings: mapo(tc.generalize, {
@@ -62,6 +60,7 @@ var env = {
     ),
 
     lazy: tarr(tarr(Unit, a), tapp(Lazy, a, K.kstar)),
+    lazyOf: tarr(a, tapp(Lazy, a, K.kstar)),
     force: tarr(tapp(Lazy, a, K.kstar), a),
 
     not: tarr(Bool, Bool),
@@ -121,19 +120,6 @@ var env = {
       Prompt: tarr(Str, Str),
       Alert: tarr(Str, Unit),
     }, ioE), w), T.teff(ioE, w)),
-
-    _fetch: tarr(Str, T.teff(
-      T.trow({Fetch: tarr(Str, Str)}, T.tvar('e', K.krow, obj('Fetch', true))),
-      Str
-    )),
-    _doFetch: tarr(
-      T.teff(T.trow({
-        Fetch: tarr(Str, Str),
-      }, fetchE1), w),
-      T.teff(T.trow({
-        Err: tarr(Str, a),
-      }, fetchE2), w)
-    ),
 
     True: Bool,
     False: Bool,
