@@ -1,5 +1,4 @@
 /*
-Investigate Implicit inifite loops
 Make parser async
 Case matching for numbers and unit and arrays
 Pattern matching
@@ -309,7 +308,7 @@ var unify = (env, a_, b_) => {
   b = prune(b);
   if(a.tag === T.TCon) a = checkCon(env, a);
   if(b.tag === T.TCon) b = checkCon(env, b);
-  console.log('unify: ' + T.toString(a) + ' and ' + T.toString(b));
+  // console.log('unify: ' + T.toString(a) + ' and ' + T.toString(b));
   if(a.tag === T.TVar) return bind(a, b);
   else if(b.tag === T.TVar) return bind(b, a);
   else if(a.tag === T.TRowEmpty && b.tag === T.TRowEmpty) return;
@@ -391,7 +390,7 @@ var consumeConstraints = (e, env) => {
 };
 
 var infer = (env, e) => {
-  console.log('infer: ' + E.toString(e));
+  // console.log('infer: ' + E.toString(e));
   env.constraints = env.constraints || [];
   env.constraintsl = env.constraintsl || 0;
   if(e.tag === E.Var) {
@@ -465,8 +464,6 @@ var infer = (env, e) => {
       if(e.meta.impl)
         newEnv = clone(newEnv, 'impl', clone(newEnv.impl, e.arg, true));
       var ivaltype = infer(newEnv, e.val);
-      console.log(T.toString(prune(valtype)));
-      console.log(T.toString(prune(ivaltype)))
       unify(env, ivaltype, valtype);
       var newNewEnv =
         clone(newEnv, 'typings',
@@ -685,12 +682,12 @@ var handleConstraints = a => {
         env.constraintsl = 0;
         unify(env, instantiate(g), t);
         if(env.constraintsl > 0) {
-          found.push([k].concat(handleConstraints(env.constraints.slice(
+          found.push([k, env.constraints.slice(
             env.constraints.length - env.constraintsl,
             env.constraints.length
-          ))));
+          )]);
         } else {
-          found.push(k);
+          found.push([k]);
         }
       } catch(e) {
         if(!(e instanceof TypeError)) throw e;
@@ -700,19 +697,22 @@ var handleConstraints = a => {
       T.terr('No instance found for ' + T.toString(impl));
     if(found.length > 1)
       T.terr('More than one instance found for ' + T.toString(impl) + ': ' +
-        found.join(', '));
+        flatten(found).filter(x => typeof x === 'string').join(', '));
+    var f =
+      flatten(found[0].map(x => Array.isArray(x)? handleConstraints(x): x));
     unify(
       env,
       prune(impl),
-      instantiate(env.typings[Array.isArray(found[0])? found[0][0]: found[0]])
+      instantiate(env.typings[f[0]])
     );
-    results.push(found[0]);
+    results.push(f);
   }
   return results;
 };
 
 var flatten = a =>
-  a.map(x => Array.isArray(x)? x: [x]).reduce((a, b) => a.concat(b), []);
+  a.map(x => Array.isArray(x)? flatten(x): [x])
+    .reduce((a, b) => a.concat(b), []);
 
 var runInfer = (e, env) => {
   var t = prune(infer(makeEnv(env), e));
