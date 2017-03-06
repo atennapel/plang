@@ -1,10 +1,12 @@
 var E = require('./exprs');
+var T = require('./types');
 
 function compile(e) {
   if(e.tag === E.Var)
-    return e.name;
+    return e.name + e.meta.inst.map(x => '(' + x + ')');
   if(e.tag === E.App)
-    return compile(e.left) + (e.meta.impl? '(' + e.meta.impl + ')': '') +
+    return compile(e.left) +
+      e.meta.inst.map(x => '(' + x + ')') +
       '(' + compile(e.right) + ')';
   if(e.tag === E.Lam)
     return '(' + e.arg + ' => ' + compile(e.body) + ')';
@@ -31,7 +33,8 @@ function compile(e) {
         .join(';') +
       ';return(' + compile(e.body) + ')})()';
 
-  if(e.tag === E.Anno) return compile(e.expr);
+  if(e.tag === E.Anno)
+    return compile(e.expr) + e.meta.inst.map(x => '(' + x + ')');
 
   if(e.tag === E.Record)
     return '({' +

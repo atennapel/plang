@@ -253,9 +253,9 @@ var appToString = (left, right, toplevel) =>
 var toString = e =>
   e.tag === Var? e.name:
   e.tag === App?
-    e.meta.impl?
+    (e.meta.impl?
       '(' + toString(e.left) + ' {' + toString(e.right) + '})':
-      appToString(e.left, e.right, true):
+      '(' + toString(e.left) + ' ' + toString(e.right) + ')'):
   e.tag === Lam?
     e.meta.impl?
       '(\\' + e.arg + ' => ' + toString(e.body) + ')':
@@ -282,9 +282,11 @@ var toString = e =>
       Object.keys(e.map).map(k => k + ' -> ' + toString(e.map[k])).join(', ') +
     '}':
   e.tag === Type?
-    'type ' + e.name + (e.args.length > 0? e.args.join(' '): '') + ' = ' +
+    'type ' + e.name + (e.args.length > 0? ' ' +
+      e.args.map(T.toString).join(' '): '') + ' = ' +
     Object.keys(e.cases)
-      .map(k => k + e.cases[k].map(t => T.toString(t)).join(' ')).join(' | ') +
+      .map(k => k + ' ' +
+        e.cases[k].map(t => '(' + T.toString(t) + ')').join(' ')).join(' | ') +
     ' in ' + toString(e.body):
   e.tag === List? '[' + e.arr.map(toString).join(', ') + ']':
   e.tag === RecordEmpty? '{}':
@@ -310,6 +312,7 @@ var each = (f, e) =>
   e.tag === List? (e.arr.forEach(x => each(f, x)), f(e)):
   e.tag === Handle? (eachRecord(f, e.map), f(e)):
   e.tag === Case? (eachRecord(f, e.map), f(e)):
+  e.tag === Type? (each(f, e.body), f(e)):
   f(e);
 
 var mapRecord = (f, o) => {
@@ -324,6 +327,7 @@ var map = (f, e) =>
   e.tag === If?
     f(iff3(map(f, e.cond), map(f, e.bodyTrue), map(f, e.bodyFalse), e.meta)):
   e.tag === Anno? f(anno(map(f, e.expr), e.type, e.meta)):
+  e.tag === Type? f(type(e.name, e.args, e.cases, map(f, e.body), e.meta)):
   e.tag === Record? f(record(mapRecord(f, e.map), e.meta)):
   e.tag === List? f(list(e.arr.map(x => map(f, x)), e.meta)):
   e.tag === Handle? f(handle(mapRecord(f, e.map), e.meta)):

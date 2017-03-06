@@ -293,24 +293,12 @@ var bind = (v, t) => {
 
 var checkImpl = (env, impl, type) => {
   unify(env, impl.type, type);
-  var g = generalize(prune(impl.impl), env.typings);
-  var found = [];
-  for(var k in env.impl) {
-    var t = instantiate(env.typings[k]);
-    try {
-      unify(env, instantiate(g), t);
-      found.push(k);
-    } catch(e) {
-      if(!(e instanceof TypeError)) throw e;
-    }
-  }
-  if(found.length === 0)
-    T.terr('No instance found for ' + T.toString(impl.impl));
-  if(found.length > 1)
-    T.terr('More than one instance found for ' + T.toString(impl.impl) + ': ' +
-      found.join(', '));
-  unify(env, prune(impl.impl), instantiate(env.typings[found[0]]));
-  return found[0];
+  env.constraints.push({
+    type: impl.impl,
+    env,
+  });
+  env.constraintsl++;
+  return;
 };
 
 var unify = (env, a_, b_) => {
@@ -390,11 +378,26 @@ var getType = (name, env) => {
   return instantiate(env[name]);
 }
 
+var consumeConstraints = (e, env) => {
+  if(env.constraintsl > 0) {
+    e.meta.inst = env.constraints.slice(
+      env.constraints.length - env.constraintsl,
+      env.constraints.length
+    );
+    env.constraintsl = 0;
+  } else {
+    e.meta.inst = [];
+  }
+};
+
 var infer = (env, e) => {
   // console.log('infer: ' + E.toString(e));
+  env.constraints = env.constraints || [];
+  env.constraintsl = env.constraintsl || 0;
   if(e.tag === E.Var) {
     var type = getType(e.name, env.typings);
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.App) {
     var fntype = infer(env, e.left);
@@ -412,13 +415,14 @@ var infer = (env, e) => {
       unify(env, impltype.impl, argtype);
       var type = prune(impltype.type);
       e.meta.type = type;
+      consumeConstraints(e, env);
       return type;
     } else {
       var restype = T.tvar('r', K.kstar);
-      var impl = unify(env, fntype, tarr(argtype, restype));
+      unify(env, fntype, tarr(argtype, restype));
       var type = prune(restype);
       e.meta.type = type;
-      e.meta.impl = impl;
+      consumeConstraints(e, env);
       return type;
     }
   } else if(e.tag === E.Lam) {
@@ -430,6 +434,7 @@ var infer = (env, e) => {
       T.timpl(argtype, restype):
       tarr(argtype, restype));
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Let) {
     if(e.meta.effect) {
@@ -447,21 +452,25 @@ var infer = (env, e) => {
       unify(env, eff, reff);
       var type = prune(res);
       e.meta.type = type;
+      consumeConstraints(e, env);
       return type;
     } else if(!e.meta.recursive) {
       var valtype = infer(env, e.val);
       var newEnv = clone(env, 'typings',
         clone(env.typings, e.arg, generalize(valtype, env.typings)));
-      if(e.meta.impl) newEnv.impl[e.arg] = true;
+      if(e.meta.impl)
+        newEnv = clone(newEnv, 'impl', clone(newEnv.impl, e.arg, true));
       var res = infer(newEnv, e.body);
       var type = prune(res);
       e.meta.type = type;
+      consumeConstraints(e, env);
       return type;
     } else {
       var valtype = T.tvar(e.arg, K.kstar);
       var newEnv = clone(env, 'typings',
         clone(env.typings, e.arg, T.tscheme([], valtype)));
-      if(e.meta.impl) newEnv.impl[e.arg] = true;
+      if(e.meta.impl)
+        newEnv = clone(newEnv, 'impl', clone(newEnv.impl, e.arg, true));
       var ivaltype = infer(newEnv, e.val);
       unify(env, ivaltype, valtype);
       var newNewEnv =
@@ -470,6 +479,7 @@ var infer = (env, e) => {
       var res = infer(newNewEnv, e.body);
       var type = prune(res);
       e.meta.type = type;
+      consumeConstraints(e, env);
       return type;
     }
   } else if(e.tag === E.If) {
@@ -480,6 +490,7 @@ var infer = (env, e) => {
     unify(env, ctrue, cfalse);
     var type = prune(ctrue);
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Anno) {
     var etype = checkType(env, e.type);
@@ -487,34 +498,40 @@ var infer = (env, e) => {
     unify(env, etype, itype);
     var type = prune(etype);
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Record) {
     var nmap = {};
     for(var k in e.map) nmap[k] = infer(env, e.map[k]);
     var type = prune(treco(nmap));
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.RecordEmpty) {
     var type = T.TUnit;
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.RecordSelect) {
     var t = T.tvar('t', K.kstar);
     var r = T.tvar('r', K.krow, obj(e.label, true));
     var type = tarr(trec(T.trowextend(e.label, t, r)), t);
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.RecordExtend) {
     var t = T.tvar('t', K.kstar);
     var r = T.tvar('r', K.krow, obj(e.label, true));
     var type = tarr(t, tarr(trec(r), trec(T.trowextend(e.label, t, r))));
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.RecordRestrict) {
     var t = T.tvar('t', K.kstar);
     var r = T.tvar('r', K.krow, obj(e.label, true));
     var type = tarr(trec(T.trowextend(e.label, t, r)), trec(r));
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.RecordUpdate) {
     var a = T.tvar('a', K.kstar);
@@ -528,6 +545,7 @@ var infer = (env, e) => {
       )
     );
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Perform) {
     var a = T.tvar('a', K.kstar, null, true);
@@ -539,6 +557,7 @@ var infer = (env, e) => {
     );
     var type = tarr(a, T.teff(eff, b));
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Handle) {
     var a = T.tvar('a', K.kstar, null, true);
@@ -563,6 +582,7 @@ var infer = (env, e) => {
     if(!retfound) unify(env, a, b);
     var type = prune(tarr(T.teff(d, a), bc));
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Case) {
     var cases = e.map;
@@ -607,6 +627,7 @@ var infer = (env, e) => {
     }
     var type = tarr(prune(t), prune(r));
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Type) {
     if(env.types[e.name]) T.terr('Duplicate type definition: ' + e.name);
@@ -624,6 +645,7 @@ var infer = (env, e) => {
     env.types[e.name].con = prune(con);
     var type = prune(infer(clone(env, 'typings', typings), e.body));
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.List) {
     var t = T.tvar('t', K.kstar);
@@ -631,26 +653,62 @@ var infer = (env, e) => {
       unify(env, t, infer(env, a[i]));
     var type = tapp(T.TArray, t);
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Int) {
     var type = T.TFloat;
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Float) {
     var type = T.TFloat;
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.Str) {
     var type = T.TStr;
     e.meta.type = type;
+    consumeConstraints(e, env);
     return type;
   }
   T.terr('Cannot infer expr tag: ' + e.tag);
 };
 
+var handleConstraints = a => {
+  var results = [];
+  for(var i = 0, l = a.length; i < l; i++) {
+    var c = a[i];
+    var impl = prune(c.type);
+    var env = c.env;
+    var g = generalize(prune(impl), env.typings);
+    var found = [];
+    for(var k in env.impl) {
+      var t = instantiate(env.typings[k]);
+      try {
+        unify(env, instantiate(g), t);
+        found.push(k);
+      } catch(e) {
+        if(!(e instanceof TypeError)) throw e;
+      }
+    }
+    if(found.length === 0)
+      T.terr('No instance found for ' + T.toString(impl));
+    if(found.length > 1)
+      T.terr('More than one instance found for ' + T.toString(impl) + ': ' +
+        found.join(', '));
+    unify(env, prune(impl), instantiate(env.typings[found[0]]));
+    results.push(found[0]);
+  }
+  return results;
+};
+
 var runInfer = (e, env) => {
   var t = prune(infer(makeEnv(env), e));
-  E.each(e => e.meta.type = prune(e.meta.type), e);
+  var solved = handleConstraints(env.constraints);
+  E.each(e => {
+    e.meta.type = prune(e.meta.type);
+    e.meta.inst = e.meta.inst.map(i => solved[env.constraints.indexOf(i)]);
+  }, e);
   return t;
 };
 
