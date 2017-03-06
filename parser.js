@@ -448,6 +448,8 @@ function parse(s) {
       else if(c === '<' && s[i+1] === '=')
         r.push(op('<=', E.vr('leq'), 2)), i++;
       else if(c === '>') r.push(op('>', E.vr('gt'), 2));
+      else if(c === '<' && s[i+1] === '>')
+        r.push(op('<>', E.vr('append'), 2)), i++;
       else if(c === '<') r.push(op('<', E.vr('lt'), 2));
 
       else if(c === '=')

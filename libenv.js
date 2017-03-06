@@ -124,16 +124,17 @@ var env = {
     True: Bool,
     False: Bool,
 
-    strConcat: tarr(Str, Str, Str),
+    strAppend: tarr(Str, Str, Str),
 
     arrSize: tarr(tapp(Arr, a, K.kstar), Float),
     arrMap: tarr(tarr(a, b), tapp(Arr, a, K.kstar), tapp(Arr, b, K.kstar)),
     arrFoldl: tarr(tarr(b, a, b), b, tapp(Arr, a, K.kstar), b),
     arrFoldr: tarr(tarr(b, a, b), b, tapp(Arr, a, K.kstar), b),
-    arrConcat: tarr(tapp(Arr, a, K.kstar), tapp(Arr, a, K.kstar), tapp(Arr, a, K.kstar)),
+    arrAppend: tarr(tapp(Arr, a, K.kstar), tapp(Arr, a, K.kstar), tapp(Arr, a, K.kstar)),
     arrSingleton: tarr(a, tapp(Arr, a, K.kstar)),
     arrRange: tarr(Float, Float, Float, tapp(Arr, Float, K.kstar)),
     arrFilter: tarr(tarr(a, Bool), tapp(Arr, a, K.kstar), tapp(Arr, a, K.kstar)),
+    arrJoin: tarr(Str, tapp(Arr, Str, K.kstar), Str),
   }),
   types: {
     Bool: {con: Bool, args: [], cases: {True: [], False: []}},

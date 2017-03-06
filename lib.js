@@ -235,7 +235,7 @@ function arrFoldr(f) {return function(v) {return function(a) {
   return c;
 }}}
 
-function arrConcat(a) {return function(b) {
+function arrAppend(a) {return function(b) {
   var la = a.length;
   if(la === 0) return b;
   var lb = b.length;
@@ -246,7 +246,9 @@ function arrConcat(a) {return function(b) {
   return r;
 }}
 
-function strConcat(a) {return function(b) {return a + b}}
+function arrJoin(s) {return function(a) {return a.join(s)}}
+
+function strAppend(a) {return function(b) {return a + b}}
 
 // io
 var _log = _perform('Log');

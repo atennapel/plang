@@ -161,7 +161,7 @@ var record = (map, meta) => ({
 var reco = record;
 var reca = function(a) {
   var l = a.length;
-  if(l % 2 !== 0) serr('Invalid number of arguments for rec');
+  if(l % 2 !== 0) serr('Invalid number of arguments for reca');
   var c = {};
   for(var i = 0; i < l; i += 2) c[a[i]] = a[i + 1];
   return record(c);
