@@ -325,7 +325,15 @@ var unify = (env, a_, b_) => {
   // console.log('unify: ' + T.toString(a) + ' and ' + T.toString(b));
   if(a.tag === T.TVar) return bind(a, b);
   else if(b.tag === T.TVar) return bind(b, a);
-  else if(a.tag === T.TRowEmpty && b.tag === T.TRowEmpty) return;
+  else if(T.isLazy(a) && !T.isLazy(b)) {
+    unify(env, a.right, b);
+    env.lazy = true;
+    return;
+  } else if(!T.isLazy(a) && T.isLazy(b)) {
+    unify(env, a, b.right);
+    env.force = true;
+    return;
+  } else if(a.tag === T.TRowEmpty && b.tag === T.TRowEmpty) return;
   else if(a.tag === T.TCon && b.tag === T.TCon && a.name === b.name) return;
   else if(a.tag === T.TApp && b.tag === T.TApp) {
     unify(env, a.left, b.left);
@@ -400,6 +408,14 @@ var consumeConstraints = (e, env) => {
     env.constraintsl = 0;
   } else {
     e.meta.inst = [];
+  }
+  if(env.force) {
+    env.force = false;
+    e.meta.force = true;
+  }
+  if(env.lazy) {
+    env.lazy = false;
+    e.meta.lazy = true;
   }
 };
 
@@ -730,6 +746,8 @@ var runInfer = (e, env_) => {
   var env = makeEnv(env_);
   env.constraints = [];
   env.constraintsl = 0;
+  env.lazy = false;
+  env.force = false;
   var t = prune(infer(env, e));
   var solved = handleConstraints(env.constraints);
   E.each(e => {

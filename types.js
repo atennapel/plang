@@ -86,6 +86,7 @@ var TFloat = tcon('Float', K.kstar);
 var TStr = tcon('Str', K.kstar);
 var TArray = tcon('Array', K.karr(K.kstar, K.kstar));
 var TLazy = tcon('Lazy', K.karr(K.kstar, K.kstar));
+var isLazy = t => t.tag === TApp && t.left === TLazy;
 
 var tarr2 = (a, b) => tapp(tapp(TArr, a, K.karr(K.kstar, K.kstar)), b, K.kstar);
 var tarr = function() {
@@ -209,6 +210,7 @@ module.exports = {
   TStr,
   TArray,
   TLazy,
+  isLazy,
 
   flattenTApp,
 

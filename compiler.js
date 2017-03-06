@@ -7,7 +7,11 @@ function compile(e) {
   if(e.tag === E.App)
     return compile(e.left) +
       e.meta.inst.reduceRight((b, a) => '(' + a + b + ')', '') +
-      '(' + compile(e.right) + ')';
+      '(' +
+        (e.meta.lazy? 'lazy(_ => ' + compile(e.right) + ')':
+          e.meta.force? 'force(' + compile(e.right) + ')':
+          compile(e.right)) +
+      ')';
   if(e.tag === E.Lam)
     return '(' + e.arg + ' => ' + compile(e.body) + ')';
   if(e.tag === E.Let)
