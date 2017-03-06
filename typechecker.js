@@ -1,5 +1,5 @@
 /*
-Typeclasses
+Investigate Implicit inifite loops
 Make parser async
 Case matching for numbers and unit and arrays
 Pattern matching
@@ -309,7 +309,7 @@ var unify = (env, a_, b_) => {
   b = prune(b);
   if(a.tag === T.TCon) a = checkCon(env, a);
   if(b.tag === T.TCon) b = checkCon(env, b);
-  // console.log('unify: ' + T.toString(a) + ' and ' + T.toString(b));
+  console.log('unify: ' + T.toString(a) + ' and ' + T.toString(b));
   if(a.tag === T.TVar) return bind(a, b);
   else if(b.tag === T.TVar) return bind(b, a);
   else if(a.tag === T.TRowEmpty && b.tag === T.TRowEmpty) return;
@@ -391,7 +391,7 @@ var consumeConstraints = (e, env) => {
 };
 
 var infer = (env, e) => {
-  // console.log('infer: ' + E.toString(e));
+  console.log('infer: ' + E.toString(e));
   env.constraints = env.constraints || [];
   env.constraintsl = env.constraintsl || 0;
   if(e.tag === E.Var) {
@@ -403,15 +403,8 @@ var infer = (env, e) => {
     var fntype = infer(env, e.left);
     var argtype = infer(env, e.right);
     if(e.meta.impl) {
-      var impltype;
-      if(fntype.tag === T.TImpl)
-        impltype = fntype;
-      else if(fntype.tag === T.TVar)
-        impltype = T.timpl(T.tvar('i', K.kstar), T.tvar('t', K.kstar));
-      else
-        T.terr(
-          'Cannot implicitly apply, left side is not an implicit function: ' +
-            E.toString(e));
+      unify(env, fntype, T.timpl(T.tvar('i', K.kstar), T.tvar('t', K.kstar)))
+      var impltype = prune(fntype);
       unify(env, impltype.impl, argtype);
       var type = prune(impltype.type);
       e.meta.type = type;
@@ -472,6 +465,8 @@ var infer = (env, e) => {
       if(e.meta.impl)
         newEnv = clone(newEnv, 'impl', clone(newEnv.impl, e.arg, true));
       var ivaltype = infer(newEnv, e.val);
+      console.log(T.toString(prune(valtype)));
+      console.log(T.toString(prune(ivaltype)))
       unify(env, ivaltype, valtype);
       var newNewEnv =
         clone(newEnv, 'typings',
@@ -680,13 +675,23 @@ var handleConstraints = a => {
     var c = a[i];
     var impl = prune(c.type);
     var env = c.env;
-    var g = generalize(prune(impl), env.typings);
+    var g = generalize(prune(impl));
     var found = [];
+    var constraints = env.constraints.slice(0);
     for(var k in env.impl) {
       var t = instantiate(env.typings[k]);
       try {
+        env.constraints = constraints;
+        env.constraintsl = 0;
         unify(env, instantiate(g), t);
-        found.push(k);
+        if(env.constraintsl > 0) {
+          found.push([k].concat(handleConstraints(env.constraints.slice(
+            env.constraints.length - env.constraintsl,
+            env.constraints.length
+          ))));
+        } else {
+          found.push(k);
+        }
       } catch(e) {
         if(!(e instanceof TypeError)) throw e;
       }
@@ -696,18 +701,27 @@ var handleConstraints = a => {
     if(found.length > 1)
       T.terr('More than one instance found for ' + T.toString(impl) + ': ' +
         found.join(', '));
-    unify(env, prune(impl), instantiate(env.typings[found[0]]));
+    unify(
+      env,
+      prune(impl),
+      instantiate(env.typings[Array.isArray(found[0])? found[0][0]: found[0]])
+    );
     results.push(found[0]);
   }
   return results;
 };
+
+var flatten = a =>
+  a.map(x => Array.isArray(x)? x: [x]).reduce((a, b) => a.concat(b), []);
 
 var runInfer = (e, env) => {
   var t = prune(infer(makeEnv(env), e));
   var solved = handleConstraints(env.constraints);
   E.each(e => {
     e.meta.type = prune(e.meta.type);
-    e.meta.inst = e.meta.inst.map(i => solved[env.constraints.indexOf(i)]);
+    e.meta.inst = flatten(
+      e.meta.inst.map(i => solved[env.constraints.indexOf(i)])
+    );
   }, e);
   return t;
 };

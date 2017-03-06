@@ -3,10 +3,10 @@ var T = require('./types');
 
 function compile(e) {
   if(e.tag === E.Var)
-    return e.name + e.meta.inst.map(x => '(' + x + ')');
+    return e.name + e.meta.inst.reduceRight((b, a) => '(' + a + b + ')', '');
   if(e.tag === E.App)
     return compile(e.left) +
-      e.meta.inst.map(x => '(' + x + ')') +
+      e.meta.inst.reduceRight((b, a) => '(' + a + b + ')', '') +
       '(' + compile(e.right) + ')';
   if(e.tag === E.Lam)
     return '(' + e.arg + ' => ' + compile(e.body) + ')';
@@ -34,7 +34,8 @@ function compile(e) {
       ';return(' + compile(e.body) + ')})()';
 
   if(e.tag === E.Anno)
-    return compile(e.expr) + e.meta.inst.map(x => '(' + x + ')');
+    return compile(e.expr) +
+      e.meta.inst.reduceRight((b, a) => '(' + a + b + ')', '');
 
   if(e.tag === E.Record)
     return '({' +
