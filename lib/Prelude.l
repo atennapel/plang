@@ -77,19 +77,19 @@ let append (\\d -> case {Monoid (\x -> x.append)} d);
 let unit (\\d -> case {Monoid (\x -> x.unit)} d);
 
 ilet floatPlusMonoid (Monoid {
-  append ((+)@floatNum)
-  unit 0.
+  append addFloat
+  unit 0.0
 });
 ilet floatMultMonoid (Monoid {
-  append ((*)@floatNum)
-  unit 1.
+  append mulFloat
+  unit 1.0
 });
 ilet intPlusMonoid (Monoid {
-  append ((+)@intNum)
+  append addInt
   unit 0
 });
 ilet intMultMonoid (Monoid {
-  append ((*)@intNum)
+  append mulInt
   unit 1
 });
 ilet strMonoid (Monoid {
