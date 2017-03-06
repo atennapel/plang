@@ -84,7 +84,8 @@ function _eval(s, cb) {
       } catch(e) {
         return cb(''+e, true);
       }
-    } else if(action === 'let' || action === 'letr') {
+    } else if(action === 'let' || action === 'letr'
+            || action === 'ilet' || action === 'iletr') {
       var name = s.split(/\s+/g)[0];
       var s = s.slice(name.length).trim();
       if(name.length === 0 || s.length === 0)
@@ -96,6 +97,8 @@ function _eval(s, cb) {
         var _evalled = eval(_compiled);
         global[name] = _evalled;
         _env.typings[name] = _tc.generalize(_type);
+        if(action[0] === 'i')
+          _env.impl[name] = true;
         return cb(_stringify(_evalled) + ' : ' + _T.toString(_type));
       } catch(e) {
         return cb(''+e, true);
