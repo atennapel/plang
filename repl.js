@@ -194,9 +194,16 @@ function _eval(s, cb) {
                 var _c = _type.right;
                 while(_c.tag === _T.TRowExtend) {
                   var _label = _c.label;
+                  var implicit = false;
+                  if(_label.slice(0, 9) === 'implicit_') {
+                    implicit = true;
+                    _label = _label.slice(9);
+                  }
                   var _ctype = _c.type;
-                  global[_label] = _evalled[_label];
+                  global[_label] =
+                    _evalled[(implicit? 'implicit_': '') + _label];
                   _env.typings[_label] = _tc.generalize(_ctype);
+                  if(implicit) _env.impl[_label] = true;
                   _c = _c.rest;
                 }
 
@@ -218,8 +225,25 @@ function _eval(s, cb) {
               var _type = _tc.infer(_expr, _env);
               var _compiled = _compile(_expr);
               var _evalled = eval(_compiled);
-              global[name] = _evalled;
-              _env.typings[name] = _tc.generalize(_type);
+
+              if(_type.tag !== _T.TApp || _type.left !== _T.TRec)
+                return cb('Cannot use this module', true);
+
+              var _c = _type.right;
+              while(_c.tag === _T.TRowExtend) {
+                var _label = _c.label;
+                var implicit = false;
+                if(_label.slice(0, 9) === 'implicit_') {
+                  implicit = true;
+                  _label = _label.slice(9);
+                }
+                var _ctype = _c.type;
+                global[_label] = _evalled[(implicit? 'implicit_': '') + _label];
+                _env.typings[_label] = _tc.generalize(_ctype);
+                if(implicit) _env.impl[_label] = true;
+                _c = _c.rest;
+              }
+
               return cb(_T.toString(_type));
             } catch(e) {
               return cb(''+e, true);

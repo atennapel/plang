@@ -1,9 +1,14 @@
 /*
+Importing of types
+Module system!!
+
 Make parser async
 Case matching for numbers and unit and arrays
 Pattern matching
 Handle js reserved names
 aliases
+
+Make actual parser
 */
 var K = require('./kinds');
 var T = require('./types');
