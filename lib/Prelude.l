@@ -74,6 +74,8 @@ letr listFoldr (\f v -> case {
 letr listAppend
   (case {Nil (\_ -> id) Cons (\h t x -> Cons h (listAppend t x))});
 
+let listSingleton (\x -> Cons x Nil);
+
 ;; Monoid
 type Monoid [t] {
   Monoid [(Rec {
@@ -150,6 +152,17 @@ let map (\\d -> case {Functor id} d);
 
 ilet arrFunctor (Functor arrMap);
 ilet listFunctor (Functor listMap);
+
+;; Pointed
+type Pointed [f] {
+  Pointed [(Arr t (f t))]
+};
+let point (\\d -> case {Pointed id} d);
+
+ilet arrPointed (Pointed arrSingleton);
+ilet listPointed (Pointed listSingleton);
+ilet lazyPointed (Pointed lazyOf);
+ilet effPointed (Pointed ret);
 
 ;; Foldable
 type Foldable [f] {
@@ -273,4 +286,12 @@ ilet strOrd (Ord {
   implicit_intOrd intOrd
   implicit_floatOrd floatOrd
   implicit_strOrd strOrd
+
+  Pointed Pointed
+  point point
+
+  implicit_arrPointed arrPointed
+  implicit_listPointed listPointed
+  implicit_lazyPointed lazyPointed
+  implicit_effPointed effPointed
 }

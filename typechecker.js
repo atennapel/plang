@@ -1,5 +1,6 @@
 /*
 Fix (unit <> "a")
+Fix nested vs multiple implicits
 
 skip implicit argument
 
@@ -9,7 +10,6 @@ Module system!!
 
 Add Aff (or figure out asynchronous effects)
 
-Add pointed
 Maybe subclassing of instances?
 
 Make parser async
@@ -327,11 +327,13 @@ var unify = (env, a_, b_) => {
   // console.log('unify: ' + T.toString(a) + ' and ' + T.toString(b));
   if(a.tag === T.TVar) return bind(a, b);
   else if(b.tag === T.TVar) return bind(b, a);
-  else if(T.isLazy(a) && !T.isLazy(b)) {
+  else if(T.isLazy(a) && !T.isLazy(b) &&
+      !(b.tag === T.TApp && b.left.tag === T.TVar)) {
     unify(env, a.right, b);
     env.lazy = true;
     return;
-  } else if(!T.isLazy(a) && T.isLazy(b)) {
+  } else if(!T.isLazy(a) && T.isLazy(b)
+      && !(a.tag === T.TApp && a.left.tag === T.TVar)) {
     unify(env, a, b.right);
     env.force = true;
     return;
