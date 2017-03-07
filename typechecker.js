@@ -740,7 +740,7 @@ var handleConstraints = a => {
       T.terr('No instance found for ' + T.toString(impl));
     if(found.length > 1)
       T.terr('More than one instance found for ' + T.toString(impl) + ': ' +
-        flatten(found).filter(x => typeof x === 'string').join(', '));
+        found.map(x => x.inst).join(', '));
     unify(
       env,
       prune(impl),
