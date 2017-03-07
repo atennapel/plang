@@ -7,6 +7,9 @@ type Num [t] {
     mul (Arr t (Arr t t))
     div (Arr t (Arr t t))
     rem (Arr t (Arr t t))
+
+    one t
+    zero t
   })]
 };
 
@@ -16,6 +19,8 @@ let sub (\\d -> case {Num (\x -> x.sub)} d);
 let mul (\\d -> case {Num (\x -> x.mul)} d);
 let div (\\d -> case {Num (\x -> x.div)} d);
 let rem (\\d -> case {Num (\x -> x.rem)} d);
+let one (\\d -> case {Num (\x -> x.one)} d);
+let zero (\\d -> case {Num (\x -> x.zero)} d);
 
 ilet intNum (Num {
   neg negInt
@@ -24,6 +29,8 @@ ilet intNum (Num {
   mul mulInt
   div divInt
   rem remInt
+  one 1
+  zero 0
 });
 ilet floatNum (Num {
   neg negFloat
@@ -32,6 +39,8 @@ ilet floatNum (Num {
   mul mulFloat
   div divFloat
   rem remFloat
+  one 1.0
+  zero 0.0
 });
 
 ;; List

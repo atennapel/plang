@@ -1,6 +1,8 @@
 /*
 Fix (unit <> "a")
 
+skip implicit argument
+
 Auto import Prelude
 Importing of types
 Module system!!
