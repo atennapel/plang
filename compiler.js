@@ -1,16 +1,24 @@
 var E = require('./exprs');
 var T = require('./types');
 
+function reduceInst(e, leftSide) {
+  return leftSide?
+    e.meta.inst.filter(x => x.leftSide).map(x => x.inst).reduceRight((b, a) => '(' + a + b + ')', ''):
+    e.meta.inst.filter(x => !x.leftSide).map(x => x.inst).reduceRight((b, a) => '(' + a + b + ')', '');
+}
+
 function compile(e) {
   if(e.tag === E.Var)
-    return e.name + e.meta.inst.reduceRight((b, a) => '(' + a + b + ')', '');
+    return e.name + reduceInst(e, true);
   if(e.tag === E.App)
     return compile(e.left) +
-      e.meta.inst.reduceRight((b, a) => '(' + a + b + ')', '') +
+      reduceInst(e, true) +
       '(' +
-        (e.meta.lazy? 'lazy(_ => ' + compile(e.right) + ')':
-          e.meta.force? 'force(' + compile(e.right) + ')':
-          compile(e.right)) +
+        (e.meta.lazy? 'lazy(_ => ' + compile(e.right) +
+          reduceInst(e, false) + ')':
+          e.meta.force? 'force(' + compile(e.right) +
+            reduceInst(e, false) + ')':
+          compile(e.right) + reduceInst(e, false)) +
       ')';
   if(e.tag === E.Lam)
     return '(' + e.arg + ' => ' + compile(e.body) + ')';
@@ -38,8 +46,7 @@ function compile(e) {
       ';return(' + compile(e.body) + ')})()';
 
   if(e.tag === E.Anno)
-    return compile(e.expr) +
-      e.meta.inst.reduceRight((b, a) => '(' + a + b + ')', '');
+    return compile(e.expr) + reduceInst(e, false);
 
   if(e.tag === E.Record)
     return '({' +

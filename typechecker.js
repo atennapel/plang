@@ -1,6 +1,5 @@
 /*
-Test unit and (+ 1)
-add auto Lazy support
+Fix (unit <> "a")
 
 Auto import Prelude
 Importing of types
@@ -304,11 +303,12 @@ var bind = (v, t) => {
   return;
 };
 
-var checkImpl = (env, impl, type) => {
+var checkImpl = (env, impl, type, leftSide) => {
   unify(env, impl.type, type);
   env.constraints.push({
     type: impl.impl,
     env,
+    leftSide,
   });
   env.constraintsl++;
   return;
@@ -349,8 +349,8 @@ var unify = (env, a_, b_) => {
     unify(env, a.impl, b.impl);
     unify(env, a.type, b.type);
     return;
-  } else if(a.tag === T.TImpl) return checkImpl(env, a, b);
-  else if(b.tag === T.TImpl) return checkImpl(env, b, a);
+  } else if(a.tag === T.TImpl) return checkImpl(env, a, b, true);
+  else if(b.tag === T.TImpl) return checkImpl(env, b, a, false);
   T.terr('Cannot unify ' + T.toString(a) + ' and ' + T.toString(b));
 };
 
@@ -752,9 +752,10 @@ var runInfer = (e, env_) => {
   var solved = handleConstraints(env.constraints);
   E.each(e => {
     e.meta.type = prune(e.meta.type);
-    e.meta.inst = flatten(
-      e.meta.inst.map(i => solved[env.constraints.indexOf(i)])
-    );
+    e.meta.inst = flatten(e.meta.inst.map(i => ({
+      leftSide: i.leftSide,
+      inst: solved[env.constraints.indexOf(i)],
+    })));
   }, e);
   return t;
 };
