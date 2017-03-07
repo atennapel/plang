@@ -206,6 +206,8 @@ ilet strOrd (Ord {
   mul mul
   div div
   rem rem
+  one one
+  zero zero
 
   implicit_intNum intNum
   implicit_floatNum floatNum
