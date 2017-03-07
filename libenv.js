@@ -62,6 +62,7 @@ var env = {
     lazy: tarr(tarr(Unit, a), tapp(Lazy, a, K.kstar)),
     lazyOf: tarr(a, tapp(Lazy, a, K.kstar)),
     force: tarr(tapp(Lazy, a, K.kstar), a),
+    lazyMap: tarr(tarr(a, b), tapp(Lazy, a, K.kstar), tapp(Lazy, b, K.kstar)),
 
     not: tarr(Bool, Bool),
     or: tarr(Bool, tarr(Bool, Bool)),

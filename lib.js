@@ -304,3 +304,6 @@ function lazyOf(v) {
   return l;
 }
 function force(l) {return l.force()}
+function lazyMap(f) {return function(l) {
+  return lazy(_ => f(force(l)));
+}}

@@ -152,6 +152,7 @@ let map (\\d -> case {Functor id} d);
 
 ilet arrFunctor (Functor arrMap);
 ilet listFunctor (Functor listMap);
+ilet lazyFunctor (Functor lazyMap);
 
 ;; Pointed
 type Pointed [f] {
@@ -269,6 +270,7 @@ ilet strOrd (Ord {
 
   implicit_arrFunctor arrFunctor
   implicit_listFunctor listFunctor
+  implicit_lazyFunctor lazyFunctor
 
   Foldable Foldable
   foldl foldl
