@@ -1,8 +1,6 @@
 /*
-Fix (unit <> "a")
-Fix nested vs multiple implicits
-
 skip implicit argument
+use exprs to force implicit
 
 Auto import Prelude
 Importing of types
@@ -306,6 +304,7 @@ var bind = (v, t) => {
 };
 
 var checkImpl = (env, impl, type, leftSide) => {
+  // console.log('impl', T.toString(impl), T.toString(type), leftSide)
   unify(env, impl.type, type);
   env.constraints.push({
     type: impl.impl,
@@ -325,8 +324,10 @@ var unify = (env, a_, b_) => {
   if(a.tag === T.TCon) a = checkCon(env, a);
   if(b.tag === T.TCon) b = checkCon(env, b);
   // console.log('unify: ' + T.toString(a) + ' and ' + T.toString(b));
-  if(a.tag === T.TVar) return bind(a, b);
+  if(b.tag === T.TImpl) return checkImpl(env, b, a, false);
+  else if(a.tag === T.TVar) return bind(a, b);
   else if(b.tag === T.TVar) return bind(b, a);
+  else if(a.tag === T.TImpl) return checkImpl(env, a, b, true);
   else if(T.isLazy(a) && !T.isLazy(b) &&
       !(b.tag === T.TApp && b.left.tag === T.TVar)) {
     unify(env, a.right, b);
@@ -353,8 +354,7 @@ var unify = (env, a_, b_) => {
     unify(env, a.impl, b.impl);
     unify(env, a.type, b.type);
     return;
-  } else if(a.tag === T.TImpl) return checkImpl(env, a, b, true);
-  else if(b.tag === T.TImpl) return checkImpl(env, b, a, false);
+  }
   T.terr('Cannot unify ' + T.toString(a) + ' and ' + T.toString(b));
 };
 
@@ -410,6 +410,8 @@ var consumeConstraints = (e, env) => {
       env.constraints.length
     );
     env.constraintsl = 0;
+     //console.log(E.toString(e) + ' -> ' +
+      //e.meta.inst.map(x => T.toString(x.type) + ', ' + x.leftSide));
   } else {
     e.meta.inst = [];
   }
@@ -431,10 +433,13 @@ var infer = (env, e) => {
     consumeConstraints(e, env);
     return type;
   } else if(e.tag === E.App) {
-    var fntype = infer(env, e.left);
+    var fntype = prune(infer(env, e.left));
     var argtype = infer(env, e.right);
     if(e.meta.impl) {
-      unify(env, fntype, T.timpl(T.tvar('i', K.kstar), T.tvar('t', K.kstar)))
+      if(fntype.tag === T.TVar) {
+        fntype.instance = T.timpl(T.tvar('i', K.kstar), T.tvar('t', K.kstar));
+      } else if(fntype.tag !== T.TImpl)
+        T.terr('Invalid type for implicit application: ' + T.toString(fntype));
       var impltype = prune(fntype);
       unify(env, impltype.impl, argtype);
       var type = prune(impltype.type);
@@ -699,13 +704,15 @@ var infer = (env, e) => {
 };
 
 var handleConstraints = a => {
+  // console.log('handleConstraints', a);
   var results = [];
   for(var i = 0, l = a.length; i < l; i++) {
     var c = a[i];
     var impl = prune(c.type);
     var env = c.env;
-    var g = generalize(prune(impl));
+    var g = generalize(impl);
     var found = [];
+    var types = null;
     var constraints = env.constraints.slice(0);
     for(var k in env.impl) {
       var t = instantiate(env.typings[k]);
@@ -714,13 +721,17 @@ var handleConstraints = a => {
         env.constraintsl = 0;
         unify(env, instantiate(g), t);
         if(env.constraintsl > 0) {
-          found.push([k, env.constraints.slice(
-            env.constraints.length - env.constraintsl,
-            env.constraints.length
-          )]);
+          found.push({
+            inst: k,
+            children: env.constraints.slice(
+              env.constraints.length - env.constraintsl,
+              env.constraints.length
+            )
+          });
         } else {
-          found.push([k]);
+          found.push({inst: k, children: []});
         }
+        types = t;
       } catch(e) {
         if(!(e instanceof TypeError)) throw e;
       }
@@ -730,14 +741,17 @@ var handleConstraints = a => {
     if(found.length > 1)
       T.terr('More than one instance found for ' + T.toString(impl) + ': ' +
         flatten(found).filter(x => typeof x === 'string').join(', '));
-    var f =
-      flatten(found[0].map(x => Array.isArray(x)? handleConstraints(x): x));
     unify(
       env,
       prune(impl),
-      instantiate(env.typings[f[0]])
+      types
     );
-    results.push(f);
+    results.push({
+      type: c.type,
+      inst: found[0].inst,
+      children: handleConstraints(found[0].children),
+      leftSide: c.leftSide,
+    });
   }
   return results;
 };
@@ -745,6 +759,12 @@ var handleConstraints = a => {
 var flatten = a =>
   a.map(x => Array.isArray(x)? flatten(x): [x])
     .reduce((a, b) => a.concat(b), []);
+
+var removeType = o => ({
+  inst: o.inst,
+  leftSide: o.leftSide,
+  children: o.children.map(removeType),
+});
 
 var runInfer = (e, env_) => {
   var env = makeEnv(env_);
@@ -756,10 +776,9 @@ var runInfer = (e, env_) => {
   var solved = handleConstraints(env.constraints);
   E.each(e => {
     e.meta.type = prune(e.meta.type);
-    e.meta.inst = flatten(e.meta.inst.map(i => ({
-      leftSide: i.leftSide,
-      inst: solved[env.constraints.indexOf(i)],
-    })));
+    e.meta.inst = solved.filter(x =>
+        e.meta.inst.filter(y => x.type === y.type).length > 0)
+        .map(removeType);
   }, e);
   return t;
 };

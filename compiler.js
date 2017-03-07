@@ -1,15 +1,19 @@
 var E = require('./exprs');
 var T = require('./types');
 
+function reduceInstR(a) {
+  return a.reduceRight((y, x) =>
+    '(' + x.inst + reduceInstR(x.children) + ')' + y, '');
+}
+
 function reduceInst(e, leftSide) {
-  return leftSide?
-    e.meta.inst.filter(x => x.leftSide).map(x => x.inst).reduceRight((b, a) => '(' + a + b + ')', ''):
-    e.meta.inst.filter(x => !x.leftSide).map(x => x.inst).reduceRight((b, a) => '(' + a + b + ')', '');
+  return reduceInstR(e.meta.inst
+    .filter(x => x.leftSide === leftSide));
 }
 
 function compile(e) {
   if(e.tag === E.Var)
-    return e.name + reduceInst(e, true);
+    return e.name + reduceInst(e, false);
   if(e.tag === E.App)
     return compile(e.left) +
       reduceInst(e, true) +
