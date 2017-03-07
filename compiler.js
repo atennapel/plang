@@ -2,7 +2,7 @@ var E = require('./exprs');
 var T = require('./types');
 
 function reduceInstR(a) {
-  return a.reduceRight((y, x) =>
+  return a.reduce((y, x) =>
     '(' + x.inst + reduceInstR(x.children) + ')' + y, '');
 }
 
