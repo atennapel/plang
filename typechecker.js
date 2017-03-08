@@ -1,6 +1,9 @@
 /*
+@@ apply second implicit argument
 skip implicit argument
 use exprs to force implicit
+
+add Fetch
 
 Auto import Prelude
 Importing of types
@@ -435,7 +438,23 @@ var infer = (env, e) => {
   } else if(e.tag === E.App) {
     var fntype = prune(infer(env, e.left));
     var argtype = infer(env, e.right);
-    if(e.meta.impl) {
+    if(e.meta.expl) {
+      if(fntype.tag === T.TVar) {
+        fntype.instance =
+          T.timpl(
+            T.tvar('i', K.kstar),
+            T.tvar('t', K.kstar)
+          );
+      } else if(fntype.tag !== T.TImpl)
+        T.terr('Invalid type for implicit application: ' + T.toString(fntype));
+      var impltype = prune(fntype);
+      var restype = T.tvar('r', K.kstar);
+      unify(env, impltype.type, tarr(argtype, restype));
+      var type = prune(T.timpl(impltype.impl, restype));
+      e.meta.type = type;
+      consumeConstraints(e, env);
+      return type;
+    } else if(e.meta.impl) {
       if(fntype.tag === T.TVar) {
         fntype.instance = T.timpl(T.tvar('i', K.kstar), T.tvar('t', K.kstar));
       } else if(fntype.tag !== T.TImpl)
@@ -780,7 +799,7 @@ var runInfer = (e, env_) => {
         e.meta.inst.filter(y => x.type === y.type).length > 0)
         .map(removeType);
   }, e);
-  return t;
+  return prune(t);
 };
 
 var makeEnv = env_ => {

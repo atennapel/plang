@@ -1,6 +1,9 @@
 var E = require('./exprs');
 var T = require('./types');
 
+var id = 0;
+var uniq = function() {return '_u' + (id++)};
+
 function reduceInstR(a) {
   return a.reduce((y, x) =>
     '(' + x.inst + reduceInstR(x.children) + ')' + y, '');
@@ -12,18 +15,32 @@ function reduceInst(e, leftSide) {
 }
 
 function compile(e) {
+  //console.log(E.toString(e));
+  //console.log(e.meta.inst);
   if(e.tag === E.Var)
     return e.name + reduceInst(e, false);
-  if(e.tag === E.App)
-    return compile(e.left) +
-      reduceInst(e, true) +
-      '(' +
+  if(e.tag === E.App) {
+    if(e.meta.expl) {
+      var v = uniq();
+      return '(' + v + ' => (' + compile(e.left) + reduceInst(e, true) +
+      ')(' + v + ')(' +
         (e.meta.lazy? 'lazy(_ => ' + compile(e.right) +
           reduceInst(e, false) + ')':
           e.meta.force? 'force(' + compile(e.right) +
             reduceInst(e, false) + ')':
           compile(e.right) + reduceInst(e, false)) +
+      '))';
+    }
+    return compile(e.left) +
+      reduceInst(e, true) +
+      '(' +
+        (e.meta.lazy? 'lazy(' + uniq() + ' => ' + compile(e.right) +
+          reduceInst(e, false) + ')':
+          e.meta.force? 'force(' + compile(e.right) +
+            reduceInst(e, false) + ')':
+          compile(e.right) + reduceInst(e, false)) +
       ')';
+  }
   if(e.tag === E.Lam)
     return '(' + e.arg + ' => ' + compile(e.body) + ')';
   if(e.tag === E.Let)

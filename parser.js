@@ -161,6 +161,8 @@ function handleAppRR(r_) {
       return E.iff.apply(null, r.slice(1));
     if(name === 'iapp')
       return E.iapp.apply(null, r.slice(1));
+    if(name === 'eapp')
+      return E.eapp.apply(null, r.slice(1));
 
     if(name === 'type')
       return handleAppRR([handleType(
@@ -427,6 +429,8 @@ function parse(s) {
         r.push(op(':', E.vr('anno'), 2, true));
       else if(c === '@')
         r.push(op('@', E.vr('iapp'), 2, true));
+      else if(c === '#')
+        r.push(op('#', E.vr('eapp'), 2, true));
       else if(c === '!')
         r.push(op('!', E.vr('perform'), 1, true));
       else if(c === '&')

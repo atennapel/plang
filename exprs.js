@@ -30,6 +30,13 @@ var iapp = function() {
   for(var i = 2; i < l; i++) c = app2(c, arguments[i], {impl: true});
   return c;
 };
+var eapp = function() {
+  var l = arguments.length;
+  if(l < 2) serr('app needs at least two arguments');
+  var c = app2(arguments[0], arguments[1], {expl: true});
+  for(var i = 2; i < l; i++) c = app2(c, arguments[i], {expl: true});
+  return c;
+};
 
 var Lam = 'Lam';
 var lam2 = (arg, body, meta) => ({
@@ -253,7 +260,9 @@ var appToString = (left, right, toplevel) =>
 var toString = e =>
   e.tag === Var? e.name:
   e.tag === App?
-    (e.meta.impl?
+    (e.meta.expl?
+      '(' + toString(e.left) + ' {{' + toString(e.right) + '}})':
+      e.meta.impl?
       '(' + toString(e.left) + ' {' + toString(e.right) + '})':
       '(' + toString(e.left) + ' ' + toString(e.right) + ')'):
   e.tag === Lam?
@@ -341,6 +350,7 @@ module.exports = {
   App,
   app,
   iapp,
+  eapp,
 
   Lam,
   lam,
