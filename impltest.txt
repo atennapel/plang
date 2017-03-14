@@ -1,0 +1,10 @@
+type Show [t] {
+  Show [(Arr t Str)]
+};
+
+let show (\\d -> case {Show id} d);
+ilet intShow (Show intToString);
+ilet arrShow (\\showD -> Show $ \a ->
+  (arrJoin ", " (arrMap (show @ showD) a)));
+
+show 4

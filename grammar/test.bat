@@ -1,3 +1,3 @@
-call build
+call nearleyc defs.ne --out defs.js
 
-nearley-test expr.js -i "a;b;c"
+nearley-test defs.js < test.txt

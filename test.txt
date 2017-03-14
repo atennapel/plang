@@ -1,0 +1,24 @@
+type Z [] {Z []};
+
+type S [n] {S [n]};
+
+type ToInt [t] {ToInt [(Arr t Int)]};
+
+let toInt (\\d -> case {ToInt id} d);
+
+ilet toIntZ (ToInt $ case {Z (k 0)});
+
+ilet toIntS (\\d -> ToInt $ case {S (\n -> addInt 1 (toInt@d n))});
+
+type Add [a b c] {Add [(Arr a (Arr b c))]};
+
+let add (\\d -> case {Add id} d);
+
+ilet addl0 (Add (\a b -> case {Z (\_ -> b)} a));
+ilet addr0 (Add (\a b -> case {Z (\_ -> a)} b));
+ilet add00 (Add (\a b -> case {Z (\_ -> case {Z (\_ -> Z)} a)} b));
+ilet addnm (\\d -> Add (\a b -> case {S (\n -> S $ add@d a n)} b));
+
+type Eq [a b] {Eq [a a]};
+
+((S $ S $ Z) + (S $ S $ Z)) : (Add (S $ S Z) (S $ S Z) (S $ S $ S $ S Z))

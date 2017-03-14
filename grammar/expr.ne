@@ -42,20 +42,11 @@ ExprR ->
   | ExprRR {% d => d[0] %}
 
 ExprRR ->
-  ExprRR _ "{{" _ Expr _ "}}"
-    {% d => ({tag: 'EAppExpl', left: d[0], right: d[4]}) %}
+  ExprRR __ ExprRRR
+    {% d => ({tag: 'EApp', left: d[0], right: d[2]}) %}
   | ExprRRR {% d => d[0] %}
 
 ExprRRR ->
-  ExprRRR _ "{" _ Expr _ "}"
-    {% d => ({tag: 'EAppImpl', left: d[0], right: d[4]}) %}
-  | ExprRRRR {% d => d[0] %}
-
-ExprRRRR ->
-  ExprRRRR __ ExprRRRRR {% d => ({tag: 'EApp', left: d[0], right: d[2]}) %}
-  | ExprRRRRR {% d => d[0] %}
-
-ExprRRRRR ->
   "(" _ ")" {% d => ({tag: 'ETuple', vals: []}) %}
   | "{" _ "}" {% d => ({tag: 'ERecord', vals: []}) %}
   | "[" _ "]" {% d => ({tag: 'EList', vals: []}) %}
@@ -72,10 +63,6 @@ ExprRRRRR ->
     }) %}
   | "\\" (_ Arg):+ _ "->" _ ExprR
     {% d => ({tag: 'ELambda', args: d[1].map(x => x[1]), body: d[5]}) %}
-  | name _ "<-" _ Expr _ ";" _ ExprR
-    {% d => ({tag: 'EDo', arg: d[0], val: d[4], body: d[8]}) %}
-  | ExprR _ ";" _ Expr
-    {% d => ({tag: 'EDo', arg: null, val: d[0], body: d[4]}) %}
   | name {% d => ({tag: 'EVar', name: d[0]}) %}
   | jsonfloat {% d => ({tag: 'ENumber', val: d[0]}) %}
   | dqstring {% d => ({tag: 'EString', val: d[0]}) %}
