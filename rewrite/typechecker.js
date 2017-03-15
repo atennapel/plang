@@ -17,7 +17,8 @@ var free = t => {
   T.terr('Invalid type tag in free: ' + t.tag);
 };
 
-var freeEnv = env => U.vals(env).map(free);
+var freeEnv = env =>
+  U.vals(env).map(free).reduce((o, v) => (o[v.id] = v, o), {});
 
 var subst = (sub, t) => {
   if(t.tag === T.TVar) return sub[t.id] || t;
@@ -181,8 +182,8 @@ var unify = (state, a, b) => {
 var infer = (env, state, e) => {
   console.log('infer: ' + E.toString(e));
   if(e.tag === E.Var) {
-    if(!env[e.name]) T.terr('undefined variable: ' + e.name);
-    var r = instantiate(state, env[e.name]);
+    if(!env.typings[e.name]) T.terr('undefined variable: ' + e.name);
+    var r = instantiate(state, env.typings[e.name]);
     return {
       sub: {},
       type: r.type,
@@ -191,7 +192,8 @@ var infer = (env, state, e) => {
   }
   if(e.tag === E.Lam) {
     var rv = fresh(state, K.Star);
-    var nenv = U.clone(env, e.arg, T.tscheme([], rv.tvar));
+    var nenv = U.clone(env, 'typings',
+      U.clone(env.typings, e.arg, T.tscheme([], rv.tvar)));
     var ri = infer(nenv, rv.state, e.body);
     return {
       sub: ri.sub,
@@ -201,7 +203,8 @@ var infer = (env, state, e) => {
   }
   if(e.tag === E.App) {
     var rleft = infer(env, state, e.left);
-    var rright = infer(substEnv(rleft.sub, env), rleft.state, e.right);
+    var nenv = U.clone(env, 'typings', substEnv(rleft.sub, env.typings));
+    var rright = infer(nenv, rleft.state, e.right);
     var rv = fresh(rright.state, K.Star);
     var su = unify(
       rv.state,
@@ -217,8 +220,9 @@ var infer = (env, state, e) => {
   }
   if(e.tag === E.Let) {
     var rval = infer(env, state, e.val);
-    var nenv =
-      U.clone(env, e.arg, generalize(substEnv(rval.sub, env), rval.type));
+    var genv = substEnv(rval.sub, env.typings);
+    var nenv = U.clone(env, 'typings',
+      U.clone(env.typings, e.arg, generalize(genv, rval.type)));
     var rbody = infer(nenv, rval.state, e.body);
     return {
       sub: compose(rbody.sub, rval.sub),
@@ -360,10 +364,16 @@ var infer = (env, state, e) => {
   T.terr('Cannot infer: ' + E.toString(e));
 };
 
+var prepareEnv = env_ => {
+  var env = env_ || {};
+  env.typings = env.typings || {};
+  return env;
+};
+
 var initialState = { tvar: 0 };
 
 var runInfer = (e, env, st) => {
-  var r = infer(env || {}, st || initialState, e);
+  var r = infer(prepareEnv(env), st || initialState, e);
   return subst(r.sub, r.type);
 };
 
@@ -391,14 +401,19 @@ var b = T.tvar(1);
 
 var Bool = T.tcon('Bool');
 var Int = T.tcon('Int');
+var Pair = T.tcon('Pair', K.karr(K.Star, K.Star, K.Star));
 
 var env = {
-  one: T.tscheme([], Int),
-  True: T.tscheme([], Bool),
-  inc: T.tscheme([], T.tarr(Int, Int)),
-  k: T.tscheme([a, b], T.tarr(a, b, a)),
+  typings: {
+    one: T.tscheme([], Int),
+    True: T.tscheme([], Bool),
+    inc: T.tscheme([], T.tarr(Int, Int)),
+    k: T.tscheme([a, b], T.tarr(a, b, a)),
+    pair: T.tscheme([a, b], T.tarr(a, b, T.tapp(Pair, a, b))),
+  },
 };
-var e = app(elim('x'), vr('inc'), end);
+var e = lt('id', lam('x', vr('x')),
+  app(vr('pair'), app(vr('id'), vr('one')), app(vr('id'), vr('True'))));
 console.log(E.toString(e));
 var t = runInfer(e, env, {tvar: 2});
 console.log(T.toString(t));
