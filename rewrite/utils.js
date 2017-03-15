@@ -65,13 +65,19 @@ var mapFrom2 = (ks, vs) => {
   return n;
 };
 
-var mapFrom = function(a) {
+var mapFrom = (a) => {
   var n = {};
   for(var i = 0, l = a.length; i < l; i += 2) n[a[i]] = a[i+1];
   return n;
 };
 
 var map = function() {return mapFrom(arguments)};
+
+var overlaps = (a, b) => {
+  for(var k in a) if(b[k]) return true;
+  for(var k in b) if(a[k]) return true;
+  return false;
+};
 
 module.exports = {
   set: set,
@@ -86,4 +92,5 @@ module.exports = {
   mapFrom2,
   mapFrom,
   map,
+  overlaps,
 };
