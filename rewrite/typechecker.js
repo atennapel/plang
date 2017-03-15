@@ -1,8 +1,5 @@
 /**
  * named tvars
- * effects:
- *  value restriction
- *  handlers
  * implicits
  */
 var E = require('./exprs');

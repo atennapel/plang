@@ -1,5 +1,9 @@
-pure (handle Get (fn v (fn k (k one))) (
-  handle Set (fn v (fn k (k ()))) (
-    (do x (perform Get ()) (do y (perform Set ()) (return (add one x))))
-  )
-))
+let Nil (pack List; inj Nil ());
+let Cons (fn h t; pack List; inj Cons (extend 0 h; extend 1 t; ()));
+
+letr sum (fn l; (
+  elim Nil (fn u; zero);
+  elim Cons (fn t (add (sel 0 t) (sum; sel 1 t)));
+  end) (unpack List l));
+
+sum (Cons one; Cons zero; Cons one Nil)

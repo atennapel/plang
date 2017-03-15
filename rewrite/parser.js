@@ -1,6 +1,38 @@
 var E = require('./exprs');
 
+function splitArr(a, v) {
+  var i = a.indexOf(v);
+  if(i === -1) return a;
+  var r = [];
+  var c = [];
+  for(var i = 0, l = a.length; i < l; i++) {
+    if(a[i] === v) {
+      r.push(c);
+      c = [];
+    } else {
+      c.push(a[i]);
+    }
+  }
+  r.push(c);
+  return r;
+}
+
+var APP = ';';
+
 function handleApp(x) {
+  return handleApp2(handleApp1(x));
+}
+
+function handleApp1(x) {
+  if(!Array.isArray(x)) return x;
+  if(x.indexOf(APP) >= 0)
+    return handleApp1(splitArr(x, APP)
+      .map(handleApp1)
+      .reduceRight((a, b) => b.concat([a])));
+  return x.map(handleApp1);
+}
+
+function handleApp2(x) {
   if(typeof x === 'string') {
     if(x === 'end') return E.end;
     if(x === 'handlereturn') return E.handlereturn;
@@ -14,7 +46,8 @@ function handleApp(x) {
   var fn = a[0];
   if(fn.tag === E.Var) {
     if(fn.name === 'fn')
-      return E.lam(a[1].name, a[2]);
+      return E.lam.apply(null,
+        a.slice(1).map((v, i, a) => i <= a.length - 2? v.name: v));
     if(fn.name === 'let')
       return E.lt(a[1].name, a[2], a[3]);
     if(fn.name === 'letr')
@@ -55,6 +88,7 @@ function parse(s) {
   return handleApp(JSON.parse(('(' + s + ')')
     .replace(/\(/g, ' [ ')
     .replace(/\)/g, ' ] , ')
+    .replace(/\;/g, '";" , ')
     .replace(/[a-z0-9]+/gi, x => JSON.stringify(x) + ' , ')
     .replace(/\,\s*\]/g, ']')
     .trim()
