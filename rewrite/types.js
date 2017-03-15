@@ -19,7 +19,7 @@ var tcon = (name, kind) => ({
 });
 
 var TApp = 'TApp';
-var tapp = (left, right, kind_) => {
+var tapp2 = (left, right, kind_) => {
   var kind = kind_;
   if(!kind) {
     if(left.kind.tag !== K.KArr || !K.equals(left.kind.left, right.kind))
@@ -32,7 +32,14 @@ var tapp = (left, right, kind_) => {
     right,
     kind: kind || K.Star,
   };
-}
+};
+var tapp = function() {
+  var l = arguments.length;
+  if(l < 2) terr('tapp needs at least two arguments');
+  var c = tapp2(arguments[0], arguments[1]);
+  for(var i = 2; i < l; i++) c = tapp2(c, arguments[i]);
+  return c;
+};
 
 var TRowEmpty = 'TRowEmpty';
 var trowempty = { tag: TRowEmpty, kind: K.Row };
@@ -46,8 +53,16 @@ var trowextend = (label, type, rest) => ({
   kind: K.Row,
 });
 
-var TArr = tcon('->', K.karr(K.Star, K.karr(K.Star, K.Star)));
-var tarr = (left, right) => tapp(tapp(TArr, left), right);
+var TArr = tcon('->', K.karr(K.Star, K.Star, K.Star));
+var tarr2 = (left, right) => tapp(TArr, left, right);
+var tarr = function() {
+  var l = arguments.length;
+  if(l < 1) T.terr('tarr needs at least 1 argument');
+  if(l === 1) return tapp(TArr, arguments[0]);
+  var c = tarr2(arguments[l - 2], arguments[l - 1]);
+  for(var i = l - 3; i >= 0; i--) c = tarr2(arguments[i], c);
+  return c;
+};
 
 var TRecord = tcon('Rec', K.karr(K.Row, K.Star));
 var TVariant = tcon('Var', K.karr(K.Row, K.Star));

@@ -7,11 +7,19 @@ var kcon = name => ({
 });
 
 var KArr = 'KArr';
-var karr = (left, right) => ({
+var karr2 = (left, right) => ({
   tag: KArr,
   left,
   right,
 });
+var karr = function() {
+  var l = arguments.length;
+  if(l < 1) T.terr('karr needs at least 1 argument');
+  if(l === 1) return arguments[0];
+  var c = karr2(arguments[l - 2], arguments[l - 1]);
+  for(var i = l - 3; i >= 0; i--) c = karr2(arguments[i], c);
+  return c;
+};
 
 var Star = kcon('*');
 var Row = kcon('#');

@@ -7,18 +7,32 @@ var vr = name => ({
 });
 
 var App = 'App';
-var app = (left, right) => ({
+var app2 = (left, right) => ({
   tag: App,
   left,
   right,
 });
+var app = function() {
+  var l = arguments.length;
+  if(l < 2) serr('app needs at least two arguments');
+  var c = app2(arguments[0], arguments[1]);
+  for(var i = 2; i < l; i++) c = app2(c, arguments[i]);
+  return c;
+};
 
 var Lam = 'Lam';
-var lam = (arg, body) => ({
+var lam2 = (arg, body) => ({
   tag: Lam,
   arg,
   body,
 });
+var lam = function() {
+  var l = arguments.length;
+  if(l < 2) serr('lam needs at least 2 arguments');
+  var c = lam2(arguments[l - 2], arguments[l - 1]);
+  for(var i = l - 3; i >= 0; i--) c = lam2(arguments[i], c);
+  return c;
+};
 
 var Let = 'Let';
 var lt = (arg, val, body) => ({

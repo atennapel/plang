@@ -308,13 +308,9 @@ var infer = (env, state, e) => {
       sub: {},
       type: T.tarr(
         T.tarr(a, b),
-        T.tarr(
-          T.tarr(T.tapp(T.TVariant, r.tvar), b),
-          T.tarr(
-            T.tapp(T.TVariant, T.trowextend(e.label, a, r.tvar)),
-            b
-          )
-        )
+        T.tarr(T.tapp(T.TVariant, r.tvar), b),
+        T.tapp(T.TVariant, T.trowextend(e.label, a, r.tvar)),
+        b
       ),
       state: r.state,
     };
@@ -331,31 +327,35 @@ var runInfer = (e, env, st) => {
 };
 
 // test
-var Bool = T.tcon('Bool');
-var Int = T.tcon('Int');
-
+var vr = E.vr;
+var lam = E.lam;
 var app = E.app;
+var lt = E.lt;
+
 var empty = E.recordempty;
 var sel = E.select;
 var extend = E.extend;
 var restrict = E.restrict;
+
 var inj = E.inject;
 var embed = E.embed;
 var elim = E.elim;
-var vr = E.vr;
 
 var a = T.tvar(0);
 var b = T.tvar(1);
+
+var Bool = T.tcon('Bool');
+var Int = T.tcon('Int');
 
 var env = {
   one: T.tscheme([], Int),
   True: T.tscheme([], Bool),
   inc: T.tscheme([], T.tarr(Int, Int)),
-  k: T.tscheme([a, b], T.tarr(a, T.tarr(b, a))),
+  k: T.tscheme([a, b], T.tarr(a, b, a)),
 
   end: T.tscheme([a], T.tarr(T.tapp(T.TVariant, T.trowempty), a)),
 };
-var e = vr('end');
+var e = app(lam('x', 'y', vr('x')), vr('one'), vr('True'));
 console.log(E.toString(e));
 var t = runInfer(e, env, {tvar: 2});
 console.log(T.toString(t));
