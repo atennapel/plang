@@ -1,3 +1,8 @@
+/**
+ * named tvars
+ * effects
+ * implicits
+ */
 var E = require('./exprs');
 var T = require('./types');
 var K = require('./kinds');
@@ -112,7 +117,6 @@ var bindRow = (state, v, t) => {
 };
 
 var rewriteRow = (state, t, label) => {
-  console.log('rewriteRow', T.toString(t), label)
   if(t.tag === T.TRowEmpty) return fail(label + ' cannot be inserted');
   if(t.tag === T.TRowExtend) {
     if(label === t.label) return {type: t.type, rest: t.rest, sub: {}, state};
@@ -132,6 +136,7 @@ var rewriteRow = (state, t, label) => {
       };
     }
     var r = rewriteRow(state, t.rest, label);
+    if(failed(r)) return r;
     return {
       type: r.type,
       rest: T.trowextend(t.label, t.type, r.rest),
@@ -143,7 +148,7 @@ var rewriteRow = (state, t, label) => {
 };
 
 var unify = (state, a, b) => {
-  console.log('unify ' + T.toString(a) + ' and ' + T.toString(b));
+  // console.log('unify ' + T.toString(a) + ' and ' + T.toString(b));
   var sk = unifyKind(a.kind, b.kind);
   if(failed(sk))
     return fail('Cannot unify ' + T.toString(a) + ' and ' +
@@ -163,6 +168,7 @@ var unify = (state, a, b) => {
     return { sub: {}, state };
   if(a.tag === T.TRowExtend && b.tag === T.TRowExtend) {
     var r = rewriteRow(state, b, a.label);
+    if(failed(r)) return r;
     var l = rowToList(a.rest);
     if(l.rest && r.sub[l.rest.id])
       return fail('Recursive row type ' +
@@ -181,7 +187,7 @@ var unify = (state, a, b) => {
 };
 
 var infer = (env, state, e) => {
-  console.log('infer: ' + E.toString(e));
+  // console.log('infer: ' + E.toString(e));
   if(e.tag === E.Var) {
     if(!env.typings[e.name]) T.terr('undefined variable: ' + e.name);
     var r = instantiate(state, env.typings[e.name]);
@@ -252,6 +258,24 @@ var infer = (env, state, e) => {
       sub: compose(rbody.sub, sub),
       type: rbody.type,
       state: rbody.state,
+    };
+  }
+  if(e.tag === E.If) {
+    var rcond = infer(env, state, e.cond);
+    var ru1 = unify(rcond.state, rcond.type, T.Bool);
+    if(failed(ru1)) throw ru1;
+    var rtrue = infer(env, ru1.state, e.bodyTrue);
+    var rfalse = infer(env, rtrue.state, e.bodyFalse);
+    var sub =
+      compose(rfalse.sub, compose(rtrue.sub, compose(ru1.sub, rcond.sub)));
+    var ru2 = unify(rfalse.state,
+      subst(sub, rtrue.type), subst(sub, rfalse.type));
+    if(failed(ru2)) throw ru2;
+    var sub2 = compose(ru2.sub, sub);
+    return {
+      sub: sub2,
+      type: subst(sub2, rtrue.type),
+      state: ru2.state,
     };
   }
 
@@ -432,77 +456,6 @@ var runInfer = (e, env, st) => {
   var r = infer(prepareEnv(env), st || initialState, e);
   return subst(r.sub, r.type);
 };
-
-// test
-var vr = E.vr;
-var lam = E.lam;
-var app = E.app;
-var lt = E.lt;
-var ltr = E.ltr;
-
-var empty = E.recordempty;
-var sel = E.select;
-var extend = E.extend;
-var restrict = E.restrict;
-var updaterec = E.recordupdate;
-
-var inj = E.inject;
-var embed = E.embed;
-var elim = E.elim;
-var updatevar = E.variantupdate;
-
-var end = E.end;
-
-var pack = E.pack;
-var unpack = E.unpack;
-
-var a = T.tvar(0);
-var b = T.tvar(1);
-
-var Bool = T.tcon('Bool');
-var Int = T.tcon('Int');
-var Pair = T.tcon('Pair', K.karr(K.Star, K.Star, K.Star));
-
-var Box = T.tcon('Box', K.karr(K.Star, K.Star));
-var List = T.tcon('List', K.karr(K.Star, K.Star));
-
-var env = {
-  typings: {
-    one: T.tscheme([], Int),
-    True: T.tscheme([], Bool),
-    inc: T.tscheme([], T.tarr(Int, Int)),
-    k: T.tscheme([a, b], T.tarr(a, b, a)),
-    pair: T.tscheme([a, b], T.tarr(a, b, T.tapp(Pair, a, b))),
-  },
-  newtypes: {
-    Count: {
-      con: T.tcon('Count'),
-      args: [],
-      type: T.tscheme([], Int),
-    },
-    Box: {
-      con: T.tcon('Box', K.karr(K.Star, K.Star)),
-      args: [a],
-      type: T.tscheme([a], a),
-    },
-    List: {
-      con: List,
-      args: [a],
-      type: T.tscheme([a],
-          T.tapp(T.TVariant, T.trow({
-            Nil: T.tapp(T.TRecord, T.trowempty),
-            Cons: T.tapp(T.TRecord, T.trow({
-              0: a,
-              1: T.tapp(List, a),
-            })),
-          }))),
-    },
-  },
-};
-var e = ltr('x', lam('n', vr('x')), vr('x'));
-console.log(E.toString(e));
-var t = runInfer(e, env, {tvar: 2});
-console.log(T.toString(t));
 
 module.exports = {
   infer: runInfer,

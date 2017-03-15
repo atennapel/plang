@@ -80,6 +80,8 @@ var tscheme = (vars, type) => ({
   type,
 });
 
+var Bool = tcon('Bool', K.Star);
+
 var toString = t => {
   if(t.tag === TVar) {
     var labels = U.keys(t.labels);
@@ -126,6 +128,8 @@ module.exports = {
 
   TScheme,
   tscheme,
+
+  Bool,
 
   terr,
   toString,

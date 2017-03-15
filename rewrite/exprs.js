@@ -14,7 +14,8 @@ var app2 = (left, right) => ({
 });
 var app = function() {
   var l = arguments.length;
-  if(l < 2) serr('app needs at least two arguments');
+  if(l === 1) return arguments[0];
+  if(l < 2) serr('app needs at least one argument');
   var c = app2(arguments[0], arguments[1]);
   for(var i = 2; i < l; i++) c = app2(c, arguments[i]);
   return c;
@@ -48,6 +49,14 @@ var ltr = (arg, val, body) => ({
   arg,
   val,
   body,
+});
+
+var If = 'If';
+var iff = (cond, bodyTrue, bodyFalse) => ({
+  tag: If,
+  cond,
+  bodyTrue,
+  bodyFalse,
 });
 
 var RecordEmpty = 'RecordEmpty';
@@ -128,6 +137,9 @@ var toString = e => {
   if(e.tag === Letr)
     return '(letr ' + e.arg + ' = ' + toString(e.val) + ' in ' +
       toString(e.body) + ')';
+  if(e.tag === If)
+    return '(if ' + toString(e.cond) + ' then ' + toString(e.bodyTrue) +
+      ' else ' + toString(e.bodyFalse) + ')';
 
   if(e.tag === RecordEmpty) return '{}';
   if(e.tag === Select) return '.' + e.label;
@@ -163,6 +175,9 @@ module.exports = {
 
   Letr,
   ltr,
+
+  If,
+  iff,
 
   RecordEmpty,
   recordempty,
