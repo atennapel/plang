@@ -273,6 +273,22 @@ var infer = (env, state, e) => {
       state: r.state,
     };
   }
+  if(e.tag === E.RecordUpdate) {
+    var v1 = fresh(state, K.Star);
+    var v2 = fresh(v1.state, K.Star);
+    var r = fresh(v2.state, K.Row, U.set(e.label));
+    var a = v1.tvar;
+    var b = v2.tvar;
+    return {
+      sub: {},
+      type: T.tarr(
+        T.tarr(a, b),
+        T.tapp(T.TRecord, T.trowextend(e.label, a, r.tvar)),
+        T.tapp(T.TRecord, T.trowextend(e.label, b, r.tvar))
+      ),
+      state: r.state,
+    };
+  }
 
   if(e.tag === E.Inject) {
     var v = fresh(state, K.Star);
@@ -315,6 +331,31 @@ var infer = (env, state, e) => {
       state: r.state,
     };
   }
+  if(e.tag === E.VariantUpdate) {
+    var v1 = fresh(state, K.Star);
+    var v2 = fresh(v1.state, K.Star);
+    var r = fresh(v2.state, K.Row, U.set(e.label));
+    var a = v1.tvar;
+    var b = v2.tvar;
+    return {
+      sub: {},
+      type: T.tarr(
+        T.tarr(a, b),
+        T.tapp(T.TVariant, T.trowextend(e.label, a, r.tvar)),
+        T.tapp(T.TVariant, T.trowextend(e.label, b, r.tvar))
+      ),
+      state: r.state,
+    };
+  }
+
+  if(e.tag === E.End) {
+    var v = fresh(state, K.Star);
+    return {
+      sub: {},
+      type: T.tarr(T.tapp(T.TVariant, T.trowempty), v.tvar),
+      state: v.state,
+    };
+  }
 
   T.terr('Cannot infer: ' + E.toString(e));
 };
@@ -336,10 +377,14 @@ var empty = E.recordempty;
 var sel = E.select;
 var extend = E.extend;
 var restrict = E.restrict;
+var updaterec = E.recordupdate;
 
 var inj = E.inject;
 var embed = E.embed;
 var elim = E.elim;
+var updatevar = E.variantupdate;
+
+var end = E.end;
 
 var a = T.tvar(0);
 var b = T.tvar(1);
@@ -352,10 +397,8 @@ var env = {
   True: T.tscheme([], Bool),
   inc: T.tscheme([], T.tarr(Int, Int)),
   k: T.tscheme([a, b], T.tarr(a, b, a)),
-
-  end: T.tscheme([a], T.tarr(T.tapp(T.TVariant, T.trowempty), a)),
 };
-var e = app(lam('x', 'y', vr('x')), vr('one'), vr('True'));
+var e = app(elim('x'), vr('inc'), end);
 console.log(E.toString(e));
 var t = runInfer(e, env, {tvar: 2});
 console.log(T.toString(t));

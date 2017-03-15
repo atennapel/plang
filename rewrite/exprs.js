@@ -63,6 +63,12 @@ var restrict = label => ({
   label,
 });
 
+var RecordUpdate = 'RecordUpdate';
+var recordupdate = label => ({
+  tag: RecordUpdate,
+  label,
+});
+
 var Inject = 'Inject';
 var inject = label => ({
   tag: Inject,
@@ -81,6 +87,15 @@ var elim = label => ({
   label,
 });
 
+var VariantUpdate = 'VariantUpdate';
+var variantupdate = label => ({
+  tag: VariantUpdate,
+  label,
+});
+
+var End = 'End';
+var end = { tag: End };
+
 var toString = e => {
   if(e.tag === Var) return '' + e.name;
   if(e.tag === App)
@@ -95,10 +110,14 @@ var toString = e => {
   if(e.tag === Select) return '.' + e.label;
   if(e.tag === Extend) return '.+' + e.label;
   if(e.tag === Restrict) return '.-' + e.label;
+  if(e.tag === RecordUpdate) return '.=' + e.label;
 
   if(e.tag === Inject) return '@' + e.label;
   if(e.tag === Embed) return '@+' + e.label;
   if(e.tag === Elim) return '?' + e.label;
+  if(e.tag === VariantUpdate) return '@=' + e.label;
+
+  if(e.tag === End) return 'end';
 
   serr('Invalid expression tag toString: ' + e.tag);
 };
@@ -124,6 +143,8 @@ module.exports = {
   extend,
   Restrict,
   restrict,
+  RecordUpdate,
+  recordupdate,
 
   Inject,
   inject,
@@ -131,6 +152,11 @@ module.exports = {
   embed,
   Elim,
   elim,
+  VariantUpdate,
+  variantupdate,
+
+  End,
+  end,
 
   serr,
   toString,
