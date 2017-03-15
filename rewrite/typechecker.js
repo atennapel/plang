@@ -231,6 +231,29 @@ var infer = (env, state, e) => {
       state: rbody.state,
     };
   }
+  if(e.tag === E.Letr) {
+    var v = fresh(state, K.Star);
+    var nenv = U.clone(env, 'typings',
+      U.clone(env.typings, e.arg, T.tscheme([], v.tvar)));
+    var rval = infer(nenv, v.state, e.val);
+    var ta = subst(rval.sub, v.tvar);
+    var tb = subst(rval.sub, rval.type);
+    if(ta === tb || (ta.tag === T.TVar && tb.tag === T.TVar && ta.id === tb.id))
+      T.terr('Recursive unification in letr');
+    var u = unify(rval.state, ta, tb);
+    if(failed(u)) throw u;
+    var sub = compose(u.sub, rval.sub);
+    var type = subst(sub, v.tvar);
+    var genv = substEnv(sub, env.typings);
+    var nenv2 = U.clone(env, 'typings',
+      U.clone(env.typings, e.arg, generalize(genv, type)));
+    var rbody = infer(nenv2, u.state, e.body);
+    return {
+      sub: compose(rbody.sub, sub),
+      type: rbody.type,
+      state: rbody.state,
+    };
+  }
 
   if(e.tag === E.RecordEmpty) {
     return {
@@ -415,6 +438,7 @@ var vr = E.vr;
 var lam = E.lam;
 var app = E.app;
 var lt = E.lt;
+var ltr = E.ltr;
 
 var empty = E.recordempty;
 var sel = E.select;
@@ -475,15 +499,7 @@ var env = {
     },
   },
 };
-var e =
-  lt('Nil', app(pack('List'), app(inj('Nil'), empty)),
-    lt('Cons', lam('h', 't', app(pack('List'), app(inj('Cons'),
-      app(extend('0'), vr('h'), app(extend('1'), vr('t'), empty))))),
-        lt(
-          'test',
-          lam('l', app(elim('Nil'), app(vr('k'), vr('one')), app(vr('k'), vr('one')), app(unpack('List'), vr('l')))),
-          vr('test')
-        )));
+var e = ltr('x', lam('n', vr('x')), vr('x'));
 console.log(E.toString(e));
 var t = runInfer(e, env, {tvar: 2});
 console.log(T.toString(t));

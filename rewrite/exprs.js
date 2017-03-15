@@ -42,6 +42,14 @@ var lt = (arg, val, body) => ({
   body,
 });
 
+var Letr = 'Letr';
+var ltr = (arg, val, body) => ({
+  tag: Letr,
+  arg,
+  val,
+  body,
+});
+
 var RecordEmpty = 'RecordEmpty';
 var recordempty = { tag: RecordEmpty };
 
@@ -117,6 +125,9 @@ var toString = e => {
   if(e.tag === Let)
     return '(let ' + e.arg + ' = ' + toString(e.val) + ' in ' +
       toString(e.body) + ')';
+  if(e.tag === Letr)
+    return '(letr ' + e.arg + ' = ' + toString(e.val) + ' in ' +
+      toString(e.body) + ')';
 
   if(e.tag === RecordEmpty) return '{}';
   if(e.tag === Select) return '.' + e.label;
@@ -149,6 +160,9 @@ module.exports = {
 
   Let,
   lt,
+
+  Letr,
+  ltr,
 
   RecordEmpty,
   recordempty,
