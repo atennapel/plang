@@ -96,6 +96,18 @@ var variantupdate = label => ({
 var End = 'End';
 var end = { tag: End };
 
+var Unpack = 'Unpack';
+var unpack = label => ({
+  tag: Unpack,
+  label,
+});
+
+var Pack = 'Pack';
+var pack = label => ({
+  tag: Pack,
+  label,
+});
+
 var toString = e => {
   if(e.tag === Var) return '' + e.name;
   if(e.tag === App)
@@ -118,6 +130,9 @@ var toString = e => {
   if(e.tag === VariantUpdate) return '@=' + e.label;
 
   if(e.tag === End) return 'end';
+
+  if(e.tag === Pack) return 'pack ' + e.label;
+  if(e.tag === Unpack) return 'unpack ' + e.label;
 
   serr('Invalid expression tag toString: ' + e.tag);
 };
@@ -157,6 +172,12 @@ module.exports = {
 
   End,
   end,
+
+  Pack,
+  pack,
+
+  Unpack,
+  unpack,
 
   serr,
   toString,

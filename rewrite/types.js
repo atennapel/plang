@@ -53,6 +53,12 @@ var trowextend = (label, type, rest) => ({
   kind: K.Row,
 });
 
+var trow = (o, v) => {
+  var c = v || trowempty;
+  for(var k in o) c = trowextend(k, o[k], c);
+  return c;
+};
+
 var TArr = tcon('->', K.karr(K.Star, K.Star, K.Star));
 var tarr2 = (left, right) => tapp(TArr, left, right);
 var tarr = function() {
@@ -109,6 +115,8 @@ module.exports = {
 
   TRowExtend,
   trowextend,
+
+  trow,
 
   TArr,
   tarr,

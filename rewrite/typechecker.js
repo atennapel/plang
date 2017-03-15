@@ -58,6 +58,7 @@ var instantiate = (state, s) => {
   return {
     type: subst(sub, s.type),
     state: r.state,
+    sub,
   };
 };
 
@@ -361,12 +362,44 @@ var infer = (env, state, e) => {
     };
   }
 
+  if(e.tag === E.Pack) {
+    if(!env.newtypes[e.label])
+      T.terr('Cannot pack ' + e.label + ', not a valid newtype');
+    var newtype = env.newtypes[e.label];
+    var type = instantiate(state, newtype.type);
+    var args = newtype.args.map(v => type.sub[v.id] || v);
+    var ret = args.length > 0?
+      T.tapp.apply(null, [newtype.con].concat(args)):
+      newtype.con;
+    return {
+      sub: {},
+      type: T.tarr(type.type, ret),
+      state: type.state,
+    };
+  }
+  if(e.tag === E.Unpack) {
+    if(!env.newtypes[e.label])
+      T.terr('Cannot unpack ' + e.label + ', not a valid newtype');
+    var newtype = env.newtypes[e.label];
+    var type = instantiate(state, newtype.type);
+    var args = newtype.args.map(v => type.sub[v.id] || v);
+    var ret = args.length > 0?
+      T.tapp.apply(null, [newtype.con].concat(args)):
+      newtype.con;
+    return {
+      sub: {},
+      type: T.tarr(ret, type.type),
+      state: type.state,
+    };
+  }
+
   T.terr('Cannot infer: ' + E.toString(e));
 };
 
 var prepareEnv = env_ => {
   var env = env_ || {};
   env.typings = env.typings || {};
+  env.newtypes = env.newtypes || {};
   return env;
 };
 
@@ -396,12 +429,18 @@ var updatevar = E.variantupdate;
 
 var end = E.end;
 
+var pack = E.pack;
+var unpack = E.unpack;
+
 var a = T.tvar(0);
 var b = T.tvar(1);
 
 var Bool = T.tcon('Bool');
 var Int = T.tcon('Int');
 var Pair = T.tcon('Pair', K.karr(K.Star, K.Star, K.Star));
+
+var Box = T.tcon('Box', K.karr(K.Star, K.Star));
+var List = T.tcon('List', K.karr(K.Star, K.Star));
 
 var env = {
   typings: {
@@ -411,9 +450,40 @@ var env = {
     k: T.tscheme([a, b], T.tarr(a, b, a)),
     pair: T.tscheme([a, b], T.tarr(a, b, T.tapp(Pair, a, b))),
   },
+  newtypes: {
+    Count: {
+      con: T.tcon('Count'),
+      args: [],
+      type: T.tscheme([], Int),
+    },
+    Box: {
+      con: T.tcon('Box', K.karr(K.Star, K.Star)),
+      args: [a],
+      type: T.tscheme([a], a),
+    },
+    List: {
+      con: List,
+      args: [a],
+      type: T.tscheme([a],
+          T.tapp(T.TVariant, T.trow({
+            Nil: T.tapp(T.TRecord, T.trowempty),
+            Cons: T.tapp(T.TRecord, T.trow({
+              0: a,
+              1: T.tapp(List, a),
+            })),
+          }))),
+    },
+  },
 };
-var e = lt('id', lam('x', vr('x')),
-  app(vr('pair'), app(vr('id'), vr('one')), app(vr('id'), vr('True'))));
+var e =
+  lt('Nil', app(pack('List'), app(inj('Nil'), empty)),
+    lt('Cons', lam('h', 't', app(pack('List'), app(inj('Cons'),
+      app(extend('0'), vr('h'), app(extend('1'), vr('t'), empty))))),
+        lt(
+          'test',
+          lam('l', app(elim('Nil'), app(vr('k'), vr('one')), app(vr('k'), vr('one')), app(unpack('List'), vr('l')))),
+          vr('test')
+        )));
 console.log(E.toString(e));
 var t = runInfer(e, env, {tvar: 2});
 console.log(T.toString(t));
