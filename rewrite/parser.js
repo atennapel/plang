@@ -3,6 +3,7 @@ var E = require('./exprs');
 function handleApp(x) {
   if(typeof x === 'string') {
     if(x === 'end') return E.end;
+    if(x === 'handlereturn') return E.handlereturn;
     if(x === 'pure') return E.pure;
     if(x === 'return') return E.retrn;
     return E.vr(x);
@@ -44,6 +45,8 @@ function handleApp(x) {
       return E.app.apply(null, [E.unpack(a[1].name)].concat(a.slice(2)));
     if(fn.name === 'perform')
       return E.app.apply(null, [E.perform(a[1].name)].concat(a.slice(2)));
+    if(fn.name === 'handle')
+      return E.app.apply(null, [E.handle(a[1].name)].concat(a.slice(2)));
   }
   return E.app.apply(null, a);
 }

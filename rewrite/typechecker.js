@@ -46,15 +46,15 @@ var compose = (s1, s2) => U.union(U.omap(t => subst(s1, t), s2), s1);
 var generalize = (env, t) =>
   T.tscheme(U.vals(U.without(free(t), freeEnv(env))), t);
 
-var fresh = (state, kind, labels) =>
+var fresh = (state, kind, labels, value) =>
   ({
-    tvar: T.tvar(state.tvar, kind, labels),
+    tvar: T.tvar(state.tvar, kind, labels, value),
     state: U.clone(state, 'tvar', state.tvar + 1),
   });
 
 var instantiate = (state, s) => {
   var r = s.vars.reduce((r, v) => {
-    var rf = fresh(r.state, v.kind, v.labels);
+    var rf = fresh(r.state, v.kind, v.labels, v.value);
     r.vars.push(rf.tvar);
     return {
       vars: r.vars,
@@ -78,7 +78,8 @@ var occurs = (v, t) => !!free(t)[v.id];
 var bind = (state, v, t) => {
   if(t.tag === T.TVar) {
     if(v.id === t.id) return { sub: {}, state };
-    var m = fresh(state, v.kind, U.union(v.labels, t.labels));
+    var m = fresh(state, v.kind, U.union(v.labels, t.labels),
+      v.value || t.value);
     return {
       sub: U.map(v.id, m.tvar, t.id, m.tvar),
       state: m.state,
@@ -88,6 +89,9 @@ var bind = (state, v, t) => {
   if(occurs(v, t))
     return fail('Occurs check failed: ' + T.toString(v) +
       ' and ' + T.toString(t));
+  if(v.value && T.isEff(t))
+    return fail('Cannot bind ' + T.toString(v) + ' to ' + T.toString(t)
+      + ' because of value restriction');
   return { sub: U.map(v.id, t), state };
 };
 
@@ -265,12 +269,13 @@ var infer = (env, state, e) => {
   if(e.tag === E.Do) {
     var rval = infer(env, state, e.val);
     var reff = fresh(rval.state, K.Row);
-    var rpuretype = fresh(reff.state, K.Star);
+    var rpuretype = fresh(reff.state, K.Star, null, true);
     var ru1 = unify(
       rpuretype.state,
       rval.type,
       T.tapp(T.TEff, reff.tvar, rpuretype.tvar)
     );
+    if(failed(ru1)) throw ru1;
     var sub1 = compose(ru1.sub, rval.sub);
     var newEnv =
       U.clone(env, 'typings', U.clone(env.typings, e.arg,
@@ -278,18 +283,20 @@ var infer = (env, state, e) => {
     var rbody = infer(newEnv, ru1.state, e.body);
     var sub2 = compose(rbody.sub, sub1);
     var rreff = fresh(rbody.state, K.Row);
-    var rt = fresh(rreff.state, K.Star);
+    var rt = fresh(rreff.state, K.Star, null, true);
     var ru2 = unify(
       rt.state,
       subst(sub2, rbody.type),
       T.tapp(T.TEff, rreff.tvar, rt.tvar)
     );
+    if(failed(ru2)) throw ru2;
     var sub3 = compose(ru2.sub, sub2);
     var ru3 = unify(
       ru2.state,
       subst(sub3, reff.tvar),
       subst(sub3, rreff.tvar)
     );
+    if(failed(ru3)) throw ru3;
     var sub4 = compose(ru3.sub, sub3);
     return {
       sub: sub4,
@@ -446,7 +453,7 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.Pure) {
-    var v = fresh(state, K.Star);
+    var v = fresh(state, K.Star, null, true);
     return {
       sub: {},
       type: T.tarr(T.tapp(T.TEff, T.trowempty, v.tvar), v.tvar),
@@ -454,7 +461,7 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.Return) {
-    var v = fresh(state, K.Star);
+    var v = fresh(state, K.Star, null, true);
     var r = fresh(v.state, K.Row);
     return {
       sub: {},
@@ -495,9 +502,8 @@ var infer = (env, state, e) => {
   }
 
   if(e.tag === E.Perform) {
-    // a -> Eff {label : a -> b | r/Get} b
-    var v1 = fresh(state, K.Star);
-    var v2 = fresh(v1.state, K.Star);
+    var v1 = fresh(state, K.Star, null, true);
+    var v2 = fresh(v1.state, K.Star, null, true);
     var r = fresh(v2.state, K.Row, U.set(e.label));
     var a = v1.tvar;
     var b = v2.tvar;
@@ -508,6 +514,49 @@ var infer = (env, state, e) => {
         T.tapp(T.TEff, T.trowextend(e.label, T.tarr(a, b), r.tvar), b)
       ),
       state: r.state,
+    };
+  }
+
+  if(e.tag === E.Handle) {
+    var ra = fresh(state, K.Star, null, true);
+    var rb = fresh(ra.state, K.Star, null, true);
+    var rt1 = fresh(rb.state, K.Star, null, true);
+    var rt2 = fresh(rt1.state, K.Star, null, true);
+    var rr = fresh(rt2.state, K.Row, U.set(e.label));
+    var a = ra.tvar;
+    var b = rb.tvar;
+    var r = rr.tvar;
+    var t1 = rt1.tvar;
+    var t2 = rt2.tvar;
+    return {
+      sub: {},
+      type: T.tarr(
+        T.tarr(
+          a,
+          T.tarr(b, T.tapp(T.TEff, r, t2)),
+          T.tapp(T.TEff, r, t2)
+        ),
+        T.tapp(T.TEff, T.trowextend(e.label, T.tarr(a, b), r), t1),
+        T.tapp(T.TEff, r, t2)
+      ),
+      state: rr.state,
+    };
+  }
+  if(e.tag === E.HandleReturn) {
+    var ra = fresh(state, K.Star, null, true);
+    var rb = fresh(ra.state, K.Star, null, true);
+    var rr = fresh(rb.state, K.Row);
+    var a = ra.tvar;
+    var b = rb.tvar;
+    var r = rr.tvar;
+    return {
+      sub: {},
+      type: T.tarr(
+        T.tarr(a, T.tapp(T.TEff, r, b)),
+        T.tapp(T.TEff, r, a),
+        T.tapp(T.TEff, r, b)
+      ),
+      state: rr.state,
     };
   }
 

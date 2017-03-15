@@ -4,11 +4,12 @@ var U = require('./utils');
 var terr = m => { throw new TypeError(m) };
 
 var TVar = 'TVar';
-var tvar = (id, kind, labels) => ({
+var tvar = (id, kind, labels, value) => ({
   tag: TVar,
   id,
   labels: labels || {},
   kind: kind || K.Star,
+  value: value || false,
 });
 
 var TCon = 'Con';
@@ -74,6 +75,11 @@ var TRecord = tcon('Rec', K.karr(K.Row, K.Star));
 var TVariant = tcon('Var', K.karr(K.Row, K.Star));
 var TEff = tcon('Eff', K.karr(K.Row, K.Star, K.Star));
 
+var isUnit = t =>
+  t.tag === TApp && t.left === TRecord && t.right.tag === TRowEmpty;
+var isEff = t =>
+  t.tag === TApp && t.left.tag === TApp && t.left.left === TEff;
+
 var TScheme = 'TScheme';
 var tscheme = (vars, type) => ({
   tag: TScheme,
@@ -84,13 +90,20 @@ var tscheme = (vars, type) => ({
 var Bool = tcon('Bool', K.Star);
 
 var toString = t => {
+  if(isUnit(t)) return '()';
   if(t.tag === TVar) {
     var labels = U.keys(t.labels);
-    return '' + t.id + (labels.length? '/{' + labels.join(', ') + '}': '');
+    return (t.value? "'": '') + t.id +
+      (labels.length? '/{' + labels.join(', ') + '}': '');
   }
   if(t.tag === TCon) return '' + t.name;
-  if(t.tag === TApp)
+  if(t.tag === TApp) {
+    if(t.left.tag === TApp && t.left.left.tag === TCon &&
+      /[^a-z]/i.test(t.left.left.name[0]))
+      return '(' + toString(t.left.right) + ' ' +
+        t.left.left.name + ' ' + toString(t.right) + ')';
     return '(' + toString(t.left) + ' ' + toString(t.right) + ')';
+  }
   if(t.tag === TScheme)
     return 'forall' + (t.vars.length?
         ' ' + t.vars.map(toString).join(' '):
@@ -127,6 +140,9 @@ module.exports = {
   TRecord,
   TVariant,
   TEff,
+
+  isUnit,
+  isEff,
 
   TScheme,
   tscheme,

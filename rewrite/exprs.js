@@ -118,6 +118,15 @@ var variantupdate = label => ({
   label,
 });
 
+var Handle = 'Handle';
+var handle = label => ({
+  tag: Handle,
+  label,
+});
+
+var HandleReturn = 'HandleReturn';
+var handlereturn = { tag: HandleReturn };
+
 var End = 'End';
 var end = { tag: End };
 
@@ -175,6 +184,9 @@ var toString = e => {
   if(e.tag === Elim) return '?' + e.label;
   if(e.tag === VariantUpdate) return '@=' + e.label;
 
+  if(e.tag === Handle) return 'handle ' + e.label;
+  if(e.tag === HandleReturn) return 'handlereturn';
+
   if(e.tag === End) return 'end';
   if(e.tag === Pure) return 'pure';
   if(e.tag === Return) return 'return';
@@ -228,6 +240,12 @@ module.exports = {
   elim,
   VariantUpdate,
   variantupdate,
+
+  Handle,
+  handle,
+
+  HandleReturn,
+  handlereturn,
 
   End,
   end,

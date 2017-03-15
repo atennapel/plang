@@ -42,6 +42,11 @@ function compile(e) {
   if(e.tag === E.VariantUpdate)
     return '_variantupdate(' + JSON.stringify(e.label) + ')';
 
+  if(e.tag === E.Handle)
+    return '_handle(' + JSON.stringify(e.label) + ')';
+  if(e.tag === E.HandleReturn)
+    return '_handlereturn';
+
   if(e.tag === E.End)
     return '_end';
   if(e.tag === E.Pure)

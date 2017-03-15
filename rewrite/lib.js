@@ -51,10 +51,40 @@ var _do = function(val, cb) {
       val: val.val,
       cont: x => _do(val.cont(x), cb),
     };
-  if(val.tag === _Ret)
+  if(val.tag === _Return)
     return cb(val.val);
   throw new Error('Effect chain does not use Return');
 };
+
+var _handle = function(label) {return function(fa) {
+  return function(x) {
+    if(x.tag === _Cont) {
+      if(x.label === label) {
+        return _handle(label)(fa)(fa(x.val)(x.cont));
+      } else {
+        return {
+          tag: _Cont,
+          label: x.label,
+          val: x.val,
+          cont: v => _handle(label)(fa)(x.cont(v)),
+        };
+      }
+    }
+    if(x.tag === _Return) return x;
+    throw new Error('Effect chain does not use Return');
+  };
+}};
+var _handlereturn = function(fa) {return function(x) {
+  if(x.tag === _Cont)
+    return {
+      tag: _Cont,
+      label: x.label,
+      val: x.val,
+      cont: v => _handlereturn(fa)(x.cont(v)),
+    };
+  if(x.tag === _Return) return fa(x.val);
+  throw new Error('Effect chain does not use Return');
+}};
 
 var True = true;
 var False = false;
