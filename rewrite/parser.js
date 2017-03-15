@@ -1,7 +1,12 @@
 var E = require('./exprs');
 
 function handleApp(x) {
-  if(typeof x === 'string') return x === 'end'? E.end: E.vr(x);
+  if(typeof x === 'string') {
+    if(x === 'end') return E.end;
+    if(x === 'pure') return E.pure;
+    if(x === 'return') return E.retrn;
+    return E.vr(x);
+  }
   if(x.length === 0) return E.recordempty;
   if(x.length === 1) return handleApp(x[0]);
   var a = x.map(handleApp);
@@ -13,6 +18,8 @@ function handleApp(x) {
       return E.lt(a[1].name, a[2], a[3]);
     if(fn.name === 'letr')
       return E.ltr(a[1].name, a[2], a[3]);
+    if(fn.name === 'do')
+      return E.doo(a[1].name, a[2], a[3]);
     if(fn.name === 'if')
       return E.iff(a[1], a[2], a[3]);
     if(fn.name === 'sel')
@@ -35,6 +42,8 @@ function handleApp(x) {
       return E.app.apply(null, [E.pack(a[1].name)].concat(a.slice(2)));
     if(fn.name === 'unpack')
       return E.app.apply(null, [E.unpack(a[1].name)].concat(a.slice(2)));
+    if(fn.name === 'perform')
+      return E.app.apply(null, [E.perform(a[1].name)].concat(a.slice(2)));
   }
   return E.app.apply(null, a);
 }

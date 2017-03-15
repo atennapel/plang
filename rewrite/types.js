@@ -72,6 +72,7 @@ var tarr = function() {
 
 var TRecord = tcon('Rec', K.karr(K.Row, K.Star));
 var TVariant = tcon('Var', K.karr(K.Row, K.Star));
+var TEff = tcon('Eff', K.karr(K.Row, K.Star, K.Star));
 
 var TScheme = 'TScheme';
 var tscheme = (vars, type) => ({
@@ -125,6 +126,7 @@ module.exports = {
 
   TRecord,
   TVariant,
+  TEff,
 
   TScheme,
   tscheme,

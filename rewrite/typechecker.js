@@ -1,6 +1,8 @@
 /**
  * named tvars
- * effects
+ * effects:
+ *  value restriction
+ *  handlers
  * implicits
  */
 var E = require('./exprs');
@@ -260,6 +262,41 @@ var infer = (env, state, e) => {
       state: rbody.state,
     };
   }
+  if(e.tag === E.Do) {
+    var rval = infer(env, state, e.val);
+    var reff = fresh(rval.state, K.Row);
+    var rpuretype = fresh(reff.state, K.Star);
+    var ru1 = unify(
+      rpuretype.state,
+      rval.type,
+      T.tapp(T.TEff, reff.tvar, rpuretype.tvar)
+    );
+    var sub1 = compose(ru1.sub, rval.sub);
+    var newEnv =
+      U.clone(env, 'typings', U.clone(env.typings, e.arg,
+        T.tscheme([], subst(sub1, rpuretype.tvar))));
+    var rbody = infer(newEnv, ru1.state, e.body);
+    var sub2 = compose(rbody.sub, sub1);
+    var rreff = fresh(rbody.state, K.Row);
+    var rt = fresh(rreff.state, K.Star);
+    var ru2 = unify(
+      rt.state,
+      subst(sub2, rbody.type),
+      T.tapp(T.TEff, rreff.tvar, rt.tvar)
+    );
+    var sub3 = compose(ru2.sub, sub2);
+    var ru3 = unify(
+      ru2.state,
+      subst(sub3, reff.tvar),
+      subst(sub3, rreff.tvar)
+    );
+    var sub4 = compose(ru3.sub, sub3);
+    return {
+      sub: sub4,
+      type: subst(sub4, rbody.type),
+      state: ru3.state,
+    };
+  }
   if(e.tag === E.If) {
     var rcond = infer(env, state, e.cond);
     var ru1 = unify(rcond.state, rcond.type, T.Bool);
@@ -408,6 +445,23 @@ var infer = (env, state, e) => {
       state: v.state,
     };
   }
+  if(e.tag === E.Pure) {
+    var v = fresh(state, K.Star);
+    return {
+      sub: {},
+      type: T.tarr(T.tapp(T.TEff, T.trowempty, v.tvar), v.tvar),
+      state: v.state,
+    };
+  }
+  if(e.tag === E.Return) {
+    var v = fresh(state, K.Star);
+    var r = fresh(v.state, K.Row);
+    return {
+      sub: {},
+      type: T.tarr(v.tvar, T.tapp(T.TEff, r.tvar, v.tvar)),
+      state: r.state,
+    };
+  }
 
   if(e.tag === E.Pack) {
     if(!env.newtypes[e.label])
@@ -437,6 +491,23 @@ var infer = (env, state, e) => {
       sub: {},
       type: T.tarr(ret, type.type),
       state: type.state,
+    };
+  }
+
+  if(e.tag === E.Perform) {
+    // a -> Eff {label : a -> b | r/Get} b
+    var v1 = fresh(state, K.Star);
+    var v2 = fresh(v1.state, K.Star);
+    var r = fresh(v2.state, K.Row, U.set(e.label));
+    var a = v1.tvar;
+    var b = v2.tvar;
+    return {
+      sub: {},
+      type: T.tarr(
+        a,
+        T.tapp(T.TEff, T.trowextend(e.label, T.tarr(a, b), r.tvar), b)
+      ),
+      state: r.state,
     };
   }
 

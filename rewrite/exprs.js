@@ -51,6 +51,14 @@ var ltr = (arg, val, body) => ({
   body,
 });
 
+var Do = 'Do';
+var doo = (arg, val, body) => ({
+  tag: Do,
+  arg,
+  val,
+  body,
+});
+
 var If = 'If';
 var iff = (cond, bodyTrue, bodyFalse) => ({
   tag: If,
@@ -113,6 +121,12 @@ var variantupdate = label => ({
 var End = 'End';
 var end = { tag: End };
 
+var Pure = 'Pure';
+var pure = { tag: Pure };
+
+var Return = 'Return';
+var retrn = { tag: Return };
+
 var Unpack = 'Unpack';
 var unpack = label => ({
   tag: Unpack,
@@ -122,6 +136,12 @@ var unpack = label => ({
 var Pack = 'Pack';
 var pack = label => ({
   tag: Pack,
+  label,
+});
+
+var Perform = 'Perform';
+var perform = label => ({
+  tag: Perform,
   label,
 });
 
@@ -136,6 +156,9 @@ var toString = e => {
       toString(e.body) + ')';
   if(e.tag === Letr)
     return '(letr ' + e.arg + ' = ' + toString(e.val) + ' in ' +
+      toString(e.body) + ')';
+  if(e.tag === Do)
+    return '(' + e.arg + ' <- ' + toString(e.val) + '; ' +
       toString(e.body) + ')';
   if(e.tag === If)
     return '(if ' + toString(e.cond) + ' then ' + toString(e.bodyTrue) +
@@ -153,9 +176,13 @@ var toString = e => {
   if(e.tag === VariantUpdate) return '@=' + e.label;
 
   if(e.tag === End) return 'end';
+  if(e.tag === Pure) return 'pure';
+  if(e.tag === Return) return 'return';
 
   if(e.tag === Pack) return 'pack ' + e.label;
   if(e.tag === Unpack) return 'unpack ' + e.label;
+
+  if(e.tag === Perform) return '!' + e.label;
 
   serr('Invalid expression tag toString: ' + e.tag);
 };
@@ -175,6 +202,9 @@ module.exports = {
 
   Letr,
   ltr,
+
+  Do,
+  doo,
 
   If,
   iff,
@@ -202,11 +232,20 @@ module.exports = {
   End,
   end,
 
+  Pure,
+  pure,
+
+  Return,
+  retrn,
+
   Pack,
   pack,
 
   Unpack,
   unpack,
+
+  Perform,
+  perform,
 
   serr,
   toString,

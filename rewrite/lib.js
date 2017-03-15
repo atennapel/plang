@@ -33,6 +33,29 @@ var _variantupdate = function(label) {return function(f) {return function(x) {
 var _pack = function(label) {return _id};
 var _unpack = function(label) {return _id};
 
+var _pure = function(x) {return x.val};
+
+var _Return = 'Return';
+var _return = function(x) {return {tag: _Return, val: x}};
+
+var _Cont = 'Cont';
+var _perform = function(label) {return function(v) {
+  return {tag: _Cont, label: label, val: v, cont: _return};
+}};
+
+var _do = function(val, cb) {
+  if(val.tag === _Cont)
+    return {
+      tag: _Cont,
+      label: val.label,
+      val: val.val,
+      cont: x => _do(val.cont(x), cb),
+    };
+  if(val.tag === _Ret)
+    return cb(val.val);
+  throw new Error('Effect chain does not use Return');
+};
+
 var True = true;
 var False = false;
 

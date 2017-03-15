@@ -48,3 +48,4 @@ console.log(T.toString(type) + ' : ' + K.toString(type.kind));
 var compiled = compiler.compileWithLib(parsed);
 var evalled = eval(compiled);
 console.log(evalled);
+console.log(JSON.stringify(evalled, null, 2));
