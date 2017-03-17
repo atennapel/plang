@@ -46,13 +46,17 @@ var TRowEmpty = 'TRowEmpty';
 var trowempty = { tag: TRowEmpty, kind: K.Row };
 
 var TRowExtend = 'TRowExtend';
-var trowextend = (label, type, rest) => ({
-  tag: TRowExtend,
-  label,
-  type,
-  rest,
-  kind: K.Row,
-});
+var trowextend = (label, type, rest) => {
+  if(rest.kind !== K.Row)
+    terr('Rest in RowExtend must be of kind #: ' + toString(rest));
+  return {
+    tag: TRowExtend,
+    label,
+    type,
+    rest,
+    kind: K.Row,
+  };
+};
 
 var trow = (o, v) => {
   var c = v || trowempty;
