@@ -154,6 +154,28 @@ var perform = label => ({
   label,
 });
 
+var TypeOf = 'TypeOf';
+var typeOf = expr => ({
+  tag: TypeOf,
+  expr,
+});
+
+var setType = (e, t) => {
+  e.type = t;
+  return e;
+};
+
+var each = (f, e) =>
+  e.tag === App? (each(f, e.left), each(f, e.right), f(e)):
+  e.tag === Lam? (each(f, e.body), f(e)):
+  e.tag === Let? (each(f, e.val), each(f, e.body), f(e)):
+  e.tag === Letr? (each(f, e.val), each(f, e.body), f(e)):
+  e.tag === Do? (each(f, e.val), each(f, e.body), f(e)):
+  e.tag === If?
+    (each(f, e.cond), each(f, e.bodyTrue), each(f, e.bodyFalse), f(e)):
+  e.tag === TypeOf? (each(f, e.expr), f(e)):
+  f(e);
+
 var toString = e => {
   if(e.tag === Var) return '' + e.name;
   if(e.tag === App)
@@ -172,6 +194,8 @@ var toString = e => {
   if(e.tag === If)
     return '(if ' + toString(e.cond) + ' then ' + toString(e.bodyTrue) +
       ' else ' + toString(e.bodyFalse) + ')';
+  if(e.tag === TypeOf)
+    return '(typeof ' + toString(e.expr) + ')';
 
   if(e.tag === RecordEmpty) return '{}';
   if(e.tag === Select) return '.' + e.label;
@@ -265,6 +289,11 @@ module.exports = {
   Perform,
   perform,
 
+  TypeOf,
+  typeOf,
+
+  setType,
+  each,
   serr,
   toString,
 };

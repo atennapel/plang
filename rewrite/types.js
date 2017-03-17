@@ -78,6 +78,7 @@ var tarr = function() {
 var TRecord = tcon('Rec', K.karr(K.Row, K.Star));
 var TVariant = tcon('Var', K.karr(K.Row, K.Star));
 var TEff = tcon('Eff', K.karr(K.Row, K.Star, K.Star));
+var TType = tcon('Type', K.karr(K.Star, K.Star));
 
 var isUnit = t =>
   t.tag === TApp && t.left === TRecord && t.right.tag === TRowEmpty;
@@ -144,6 +145,7 @@ module.exports = {
   TRecord,
   TVariant,
   TEff,
+  TType,
 
   isUnit,
   isEff,

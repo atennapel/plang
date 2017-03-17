@@ -1,6 +1,7 @@
 /**
  * named tvars
  * implicits
+ * anno
  */
 var E = require('./exprs');
 var T = require('./types');
@@ -198,6 +199,7 @@ var infer = (env, state, e) => {
       sub: {},
       type: r.type,
       state: r.state,
+      expr: E.setType(e, r.type),
     };
   }
   if(e.tag === E.Lam) {
@@ -205,10 +207,12 @@ var infer = (env, state, e) => {
     var nenv = U.clone(env, 'typings',
       U.clone(env.typings, e.arg, T.tscheme([], rv.tvar)));
     var ri = infer(nenv, rv.state, e.body);
+    var type = T.tarr(subst(ri.sub, rv.tvar), ri.type);
     return {
       sub: ri.sub,
-      type: T.tarr(subst(ri.sub, rv.tvar), ri.type),
+      type,
       state: ri.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.App) {
@@ -222,10 +226,12 @@ var infer = (env, state, e) => {
       T.tarr(rright.type, rv.tvar)
     );
     if(failed(su)) throw su;
+    var type = subst(su.sub, rv.tvar);
     return {
       sub: compose(su.sub, compose(rright.sub, rleft.sub)),
-      type: subst(su.sub, rv.tvar),
+      type,
       state: su.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.Let) {
@@ -238,6 +244,7 @@ var infer = (env, state, e) => {
       sub: compose(rbody.sub, rval.sub),
       type: rbody.type,
       state: rbody.state,
+      expr: E.setType(e, rbody.type),
     };
   }
   if(e.tag === E.Letr) {
@@ -261,6 +268,7 @@ var infer = (env, state, e) => {
       sub: compose(rbody.sub, sub),
       type: rbody.type,
       state: rbody.state,
+      expr: E.setType(e, rbody.type),
     };
   }
   if(e.tag === E.Do) {
@@ -295,10 +303,12 @@ var infer = (env, state, e) => {
     );
     if(failed(ru3)) throw ru3;
     var sub4 = compose(ru3.sub, sub3);
+    var type = subst(sub4, rbody.type);
     return {
       sub: sub4,
-      type: subst(sub4, rbody.type),
+      type,
       state: ru3.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.If) {
@@ -313,57 +323,67 @@ var infer = (env, state, e) => {
       subst(sub, rtrue.type), subst(sub, rfalse.type));
     if(failed(ru2)) throw ru2;
     var sub2 = compose(ru2.sub, sub);
+    var type = subst(sub2, rtrue.type);
     return {
       sub: sub2,
-      type: subst(sub2, rtrue.type),
+      type,
       state: ru2.state,
+      expr: E.setType(e, type),
     };
   }
 
   if(e.tag === E.RecordEmpty) {
+    var type = T.tapp(T.TRecord, T.trowempty);
     return {
       sub: {},
-      type: T.tapp(T.TRecord, T.trowempty),
+      type,
       state,
+      expr: E.setType(e, type),
     }
   }
   if(e.tag === E.Select) {
     var v = fresh(state, K.Star);
     var r = fresh(v.state, K.Row, U.set(e.label));
+    var type = T.tarr(
+      T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar)),
+      v.tvar
+    );
     return {
       sub: {},
-      type: T.tarr(
-        T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar)),
-        v.tvar
-      ),
+      type,
       state: r.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.Extend) {
     var v = fresh(state, K.Star);
     var r = fresh(v.state, K.Row, U.set(e.label));
+    var type = T.tarr(
+      v.tvar,
+      T.tarr(
+        T.tapp(T.TRecord, r.tvar),
+        T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar))
+      )
+    );
     return {
       sub: {},
-      type: T.tarr(
-        v.tvar,
-        T.tarr(
-          T.tapp(T.TRecord, r.tvar),
-          T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar))
-        )
-      ),
+      type,
       state: r.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.Restrict) {
     var v = fresh(state, K.Star);
     var r = fresh(v.state, K.Row, U.set(e.label));
+    var type = T.tarr(
+      T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar)),
+      T.tapp(T.TRecord, r.tvar)
+    );
     return {
       sub: {},
-      type: T.tarr(
-        T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar)),
-        T.tapp(T.TRecord, r.tvar)
-      ),
+      type,
       state: r.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.RecordUpdate) {
@@ -372,39 +392,45 @@ var infer = (env, state, e) => {
     var r = fresh(v2.state, K.Row, U.set(e.label));
     var a = v1.tvar;
     var b = v2.tvar;
+    var type = T.tarr(
+      T.tarr(a, b),
+      T.tapp(T.TRecord, T.trowextend(e.label, a, r.tvar)),
+      T.tapp(T.TRecord, T.trowextend(e.label, b, r.tvar))
+    );
     return {
       sub: {},
-      type: T.tarr(
-        T.tarr(a, b),
-        T.tapp(T.TRecord, T.trowextend(e.label, a, r.tvar)),
-        T.tapp(T.TRecord, T.trowextend(e.label, b, r.tvar))
-      ),
+      type,
       state: r.state,
+      expr: E.setType(e, type),
     };
   }
 
   if(e.tag === E.Inject) {
     var v = fresh(state, K.Star);
     var r = fresh(v.state, K.Row, U.set(e.label));
+    var type = T.tarr(
+      v.tvar,
+      T.tapp(T.TVariant, T.trowextend(e.label, v.tvar, r.tvar))
+    );
     return {
       sub: {},
-      type: T.tarr(
-        v.tvar,
-        T.tapp(T.TVariant, T.trowextend(e.label, v.tvar, r.tvar))
-      ),
+      type,
       state: r.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.Embed) {
     var v = fresh(state, K.Star);
     var r = fresh(v.state, K.Row, U.set(e.label));
+    var type = T.tarr(
+      T.tapp(T.TVariant, r.tvar),
+      T.tapp(T.TVariant, T.trowextend(e.label, v.tvar, r.tvar))
+    );
     return {
       sub: {},
-      type: T.tarr(
-        T.tapp(T.TVariant, r.tvar),
-        T.tapp(T.TVariant, T.trowextend(e.label, v.tvar, r.tvar))
-      ),
+      type,
       state: r.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.Elim) {
@@ -413,15 +439,17 @@ var infer = (env, state, e) => {
     var r = fresh(v2.state, K.Row, U.set(e.label));
     var a = v1.tvar;
     var b = v2.tvar;
+    var type = T.tarr(
+      T.tarr(a, b),
+      T.tarr(T.tapp(T.TVariant, r.tvar), b),
+      T.tapp(T.TVariant, T.trowextend(e.label, a, r.tvar)),
+      b
+    );
     return {
       sub: {},
-      type: T.tarr(
-        T.tarr(a, b),
-        T.tarr(T.tapp(T.TVariant, r.tvar), b),
-        T.tapp(T.TVariant, T.trowextend(e.label, a, r.tvar)),
-        b
-      ),
+      type,
       state: r.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.VariantUpdate) {
@@ -430,40 +458,48 @@ var infer = (env, state, e) => {
     var r = fresh(v2.state, K.Row, U.set(e.label));
     var a = v1.tvar;
     var b = v2.tvar;
+    var type = T.tarr(
+      T.tarr(a, b),
+      T.tapp(T.TVariant, T.trowextend(e.label, a, r.tvar)),
+      T.tapp(T.TVariant, T.trowextend(e.label, b, r.tvar))
+    );
     return {
       sub: {},
-      type: T.tarr(
-        T.tarr(a, b),
-        T.tapp(T.TVariant, T.trowextend(e.label, a, r.tvar)),
-        T.tapp(T.TVariant, T.trowextend(e.label, b, r.tvar))
-      ),
+      type,
       state: r.state,
+      expr: E.setType(e, type),
     };
   }
 
   if(e.tag === E.End) {
     var v = fresh(state, K.Star);
+    var type = T.tarr(T.tapp(T.TVariant, T.trowempty), v.tvar);
     return {
       sub: {},
-      type: T.tarr(T.tapp(T.TVariant, T.trowempty), v.tvar),
+      type,
       state: v.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.Pure) {
     var v = fresh(state, K.Star, null, true);
+    var type = T.tarr(T.tapp(T.TEff, T.trowempty, v.tvar), v.tvar);
     return {
       sub: {},
-      type: T.tarr(T.tapp(T.TEff, T.trowempty, v.tvar), v.tvar),
+      type,
       state: v.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.Return) {
     var v = fresh(state, K.Star, null, true);
     var r = fresh(v.state, K.Row);
+    var type = T.tarr(v.tvar, T.tapp(T.TEff, r.tvar, v.tvar));
     return {
       sub: {},
-      type: T.tarr(v.tvar, T.tapp(T.TEff, r.tvar, v.tvar)),
+      type,
       state: r.state,
+      expr: E.setType(e, type),
     };
   }
 
@@ -476,10 +512,12 @@ var infer = (env, state, e) => {
     var ret = args.length > 0?
       T.tapp.apply(null, [newtype.con].concat(args)):
       newtype.con;
+    var type = T.tarr(type.type, ret)
     return {
       sub: {},
-      type: T.tarr(type.type, ret),
+      type,
       state: type.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.Unpack) {
@@ -491,10 +529,12 @@ var infer = (env, state, e) => {
     var ret = args.length > 0?
       T.tapp.apply(null, [newtype.con].concat(args)):
       newtype.con;
+    var type = T.tarr(ret, type.type);
     return {
       sub: {},
-      type: T.tarr(ret, type.type),
+      type,
       state: type.state,
+      expr: E.setType(e, type),
     };
   }
 
@@ -504,13 +544,15 @@ var infer = (env, state, e) => {
     var r = fresh(v2.state, K.Row, U.set(e.label));
     var a = v1.tvar;
     var b = v2.tvar;
+    var type = T.tarr(
+      a,
+      T.tapp(T.TEff, T.trowextend(e.label, T.tarr(a, b), r.tvar), b)
+    );
     return {
       sub: {},
-      type: T.tarr(
-        a,
-        T.tapp(T.TEff, T.trowextend(e.label, T.tarr(a, b), r.tvar), b)
-      ),
+      type,
       state: r.state,
+      expr: E.setType(e, type),
     };
   }
 
@@ -525,18 +567,20 @@ var infer = (env, state, e) => {
     var r = rr.tvar;
     var t1 = rt1.tvar;
     var t2 = rt2.tvar;
-    return {
-      sub: {},
-      type: T.tarr(
-        T.tarr(
-          a,
-          T.tarr(b, T.tapp(T.TEff, r, t2)),
-          T.tapp(T.TEff, r, t2)
-        ),
-        T.tapp(T.TEff, T.trowextend(e.label, T.tarr(a, b), r), t1),
+    var type = T.tarr(
+      T.tarr(
+        a,
+        T.tarr(b, T.tapp(T.TEff, r, t2)),
         T.tapp(T.TEff, r, t2)
       ),
+      T.tapp(T.TEff, T.trowextend(e.label, T.tarr(a, b), r), t1),
+      T.tapp(T.TEff, r, t2)
+    );
+    return {
+      sub: {},
+      type,
       state: rr.state,
+      expr: E.setType(e, type),
     };
   }
   if(e.tag === E.HandleReturn) {
@@ -546,14 +590,27 @@ var infer = (env, state, e) => {
     var a = ra.tvar;
     var b = rb.tvar;
     var r = rr.tvar;
+    var type = T.tarr(
+      T.tarr(a, T.tapp(T.TEff, r, b)),
+      T.tapp(T.TEff, r, a),
+      T.tapp(T.TEff, r, b)
+    );
     return {
       sub: {},
-      type: T.tarr(
-        T.tarr(a, T.tapp(T.TEff, r, b)),
-        T.tapp(T.TEff, r, a),
-        T.tapp(T.TEff, r, b)
-      ),
+      type,
       state: rr.state,
+      expr: E.setType(e, type),
+    };
+  }
+
+  if(e.tag === E.TypeOf) {
+    var r = infer(env, state, e.expr);
+    var type = T.tapp(T.TType, r.type);
+    return {
+      sub: r.sub,
+      type,
+      state: r.state,
+      expr: E.setType(e, type),
     };
   }
 
@@ -571,6 +628,9 @@ var initialState = { tvar: 0 };
 
 var runInfer = (e, env, st) => {
   var r = infer(prepareEnv(env), st || initialState, e);
+  E.each(x => {
+    if(x.type) x.type = subst(r.sub, x.type);
+  }, e);
   return subst(r.sub, r.type);
 };
 

@@ -20,6 +20,8 @@ function compile(e) {
     return '(' + compile(e.cond) + ' ? ' +
       compile(e.bodyTrue) + ' : ' +
       compile(e.bodyFalse) + ')';
+  if(e.tag === E.TypeOf)
+    return '(' + JSON.stringify(e.type) + ')';
 
   if(e.tag === E.RecordEmpty)
     return '_unit';

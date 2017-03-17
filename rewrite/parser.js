@@ -56,6 +56,8 @@ function handleApp2(x) {
       return E.doo(a[1].name, a[2], a[3]);
     if(fn.name === 'if')
       return E.iff(a[1], a[2], a[3]);
+    if(fn.name === 'typeof')
+      return E.typeOf(a[1]);
     if(fn.name === 'sel')
       return E.app.apply(null, [E.select(a[1].name)].concat(a.slice(2)));
     if(fn.name === 'extend')
