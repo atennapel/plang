@@ -4,8 +4,9 @@ var U = require('./utils');
 var terr = m => { throw new TypeError(m) };
 
 var TVar = 'TVar';
-var tvar = (id, kind, labels, value) => ({
+var tvar = (name, id, kind, labels, value) => ({
   tag: TVar,
+  name,
   id,
   labels: labels || {},
   kind: kind || K.Star,

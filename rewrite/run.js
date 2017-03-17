@@ -6,7 +6,7 @@ var E = require('./exprs');
 var T = require('./types');
 var K = require('./kinds');
 
-var a = T.tvar(0);
+var a = T.tvar('t', 't0');
 
 var Bool = T.Bool;
 var Int = T.tcon('Int');
@@ -38,7 +38,7 @@ var env = {
   },
 };
 
-var state = {tvar: 1};
+var state = {tvar: {t: 1}};
 
 var inp = require('fs').readFileSync(process.argv[2], {encoding: 'utf8'});
 var parsed = parser.parse(inp);

@@ -1,1 +1,1 @@
-add
+let x (elim X); x

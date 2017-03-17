@@ -44,15 +44,17 @@ var compose = (s1, s2) => U.union(U.omap(t => subst(s1, t), s2), s1);
 var generalize = (env, t) =>
   T.tscheme(U.vals(U.without(free(t), freeEnv(env))), t);
 
-var fresh = (state, kind, labels, value) =>
-  ({
-    tvar: T.tvar(state.tvar, kind, labels, value),
-    state: U.clone(state, 'tvar', state.tvar + 1),
-  });
+var fresh = (state, name, kind, labels, value) => {
+  var n = state.tvar[name] || 0;
+  return {
+    tvar: T.tvar(name, name + n, kind, labels, value),
+    state: U.clone(state, 'tvar', U.clone(state.tvar, name, n + 1)),
+  };
+};
 
 var instantiate = (state, s) => {
   var r = s.vars.reduce((r, v) => {
-    var rf = fresh(r.state, v.kind, v.labels, v.value);
+    var rf = fresh(r.state, v.name, v.kind, v.labels, v.value);
     r.vars.push(rf.tvar);
     return {
       vars: r.vars,
@@ -76,7 +78,7 @@ var occurs = (v, t) => !!free(t)[v.id];
 var bind = (state, v, t) => {
   if(t.tag === T.TVar) {
     if(v.id === t.id) return { sub: {}, state };
-    var m = fresh(state, v.kind, U.union(v.labels, t.labels),
+    var m = fresh(state, v.name, v.kind, U.union(v.labels, t.labels),
       v.value || t.value);
     return {
       sub: U.map(v.id, m.tvar, t.id, m.tvar),
@@ -112,7 +114,7 @@ var bindRow = (state, v, t) => {
     return fail('Repeated labels in ' + T.toString(v) +
       ' and ' + T.toString(t));
   if(!row.rest) return { sub: s1, state };
-  var rv = fresh(state, K.Row, U.union(ls1, row.rest.labels));
+  var rv = fresh(state, 'r', K.Row, U.union(ls1, row.rest.labels));
   var s2 = U.map(row.rest.id, rv.tvar);
   return {
     sub: compose(s2, s1),
@@ -125,8 +127,8 @@ var rewriteRow = (state, t, label) => {
   if(t.tag === T.TRowExtend) {
     if(label === t.label) return {type: t.type, rest: t.rest, sub: {}, state};
     if(t.rest.tag === T.TVar) {
-      var rv1 = fresh(state, K.Row, U.set(label));
-      var rv2 = fresh(rv1.state, K.Star);
+      var rv1 = fresh(state, 'r', K.Row, U.set(label));
+      var rv2 = fresh(rv1.state, 't', K.Star);
       var r = bindRow(
         rv2.state,
         t.rest,
@@ -203,7 +205,7 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.Lam) {
-    var rv = fresh(state, K.Star);
+    var rv = fresh(state, e.arg, K.Star);
     var nenv = U.clone(env, 'typings',
       U.clone(env.typings, e.arg, T.tscheme([], rv.tvar)));
     var ri = infer(nenv, rv.state, e.body);
@@ -219,7 +221,7 @@ var infer = (env, state, e) => {
     var rleft = infer(env, state, e.left);
     var nenv = U.clone(env, 'typings', substEnv(rleft.sub, env.typings));
     var rright = infer(nenv, rleft.state, e.right);
-    var rv = fresh(rright.state, K.Star);
+    var rv = fresh(rright.state, 't', K.Star);
     var su = unify(
       rv.state,
       subst(rright.sub, rleft.type),
@@ -248,7 +250,7 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.Letr) {
-    var v = fresh(state, K.Star);
+    var v = fresh(state, e.arg, K.Star);
     var nenv = U.clone(env, 'typings',
       U.clone(env.typings, e.arg, T.tscheme([], v.tvar)));
     var rval = infer(nenv, v.state, e.val);
@@ -273,8 +275,8 @@ var infer = (env, state, e) => {
   }
   if(e.tag === E.Do) {
     var rval = infer(env, state, e.val);
-    var reff = fresh(rval.state, K.Row);
-    var rpuretype = fresh(reff.state, K.Star, null, true);
+    var reff = fresh(rval.state, e.arg, K.Row);
+    var rpuretype = fresh(reff.state, 't', K.Star, null, true);
     var ru1 = unify(
       rpuretype.state,
       rval.type,
@@ -287,8 +289,8 @@ var infer = (env, state, e) => {
         T.tscheme([], subst(sub1, rpuretype.tvar))));
     var rbody = infer(newEnv, ru1.state, e.body);
     var sub2 = compose(rbody.sub, sub1);
-    var rreff = fresh(rbody.state, K.Row);
-    var rt = fresh(rreff.state, K.Star, null, true);
+    var rreff = fresh(rbody.state, 'e', K.Row);
+    var rt = fresh(rreff.state, 't', K.Star, null, true);
     var ru2 = unify(
       rt.state,
       subst(sub2, rbody.type),
@@ -342,8 +344,8 @@ var infer = (env, state, e) => {
     }
   }
   if(e.tag === E.Select) {
-    var v = fresh(state, K.Star);
-    var r = fresh(v.state, K.Row, U.set(e.label));
+    var v = fresh(state, 't', K.Star);
+    var r = fresh(v.state, 'r', K.Row, U.set(e.label));
     var type = T.tarr(
       T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar)),
       v.tvar
@@ -356,8 +358,8 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.Extend) {
-    var v = fresh(state, K.Star);
-    var r = fresh(v.state, K.Row, U.set(e.label));
+    var v = fresh(state, 't', K.Star);
+    var r = fresh(v.state, 'r', K.Row, U.set(e.label));
     var type = T.tarr(
       v.tvar,
       T.tarr(
@@ -373,8 +375,8 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.Restrict) {
-    var v = fresh(state, K.Star);
-    var r = fresh(v.state, K.Row, U.set(e.label));
+    var v = fresh(state, 't', K.Star);
+    var r = fresh(v.state, 'r', K.Row, U.set(e.label));
     var type = T.tarr(
       T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar)),
       T.tapp(T.TRecord, r.tvar)
@@ -387,9 +389,9 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.RecordUpdate) {
-    var v1 = fresh(state, K.Star);
-    var v2 = fresh(v1.state, K.Star);
-    var r = fresh(v2.state, K.Row, U.set(e.label));
+    var v1 = fresh(state, 'a', K.Star);
+    var v2 = fresh(v1.state, 'b', K.Star);
+    var r = fresh(v2.state, 'r', K.Row, U.set(e.label));
     var a = v1.tvar;
     var b = v2.tvar;
     var type = T.tarr(
@@ -406,8 +408,8 @@ var infer = (env, state, e) => {
   }
 
   if(e.tag === E.Inject) {
-    var v = fresh(state, K.Star);
-    var r = fresh(v.state, K.Row, U.set(e.label));
+    var v = fresh(state, 't', K.Star);
+    var r = fresh(v.state, 'r', K.Row, U.set(e.label));
     var type = T.tarr(
       v.tvar,
       T.tapp(T.TVariant, T.trowextend(e.label, v.tvar, r.tvar))
@@ -420,8 +422,8 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.Embed) {
-    var v = fresh(state, K.Star);
-    var r = fresh(v.state, K.Row, U.set(e.label));
+    var v = fresh(state, 't', K.Star);
+    var r = fresh(v.state, 'r', K.Row, U.set(e.label));
     var type = T.tarr(
       T.tapp(T.TVariant, r.tvar),
       T.tapp(T.TVariant, T.trowextend(e.label, v.tvar, r.tvar))
@@ -434,9 +436,9 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.Elim) {
-    var v1 = fresh(state, K.Star);
-    var v2 = fresh(v1.state, K.Star);
-    var r = fresh(v2.state, K.Row, U.set(e.label));
+    var v1 = fresh(state, 'a', K.Star);
+    var v2 = fresh(v1.state, 'b', K.Star);
+    var r = fresh(v2.state, 'r', K.Row, U.set(e.label));
     var a = v1.tvar;
     var b = v2.tvar;
     var type = T.tarr(
@@ -453,9 +455,9 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.VariantUpdate) {
-    var v1 = fresh(state, K.Star);
-    var v2 = fresh(v1.state, K.Star);
-    var r = fresh(v2.state, K.Row, U.set(e.label));
+    var v1 = fresh(state, 'a', K.Star);
+    var v2 = fresh(v1.state, 'b', K.Star);
+    var r = fresh(v2.state, 'r', K.Row, U.set(e.label));
     var a = v1.tvar;
     var b = v2.tvar;
     var type = T.tarr(
@@ -472,7 +474,7 @@ var infer = (env, state, e) => {
   }
 
   if(e.tag === E.End) {
-    var v = fresh(state, K.Star);
+    var v = fresh(state, 't', K.Star);
     var type = T.tarr(T.tapp(T.TVariant, T.trowempty), v.tvar);
     return {
       sub: {},
@@ -482,7 +484,7 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.Pure) {
-    var v = fresh(state, K.Star, null, true);
+    var v = fresh(state, 't', K.Star, null, true);
     var type = T.tarr(T.tapp(T.TEff, T.trowempty, v.tvar), v.tvar);
     return {
       sub: {},
@@ -492,8 +494,8 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.Return) {
-    var v = fresh(state, K.Star, null, true);
-    var r = fresh(v.state, K.Row);
+    var v = fresh(state, 't', K.Star, null, true);
+    var r = fresh(v.state, 'r', K.Row);
     var type = T.tarr(v.tvar, T.tapp(T.TEff, r.tvar, v.tvar));
     return {
       sub: {},
@@ -539,9 +541,9 @@ var infer = (env, state, e) => {
   }
 
   if(e.tag === E.Perform) {
-    var v1 = fresh(state, K.Star, null, true);
-    var v2 = fresh(v1.state, K.Star, null, true);
-    var r = fresh(v2.state, K.Row, U.set(e.label));
+    var v1 = fresh(state, 'a', K.Star, null, true);
+    var v2 = fresh(v1.state, 'b', K.Star, null, true);
+    var r = fresh(v2.state, 'r', K.Row, U.set(e.label));
     var a = v1.tvar;
     var b = v2.tvar;
     var type = T.tarr(
@@ -557,11 +559,11 @@ var infer = (env, state, e) => {
   }
 
   if(e.tag === E.Handle) {
-    var ra = fresh(state, K.Star, null, true);
-    var rb = fresh(ra.state, K.Star, null, true);
-    var rt1 = fresh(rb.state, K.Star, null, true);
-    var rt2 = fresh(rt1.state, K.Star, null, true);
-    var rr = fresh(rt2.state, K.Row, U.set(e.label));
+    var ra = fresh(state, 'a', K.Star, null, true);
+    var rb = fresh(ra.state, 'b', K.Star, null, true);
+    var rt1 = fresh(rb.state, 'x', K.Star, null, true);
+    var rt2 = fresh(rt1.state,'y',  K.Star, null, true);
+    var rr = fresh(rt2.state, 'r', K.Row, U.set(e.label));
     var a = ra.tvar;
     var b = rb.tvar;
     var r = rr.tvar;
@@ -584,9 +586,9 @@ var infer = (env, state, e) => {
     };
   }
   if(e.tag === E.HandleReturn) {
-    var ra = fresh(state, K.Star, null, true);
-    var rb = fresh(ra.state, K.Star, null, true);
-    var rr = fresh(rb.state, K.Row);
+    var ra = fresh(state, 'a', K.Star, null, true);
+    var rb = fresh(ra.state, 'b', K.Star, null, true);
+    var rr = fresh(rb.state, 'r', K.Row);
     var a = ra.tvar;
     var b = rb.tvar;
     var r = rr.tvar;
@@ -624,7 +626,7 @@ var prepareEnv = env_ => {
   return env;
 };
 
-var initialState = { tvar: 0 };
+var initialState = { tvar: {} };
 
 var runInfer = (e, env, st) => {
   var r = infer(prepareEnv(env), st || initialState, e);
