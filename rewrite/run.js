@@ -6,7 +6,7 @@ var E = require('./exprs');
 var T = require('./types');
 var K = require('./kinds');
 
-var a = T.tvar('t', 't0');
+var t = T.tvar('t', 't0');
 
 var Bool = T.Bool;
 var Int = T.tcon('Int');
@@ -25,13 +25,13 @@ var env = {
   newtypes: {
     List: {
       con: List,
-      args: [a],
-      type: T.tscheme([a],
+      args: [t],
+      type: T.tscheme([t],
           T.tapp(T.TVariant, T.trow({
             Nil: T.tapp(T.TRecord, T.trowempty),
             Cons: T.tapp(T.TRecord, T.trow({
-              0: a,
-              1: T.tapp(List, a),
+              0: t,
+              1: T.tapp(List, t),
             })),
           }))),
     },

@@ -1,7 +1,5 @@
 /**
- * named tvars
  * implicits
- * anno
  */
 var E = require('./exprs');
 var T = require('./types');
@@ -514,12 +512,12 @@ var infer = (env, state, e) => {
     var ret = args.length > 0?
       T.tapp.apply(null, [newtype.con].concat(args)):
       newtype.con;
-    var type = T.tarr(type.type, ret)
+    var rtype = T.tarr(type.type, ret)
     return {
       sub: {},
-      type,
+      type: rtype,
       state: type.state,
-      expr: E.setType(e, type),
+      expr: E.setType(e, rtype),
     };
   }
   if(e.tag === E.Unpack) {
@@ -531,12 +529,12 @@ var infer = (env, state, e) => {
     var ret = args.length > 0?
       T.tapp.apply(null, [newtype.con].concat(args)):
       newtype.con;
-    var type = T.tarr(ret, type.type);
+    var rtype = T.tarr(ret, type.type);
     return {
       sub: {},
-      type,
+      type: rtype,
       state: type.state,
-      expr: E.setType(e, type),
+      expr: E.setType(e, rtype),
     };
   }
 
@@ -612,6 +610,20 @@ var infer = (env, state, e) => {
       sub: r.sub,
       type,
       state: r.state,
+      expr: E.setType(e, type),
+    };
+  }
+
+  if(e.tag === E.Anno) {
+    var etype = e.decltype;
+    var itype = infer(env, state, e.expr);
+    var ru = unify(itype.state, etype, itype.type);
+    var sub = compose(ru.sub, itype.sub);
+    var type = subst(sub, etype);
+    return {
+      sub: sub,
+      type,
+      state: ru.state,
       expr: E.setType(e, type),
     };
   }

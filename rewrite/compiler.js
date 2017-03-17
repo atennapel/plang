@@ -23,6 +23,9 @@ function compile(e) {
   if(e.tag === E.TypeOf)
     return '(' + JSON.stringify(e.type) + ')';
 
+  if(e.tag === E.Anno)
+    return compile(e.expr);
+
   if(e.tag === E.RecordEmpty)
     return '_unit';
 

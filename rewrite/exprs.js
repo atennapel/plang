@@ -1,3 +1,5 @@
+var T = require('./types');
+
 var serr = m => { throw new SyntaxError(m) };
 
 var Var = 'Var';
@@ -160,6 +162,13 @@ var typeOf = expr => ({
   expr,
 });
 
+var Anno = 'Anno';
+var anno = (expr, decltype) => ({
+  tag: Anno,
+  expr,
+  decltype,
+});
+
 var setType = (e, t) => {
   e.type = t;
   return e;
@@ -174,6 +183,7 @@ var each = (f, e) =>
   e.tag === If?
     (each(f, e.cond), each(f, e.bodyTrue), each(f, e.bodyFalse), f(e)):
   e.tag === TypeOf? (each(f, e.expr), f(e)):
+  e.tag === Anno? (each(f, e.expr), f(e)):
   f(e);
 
 var toString = e => {
@@ -196,6 +206,9 @@ var toString = e => {
       ' else ' + toString(e.bodyFalse) + ')';
   if(e.tag === TypeOf)
     return '(typeof ' + toString(e.expr) + ')';
+
+  if(e.tag === Anno)
+    return '(' + toString(e.expr) + ' : ' + T.toString(e.decltype) + ')';
 
   if(e.tag === RecordEmpty) return '{}';
   if(e.tag === Select) return '.' + e.label;
@@ -291,6 +304,9 @@ module.exports = {
 
   TypeOf,
   typeOf,
+
+  Anno,
+  anno,
 
   setType,
   each,
