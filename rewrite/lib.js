@@ -100,6 +100,12 @@ var show = d => x => d.show(x);
 var _D_Show_Int = {show: x => '' + x};
 var _D_Show_Bool = {show: x => x? 'True': 'False'};
 
+var showList = d => l =>
+  l.tag === 'Nil'? 'Nil':
+  show(d)(l.val[0]) + '::' + showList(d)(l.val[1]);
+
+var _D_Show_List = {show: showList};
+
 var point = d => x => d.point(x);
 
 var _D_Pointed_List = {point: x => (
@@ -108,6 +114,6 @@ var _D_Pointed_List = {point: x => (
 var map = d => x => d.map(x);
 
 var listMap =
-  f => a => a.tag === 'Nil'? a: inj('Cons')({0: f(a[0]), 1: listMap(f)(a[1])});
+  f => a => a.tag === 'Nil'? a: inj('Cons')({0: f(a.val[0]), 1: listMap(f)(a.val[1])});
 
 var _D_Functor_List = {map: listMap};

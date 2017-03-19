@@ -55,8 +55,11 @@ var env = {
   },
   classes: {
     Show: {
-      instances: [T.tscheme([], Int), T.tscheme([], Bool)],
-      dicts: ['_D_Show_Int', '_D_Show_Bool'],
+      instances: [
+        T.tscheme([], Int),
+        T.tscheme([show], T.tapp(List, show))
+      ],
+      dicts: ['_D_Show_Int', '_D_Show_List'],
     },
     Pointed: {
       instances: [T.tscheme([], List)],

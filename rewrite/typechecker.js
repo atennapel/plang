@@ -95,6 +95,7 @@ var checkClasses = (env, state_, v, t) => {
       return fail('No matching instances found for ' + c + ' ' + T.toString(t));
     impls[c] = found[0].name;
     state = found[0].result.state;
+    console.log(found[0]);
   }
   return {
     state,
@@ -200,7 +201,7 @@ var rewriteRow = (state, t, label) => {
 };
 
 var unify = (env, state, a, b) => {
-  // console.log('unify ' + T.toString(a) + ' and ' + T.toString(b));
+  console.log('unify ' + T.toString(a) + ' and ' + T.toString(b));
   var sk = unifyKind(a.kind, b.kind);
   if(failed(sk))
     return fail('Cannot unify ' + T.toString(a) + ' and ' +
