@@ -756,6 +756,7 @@ var runInfer = (e, env, st) => {
   return {
     type: subst(r.sub, r.type),
     dicts: r.dicts,
+    sub: r.sub
   };
 };
 
