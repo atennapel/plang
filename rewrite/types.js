@@ -4,11 +4,12 @@ var U = require('./utils');
 var terr = m => { throw new TypeError(m) };
 
 var TVar = 'TVar';
-var tvar = (name, id, kind, labels, value) => ({
+var tvar = (name, id, kind, labels, value, classes) => ({
   tag: TVar,
   name,
   id,
   labels: labels || {},
+  classes: classes || {},
   kind: kind || K.Star,
   value: value || false,
 });
@@ -99,8 +100,10 @@ var toString = t => {
   if(isUnit(t)) return '()';
   if(t.tag === TVar) {
     var labels = U.keys(t.labels);
+    var classes = U.keys(t.classes);
     return (t.value? "'": '') + t.id +
-      (labels.length? '/{' + labels.join(', ') + '}': '');
+      (labels.length? '/{' + labels.join(', ') + '}': '') +
+      (classes.length? '<{' + classes.join(', ') + '}': '');
   }
   if(t.tag === TCon) return '' + t.name;
   if(t.tag === TApp) {

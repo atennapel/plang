@@ -29,6 +29,14 @@ var omap = (f, o) => {
   return n;
 };
 
+var ofilter = (f, o) => {
+  var n = {};
+  for(var k in o)
+    if(f(o[k], k))
+      n[k] = o[k];
+  return n;
+};
+
 var keys = o => {
   var a = [];
   for(var k in o) a.push(k);
@@ -79,12 +87,15 @@ var overlaps = (a, b) => {
   return false;
 };
 
+var flatten = a => a.reduce((x, y) => x.concat(y), []);
+
 module.exports = {
   set: set,
   setFrom,
   union,
   without,
   omap,
+  ofilter,
   keys,
   vals,
   clone,
@@ -93,4 +104,5 @@ module.exports = {
   mapFrom,
   map,
   overlaps,
+  flatten,
 };

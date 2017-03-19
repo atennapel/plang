@@ -7,9 +7,11 @@ var T = require('./types');
 var K = require('./kinds');
 
 var t = T.tvar('t', 't0');
+var show = T.tvar('show', 'show0', K.Star, null, false, {Show: true});
 
 var Bool = T.Bool;
 var Int = T.tcon('Int');
+var Str = T.tcon('Str');
 var List = T.tcon('List', K.karr(K.Star, K.Star));
 
 var env = {
@@ -21,6 +23,8 @@ var env = {
     one: T.tscheme([], Int),
 
     add: T.tscheme([], T.tarr(Int, Int, Int)),
+
+    show: T.tscheme([show], T.tarr(show, Str)),
   },
   newtypes: {
     List: {
@@ -36,9 +40,15 @@ var env = {
           }))),
     },
   },
+  classes: {
+    Show: {
+      instances: [T.tscheme([], Int)],
+      dicts: ['_D_Show_0'],
+    }
+  },
 };
 
-var state = {tvar: {t: 1}};
+var state = {tvar: {t: 1, show: 1}};
 
 var inp = require('fs').readFileSync(process.argv[2], {encoding: 'utf8'});
 var parsed = parser.parse(inp);

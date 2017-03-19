@@ -1,30 +1,61 @@
 var E = require('./exprs');
+var T = require('./types');
+var U = require('./utils');
+var tc = require('./typechecker');
 
 var id = 0;
-var uniq = function() {return '_u' + (id++)};
+var uniq = function(name) {return '_' + (name || 'u') + (id++)};
 
-function compile(e) {
+function compile(e, dicts_) {
+  console.log(E.toString(e) + ' : ' + T.toString(e.type));
+  var dicts = dicts_ || {};
   if(e.tag === E.Var)
     return e.name;
-  if(e.tag === E.App)
-    return '(' + compile(e.left) + ')(' + compile(e.right) + ')';
-  if(e.tag === E.Lam)
-    return '(function(' + e.arg + ') {return(' + compile(e.body) + ')})';
+  if(e.tag === E.App) {
+    console.log(dicts);
+    var cs = tc.collectClasses(e.left.type);
+    var ds = U.flatten(U.keys(cs).sort().map(v => cs[v].map(c => {
+      console.log(v, c);
+      if(dicts[v] && dicts[v][c]) return dicts[v][c];
+      var is = e.dicts || {};
+      if(is[v] && is[v][c]) return is[v][c];
+      return null;
+    }).map(x => x)));
+    var is = e.dicts || {};
+    var iss = U.flatten(U.keys(is).sort().map(v => U.keys(is[v]).sort().map(c => is[v][c])));
+    return '(' + compile(e.left, dicts) + ')' +
+      (ds.length === 0? '': ds.map(x => '(' + x + ')').join('')) +
+      (iss.length === 0? '': iss.map(x => '(' + x + ')').join('')) +
+      '(' + compile(e.right, dicts) + ')';
+  }
+  if(e.tag === E.Lam) {
+    var cs = tc.collectClasses(e.type);
+    var ds =
+      U.flatten(U.keys(cs).sort().map(v => cs[v].map(c => {
+        if(!dicts[v]) dicts[v] = {};
+        if(!dicts[v][c]) return dicts[v][c] = '_' + v + '_' + c;
+        return null;
+      }).filter(x => x)));
+    console.log(ds);
+    return (ds.length === 0? '':
+      ds.join(' => ') + ' => ') +
+      e.arg + ' => (' + compile(e.body, dicts) + ')';
+  }
   if(e.tag === E.Let || e.tag === E.Letr)
-    return '(function() {var ' + e.arg + '=(' + compile(e.val) + ');return(' +
-      compile(e.body) + ')})()';
+    return '(function() {var ' + e.arg + '=(' + compile(e.val, dicts) + ');return(' +
+      compile(e.body, dicts) + ')})()';
   if(e.tag === E.Do)
-    return '_do(' + compile(e.val) + ', ' +
-      e.arg + ' => ' + compile(e.body) + ')';
+    return '_do(' + compile(e.val, dicts) + ', ' +
+      e.arg + ' => ' + compile(e.body, dicts) + ')';
   if(e.tag === E.If)
-    return '(' + compile(e.cond) + ' ? ' +
-      compile(e.bodyTrue) + ' : ' +
-      compile(e.bodyFalse) + ')';
+    return '(' + compile(e.cond, dicts) + ' ? ' +
+      compile(e.bodyTrue, dicts) + ' : ' +
+      compile(e.bodyFalse, dicts) + ')';
   if(e.tag === E.TypeOf)
     return '(' + JSON.stringify(e.type) + ')';
 
   if(e.tag === E.Anno)
-    return compile(e.expr);
+    return compile(e.expr, dicts);
 
   if(e.tag === E.RecordEmpty)
     return '_unit';
@@ -71,7 +102,9 @@ function compile(e) {
 }
 
 function compileWithLib(e) {
-  return require('fs').readFileSync('lib.js', {encoding: 'utf8'}) + compile(e);
+  var ce = compile(e);
+  console.log(ce);
+  return require('fs').readFileSync('lib.js', {encoding: 'utf8'}) + ce;
 }
 
 module.exports = {

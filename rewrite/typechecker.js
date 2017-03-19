@@ -42,17 +42,17 @@ var compose = (s1, s2) => U.union(U.omap(t => subst(s1, t), s2), s1);
 var generalize = (env, t) =>
   T.tscheme(U.vals(U.without(free(t), freeEnv(env))), t);
 
-var fresh = (state, name, kind, labels, value) => {
+var fresh = (state, name, kind, labels, value, classes) => {
   var n = state.tvar[name] || 0;
   return {
-    tvar: T.tvar(name, name + n, kind, labels, value),
+    tvar: T.tvar(name, name + n, kind, labels, value, classes),
     state: U.clone(state, 'tvar', U.clone(state.tvar, name, n + 1)),
   };
 };
 
 var instantiate = (state, s) => {
   var r = s.vars.reduce((r, v) => {
-    var rf = fresh(r.state, v.name, v.kind, v.labels, v.value);
+    var rf = fresh(r.state, v.name, v.kind, v.labels, v.value, v.classes);
     r.vars.push(rf.tvar);
     return {
       vars: r.vars,
@@ -71,13 +71,44 @@ var unifyKind = (a, b) =>
   K.equals(a, b) ||
     fail('Cannot unify kinds ' + K.toString(a) + ' and ' + K.toString(b));
 
+var checkClasses = (env, state_, v, t) => {
+  var impls = {};
+  var state = state_;
+  for(var c in v.classes) {
+    if(!env.classes[c]) return fail('Undefined class: ' + c);
+    var ci = env.classes[c];
+    var insts = ci.instances;
+    var found = [];
+    for(var i = 0, l = insts.length; i < l; i++) {
+      var inst = instantiate(state, insts[i]);
+      var ru = unify(env, inst.state, t, inst.type);
+      if(!failed(ru)) found.push({
+        index: i,
+        result: ru,
+        name: ci.dicts[i],
+      });
+    }
+    if(found.length > 1)
+      return fail('Multiple matching instances found for ' + c +
+        ' ' + T.toString(t));
+    if(found.length === 0)
+      return fail('No matching instances found for ' + c + ' ' + T.toString(t));
+    impls[c] = found[0].name;
+    state = found[0].result.state;
+  }
+  return {
+    state,
+    impls: U.keys(impls).length === 0? null: impls,
+  };
+};
+
 var occurs = (v, t) => !!free(t)[v.id];
 
-var bind = (state, v, t) => {
+var bind = (env, state, v, t) => {
   if(t.tag === T.TVar) {
     if(v.id === t.id) return { sub: {}, state };
     var m = fresh(state, v.name, v.kind, U.union(v.labels, t.labels),
-      v.value || t.value);
+      v.value || t.value, U.union(v.classes, t.classes));
     return {
       sub: U.map(v.id, m.tvar, t.id, m.tvar),
       state: m.state,
@@ -90,7 +121,13 @@ var bind = (state, v, t) => {
   if(v.value && T.isEff(t))
     return fail('Cannot bind ' + T.toString(v) + ' to ' + T.toString(t)
       + ' because of value restriction');
-  return { sub: U.map(v.id, t), state };
+  var r = checkClasses(env, state, v, t);
+  if(failed(r)) return r;
+  return {
+    sub: U.map(v.id, t),
+    state: r.state,
+    impls: r.impls? U.map(v.id, r.impls): null,
+  };
 };
 
 var rowToList = t => {
@@ -118,6 +155,17 @@ var bindRow = (state, v, t) => {
     sub: compose(s2, s1),
     state: rv.state,
   };
+};
+
+var mergeImpls = (a, b) => {
+  if(!a && !b) return null;
+  if(!a) return b;
+  if(!b) return a;
+  var n = U.clone(a);
+  for(var k in b)
+    if(n[k]) n[k] = U.union(n[k], b[k]);
+    else n[k] = b[k];
+  return n;
 };
 
 var rewriteRow = (state, t, label) => {
@@ -151,22 +199,26 @@ var rewriteRow = (state, t, label) => {
   T.terr('rewriteRow failed on ' + T.toString(t));
 };
 
-var unify = (state, a, b) => {
+var unify = (env, state, a, b) => {
   // console.log('unify ' + T.toString(a) + ' and ' + T.toString(b));
   var sk = unifyKind(a.kind, b.kind);
   if(failed(sk))
     return fail('Cannot unify ' + T.toString(a) + ' and ' +
       T.toString(b) + ': ' + sk);
-  if(a.tag === T.TVar) return bind(state, a, b);
-  if(b.tag === T.TVar) return bind(state, b, a);
+  if(a.tag === T.TVar) return bind(env, state, a, b);
+  if(b.tag === T.TVar) return bind(env, state, b, a);
   if(a.tag === T.TCon && b.tag === T.TCon && a.name === b.name)
     return { sub: {}, state };
   if(a.tag === T.TApp && b.tag === T.TApp) {
-    var s1 = unify(state, a.left, b.left);
+    var s1 = unify(env, state, a.left, b.left);
     if(failed(s1)) return s1;
-    var s2 = unify(s1.state, subst(s1.sub, a.right), subst(s1.sub, b.right));
+    var s2 = unify(env, s1.state, subst(s1.sub, a.right), subst(s1.sub, b.right));
     if(failed(s2)) return s2;
-    return { sub: compose(s2.sub, s1.sub), state: s2.state };
+    return {
+      sub: compose(s2.sub, s1.sub),
+      state: s2.state,
+      impls: mergeImpls(s1.impls, s2.impls),
+    };
   }
   if(a.tag === T.TRowEmpty && b.tag === T.TRowEmpty)
     return { sub: {}, state };
@@ -177,14 +229,15 @@ var unify = (state, a, b) => {
     if(l.rest && r.sub[l.rest.id])
       return fail('Recursive row type ' +
         T.toString(a) + ' and ' + T.toString(b));
-    var r1 = unify(r.state, subst(r.sub, a.type), subst(r.sub, r.type));
+    var r1 = unify(env, r.state, subst(r.sub, a.type), subst(r.sub, r.type));
     if(failed(r1)) return r1;
     var s = compose(r1.sub, r.sub);
-    var r2 = unify(r1.state, subst(s, a.rest), subst(s, r.rest));
+    var r2 = unify(env, r1.state, subst(s, a.rest), subst(s, r.rest));
     if(failed(r2)) return r2;
     return {
       sub: compose(r2.sub, s),
       state: r2.state,
+      impls: mergeImpls(r1.impls, r2.impls),
     };
   }
   return fail('Cannot unify ' + T.toString(a) + ' and ' + T.toString(b));
@@ -221,11 +274,14 @@ var infer = (env, state, e) => {
     var rright = infer(nenv, rleft.state, e.right);
     var rv = fresh(rright.state, 't', K.Star);
     var su = unify(
+      env,
       rv.state,
       subst(rright.sub, rleft.type),
       T.tarr(rright.type, rv.tvar)
     );
     if(failed(su)) throw su;
+    console.log(su.impls);
+    e.dicts = su.impls;
     var type = subst(su.sub, rv.tvar);
     return {
       sub: compose(su.sub, compose(rright.sub, rleft.sub)),
@@ -256,7 +312,7 @@ var infer = (env, state, e) => {
     var tb = subst(rval.sub, rval.type);
     if(ta === tb || (ta.tag === T.TVar && tb.tag === T.TVar && ta.id === tb.id))
       T.terr('Recursive unification in letr');
-    var u = unify(rval.state, ta, tb);
+    var u = unify(env, rval.state, ta, tb);
     if(failed(u)) throw u;
     var sub = compose(u.sub, rval.sub);
     var type = subst(sub, v.tvar);
@@ -276,6 +332,7 @@ var infer = (env, state, e) => {
     var reff = fresh(rval.state, e.arg, K.Row);
     var rpuretype = fresh(reff.state, 't', K.Star, null, true);
     var ru1 = unify(
+      env,
       rpuretype.state,
       rval.type,
       T.tapp(T.TEff, reff.tvar, rpuretype.tvar)
@@ -290,6 +347,7 @@ var infer = (env, state, e) => {
     var rreff = fresh(rbody.state, 'e', K.Row);
     var rt = fresh(rreff.state, 't', K.Star, null, true);
     var ru2 = unify(
+      env,
       rt.state,
       subst(sub2, rbody.type),
       T.tapp(T.TEff, rreff.tvar, rt.tvar)
@@ -297,6 +355,7 @@ var infer = (env, state, e) => {
     if(failed(ru2)) throw ru2;
     var sub3 = compose(ru2.sub, sub2);
     var ru3 = unify(
+      env,
       ru2.state,
       subst(sub3, reff.tvar),
       subst(sub3, rreff.tvar)
@@ -313,13 +372,13 @@ var infer = (env, state, e) => {
   }
   if(e.tag === E.If) {
     var rcond = infer(env, state, e.cond);
-    var ru1 = unify(rcond.state, rcond.type, T.Bool);
+    var ru1 = unify(env, rcond.state, rcond.type, T.Bool);
     if(failed(ru1)) throw ru1;
     var rtrue = infer(env, ru1.state, e.bodyTrue);
     var rfalse = infer(env, rtrue.state, e.bodyFalse);
     var sub =
       compose(rfalse.sub, compose(rtrue.sub, compose(ru1.sub, rcond.sub)));
-    var ru2 = unify(rfalse.state,
+    var ru2 = unify(env, rfalse.state,
       subst(sub, rtrue.type), subst(sub, rfalse.type));
     if(failed(ru2)) throw ru2;
     var sub2 = compose(ru2.sub, sub);
@@ -617,7 +676,7 @@ var infer = (env, state, e) => {
   if(e.tag === E.Anno) {
     var etype = e.decltype;
     var itype = infer(env, state, e.expr);
-    var ru = unify(itype.state, etype, itype.type);
+    var ru = unify(env, itype.state, etype, itype.type);
     var sub = compose(ru.sub, itype.sub);
     var type = subst(sub, etype);
     return {
@@ -635,6 +694,7 @@ var prepareEnv = env_ => {
   var env = env_ || {};
   env.typings = env.typings || {};
   env.newtypes = env.newtypes || {};
+  env.classes = env.classes || {};
   return env;
 };
 
@@ -648,6 +708,12 @@ var runInfer = (e, env, st) => {
   return subst(r.sub, r.type);
 };
 
+var collectClasses = t => U.ofilter(x => x, U.omap(v => {
+  var k = U.keys(v.classes);
+  return k.length === 0? null: k;
+}, free(t)));
+
 module.exports = {
   infer: runInfer,
+  collectClasses,
 };
