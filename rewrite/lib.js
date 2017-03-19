@@ -101,3 +101,10 @@ var _D_Show_Int = {show: x => '' + x};
 var _D_Show_Bool = {show: x => x? 'True': 'False'};
 
 var point = d => x => d.point(x);
+
+var map = d => x => d.map(x);
+
+var listMap =
+  f => a => a.tag === 'Nil'? a: inj('Cons')({0: f(a[0]), 1: listMap(f)(a[1])});
+
+var _D_Functor_List = {map: listMap};

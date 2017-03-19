@@ -7,19 +7,7 @@ function tctransform(e, dicts_) {
   console.log(E.toString(e) + ' : ' + T.toString(e.type));
 
   var dicts = dicts_ || {};
-
-  var csi = [];
-  if(e.dicts) {
-    for(var v in e.dicts) {
-      if(!dicts[v]) dicts[v] = {};
-      for(var c in e.dicts[v]) {
-        if(!dicts[v][c]) dicts[v][c] = {};
-        dicts[v][c] = e.dicts[v][c];
-      }
-    }
-    csi = U.flatten(U.keys(e.dicts)
-      .sort().map(v => U.keys(e.dicts[v]).sort().map(c => e.dicts[v][c])));
-  }
+  console.log(dicts);
 
   var cs = tc.collectClasses(e.type);
   var ds = U.flatten(U.keys(cs).map(v => cs[v].sort().map(c => {
@@ -33,16 +21,8 @@ function tctransform(e, dicts_) {
   }))).filter(x => x);
 
   var ne;
-  if(e.tag === E.App) {
-    var csl = tc.collectClasses(e.left.type);
-    var dsl = U.flatten(U.keys(csl).map(v => csl[v].sort().map(c => {
-      return dicts[v] && dicts[v][c] || null;
-    }))).filter(x => x);
-    ne = E.app.apply(null,
-      [tctransform(e.left, dicts)]
-      .concat(dsl.map(E.vr))
-      .concat([tctransform(e.right, dicts)]));
-  }
+  if(e.tag === E.App)
+    ne = E.app(tctransform(e.left, dicts), tctransform(e.right, dicts));
   else if(e.tag === E.Lam)
     ne = E.lam(e.arg, tctransform(e.body, dicts));
   else if(e.tag === E.Let)
@@ -61,8 +41,13 @@ function tctransform(e, dicts_) {
     ne = tctransform(e.expr, dicts);
   else ne = e;
 
-  if(csi.length > 0)
-    ne = E.app.apply(null, [ne].concat(csi.map(E.vr)));
+  if(e.classes) {
+    console.log(e.classes)
+    var vc = U.flatten(U.keys(e.classes).sort()
+      .map(v => e.classes[v].sort().map(c => dicts[v][c])));
+    ne = E.app.apply(null, [ne].concat(vc.map(E.vr)));
+  }
+
   if(ds.length > 0)
     ne = E.lam.apply(null, ds.concat(ne));
 

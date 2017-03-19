@@ -1,1 +1,1 @@
-map (add one) (pack List ; inj Nil ())
+unpack List (point one)

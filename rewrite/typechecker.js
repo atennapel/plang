@@ -243,16 +243,22 @@ var unify = (env, state, a, b) => {
   return fail('Cannot unify ' + T.toString(a) + ' and ' + T.toString(b));
 };
 
+var mergeDicts = function() {
+  return Array.prototype.slice.call(arguments).reduce(mergeImpls, null);
+};
+
 var infer = (env, state, e) => {
   // console.log('infer: ' + E.toString(e));
   if(e.tag === E.Var) {
     if(!env.typings[e.name]) T.terr('undefined variable: ' + e.name);
     var r = instantiate(state, env.typings[e.name]);
+    e.classes = collectClasses(r.type);
     return {
       sub: {},
       type: r.type,
       state: r.state,
       expr: E.setType(e, r.type),
+      dicts: null,
     };
   }
   if(e.tag === E.Lam) {
@@ -266,6 +272,7 @@ var infer = (env, state, e) => {
       type,
       state: ri.state,
       expr: E.setType(e, type),
+      dicts: ri.dicts,
     };
   }
   if(e.tag === E.App) {
@@ -280,14 +287,13 @@ var infer = (env, state, e) => {
       T.tarr(rright.type, rv.tvar)
     );
     if(failed(su)) throw su;
-    console.log(su.impls);
-    e.left.dicts = su.impls;
     var type = subst(su.sub, rv.tvar);
     return {
       sub: compose(su.sub, compose(rright.sub, rleft.sub)),
       type,
       state: su.state,
       expr: E.setType(e, type),
+      dicts: mergeDicts(rright.dicts, su.impls, rleft.dicts),
     };
   }
   if(e.tag === E.Let) {
@@ -301,6 +307,7 @@ var infer = (env, state, e) => {
       type: rbody.type,
       state: rbody.state,
       expr: E.setType(e, rbody.type),
+      dicts: mergeDicts(rval.dicts, rbody.dicts),
     };
   }
   if(e.tag === E.Letr) {
@@ -325,6 +332,11 @@ var infer = (env, state, e) => {
       type: rbody.type,
       state: rbody.state,
       expr: E.setType(e, rbody.type),
+      dicts: mergeDicts(
+        rval.dicts,
+        u.impls,
+        rbody.dicts
+      ),
     };
   }
   if(e.tag === E.Do) {
@@ -368,6 +380,13 @@ var infer = (env, state, e) => {
       type,
       state: ru3.state,
       expr: E.setType(e, type),
+      dicts: mergeDicts(
+        rval.dicts,
+        ru1.impls,
+        rbody.dicts,
+        ru2.impls,
+        ru3.impls
+      ),
     };
   }
   if(e.tag === E.If) {
@@ -388,6 +407,13 @@ var infer = (env, state, e) => {
       type,
       state: ru2.state,
       expr: E.setType(e, type),
+      dicts: mergeDicts(
+        rcond.dicts,
+        ru1.impls,
+        rtrue.dicts,
+        rfalse.dicts,
+        ru2.impls
+      ),
     };
   }
 
@@ -398,6 +424,7 @@ var infer = (env, state, e) => {
       type,
       state,
       expr: E.setType(e, type),
+      dicts: null,
     }
   }
   if(e.tag === E.Select) {
@@ -412,6 +439,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
   if(e.tag === E.Extend) {
@@ -429,6 +457,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
   if(e.tag === E.Restrict) {
@@ -443,6 +472,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
   if(e.tag === E.RecordUpdate) {
@@ -461,6 +491,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
 
@@ -476,6 +507,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
   if(e.tag === E.Embed) {
@@ -490,6 +522,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
   if(e.tag === E.Elim) {
@@ -509,6 +542,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
   if(e.tag === E.VariantUpdate) {
@@ -527,6 +561,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
 
@@ -538,6 +573,7 @@ var infer = (env, state, e) => {
       type,
       state: v.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
   if(e.tag === E.Pure) {
@@ -548,6 +584,7 @@ var infer = (env, state, e) => {
       type,
       state: v.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
   if(e.tag === E.Return) {
@@ -559,6 +596,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
 
@@ -577,6 +615,7 @@ var infer = (env, state, e) => {
       type: rtype,
       state: type.state,
       expr: E.setType(e, rtype),
+      dicts: null,
     };
   }
   if(e.tag === E.Unpack) {
@@ -594,6 +633,7 @@ var infer = (env, state, e) => {
       type: rtype,
       state: type.state,
       expr: E.setType(e, rtype),
+      dicts: null,
     };
   }
 
@@ -612,6 +652,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
 
@@ -640,6 +681,7 @@ var infer = (env, state, e) => {
       type,
       state: rr.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
   if(e.tag === E.HandleReturn) {
@@ -659,6 +701,7 @@ var infer = (env, state, e) => {
       type,
       state: rr.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
 
@@ -670,6 +713,7 @@ var infer = (env, state, e) => {
       type,
       state: r.state,
       expr: E.setType(e, type),
+      dicts: null,
     };
   }
 
@@ -684,6 +728,10 @@ var infer = (env, state, e) => {
       type,
       state: ru.state,
       expr: E.setType(e, type),
+      dicts: mergeDicts(
+        itype.dicts,
+        ru.impls
+      ),
     };
   }
 
@@ -705,7 +753,10 @@ var runInfer = (e, env, st) => {
   E.each(x => {
     if(x.type) x.type = subst(r.sub, x.type);
   }, e);
-  return subst(r.sub, r.type);
+  return {
+    type: subst(r.sub, r.type),
+    dicts: r.dicts,
+  };
 };
 
 var collectClasses = t => U.ofilter(x => x, U.omap(v => {
