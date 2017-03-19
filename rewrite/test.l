@@ -1,1 +1,1 @@
-show one
+map (add one) (pack List ; inj Nil ())

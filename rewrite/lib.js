@@ -92,3 +92,12 @@ var False = false;
 var zero = 0;
 var one = 1;
 var add = function(x) {return function(y) {return x + y}};
+
+
+// tc test
+var show = d => x => d.show(x);
+
+var _D_Show_Int = {show: x => '' + x};
+var _D_Show_Bool = {show: x => x? 'True': 'False'};
+
+var point = d => x => d.point(x);

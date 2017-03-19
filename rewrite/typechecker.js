@@ -281,7 +281,7 @@ var infer = (env, state, e) => {
     );
     if(failed(su)) throw su;
     console.log(su.impls);
-    e.dicts = su.impls;
+    e.left.dicts = su.impls;
     var type = subst(su.sub, rv.tvar);
     return {
       sub: compose(su.sub, compose(rright.sub, rleft.sub)),
