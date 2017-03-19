@@ -102,6 +102,9 @@ var _D_Show_Bool = {show: x => x? 'True': 'False'};
 
 var point = d => x => d.point(x);
 
+var _D_Pointed_List = {point: x => (
+  {tag: 'Cons', val: {0: x, 1: {tag: 'Nil', val: {}}}})};
+
 var map = d => x => d.map(x);
 
 var listMap =

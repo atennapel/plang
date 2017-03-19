@@ -1,1 +1,1 @@
-fn x; show x
+map (add one) (pack List ; inj Nil ())

@@ -76,7 +76,7 @@ var parsed = parser.parse(inp);
 console.log(E.toString(parsed));
 var typer = typechecker.infer(parsed, env, state);
 console.log(T.toString(typer.type) + ' : ' + K.toString(typer.type.kind));
-var transformed = tctransform(parsed, typer.dicts, typer.sub);
+var transformed = tctransform(typer.expr, typer.dicts);
 console.log(E.toString(transformed));
 var compiled = compiler.compileWithLib(transformed, true);
 var evalled = eval(compiled);

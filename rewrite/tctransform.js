@@ -3,12 +3,12 @@ var T = require('./types');
 var U = require('./utils');
 var tc = require('./typechecker');
 
-function tctransform(e, dicts_, sub) {
-  // console.log(E.toString(e) + ' : ' + T.toString(e.type));
+function tctransform(e, dicts_) {
+  // console.log(E.toString(e) + ' : ' + T.toString(e.meta.type));
 
   var dicts = dicts_ || {};
 
-  var cs = tc.collectClasses(e.type);
+  var cs = tc.collectClasses(e.meta.type);
   var ds = U.flatten(U.keys(cs).map(v => cs[v].sort().map(c => {
     if(!dicts[v]) dicts[v] = {};
     if(!dicts[v][c]) {
@@ -20,36 +20,40 @@ function tctransform(e, dicts_, sub) {
   }))).filter(x => x);
 
   var ne;
-  if(e.tag === E.App)
-    ne = E.app(tctransform(e.left, dicts, sub), tctransform(e.right, dicts, sub));
+  if(e.tag === E.Var) {
+    if(e.meta.classes) {
+      var a = U.flatten(U.keys(e.meta.classes).sort()
+        .map(v => e.meta.classes[v].sort()
+          .map(c => dicts[v] && dicts[v][c] || null).filter(x => x)));
+      ne = E.app.apply(null, [e].concat(a.map(E.vr)));
+    } else {
+      ne = e;
+    }
+  }
+  else if(e.tag === E.App)
+    ne = E.app(tctransform(e.left, dicts), tctransform(e.right, dicts));
   else if(e.tag === E.Lam)
-    ne = E.lam(e.arg, tctransform(e.body, dicts, sub));
+    ne = E.lam(e.arg, tctransform(e.body, dicts));
   else if(e.tag === E.Let)
-    ne = E.lt(e.arg, tctransform(e.val, dicts, sub), tctransform(e.body, dicts, sub));
+    ne = E.lt(e.arg, tctransform(e.val, dicts), tctransform(e.body, dicts));
   else if(e.tag === E.Letr)
-    ne = E.ltr(e.arg, tctransform(e.val, dicts, sub), tctransform(e.body, dicts, sub));
+    ne = E.ltr(e.arg, tctransform(e.val, dicts), tctransform(e.body, dicts));
   else if(e.tag === E.Do)
-    ne = E.doo(e.arg, tctransform(e.val, dicts, sub), tctransform(e.body, dicts, sub));
+    ne = E.doo(e.arg, tctransform(e.val, dicts), tctransform(e.body, dicts));
   else if(e.tag === E.If)
     ne = E.iff(
-      tctransform(e.cond, dicts, sub),
-      tctransform(e.bodyTrue, dicts, sub),
-      tctransform(e.bodyFalse, dicts, sub)
+      tctransform(e.cond, dicts),
+      tctransform(e.bodyTrue, dicts),
+      tctransform(e.bodyFalse, dicts)
     );
   else if(e.tag === E.Anno)
-    ne = tctransform(e.expr, dicts, sub);
+    ne = tctransform(e.expr, dicts);
   else ne = e;
-
-  if(e.classes) {
-    var vc = U.flatten(U.keys(e.classes).sort()
-      .map(v => e.classes[v].sort().map(c => dicts[checkSub(v, sub)][c])));
-    ne = E.app.apply(null, [ne].concat(vc.map(E.vr)));
-  }
 
   if(ds.length > 0)
     ne = E.lam.apply(null, ds.concat(ne));
 
-  ne = E.setType(ne, e.type);
+  ne.meta.type = e.meta.type;
 
   return ne;
 }

@@ -6,6 +6,7 @@ var Var = 'Var';
 var vr = name => ({
   tag: Var,
   name,
+  meta: {},
 });
 
 var App = 'App';
@@ -13,6 +14,7 @@ var app2 = (left, right) => ({
   tag: App,
   left,
   right,
+  meta: {},
 });
 var app = function() {
   var l = arguments.length;
@@ -28,6 +30,7 @@ var lam2 = (arg, body) => ({
   tag: Lam,
   arg,
   body,
+  meta: {},
 });
 var lam = function() {
   var l = arguments.length;
@@ -43,6 +46,7 @@ var lt = (arg, val, body) => ({
   arg,
   val,
   body,
+  meta: {},
 });
 
 var Letr = 'Letr';
@@ -51,6 +55,7 @@ var ltr = (arg, val, body) => ({
   arg,
   val,
   body,
+  meta: {},
 });
 
 var Do = 'Do';
@@ -59,6 +64,7 @@ var doo = (arg, val, body) => ({
   arg,
   val,
   body,
+  meta: {},
 });
 
 var If = 'If';
@@ -67,99 +73,128 @@ var iff = (cond, bodyTrue, bodyFalse) => ({
   cond,
   bodyTrue,
   bodyFalse,
+  meta: {},
 });
 
 var RecordEmpty = 'RecordEmpty';
-var recordempty = { tag: RecordEmpty };
+var recordempty = () => ({
+  tag: RecordEmpty,
+  meta: {},
+});
 
 var Select = 'Select';
 var select = label => ({
   tag: Select,
   label,
+  meta: {},
 });
 
 var Extend = 'Extend';
 var extend = label => ({
   tag: Extend,
   label,
+  meta: {},
 });
 
 var Restrict = 'Restrict';
 var restrict = label => ({
   tag: Restrict,
   label,
+  meta: {},
 });
 
 var RecordUpdate = 'RecordUpdate';
 var recordupdate = label => ({
   tag: RecordUpdate,
   label,
+  meta: {},
 });
 
 var Inject = 'Inject';
 var inject = label => ({
   tag: Inject,
   label,
+  meta: {},
 });
 
 var Embed = 'Embed';
 var embed = label => ({
   tag: Embed,
   label,
+  meta: {},
 });
 
 var Elim = 'Elim';
 var elim = label => ({
   tag: Elim,
   label,
+  meta: {},
 });
 
 var VariantUpdate = 'VariantUpdate';
 var variantupdate = label => ({
   tag: VariantUpdate,
   label,
+  meta: {},
 });
 
 var Handle = 'Handle';
 var handle = label => ({
   tag: Handle,
   label,
+  meta: {},
 });
 
 var HandleReturn = 'HandleReturn';
-var handlereturn = { tag: HandleReturn };
+var handlereturn = () => ({
+  tag: HandleReturn,
+  meta: {},
+});
 
 var End = 'End';
-var end = { tag: End };
+var end = () => ({
+  tag: End,
+  meta: {},
+});
 
 var Pure = 'Pure';
-var pure = { tag: Pure };
+var pure = () => ({
+  tag: Pure,
+  meta: {},
+});
 
 var Return = 'Return';
-var retrn = { tag: Return };
+var retrn = () => ({
+  tag: Return,
+  meta: {},
+});
 
 var Unpack = 'Unpack';
 var unpack = label => ({
   tag: Unpack,
   label,
+  meta: {},
 });
 
 var Pack = 'Pack';
 var pack = label => ({
   tag: Pack,
   label,
+  meta: {},
 });
 
 var Perform = 'Perform';
 var perform = label => ({
   tag: Perform,
   label,
+  meta: {},
 });
 
 var TypeOf = 'TypeOf';
 var typeOf = expr => ({
   tag: TypeOf,
   expr,
+  meta: {},
 });
 
 var Anno = 'Anno';
@@ -167,12 +202,8 @@ var anno = (expr, decltype) => ({
   tag: Anno,
   expr,
   decltype,
+  meta: {},
 });
-
-var setType = (e, t) => {
-  e.type = t;
-  return e;
-};
 
 var each = (f, e) =>
   e.tag === App? (each(f, e.left), each(f, e.right), f(e)):
@@ -308,7 +339,6 @@ module.exports = {
   Anno,
   anno,
 
-  setType,
   each,
   serr,
   toString,

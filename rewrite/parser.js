@@ -34,13 +34,13 @@ function handleApp1(x) {
 
 function handleApp2(x) {
   if(typeof x === 'string') {
-    if(x === 'end') return E.end;
-    if(x === 'handlereturn') return E.handlereturn;
-    if(x === 'pure') return E.pure;
-    if(x === 'return') return E.retrn;
+    if(x === 'end') return E.end();
+    if(x === 'handlereturn') return E.handlereturn();
+    if(x === 'pure') return E.pure();
+    if(x === 'return') return E.retrn();
     return E.vr(x);
   }
-  if(x.length === 0) return E.recordempty;
+  if(x.length === 0) return E.recordempty();
   if(x.length === 1) return handleApp(x[0]);
   var a = x.map(handleApp);
   var fn = a[0];

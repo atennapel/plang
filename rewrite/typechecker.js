@@ -252,12 +252,16 @@ var infer = (env, state, e) => {
   if(e.tag === E.Var) {
     if(!env.typings[e.name]) T.terr('undefined variable: ' + e.name);
     var r = instantiate(state, env.typings[e.name]);
-    e.classes = collectClasses(r.type);
+    var expr = E.vr(e.name);
+    expr.meta.type = r.type;
+    var classes = collectClasses(r.type);
+    if(U.keys(classes).length > 0)
+      expr.meta.classes = classes;
     return {
       sub: {},
       type: r.type,
       state: r.state,
-      expr: E.setType(e, r.type),
+      expr,
       dicts: null,
     };
   }
@@ -267,11 +271,13 @@ var infer = (env, state, e) => {
       U.clone(env.typings, e.arg, T.tscheme([], rv.tvar)));
     var ri = infer(nenv, rv.state, e.body);
     var type = T.tarr(subst(ri.sub, rv.tvar), ri.type);
+    var expr = E.lam(e.arg, ri.expr);
+    expr.meta.type = type;
     return {
       sub: ri.sub,
       type,
       state: ri.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: ri.dicts,
     };
   }
@@ -288,11 +294,13 @@ var infer = (env, state, e) => {
     );
     if(failed(su)) throw su;
     var type = subst(su.sub, rv.tvar);
+    var expr = E.app(rleft.expr, rright.expr);
+    expr.meta.type = type;
     return {
       sub: compose(su.sub, compose(rright.sub, rleft.sub)),
       type,
       state: su.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: mergeDicts(rright.dicts, su.impls, rleft.dicts),
     };
   }
@@ -302,11 +310,13 @@ var infer = (env, state, e) => {
     var nenv = U.clone(env, 'typings',
       U.clone(env.typings, e.arg, generalize(genv, rval.type)));
     var rbody = infer(nenv, rval.state, e.body);
+    var expr = E.lt(e.arg, rval.expr, rbody.expr);
+    expr.meta.type = rbody.type;
     return {
       sub: compose(rbody.sub, rval.sub),
       type: rbody.type,
       state: rbody.state,
-      expr: E.setType(e, rbody.type),
+      expr,
       dicts: mergeDicts(rval.dicts, rbody.dicts),
     };
   }
@@ -327,11 +337,13 @@ var infer = (env, state, e) => {
     var nenv2 = U.clone(env, 'typings',
       U.clone(env.typings, e.arg, generalize(genv, type)));
     var rbody = infer(nenv2, u.state, e.body);
+    var expr = E.lt(e.arg, rval.expr, rbody.expr);
+    expr.meta.type = rbody.type;
     return {
       sub: compose(rbody.sub, sub),
       type: rbody.type,
       state: rbody.state,
-      expr: E.setType(e, rbody.type),
+      expr,
       dicts: mergeDicts(
         rval.dicts,
         u.impls,
@@ -375,11 +387,13 @@ var infer = (env, state, e) => {
     if(failed(ru3)) throw ru3;
     var sub4 = compose(ru3.sub, sub3);
     var type = subst(sub4, rbody.type);
+    var expr = E.lt(e.arg, rval.expr, rbody.expr);
+    expr.meta.type = type;
     return {
       sub: sub4,
       type,
       state: ru3.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: mergeDicts(
         rval.dicts,
         ru1.impls,
@@ -402,11 +416,13 @@ var infer = (env, state, e) => {
     if(failed(ru2)) throw ru2;
     var sub2 = compose(ru2.sub, sub);
     var type = subst(sub2, rtrue.type);
+    var expr = E.if(rcond.expr, rtrue.expr, rfalse.expr);
+    expr.meta.type = type;
     return {
       sub: sub2,
       type,
       state: ru2.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: mergeDicts(
         rcond.dicts,
         ru1.impls,
@@ -419,11 +435,13 @@ var infer = (env, state, e) => {
 
   if(e.tag === E.RecordEmpty) {
     var type = T.tapp(T.TRecord, T.trowempty);
+    var expr = E.recordempty();
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     }
   }
@@ -434,11 +452,13 @@ var infer = (env, state, e) => {
       T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar)),
       v.tvar
     );
+    var expr = E.select(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -452,11 +472,13 @@ var infer = (env, state, e) => {
         T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar))
       )
     );
+    var expr = E.extend(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -467,11 +489,13 @@ var infer = (env, state, e) => {
       T.tapp(T.TRecord, T.trowextend(e.label, v.tvar, r.tvar)),
       T.tapp(T.TRecord, r.tvar)
     );
+    var expr = E.restrict(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -486,11 +510,13 @@ var infer = (env, state, e) => {
       T.tapp(T.TRecord, T.trowextend(e.label, a, r.tvar)),
       T.tapp(T.TRecord, T.trowextend(e.label, b, r.tvar))
     );
+    var expr = E.recordupdate(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -502,11 +528,13 @@ var infer = (env, state, e) => {
       v.tvar,
       T.tapp(T.TVariant, T.trowextend(e.label, v.tvar, r.tvar))
     );
+    var expr = E.inject(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -517,11 +545,13 @@ var infer = (env, state, e) => {
       T.tapp(T.TVariant, r.tvar),
       T.tapp(T.TVariant, T.trowextend(e.label, v.tvar, r.tvar))
     );
+    var expr = E.embed(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -537,11 +567,13 @@ var infer = (env, state, e) => {
       T.tapp(T.TVariant, T.trowextend(e.label, a, r.tvar)),
       b
     );
+    var expr = E.elim(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -556,11 +588,13 @@ var infer = (env, state, e) => {
       T.tapp(T.TVariant, T.trowextend(e.label, a, r.tvar)),
       T.tapp(T.TVariant, T.trowextend(e.label, b, r.tvar))
     );
+    var expr = E.variantupdate(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -568,22 +602,26 @@ var infer = (env, state, e) => {
   if(e.tag === E.End) {
     var v = fresh(state, 't', K.Star);
     var type = T.tarr(T.tapp(T.TVariant, T.trowempty), v.tvar);
+    var expr = E.end();
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: v.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
   if(e.tag === E.Pure) {
     var v = fresh(state, 't', K.Star, null, true);
     var type = T.tarr(T.tapp(T.TEff, T.trowempty, v.tvar), v.tvar);
+    var expr = E.pure();
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: v.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -591,11 +629,13 @@ var infer = (env, state, e) => {
     var v = fresh(state, 't', K.Star, null, true);
     var r = fresh(v.state, 'r', K.Row);
     var type = T.tarr(v.tvar, T.tapp(T.TEff, r.tvar, v.tvar));
+    var expr = E.return();
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -609,12 +649,14 @@ var infer = (env, state, e) => {
     var ret = args.length > 0?
       T.tapp.apply(null, [newtype.con].concat(args)):
       newtype.con;
-    var rtype = T.tarr(type.type, ret)
+    var rtype = T.tarr(type.type, ret);
+    var expr = E.pack(e.label);
+    expr.meta.type = rtype;
     return {
       sub: {},
       type: rtype,
       state: type.state,
-      expr: E.setType(e, rtype),
+      expr,
       dicts: null,
     };
   }
@@ -628,11 +670,13 @@ var infer = (env, state, e) => {
       T.tapp.apply(null, [newtype.con].concat(args)):
       newtype.con;
     var rtype = T.tarr(ret, type.type);
+    var expr = E.unpack(e.label);
+    expr.meta.type = rtype;
     return {
       sub: {},
       type: rtype,
       state: type.state,
-      expr: E.setType(e, rtype),
+      expr,
       dicts: null,
     };
   }
@@ -647,11 +691,13 @@ var infer = (env, state, e) => {
       a,
       T.tapp(T.TEff, T.trowextend(e.label, T.tarr(a, b), r.tvar), b)
     );
+    var expr = E.perform(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -676,11 +722,13 @@ var infer = (env, state, e) => {
       T.tapp(T.TEff, T.trowextend(e.label, T.tarr(a, b), r), t1),
       T.tapp(T.TEff, r, t2)
     );
+    var expr = E.handle(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: rr.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -696,11 +744,13 @@ var infer = (env, state, e) => {
       T.tapp(T.TEff, r, a),
       T.tapp(T.TEff, r, b)
     );
+    var expr = E.handlereturn(e.label);
+    expr.meta.type = type;
     return {
       sub: {},
       type,
       state: rr.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -708,11 +758,13 @@ var infer = (env, state, e) => {
   if(e.tag === E.TypeOf) {
     var r = infer(env, state, e.expr);
     var type = T.tapp(T.TType, r.type);
+    var expr = E.typeOf(r.expr);
+    expr.meta.type = type;
     return {
       sub: r.sub,
       type,
       state: r.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: null,
     };
   }
@@ -723,11 +775,13 @@ var infer = (env, state, e) => {
     var ru = unify(env, itype.state, etype, itype.type);
     var sub = compose(ru.sub, itype.sub);
     var type = subst(sub, etype);
+    var expr = E.anno(itype.expr, e.type);
+    expr.meta.type = type;
     return {
       sub: sub,
       type,
       state: ru.state,
-      expr: E.setType(e, type),
+      expr,
       dicts: mergeDicts(
         itype.dicts,
         ru.impls
@@ -751,10 +805,17 @@ var initialState = { tvar: {} };
 var runInfer = (e, env, st) => {
   var r = infer(prepareEnv(env), st || initialState, e);
   E.each(x => {
-    if(x.type) x.type = subst(r.sub, x.type);
-  }, e);
+    x.meta.type = subst(r.sub, x.meta.type);
+    if(x.meta.classes) {
+      var cs = x.meta.classes;
+      for(var v in cs)
+        if(r.sub[v] && r.sub[v].tag === T.TVar)
+          cs[r.sub[v].id] = cs[v];
+    }
+  }, r.expr);
   return {
     type: subst(r.sub, r.type),
+    expr: r.expr,
     dicts: r.dicts,
     sub: r.sub
   };
