@@ -43,7 +43,7 @@ var _perform = function(label) {return function(v) {
   return {tag: _Cont, label: label, val: v, cont: _return};
 }};
 
-var _do = function(val, cb) {
+var _do = function(val) {return function(cb) {
   if(val.tag === _Cont)
     return {
       tag: _Cont,
@@ -54,7 +54,7 @@ var _do = function(val, cb) {
   if(val.tag === _Return)
     return cb(val.val);
   throw new Error('Effect chain does not use Return');
-};
+}};
 
 var _handle = function(label) {return function(fa) {
   return function(x) {
@@ -104,7 +104,7 @@ var showList = d => l =>
   l.tag === 'Nil'? 'Nil':
   show(d)(l.val[0]) + '::' + showList(d)(l.val[1]);
 
-var _D_Show_List = {show: showList};
+var _D_Show_List = d => ({show: showList(d)});
 
 var point = d => x => d.point(x);
 

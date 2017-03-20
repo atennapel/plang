@@ -3,6 +3,20 @@ var T = require('./types');
 var U = require('./utils');
 var tc = require('./typechecker');
 
+function getSubDicts(d) {
+  var a =
+    U.flatten(
+      U.keys(d).sort().map(v => U.keys(d[v]).sort().map(c => getDicts(d[v][c])))
+    );
+  return a;
+}
+
+function getDicts(d) {
+  if(d.children)
+    return E.app.apply(null, [E.vr(d.name)].concat(getSubDicts(d.children)));
+  return E.vr(d.name);
+}
+
 function tctransform(e, dicts_) {
   // console.log(E.toString(e) + ' : ' + T.toString(e.meta.type));
 
@@ -13,7 +27,7 @@ function tctransform(e, dicts_) {
     if(!dicts[v]) dicts[v] = {};
     if(!dicts[v][c]) {
       var name = '_D_' + v + '_' + c;
-      dicts[v][c] = name;
+      dicts[v][c] = {name};
       return name;
     }
     return null;
@@ -23,9 +37,10 @@ function tctransform(e, dicts_) {
   if(e.tag === E.Var) {
     if(e.meta.classes) {
       var a = U.flatten(U.keys(e.meta.classes).sort()
-        .map(v => e.meta.classes[v].sort()
-          .map(c => dicts[v] && dicts[v][c] || null).filter(x => x)));
-      ne = E.app.apply(null, [e].concat(a.map(E.vr)));
+                .map(v => e.meta.classes[v].sort().map(c =>
+                  dicts[v] && dicts[v][c] && getDicts(dicts[v][c]) || null)
+                  .filter(x => x)));
+      ne = E.app.apply(null, [e].concat(a));
     } else {
       ne = e;
     }
@@ -56,12 +71,6 @@ function tctransform(e, dicts_) {
   ne.meta.type = e.meta.type;
 
   return ne;
-}
-
-function checkSub(v, sub) {
-  if(sub[v] && sub[v].tag === T.TVar)
-    return sub[v].id;
-  return v;
 }
 
 module.exports = {

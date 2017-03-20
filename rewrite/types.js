@@ -95,6 +95,7 @@ var tscheme = (vars, type) => ({
 });
 
 var Bool = tcon('Bool', K.Star);
+var Str = tcon('Str', K.Star);
 
 var toString = t => {
   if(isUnit(t)) return '()';
@@ -158,6 +159,7 @@ module.exports = {
   tscheme,
 
   Bool,
+  Str,
 
   terr,
   toString,

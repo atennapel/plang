@@ -1,5 +1,8 @@
 /**
- * implicits
+ * type defs
+ * class defs
+ * inst defs
+ * type aliases
  */
 var E = require('./exprs');
 var T = require('./types');
@@ -74,6 +77,7 @@ var unifyKind = (a, b) =>
 var checkClasses = (env, state_, v, t) => {
   var impls = {};
   var state = state_;
+  var sub = {};
   for(var c in v.classes) {
     if(!env.classes[c]) return fail('Undefined class: ' + c);
     var ci = env.classes[c];
@@ -83,7 +87,6 @@ var checkClasses = (env, state_, v, t) => {
       var inst = instantiate(state, insts[i]);
       var ru = unify(env, inst.state, t, inst.type);
       if(!failed(ru)) found.push({
-        index: i,
         result: ru,
         name: ci.dicts[i],
       });
@@ -93,12 +96,16 @@ var checkClasses = (env, state_, v, t) => {
         ' ' + T.toString(t));
     if(found.length === 0)
       return fail('No matching instances found for ' + c + ' ' + T.toString(t));
-    impls[c] = found[0].name;
+    impls[c] = {
+      name: found[0].name,
+      children: found[0].result.impls,
+    };
     state = found[0].result.state;
-    console.log(found[0]);
+    sub = compose(found[0].result.sub, sub);
   }
   return {
     state,
+    sub,
     impls: U.keys(impls).length === 0? null: impls,
   };
 };
@@ -125,7 +132,7 @@ var bind = (env, state, v, t) => {
   var r = checkClasses(env, state, v, t);
   if(failed(r)) return r;
   return {
-    sub: U.map(v.id, t),
+    sub: compose(U.map(v.id, t), r.sub),
     state: r.state,
     impls: r.impls? U.map(v.id, r.impls): null,
   };
@@ -162,11 +169,7 @@ var mergeImpls = (a, b) => {
   if(!a && !b) return null;
   if(!a) return b;
   if(!b) return a;
-  var n = U.clone(a);
-  for(var k in b)
-    if(n[k]) n[k] = U.union(n[k], b[k]);
-    else n[k] = b[k];
-  return n;
+  return U.union(a, b);
 };
 
 var rewriteRow = (state, t, label) => {
@@ -201,7 +204,7 @@ var rewriteRow = (state, t, label) => {
 };
 
 var unify = (env, state, a, b) => {
-  console.log('unify ' + T.toString(a) + ' and ' + T.toString(b));
+  // console.log('unify ' + T.toString(a) + ' and ' + T.toString(b));
   var sk = unifyKind(a.kind, b.kind);
   if(failed(sk))
     return fail('Cannot unify ' + T.toString(a) + ' and ' +
@@ -338,7 +341,7 @@ var infer = (env, state, e) => {
     var nenv2 = U.clone(env, 'typings',
       U.clone(env.typings, e.arg, generalize(genv, type)));
     var rbody = infer(nenv2, u.state, e.body);
-    var expr = E.lt(e.arg, rval.expr, rbody.expr);
+    var expr = E.ltr(e.arg, rval.expr, rbody.expr);
     expr.meta.type = rbody.type;
     return {
       sub: compose(rbody.sub, sub),
@@ -388,7 +391,7 @@ var infer = (env, state, e) => {
     if(failed(ru3)) throw ru3;
     var sub4 = compose(ru3.sub, sub3);
     var type = subst(sub4, rbody.type);
-    var expr = E.lt(e.arg, rval.expr, rbody.expr);
+    var expr = E.doo(e.arg, rval.expr, rbody.expr);
     expr.meta.type = type;
     return {
       sub: sub4,
@@ -630,7 +633,7 @@ var infer = (env, state, e) => {
     var v = fresh(state, 't', K.Star, null, true);
     var r = fresh(v.state, 'r', K.Row);
     var type = T.tarr(v.tvar, T.tapp(T.TEff, r.tvar, v.tvar));
-    var expr = E.return();
+    var expr = E.retrn();
     expr.meta.type = type;
     return {
       sub: {},
@@ -787,6 +790,18 @@ var infer = (env, state, e) => {
         itype.dicts,
         ru.impls
       ),
+    };
+  }
+
+  if(e.tag === E.Str) {
+    var expr = E.str(e.val);
+    expr.meta.type = T.Str;
+    return {
+      sub: {},
+      type: T.Str,
+      state: state,
+      expr,
+      dicts: null,
     };
   }
 

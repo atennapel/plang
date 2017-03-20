@@ -205,6 +205,12 @@ var anno = (expr, decltype) => ({
   meta: {},
 });
 
+var Str = 'Str';
+var str = val => ({
+  tag: Str,
+  val,
+});
+
 var each = (f, e) =>
   e.tag === App? (each(f, e.left), each(f, e.right), f(e)):
   e.tag === Lam? (each(f, e.body), f(e)):
@@ -263,6 +269,8 @@ var toString = e => {
   if(e.tag === Unpack) return 'unpack ' + e.label;
 
   if(e.tag === Perform) return '!' + e.label;
+
+  if(e.tag === Str) return JSON.stringify(e.val);
 
   serr('Invalid expression tag toString: ' + e.tag);
 };
@@ -338,6 +346,9 @@ module.exports = {
 
   Anno,
   anno,
+
+  Str,
+  str,
 
   each,
   serr,
