@@ -17,8 +17,18 @@ import {
   tscheme,
   typeStr,
   tarr2,
+	tarr_,
+	TMu,
   isTMu,
   tmu,
+	isTRowEmpty,
+	TRowEmpty,
+	trowempty,
+	isTRowExtend,
+	TRowExtend,
+	trowextend,
+	trecord,
+	tvariant,
 } from './types';
 import {
   Expr,
@@ -26,6 +36,11 @@ import {
   isEApp,
   isELam,
   isELet,
+	isERecordEmpty,
+	isERecordExtend,
+	isERecordSelect,
+	isERecordRestrict,
+	isEFix,
 } from './exprs';
 import Env from './Env';
 
@@ -52,6 +67,8 @@ const free = (t: Type | TScheme | Env): TVars => {
   if(isTCon(t)) return Set.empty<TVar>();
   if(isTApp(t)) return free(t.left).union(free(t.right));
   if(isTMu(t)) return free(t.type).without(Set.of(t.arg));
+	if(isTRowExtend(t)) return free(t.type).union(free(t.rest));
+	if(isTRowEmpty(t)) return Set.empty<TVar>();
   throw new Error('impossible');
 };
 
@@ -60,6 +77,8 @@ const subst = (sub: Subst, t: Type): Type => {
   if(isTCon(t)) return t;
   if(isTApp(t)) return tapp(subst(sub, t.left), subst(sub, t.right));
   if(isTMu(t)) return tmu(t.arg, subst(sub.removeKey(t.arg), t.type));
+	if(isTRowExtend(t)) return trowextend(t.label, subst(sub, t.type), subst(sub, t.rest));
+	if(isTRowEmpty(t)) return t;
   throw new Error('impossible');
 };
 const substScheme = (sub: Subst, t: TScheme): TScheme =>
@@ -73,11 +92,16 @@ const bind = (v: TVar, t: Type): InferResult<Subst> => {
   return Result.ok(Map.of([v, t]));
 };
 
+const unroll = (t: TMu): Type => subst(Map.of([t.arg, t]), t.type);
+
 const unify = (a: Type, b: Type): InferResult<Subst> => {
   console.log(`unify ${typeStr(a)} and ${typeStr(b)}`);
   if(isTVar(a)) return bind(a, b);
   if(isTVar(b)) return bind(b, a);
+	if(isTMu(a)) return unify(unroll(a), b);
+	if(isTMu(b)) return unify(a, unroll(b));
   if(isTCon(a) && isTCon(b) && a.name === b.name) return Result.ok(emptySubst);
+	if(isTRowEmpty(a) && isTRowEmpty(b)) return Result.ok(emptySubst);
   if(isTApp(a) && isTApp(b))
     return unify(a.left, b.left)
       .then(s1 => unify(subst(s1, a.right), subst(s1, b.right))
@@ -169,6 +193,37 @@ export const inferR = (env: Env, st: InferState, e: Expr)
           });
       });
   }
+	if(isERecordSelect(e)) {
+		const [st1, tv] = st.fresh('t', ktype);
+		const [st2, tr] = st1.fresh('r', krow);
+		const row = trecord(trowextend(e.label, tv, tr));
+		return Result.ok([st2, emptySubst,
+			tarr2(row, tv) as Type
+		]);
+	}
+	if(isERecordExtend(e)) {
+		const [st1, tv] = st.fresh('t', ktype);
+		const [st2, tr] = st1.fresh('r', krow);
+		const row = trecord(trowextend(e.label, tv, tr));
+		return Result.ok([st2, emptySubst,
+			tarr_(tv, trecord(tr), row) as Type
+		]);
+	}
+	if(isERecordRestrict(e)) {
+		const [st1, tv] = st.fresh('t', ktype);
+		const [st2, tr] = st1.fresh('r', krow);
+		const row = trecord(trowextend(e.label, tv, tr));
+		return Result.ok([st2, emptySubst,
+			tarr2(row, trecord(tr)) as Type
+		]);
+	}
+	if(isERecordEmpty(e)) {
+		return Result.ok([st, emptySubst, trecord(trowempty)]);
+	}
+	if(isEFix(e)) {
+		const [st1, tv] = st.fresh('t', ktype);
+		return Result.ok([st1, emptySubst, tarr2(tarr2(tv, tv), tv) as Type]);
+	}
   throw new Error('impossible');
 }
 

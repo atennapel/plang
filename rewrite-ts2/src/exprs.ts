@@ -2,7 +2,12 @@ type ExprTag =
   'EVar' |
   'EApp' |
   'ELam' |
-  'ELet';
+  'ELet' |
+	'EFix' |
+	'ERecordEmpty' |
+	'ERecordSelect' |
+	'ERecordExtend' |
+	'ERecordRestrict';
 
 export interface Expr { tag : ExprTag };
 
@@ -52,11 +57,45 @@ export const elet = (arg: string, val: Expr, body: Expr): ELet => ({
   body,
 });
 
+interface EFix extends Expr { };
+export const isEFix = (e: Expr): e is EFix => e.tag === 'EFix';
+export const efix : EFix = { tag: 'EFix' };
+
+interface ERecordEmpty extends Expr { };
+export const isERecordEmpty = (e: Expr): e is ERecordEmpty => e.tag === 'ERecordEmpty';
+export const erecordempty : ERecordEmpty = { tag: 'ERecordEmpty' };
+
+interface ERecordSelect extends Expr { label : string };
+export const isERecordSelect = (e: Expr): e is ERecordSelect => e.tag === 'ERecordSelect';
+export const erecordselect = (label : string): ERecordSelect => ({
+  tag: 'ERecordSelect',
+  label,
+});
+
+interface ERecordExtend extends Expr { label : string };
+export const isERecordExtend = (e: Expr): e is ERecordExtend => e.tag === 'ERecordExtend';
+export const erecordextend = (label : string): ERecordExtend => ({
+  tag: 'ERecordExtend',
+  label,
+});
+
+interface ERecordRestrict extends Expr { label : string };
+export const isERecordRestrict = (e: Expr): e is ERecordRestrict => e.tag === 'ERecordRestrict';
+export const erecordrestrict = (label : string): ERecordRestrict => ({
+  tag: 'ERecordRestrict',
+  label,
+});
+
 export const exprStr = (e: Expr): string => {
   if(isEVar(e)) return e.name;
   if(isEApp(e)) return `(${exprStr(e.left)} ${exprStr(e.right)})`;
   if(isELam(e)) return `(\\${e.arg} -> ${exprStr(e.body)})`;
   if(isELet(e))
     return `(let ${e.arg} = ${exprStr(e.val)} in ${exprStr(e.body)})`;
+	if(isERecordSelect(e)) return `.${e.label}`;
+	if(isERecordExtend(e)) return `.+${e.label}`;
+	if(isERecordRestrict(e)) return `.-${e.label}`;
+	if(isERecordEmpty(e)) return '{}';
+	if(isEFix(e)) return 'fix';
   throw new Error('impossible');
 };

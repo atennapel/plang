@@ -14,6 +14,11 @@ import {
   elam_,
   elet,
   Expr,
+	erecordempty,
+	erecordextend,
+	erecordselect,
+	erecordrestrict,
+	efix,
 } from './exprs';
 import {
   infer,
@@ -33,6 +38,7 @@ const env = new Env({
   one: tscheme([], Int),
   inc: tscheme([], tarr_(Int, Int)),
   True: tscheme([], Bool),
+	unit: tscheme([], Unit),
   pair: tscheme([a, b], tarr_(a, b, tapp_(Pair, a, b))),
   fst: tscheme([a, b], tarr_(tapp_(Pair, a, b), a)),
   snd: tscheme([a, b], tarr_(tapp_(Pair, a, b), b)),
@@ -43,18 +49,25 @@ const env = new Env({
     tarr_(tarr_(a, c), tarr_(b, c), tapp_(Sum, a, b), c)),
   const: tscheme([a, b], tarr_(a, b, a)),
   constu: tscheme([a], tarr_(a, Unit, a)),
-  fix: tscheme([a], tarr_(tarr_(a, a), a)),
 });
 const one = evar('one');
 const True = evar('True');
 
 const A = eapp_;
-const F = (e: Expr) => A(evar('fix'), e);
+const F = (e: Expr) => A(efix, e);
 const L = elam_;
 const V = evar;
 
-const e = F(L(['sum'],
+const empty = erecordempty;
+const sel = erecordselect;
+const ext = erecordextend;
+const restr = erecordrestrict;
+
+/*
+const e = A(F(L(['sum'],
   A(V('unsum'), A(V('constu'), one),
-    L(['t'], A(V('inc'), A(V('sum'), A(V('snd'), V('t'))))))));
+    L(['t'], A(V('inc'), A(V('sum'), A(V('snd'), V('t')))))))), A(evar('inl'), evar('unit')));
+*/
+const e = erecordselect('l');
 console.log(exprStr(e));
 console.log(''+infer(e, env).map(typeStr));
