@@ -15,7 +15,7 @@ export abstract class Type {
 
 export class TVar extends Type implements Hashable {
 	readonly id: Id;
-	private readonly _kind: Kind;
+	readonly _kind: Kind;
 	readonly lacks: Set<Label>;
 
 	constructor(id: Id, kind: Kind, lacks: Set<Label>) {
@@ -30,7 +30,7 @@ export class TVar extends Type implements Hashable {
 	}
 
 	public toString() {
-		return `${this.id}${(this.lacks.isEmpty()? '': `/${this.lacks}`)}`;
+		return `${this.id}${this.lacks.isEmpty()? '': `/${this.lacks}`}`;
 	}
 
 	public kind() {
@@ -252,7 +252,7 @@ export class TScheme {
 
 	public instantiate(state: InferState): [InferState, Type] {
 		const [nst, sub] = this.tvars.vals().reduce(([st, sub], tv) => {
-			const [nst, tv1] = st.freshTVar(tv);
+			const [nst, tv1] = st.freshTVar(tv, tv._kind);
 			return [nst, sub.add(tv, tv1)] as [InferState, Subst];
 		}, [state, emptySubst] as [InferState, Subst]);
 		return [nst, this.type.subst(sub)];
@@ -308,7 +308,7 @@ function bind(state: InferState, a: TVar, b: Type, k: Kind): InferResult<[InferS
 		return ok([state, Map.of([a, tmu(a, b)])] as [InferState, Subst]);
 	if(b instanceof TVar) {
 		const [st, tvar] = state.freshTVar(b, k, a.lacks.union(b.lacks));
-		return ok([st, Map.of([a, tvar, b, tvar])] as [InferState, Subst]);
+		return ok([st, Map.of([a, tvar], [b, tvar])] as [InferState, Subst]);
 	}
 	if(k.equals(KRow))
 		return rowParts(b)
@@ -322,7 +322,7 @@ function bind(state: InferState, a: TVar, b: Type, k: Kind): InferResult<[InferS
 	return ok([state, Map.of([a, b])]);
 }
 
-export function unify(state: InferState, a: Type, b: Type): InferResult<[InferState, Subst]> {
+function unifyR(state: InferState, a: Type, b: Type): InferResult<[InferState, Subst]> {
 	return a.kind().then(ka => b.kind().then(kb => {
 		if(!ka.equals(kb)) return err(`Kind mismatch: ${ka} and ${kb} in ${a} ~ ${b}`);
 		console.log(`unify ${a} ~ ${b}`);
@@ -354,4 +354,10 @@ export function unify(state: InferState, a: Type, b: Type): InferResult<[InferSt
 				}));
 		return err(`Cannot unify ${a} and ${b}`);
 	}));
+}
+
+export function unify(state: InferState, a: Type, b: Type): InferResult<[InferState, Subst]> {
+	const res = unifyR(state, a, b);
+	// console.log('-> ' + res);
+	return res;
 }

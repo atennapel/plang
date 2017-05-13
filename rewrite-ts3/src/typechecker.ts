@@ -27,6 +27,10 @@ export class InferState {
 		this.tvarstore = tvarstore;
 	}
 
+	public toString() {
+		return `InferState(${this.tvarstore})`;
+	}
+
 	public static empty() {
 		return new InferState(new IdStore());
 	}

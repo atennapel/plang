@@ -33,6 +33,10 @@ export class IdStore {
 		this.store = store || {};
 	}
 
+	toString() {
+		return `IdStore(${Object.keys(this.store).map(k => `${k}: ${this.store[k]}`).join(', ')})`;
+	}
+
 	fresh(name_?: string): [IdStore, Id] {
 		const name = name_ || '_';
 		const store = clone(this.store);

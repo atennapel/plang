@@ -11,6 +11,7 @@ export abstract class Expr {
 
 	public typecheck(env?: Env, state?: InferState): InferResult<Type> {
 		return this.infer(env || emptyEnv, state || InferState.empty()).then(([_, sub, type_]) => {
+			// console.log(sub.toString());
 			const type = type_.subst(sub);
 			return type.kind().then(kt => {
 				if(!kt.equals(KType)) return err(`Invalid kind for expression ${type} : ${kt}`);
