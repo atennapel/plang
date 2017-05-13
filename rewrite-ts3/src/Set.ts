@@ -15,6 +15,9 @@ export default class Set<T extends Hashable> {
   }
   static empty<T extends Hashable>(): Set<T> { return Set.of<T>() }
 
+	size(): number { return this.map.size() }
+	isEmpty(): boolean { return this.map.isEmpty() }
+
   keys(): string[] { return this.map.keys() }
   vals(): T[] { return this.map.vals() }
 
@@ -28,4 +31,7 @@ export default class Set<T extends Hashable> {
   without(other: Set<T>): Set<T> {
     return new Set(this.map.removeKeySet(other));
   }
+	intersection(other: Set<T>): Set<T> {
+		return new Set(this.map.intersection(other.map));
+	}
 }

@@ -3,6 +3,7 @@ import { KType, KRow } from './kinds';
 import { Hashable } from './Hashable';
 import { Env, InferResult, ok, err, InferState, emptySubst, emptyEnv, Subst, compose } from './typechecker';
 import Set from './Set';
+import Label, { label } from './Label';
 
 export abstract class Expr {
 	public abstract toString(): string;
@@ -90,9 +91,9 @@ export class EApp extends Expr {
 			return this.right.infer(nenv, st).then(([st, s2, tright]) => {
 				const [nst, tv] = st.freshTVar('t');
 				const s3 = compose(s1, s2);
-				return unify(tleft.subst(s3), tarr(tright, tv).subst(s3)).map(s4 => {
+				return unify(nst, tleft.subst(s3), tarr(tright, tv).subst(s3)).map(([st, s4]) => {
 					const s5 = compose(s3, s4);
-					return [nst, s5, tv.subst(s5)];
+					return [st, s5, tv.subst(s5)];
 				});
 			});
 		});
@@ -152,8 +153,8 @@ export class ELetr extends Expr {
 		const [nst, tv] = state.freshTVar(this.arg.id);
 		const nenv = env.add(this.arg, tschemeM(tv));
 		return this.val.infer(nenv, nst)
-			.then(([st, s1, tval]) => unify(tv.subst(s1), tval.subst(s1))
-			.then(s2 => {
+			.then(([st, s1, tval]) => unify(st, tv.subst(s1), tval.subst(s1))
+			.then(([st, s2]) => {
 				const s3 = compose(s1, s2);
 				const type = tv.subst(s3);
 				const nenv = env.add(this.arg, TScheme.generalize(type, substEnv(env, s3)));
@@ -184,7 +185,8 @@ export class EAnno extends Expr {
 
 	public infer(env: Env, state: InferState): InferResult<[InferState, Subst, Type]> {
 		return this.expr.infer(env, state)
-			.then(([st, s1, type]) => unify(this.type.subst(s1), type.subst(s1)).map(s2 => {
+			.then(([st, s1, type]) => unify(st, this.type.subst(s1), type.subst(s1))
+			.map(([st, s2]) => {
 				const s3 = compose(s1, s2);
 				return [st, s3, this.type.subst(s3)];
 			}));
@@ -226,9 +228,9 @@ export class EEnd extends Expr {
 export const eend = new EEnd();
 
 export class ESelect extends Expr {
-	readonly label: string;
+	readonly label: Label;
 
-	constructor(label: string) {
+	constructor(label: Label) {
 		super();
 		this.label = label;
 	}
@@ -239,7 +241,7 @@ export class ESelect extends Expr {
 
 	public infer(env: Env, state: InferState): InferResult<[InferState, Subst, Type]> {
 		const [st1, t] = state.freshTVar('t', KType);
-		const [st2, r] = state.freshTVar('r', KRow, [this.label]);
+		const [st2, r] = st1.freshTVar('r', KRow, Set.of(this.label));
 		return ok([
 			st2,
 			emptySubst,
@@ -247,12 +249,12 @@ export class ESelect extends Expr {
 		] as [InferState, Subst, Type]);
 	}
 }
-export function eselect(label: string) { return new ESelect(label) }
+export function eselect(label: Label) { return new ESelect(label) }
 
 export class EExtend extends Expr {
-	readonly label: string;
+	readonly label: Label;
 
-	constructor(label: string) {
+	constructor(label: Label) {
 		super();
 		this.label = label;
 	}
@@ -263,7 +265,7 @@ export class EExtend extends Expr {
 
 	public infer(env: Env, state: InferState): InferResult<[InferState, Subst, Type]> {
 		const [st1, t] = state.freshTVar('t', KType);
-		const [st2, r] = state.freshTVar('r', KRow, [this.label]);
+		const [st2, r] = st1.freshTVar('r', KRow, Set.of(this.label));
 		return ok([
 			st2,
 			emptySubst,
@@ -275,12 +277,12 @@ export class EExtend extends Expr {
 		] as [InferState, Subst, Type]);
 	}
 }
-export function eextend(label: string) { return new EExtend(label) }
+export function eextend(label: Label) { return new EExtend(label) }
 
 export class ERestrict extends Expr {
-	readonly label: string;
+	readonly label: Label;
 
-	constructor(label: string) {
+	constructor(label: Label) {
 		super();
 		this.label = label;
 	}
@@ -291,7 +293,7 @@ export class ERestrict extends Expr {
 
 	public infer(env: Env, state: InferState): InferResult<[InferState, Subst, Type]> {
 		const [st1, t] = state.freshTVar('t', KType);
-		const [st2, r] = state.freshTVar('r', KRow, [this.label]);
+		const [st2, r] = st1.freshTVar('r', KRow, Set.of(this.label));
 		return ok([
 			st2,
 			emptySubst,
@@ -302,12 +304,12 @@ export class ERestrict extends Expr {
 		] as [InferState, Subst, Type]);
 	}
 }
-export function erestrict(label: string) { return new ERestrict(label) }
+export function erestrict(label: Label) { return new ERestrict(label) }
 
 export class EInject extends Expr {
-	readonly label: string;
+	readonly label: Label;
 
-	constructor(label: string) {
+	constructor(label: Label) {
 		super();
 		this.label = label;
 	}
@@ -318,7 +320,7 @@ export class EInject extends Expr {
 
 	public infer(env: Env, state: InferState): InferResult<[InferState, Subst, Type]> {
 		const [st1, t] = state.freshTVar('t', KType);
-		const [st2, r] = state.freshTVar('r', KRow, [this.label]);
+		const [st2, r] = st1.freshTVar('r', KRow, Set.of(this.label));
 		return ok([
 			st2,
 			emptySubst,
@@ -329,12 +331,12 @@ export class EInject extends Expr {
 		] as [InferState, Subst, Type]);
 	}
 }
-export function einject(label: string) { return new EInject(label) }
+export function einject(label: Label) { return new EInject(label) }
 
 export class EEmbed extends Expr {
-	readonly label: string;
+	readonly label: Label;
 
-	constructor(label: string) {
+	constructor(label: Label) {
 		super();
 		this.label = label;
 	}
@@ -345,7 +347,7 @@ export class EEmbed extends Expr {
 
 	public infer(env: Env, state: InferState): InferResult<[InferState, Subst, Type]> {
 		const [st1, t] = state.freshTVar('t', KType);
-		const [st3, r] = state.freshTVar('r', KRow, [this.label]);
+		const [st3, r] = st1.freshTVar('r', KRow, Set.of(this.label));
 		return ok([
 			st3,
 			emptySubst,
@@ -356,12 +358,12 @@ export class EEmbed extends Expr {
 		] as [InferState, Subst, Type]);
 	}
 }
-export function eembed(label: string) { return new EEmbed(label) }
+export function eembed(label: Label) { return new EEmbed(label) }
 
 export class EElim extends Expr {
-	readonly label: string;
+	readonly label: Label;
 
-	constructor(label: string) {
+	constructor(label: Label) {
 		super();
 		this.label = label;
 	}
@@ -372,8 +374,8 @@ export class EElim extends Expr {
 
 	public infer(env: Env, state: InferState): InferResult<[InferState, Subst, Type]> {
 		const [st1, a] = state.freshTVar('a', KType);
-		const [st2, b] = state.freshTVar('b', KType);
-		const [st3, r] = state.freshTVar('r', KRow, [this.label]);
+		const [st2, b] = st1.freshTVar('b', KType);
+		const [st3, r] = st2.freshTVar('r', KRow, Set.of(this.label));
 		return ok([
 			st3,
 			emptySubst,
@@ -386,4 +388,4 @@ export class EElim extends Expr {
 		] as [InferState, Subst, Type]);
 	}
 }
-export function eelim(label: string) { return new EElim(label) }
+export function eelim(label: Label) { return new EElim(label) }

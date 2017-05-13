@@ -1,9 +1,11 @@
-import { Type, TScheme, TVar } from './types';
+import { Type, TScheme, TVar, tvar } from './types';
 import { EVar } from './exprs';
 import { Result } from './Result';
 import { IdStore } from './Id';
 import { Kind, KType } from './kinds';
 import Map from './Map';
+import Set from './Set';
+import Label from './Label';
 
 export type Subst = Map<TVar, Type>;
 export const emptySubst: Subst = Map.empty<TVar, Type>();
@@ -29,8 +31,8 @@ export class InferState {
 		return new InferState(new IdStore());
 	}
 
-	public freshTVar(oldTVar?: TVar | string, kind?: Kind, lacks?: string[]): [InferState, TVar] {
+	public freshTVar(oldTVar?: TVar | string, kind?: Kind, lacks?: Set<Label>): [InferState, TVar] {
 		const [store, id] = oldTVar instanceof TVar? this.tvarstore.freshId(oldTVar.id): this.tvarstore.fresh(oldTVar);
-		return [new InferState(store), new TVar(id, kind || KType, lacks || [])];
+		return [new InferState(store), tvar(id, kind, lacks)];
 	}
 }

@@ -22,6 +22,9 @@ export default class Map<K extends Hashable, V> {
   }
   static empty<K extends Hashable, V>(): Map<K, V> { return Map.of<K, V>() }
 
+	size(): number { return this.keys().length }
+	isEmpty(): boolean { return this.size() === 0 }
+
   keys(): string[] { return Object.keys(this.imap) }
   vals(): V[] { return this.keys().map(k => this.imap[k]) }
 
@@ -51,6 +54,13 @@ export default class Map<K extends Hashable, V> {
     for(let k in other.imap) n[k] = other.imap[k];
     return new Map<K, V>(n);
   }
+	intersection(other: Map<K, V>): Map<K, V> {
+		let n: InternalMap<K, V> = {};
+    for(let k in this.imap)
+			if(other.imap[k])
+				n[k] = this.imap[k];
+    return new Map<K, V>(n);
+	}
   removeKeysArray(keys: K[]) {
     let n: InternalMap<K, V> = clone(this.imap);
     for(let i = 0, l = keys.length; i < l; i++)

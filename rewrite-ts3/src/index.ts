@@ -29,6 +29,7 @@ import {
 	eelim,
 	eend,
 } from './exprs';
+import { label } from './Label';
 import Map from './Map';
 import Set from './Set';
 import { Env } from './typechecker';
@@ -76,6 +77,6 @@ const V = evar;
 const nil = A(inl, unit);
 const cons = L(['h', 't'], A(inr, A(pair, V('h'), V('t'))));
 // const expr = eletr('count', A(sumE, A(unitE, one), A(pairE, L(['h', 't'], A(V('inc'), A(V('count'), V('t')))))), V('count'));
-const expr = eend;
+const expr = A(eselect(label('y')), A(eextend(label('y')), True, A(eextend(label('x')), one, erecordempty)));
 console.log(expr.toString());
 console.log(expr.typecheck(env).toString());
