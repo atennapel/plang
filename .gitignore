@@ -4,3 +4,5 @@ node_modules
 rewrite-ts/build
 rewrite-ts2/build
 rewrite-ts3/build
+npm-debug.log
+qualified/build
