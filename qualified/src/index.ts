@@ -15,6 +15,7 @@ import {
 	elam,
 	eapp,
 	elet,
+	eanno,
 } from './exprs';
 import { id } from './Id';
 import IdStore from './IdStore';
@@ -22,9 +23,12 @@ import Env from './Env';
 import InferState from './InferState';
 
 const Int = tcon('Int', ktype);
+const Str = tcon('Str', ktype);
 
 const env = Env.of(
 	['zero', Int.generalize()],
+	['str', Str.generalize()],
+	['inc', tarrs(Int, Int).generalize()],
 );
 
-console.log(''+elet('id', elam(['x'], evar('x')), eapp(evar('id'), evar('zero'))).runInfer(env));
+console.log(''+eanno(evar('zero'), Int).runInfer(env));

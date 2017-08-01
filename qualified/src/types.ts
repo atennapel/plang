@@ -11,6 +11,7 @@ import Env from './Env';
 import { Result } from './Result';
 import InferState from './InferState';
 import HasTVars from './HasTVars';
+import { Constraint } from './constraints';
 
 export abstract class Type implements HasTVars<Type> {
 	abstract toString(): string;
@@ -41,8 +42,8 @@ export abstract class Type implements HasTVars<Type> {
 		}));
 	}
 
-	generalize(env?: Env): Scheme {
-		return env? new Scheme(this.free().without(env.free()), this): new Scheme(this.free(), this);
+	generalize(env?: Env, constraints?: Constraint[]): Scheme {
+		return new Scheme(env? this.free().without(env.free()): this.free(), constraints || [], this);
 	}
 }
 
@@ -175,33 +176,40 @@ export function tarrs(...ts: Type[]) {
 
 export class Scheme implements HasTVars<Scheme> {
 	readonly tvars: TVarSet;
+	readonly constraints: Constraint[];
 	readonly type: Type;
 
-	constructor(tvars: TVarSet, type: Type) {
+	constructor(tvars: TVarSet, constraints: Constraint[], type: Type) {
 		this.tvars = tvars;
+		this.constraints = constraints;
 		this.type = type;
 	}
 
 	toString() {
-		return `forall ${this.tvars} . ${this.type}`;
+		return `forall ${this.tvars} . {${this.constraints.join(', ')}} => ${this.type}`;
 	}
 
 	free(): TVarSet {
-		return this.type.free().without(this.tvars);
+		return this.type.free()
+			.union(this.constraints.map(c => c.free()).reduce((a, b) => a.union(b), TVarSet.empty()))
+			.without(this.tvars);
 	}
 	subst(sub: Subst): Scheme {
+		const nsub = sub.removeTVars(this.tvars);
 		return new Scheme(
 			this.tvars,
-			this.type.subst(sub.removeTVars(this.tvars))
+			this.constraints.map(c => c.subst(nsub)),
+			this.type.subst(nsub)
 		);
 	}
 
-	instantiate(state: InferState): [InferState, Type] {
+	instantiate(state: InferState): [InferState, Constraint[], Type] {
 		const tvars = this.tvars.values();
 		const [st, ids] = state.freshTVars(this.tvars.size(), tvars.map(v => v.id.name), tvars.map(v => v._kind));
-		return [st, this.type.subst(this.tvars.toSubst(tv => ids[tvars.indexOf(tv)]))];
+		const sub = this.tvars.toSubst(tv => ids[tvars.indexOf(tv)]);
+		return [st, this.constraints.map(c => c.subst(sub)), this.type.subst(sub)];
 	}
 }
-export function scheme(tvars: TVarSet, type: Type) {
-	return new Scheme(tvars, type);
+export function scheme(tvars: TVarSet, constraints: Constraint[], type: Type) {
+	return new Scheme(tvars, constraints, type);
 }
