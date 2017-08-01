@@ -42,6 +42,9 @@ export default class Subst implements HasTVars<Subst> {
 	getOr(tv: TVar, t: Type) {
 		return this._map.getOr(tv.hash(), t);
 	}
+	getMap<R>(key: TVar, map: (type: Type) => R, def: R) {
+		return this._map.getMap(key.hash(), map, def);
+	}
 
 	compose(next: Subst): Subst {
 		return new Subst(this._map.union(next._map.map(t => t.subst(this))));

@@ -27,6 +27,7 @@ export abstract class Type implements HasTVars<Type> {
 	}
 
 	static unify(a: Type, b: Type): Result<TypeError, Subst> {
+		console.log(`unify ${a} ~ ${b}`);
 		return a.kind().then(ka => b.kind().then(kb => {
 			if(!ka.equals(kb))
 				return Result.err(new TypeError(`Cannot unify kinds: ${ka} and ${kb}`));
@@ -78,7 +79,7 @@ export class TVar extends Type {
 	}
 
 	subst(sub: Subst): Type {
-		return sub.getOr(this, this);
+		return sub.getMap(this, t => t.subst(sub), this);
 	}
 }
 export function tvar(id: Id, kind: Kind) {

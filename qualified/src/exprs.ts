@@ -1,22 +1,48 @@
 import { ktype } from './kinds';
 import { Type, tvar, tarrs, scheme } from './types';
 import Env from './Env';
-import { Result } from './Result';
+import { Result, Ok, Err } from './Result';
 import InferState from './InferState';
 import Subst from './Subst';
 import TVarSet from './TVarSet';
 import { Constraint } from './constraints';
 
 export abstract class Expr {
+	static MAX_ITERATIONS = 100;
+	
 	abstract toString(): string;
 	abstract infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]>;
 
 	runInfer(env?: Env, state?: InferState) {
 		return this.infer(state || new InferState(), env || Env.empty())
-			.map(([st, sub, cs, t]) => {
-				console.log(cs);
-				return t.subst(sub)
+			.then(([st, sub, cs, t]) => {
+				return Expr.solveConstraints(sub, cs)
+					.map(sub => t.subst(sub));
 			});
+	}
+	
+	static solveConstraints(sub: Subst, constraints: Constraint[]): Result<TypeError, Subst> {
+		const cs = Constraint.simplify(constraints.slice(0));
+		let cur: Subst = sub;
+		let iter = 0;
+		while(cs.length) {
+			if(iter >= Expr.MAX_ITERATIONS)
+				return Result.err(new TypeError(`Max iterations reached in solving constraints: [${cs.join(', ')}]`));
+			const c = cs.shift();
+			if(!c) break;
+			const res = c.subst(cur).solve();
+			if(res instanceof Ok) {
+				const val = res.val;
+				if(val === null) cs.push(c);
+				else {
+					cur = cur.compose(val);
+				}
+			} else if(res instanceof Err) {
+				return res;
+			}
+			iter++;
+		}
+		return Result.ok(cur);
 	}
 }
 
@@ -33,6 +59,7 @@ export class EVar extends Expr {
 	}
 
 	infer(state: InferState, env: Env) {
+		console.log(''+env);
 		return env.getMap<Result<TypeError, [InferState, Subst, Constraint[], Type]>>(
 			this.name,
 			s => {
@@ -64,7 +91,7 @@ export class ELam extends Expr {
 	infer(state: InferState, env: Env) {
 		const [st1, tv] = state.freshTVar(this.name, ktype);
 		return this.body.infer(st1, env.add(this.name, scheme(TVarSet.empty(), [], tv)))
-			.map(([st2, sub1, cs, t]) => [st2, sub1, cs, tarrs(tv.subst(sub1), tv)] as [InferState, Subst, Constraint[], Type]);
+			.map(([st2, sub1, cs, t]) => [st2, sub1, cs, tarrs(tv, t).subst(sub1)] as [InferState, Subst, Constraint[], Type]);
 	}
 }
 export function elam(args: string[], body: Expr) {
@@ -87,6 +114,7 @@ export class EApp extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		//console.log(''+this);
 		const [st1, tv] = state.freshTVar('t', ktype);
 		return this.left.infer(st1, env)
 			.then(([st2, sub1, cs1, tleft]) => this.right.infer(st2, env)
@@ -125,10 +153,10 @@ export class ELet extends Expr {
 		return this.val.infer(state, env)
 			.then(([st1, sub1, cs1, tval]) => {
 				const newenv = env.subst(sub1);
-				return this.body.infer(st1, newenv.add(this.name, tval.generalize(newenv, cs1)))
+				return this.body.infer(st1, newenv.add(this.name, tval.generalize(newenv, Constraint.simplify(cs1.map(c => c.subst(sub1))))))
 					.map(([st2, sub2, cs2, tlet]) => {
 						const sub3 = sub1.compose(sub2);
-						return [st2, sub3, cs2, tlet.subst(sub3)] as [InferState, Subst, Constraint[], Type];
+						return [st2, sub3, cs2.map(c => c.subst(sub3)), tlet.subst(sub3)] as [InferState, Subst, Constraint[], Type];
 					});
 			})
 	}
