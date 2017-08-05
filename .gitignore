@@ -8,3 +8,4 @@ npm-debug.log
 qualified/build
 new-ts/build
 bidir-ts/build/
+structural/build/
