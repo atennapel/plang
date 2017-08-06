@@ -12,6 +12,7 @@ import Env from './Env';
 import { Result } from './Result';
 import InferState from './InferState';
 import HasTVars from './HasTVars';
+import Map from './Map';
 
 export abstract class Type implements HasTVars<Type> {
 	abstract toString(): string;
@@ -20,24 +21,33 @@ export abstract class Type implements HasTVars<Type> {
 	abstract free(): TVarSet;
 	abstract subst(sub: Subst): Type;
 
-	static bind(a: TVar, b: Type): Result<TypeError, Subst> {
+	static bind(st: InferState, a: TVar, b: Type): Result<TypeError, [InferState, Subst]> {
+		if(a.equals(b)) return Result.ok([st, Subst.empty()] as [InferState, Subst]);
 		if(b.free().has(a))
-				return Result.err(new TypeError(`occurs check failed: ${a} and ${b}`));
-		return Result.ok(Subst.of([a, b]));
+			return Result.ok([st, Subst.of([a, tfix(a, b)])] as [InferState, Subst]);
+		return Result.ok([st, Subst.of([a, b])] as [InferState, Subst]);
 	}
 
-	static unify(a: Type, b: Type): Result<TypeError, Subst> {
+	static unify(st: InferState, a: Type, b: Type): Result<TypeError, [InferState, Subst]> {
 		return a.kind().then(ka => b.kind().then(kb => {
 			if(!ka.equals(kb))
 				return Result.err(new TypeError(`Cannot unify kinds: ${ka} and ${kb}`));
-			if(a instanceof TVar) return Type.bind(a, b);
-			if(b instanceof TVar) return Type.bind(b, a);
+			if(a instanceof TVar) return Type.bind(st, a, b);
+			if(b instanceof TVar) return Type.bind(st, b, a);
+			if(a instanceof TRowEmpty && b instanceof TRowEmpty)
+				return Result.ok([st, Subst.empty()] as [InferState, Subst]);
 			if(a instanceof TCon && b instanceof TCon && a.name === b.name)
-				return Result.ok(Subst.empty());
+				return Result.ok([st, Subst.empty()] as [InferState, Subst]);
 			if(a instanceof TApp && b instanceof TApp)
-				return Type.unify(a.left, b.left)
-					.then(s1 => Type.unify(a.right.subst(s1), b.right.subst(s1))
-					.map(s2 => s1.compose(s2)));
+				return Type.unify(st, a.left, b.left)
+					.then(([st, s1]) => Type.unify(st, a.right.subst(s1), b.right.subst(s1))
+					.map(([st, s2]) => [st, s1.compose(s2)] as [InferState, Subst]));
+			if(a instanceof TFix && b instanceof TFix) {
+				const [st1, tv] = st.freshTVar('f', a.tvar._kind);
+				return Type.unify(st1, a.substTVar(tv), b.substTVar(tv));
+			}
+			if(a instanceof TFix) return Type.unify(st, a.unroll(), b);
+			if(b instanceof TFix) return Type.unify(st, a, b.unroll());
 			return Result.err(new TypeError(`Cannot unify ${a} and ${b}`));
 		}));
 	}
@@ -50,11 +60,13 @@ export abstract class Type implements HasTVars<Type> {
 export class TVar extends Type {
 	readonly id: Id;
 	readonly _kind: Kind;
+	readonly lacks: Map<string>;
 
-	constructor(id: Id, kind: Kind) {
+	constructor(id: Id, kind: Kind, lacks?: Map<string>) {
 		super();
 		this.id = id;
 		this._kind = kind;
+		this.lacks = lacks || Map.empty<string>();
 	}
 
 	hash() {
@@ -62,7 +74,7 @@ export class TVar extends Type {
 	}
 
 	toString() {
-		return this.id.toString();
+		return `${this.id}${this.lacks.isEmpty()? '': `/${this.lacks}`}`;
 	}
 
 	equals(other: Type): boolean {
@@ -81,8 +93,8 @@ export class TVar extends Type {
 		return sub.getMap(this, t => t.subst(sub), this);
 	}
 }
-export function tvar(id: Id, kind: Kind) {
-	return new TVar(id, kind);
+export function tvar(id: Id, kind: Kind, lacks?: Map<string>) {
+	return new TVar(id, kind, lacks);
 }
 
 export class TCon extends Type {
@@ -172,7 +184,7 @@ export class TRowEmpty extends Type {
 	}
 
 	toString() {
-		return '{}';
+		return '<>';
 	}
 
 	equals(other: Type): boolean {
@@ -206,7 +218,7 @@ export class TRowExtend extends Type {
 	}
 
 	toString() {
-		return `{ ${this.label} : ${this.type} | ${this.rest} }`;
+		return `<${this.label} : ${this.type} | ${this.rest}>`;
 	}
 
 	equals(other: Type): boolean {
@@ -221,7 +233,7 @@ export class TRowExtend extends Type {
 					return Result.err(new TypeError(`Type in row must be of kind ${ktype}: ${this.type}`));
 				return this.rest.kind()
 					.then(krest => {
-						if(!kt.equals(krow))
+						if(!krest.equals(krow))
 							return Result.err(new TypeError(`Rest in row must be of kind ${krow}: ${this.rest}`));
 						return Result.ok(krow);
 					});
@@ -251,6 +263,48 @@ export function trow(map: {[key: string]: Type}, rest?: Type) {
 	return cur;
 }
 
+export class TFix extends Type {
+	readonly tvar: TVar;
+	readonly type: Type;
+	
+	constructor(tvar: TVar, type: Type) {
+		super();
+		this.tvar = tvar;
+		this.type = type;
+	}
+
+	toString() {
+		return `(fix ${this.tvar} . ${this.type})`;
+	}
+
+	equals(other: Type): boolean {
+		return other instanceof TFix && this.tvar.equals(other.tvar) && this.type.equals(other.type);
+	}
+
+	kind() {
+		return this.type.kind();
+	}
+
+	free() {
+		return this.type.free().without(TVarSet.of(this.tvar));
+	}
+
+	subst(sub: Subst) {
+		return new TFix(this.tvar, this.type.subst(sub.removeTVars(TVarSet.of(this.tvar))));
+	}
+
+	substTVar(t: Type) {
+		return this.type.subst(Subst.of([this.tvar, t]));
+	}
+
+	unroll() {
+		return this.substTVar(this);
+	}
+}
+export function tfix(tvar: TVar, type: Type) {
+	return new TFix(tvar, type);
+}
+
 export const tarr = tcon('->', karr(ktype, ktype, ktype));
 export function tarr2(a: Type, b: Type) {
 	return tapp(tapp(tarr, a), b);
@@ -258,6 +312,10 @@ export function tarr2(a: Type, b: Type) {
 export function tarrs(...ts: Type[]) {
 	return ts.reduceRight((a, b) => tarr2(b, a));
 }
+
+export const trecord = tcon('Rec', karr(krow, ktype));
+export const tvariant = tcon('Var', karr(krow, ktype));
+export const teff = tcon('Eff', karr(krow, ktype));
 
 export class Scheme implements HasTVars<Scheme> {
 	readonly tvars: TVarSet;

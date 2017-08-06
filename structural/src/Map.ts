@@ -61,6 +61,9 @@ export default class Map<T> {
 	size() {
 		return this.keys().length;
 	}
+	isEmpty() {
+		return this.size() === 0;
+	}
 
 	removeKeys(keys: string[]) {
 		const _map: {[key: string]: T} = {};
