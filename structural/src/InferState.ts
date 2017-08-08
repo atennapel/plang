@@ -2,6 +2,7 @@ import Id from './Id';
 import IdStore from './IdStore';
 import { Kind } from './kinds';
 import { TVar, tvar } from './types';
+import Map from './Map';
 
 export default class InferState {
 	readonly tvars: IdStore;
@@ -17,7 +18,13 @@ export default class InferState {
 
 	freshTVars(n: number, names: string | string[], kinds: Kind | Kind[]): [InferState, TVar[]] {
 		const [store, tvars] = this.tvars.freshN(n, names);
-		return [new InferState(store), tvars.map((id, i) => tvar(id, Array.isArray(kinds)? kinds[i]: kinds))];
+		return [
+			new InferState(store),
+			tvars.map((id, i) => tvar(
+				id,
+				Array.isArray(kinds)? kinds[i]: kinds
+			))
+		];
 	}
 
 	toString() {

@@ -13,6 +13,7 @@ import { Result } from './Result';
 import InferState from './InferState';
 import HasTVars from './HasTVars';
 import Map from './Map';
+import { Constraint, clacks } from './constraints';
 
 export abstract class Type implements HasTVars<Type> {
 	abstract toString(): string;
@@ -20,53 +21,86 @@ export abstract class Type implements HasTVars<Type> {
 	abstract kind(): Result<TypeError, Kind>;
 	abstract free(): TVarSet;
 	abstract subst(sub: Subst): Type;
+	abstract containsLabel(label: string): boolean;
 
-	static bind(st: InferState, a: TVar, b: Type): Result<TypeError, [InferState, Subst]> {
-		if(a.equals(b)) return Result.ok([st, Subst.empty()] as [InferState, Subst]);
+	static bind(st: InferState, a: TVar, b: Type): Result<TypeError, [InferState, Subst, Constraint[]]> {
+		if(a.equals(b)) return Result.ok([st, Subst.empty(), []] as [InferState, Subst, Constraint[]]);
 		if(b.free().has(a))
-			return Result.ok([st, Subst.of([a, tfix(a, b)])] as [InferState, Subst]);
-		return Result.ok([st, Subst.of([a, b])] as [InferState, Subst]);
+			return Result.ok([st, Subst.of([a, tfix(a, b)]), []] as [InferState, Subst, Constraint[]]);
+		return Result.ok([st, Subst.of([a, b]), []] as [InferState, Subst, Constraint[]]);
 	}
 
-	static unify(st: InferState, a: Type, b: Type): Result<TypeError, [InferState, Subst]> {
+	static unify(st: InferState, a: Type, b: Type): Result<TypeError, [InferState, Subst, Constraint[]]> {
 		return a.kind().then(ka => b.kind().then(kb => {
 			if(!ka.equals(kb))
 				return Result.err(new TypeError(`Cannot unify kinds: ${ka} and ${kb}`));
+			console.log(`unify ${a} and ${b}`);
 			if(a instanceof TVar) return Type.bind(st, a, b);
 			if(b instanceof TVar) return Type.bind(st, b, a);
 			if(a instanceof TRowEmpty && b instanceof TRowEmpty)
-				return Result.ok([st, Subst.empty()] as [InferState, Subst]);
+				return Result.ok([st, Subst.empty(), []] as [InferState, Subst, Constraint[]]);
 			if(a instanceof TCon && b instanceof TCon && a.name === b.name)
-				return Result.ok([st, Subst.empty()] as [InferState, Subst]);
+				return Result.ok([st, Subst.empty(), []] as [InferState, Subst, Constraint[]]);
 			if(a instanceof TApp && b instanceof TApp)
 				return Type.unify(st, a.left, b.left)
-					.then(([st, s1]) => Type.unify(st, a.right.subst(s1), b.right.subst(s1))
-					.map(([st, s2]) => [st, s1.compose(s2)] as [InferState, Subst]));
+					.then(([st, s1, cs1]) => Type.unify(st, a.right.subst(s1), b.right.subst(s1))
+					.map(([st, s2, cs2]) => [st, s1.compose(s2), cs1.concat(cs2)] as [InferState, Subst, Constraint[]]));
 			if(a instanceof TFix && b instanceof TFix) {
 				const [st1, tv] = st.freshTVar('f', a.tvar._kind);
 				return Type.unify(st1, a.substTVar(tv), b.substTVar(tv));
 			}
 			if(a instanceof TFix) return Type.unify(st, a.unroll(), b);
 			if(b instanceof TFix) return Type.unify(st, a, b.unroll());
+			if(a instanceof TRowExtend && b instanceof TRowExtend) {
+				return Type.rewriteRow(st, b, a.label)
+					.then(([st, fieldt2, rowtail2, theta1, cs]) =>
+						Type.unify(st, a.type.subst(theta1), fieldt2.subst(theta1))
+						.then(([st, theta2]) => {
+							const s = theta1.compose(theta2);
+							return Type.unify(st, a.rest.subst(s), rowtail2.subst(s))
+								.map(([st, theta3]) => {
+									const fs = s.compose(theta3);
+									return [st, fs, cs.map(c => c.subst(fs))] as [InferState, Subst, Constraint[]];
+								})
+						}));
+			}
 			return Result.err(new TypeError(`Cannot unify ${a} and ${b}`));
 		}));
 	}
 
-	generalize(env?: Env): Scheme {
-		return new Scheme(env? this.free().without(env.free()): this.free(), this);
+	static rewriteRow(st: InferState, t: Type, l: string): Result<TypeError, [InferState, Type, Type, Subst, Constraint[]]> {
+		if(t instanceof TRowEmpty)
+			return Result.err(new TypeError(`Cannot insert ${l} into ${t}`));
+		if(t instanceof TRowExtend) {
+			if(t.label === l) return Result.ok([st, t.type, t.rest, Subst.empty(), []] as [InferState, Type, Type, Subst, Constraint[]]);
+			if(t.rest instanceof TVar) {
+				const [st1, beta] = st.freshTVar('r', krow);
+				const [st2, gamma] = st1.freshTVar('t', ktype);
+				return Type.bind(st2, t.rest, trowextend(l, gamma, beta))
+					.map(([st, s, cs]) => [st, gamma, trowextend(t.label, t.type, beta).subst(s), s, cs.concat([clacks(l, beta)])] as [InferState, Type, Type, Subst, Constraint[]]);
+			} else {
+				return Type.rewriteRow(st, t.rest, l)
+					.map(([st, fieldt, rowt, sub, cs]) =>
+						[st, fieldt, trowextend(t.label, t.type, rowt), sub, cs] as
+						[InferState, Type, Type, Subst, Constraint[]]);
+			}
+		}
+		return Result.err(new TypeError(`Unexpected type in rewriteRow: ${t}`));
+	}
+
+	generalize(env?: Env, constraints?: Constraint[]): Scheme {
+		return new Scheme(env? this.free().without(env.free()): this.free(), constraints || [], this);
 	}
 }
 
 export class TVar extends Type {
 	readonly id: Id;
 	readonly _kind: Kind;
-	readonly lacks: Map<string>;
 
-	constructor(id: Id, kind: Kind, lacks?: Map<string>) {
+	constructor(id: Id, kind: Kind) {
 		super();
 		this.id = id;
 		this._kind = kind;
-		this.lacks = lacks || Map.empty<string>();
 	}
 
 	hash() {
@@ -74,7 +108,7 @@ export class TVar extends Type {
 	}
 
 	toString() {
-		return `${this.id}${this.lacks.isEmpty()? '': `/${this.lacks}`}`;
+		return this.id.toString();
 	}
 
 	equals(other: Type): boolean {
@@ -92,9 +126,13 @@ export class TVar extends Type {
 	subst(sub: Subst): Type {
 		return sub.getMap(this, t => t.subst(sub), this);
 	}
+
+	containsLabel(label: string): boolean {
+		return false;
+	}
 }
-export function tvar(id: Id, kind: Kind, lacks?: Map<string>) {
-	return new TVar(id, kind, lacks);
+export function tvar(id: Id, kind: Kind) {
+	return new TVar(id, kind);
 }
 
 export class TCon extends Type {
@@ -105,6 +143,10 @@ export class TCon extends Type {
 		super();
 		this.name = name;
 		this._kind = kind;
+	}
+
+	containsLabel(label: string): boolean {
+		return false;
 	}
 
 	toString() {
@@ -141,7 +183,13 @@ export class TApp extends Type {
 		this.right = right;
 	}
 
-	toString() {
+	containsLabel(label: string): boolean {
+		return false;
+	}
+
+	toString(): string {
+		if(this.left instanceof TApp && this.left.left instanceof TCon && /[^a-z]+/i.test(this.left.left.name))
+			return `(${this.left.right} ${this.left.left} ${this.right})`;
 		return `(${this.left} ${this.right})`;
 	}
 
@@ -186,6 +234,10 @@ export class TRowEmpty extends Type {
 	toString() {
 		return '<>';
 	}
+	
+	containsLabel(label: string): boolean {
+		return false;
+	}
 
 	equals(other: Type): boolean {
 		return other instanceof TRowEmpty;
@@ -215,6 +267,10 @@ export class TRowExtend extends Type {
 		this.label = label;
 		this.type = type;
 		this.rest = rest;
+	}
+
+	containsLabel(label: string): boolean {
+		return this.label === label || this.rest.containsLabel(label);
 	}
 
 	toString() {
@@ -273,6 +329,10 @@ export class TFix extends Type {
 		this.type = type;
 	}
 
+	containsLabel(label: string): boolean {
+		return false;
+	}
+
 	toString() {
 		return `(fix ${this.tvar} . ${this.type})`;
 	}
@@ -319,34 +379,40 @@ export const teff = tcon('Eff', karr(krow, ktype));
 
 export class Scheme implements HasTVars<Scheme> {
 	readonly tvars: TVarSet;
+	readonly constraints: Constraint[];
 	readonly type: Type;
 
-	constructor(tvars: TVarSet, type: Type) {
+	constructor(tvars: TVarSet, constraints: Constraint[], type: Type) {
 		this.tvars = tvars;
+		this.constraints = constraints;
 		this.type = type;
 	}
 
 	toString() {
-		return `forall ${this.tvars} . ${this.type}`;
+		return `forall ${this.tvars} . {${this.constraints.join(', ')}} => ${this.type}`;
 	}
 
 	free(): TVarSet {
-		return this.type.free().without(this.tvars);
+		return this.type.free()
+			.union(this.constraints.map(c => c.free()).reduce((a, b) => a.union(b), TVarSet.empty()))
+			.without(this.tvars);
 	}
 	subst(sub: Subst): Scheme {
+		const nsub = sub.removeTVars(this.tvars);
 		return new Scheme(
 			this.tvars,
-			this.type.subst(sub.removeTVars(this.tvars))
+			this.constraints.map(c => c.subst(nsub)),
+			this.type.subst(nsub)
 		);
 	}
 
-	instantiate(state: InferState): [InferState, Type] {
+	instantiate(state: InferState): [InferState, Constraint[], Type] {
 		const tvars = this.tvars.values();
 		const [st, ids] = state.freshTVars(this.tvars.size(), tvars.map(v => v.id.name), tvars.map(v => v._kind));
 		const sub = this.tvars.toSubst(tv => ids[tvars.indexOf(tv)]);
-		return [st, this.type.subst(sub)];
+		return [st, this.constraints.map(c => c.subst(sub)), this.type.subst(sub)];
 	}
 }
-export function scheme(tvars: TVarSet, type: Type) {
-	return new Scheme(tvars, type);
+export function scheme(tvars: TVarSet, constraints: Constraint[], type: Type) {
+	return new Scheme(tvars, constraints, type);
 }

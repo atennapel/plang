@@ -15,7 +15,7 @@ export default class TVarSet {
 	static of(...tvars: TVar[]) {
 		return TVarSet.from(tvars);
 	}
-	static empty<T>() {
+	static empty() {
 		return new TVarSet(Map.empty());
 	}
 

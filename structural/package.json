@@ -5,11 +5,13 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node build/src/index.js"
+		"test": "npm run build && node build/src/index.js",
+    "repl": "npm run build && node build/src/repl.js"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/node": "^8.0.19",
     "typescript": "^2.2.2"
   }
 }
