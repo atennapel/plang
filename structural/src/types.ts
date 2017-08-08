@@ -34,7 +34,7 @@ export abstract class Type implements HasTVars<Type> {
 		return a.kind().then(ka => b.kind().then(kb => {
 			if(!ka.equals(kb))
 				return Result.err(new TypeError(`Cannot unify kinds: ${ka} and ${kb}`));
-			console.log(`unify ${a} and ${b}`);
+			// console.log(`unify ${a} and ${b}`);
 			if(a instanceof TVar) return Type.bind(st, a, b);
 			if(b instanceof TVar) return Type.bind(st, b, a);
 			if(a instanceof TRowEmpty && b instanceof TRowEmpty)

@@ -1,7 +1,8 @@
 import { createInterface } from 'readline';
+import { readFileSync } from 'fs';
 import parse from './parser';
 import { Expr } from './exprs';
-
+import { Result, Ok, Err } from './Result';
 import InferState from './InferState';
 import IdStore from './IdStore';
 import Env from './Env';
@@ -19,6 +20,7 @@ import {
 	trowempty,
 } from './types';
 import {
+	Kind,
 	ktype,
 	krow,
 	karr,
@@ -50,15 +52,33 @@ const env = Env.of(
 
 const state = new InferState(new IdStore({ a: a.next(), b: b.next() }));
 
-var repl = createInterface(process.stdin, process.stdout);
-
-console.log('REPL');
-process.stdin.setEncoding('utf8');
-function input() {
-	repl.question('> ', function(i) {
-		console.log(''+parse(i).then(e => e.runInfer(env, state)
-			.map(([t, k]) => `${e} : ${t} : ${k}`)));
-		setImmediate(input);
+function output(i: string) {
+	const res = parse(i).then(e => {
+		console.log(e.toString());
+		return e.runInfer(env, state).map(([t, k]) => [e, t, k] as [Expr, Type, Kind])
 	});
-};
-input();
+	if(res instanceof Ok) {
+		const [e, t, k] = res.val;
+		console.log(t.toString());
+		console.log(k.toString());
+	} else {
+		console.log(res.toString());
+	}
+}
+
+const clinp = process.argv[2] || null;
+if(clinp) {
+	output(readFileSync(clinp, {encoding: 'utf8'}));
+	process.exit();
+} else {
+	console.log('REPL');
+	var repl = createInterface(process.stdin, process.stdout);
+	process.stdin.setEncoding('utf8');
+	const input = function input() {
+		repl.question('> ', function(i) {
+			output(i);
+			setImmediate(input);
+		});
+	};
+	input();
+}

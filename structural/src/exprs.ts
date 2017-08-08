@@ -24,6 +24,7 @@ export abstract class Expr {
 	}
 
 	static checkConstraints(cs: Constraint[]): Result<TypeError, boolean> {
+		// console.log(cs.join(', '));
 		let cur: Result<TypeError, boolean> = Result.ok(false);
 		for(let i = 0, l = cs.length; i < l; i++) {
 			cur = cur.then(b => cs[i].check());
@@ -101,10 +102,10 @@ export class EApp extends Expr {
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
 		const [st1, tv] = state.freshTVar('t', ktype);
 		return this.left.infer(st1, env)
-			.then(([st2, sub1, cs1, tleft]) => this.right.infer(st2, env)
+			.then(([st2, sub1, cs1, tleft]) => this.right.infer(st2, env.subst(sub1))
 			.then(([st3, sub2, cs2, tright]) => {
 				const sub3 = sub1.compose(sub2);
-				return Type.unify(st3, tleft.subst(sub3), tarrs(tright, tv))
+				return Type.unify(st3, tleft.subst(sub3), tarrs(tright, tv).subst(sub3))
 					.map(([st4, sub4]) => {
 						const sub5 = sub3.compose(sub4);
 						return [st4, sub5, cs1.concat(cs2).map(c => c.subst(sub5)), tv.subst(sub5)] as [InferState, Subst, Constraint[], Type]
