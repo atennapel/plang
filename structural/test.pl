@@ -10,7 +10,11 @@
 
 :test (head $ cons 1 $ cons 2 $ cons 3 nil)
 
-(
+::state (\v (
+	#get (\_k k v)
+	))
+
+state 1 (
 	^x (!get ())
 	^_ (!set 10)
 	^y (!get ())

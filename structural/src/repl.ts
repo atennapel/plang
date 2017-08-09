@@ -49,6 +49,7 @@ const env = Env.of(
 
 	['pure', scheme(TVarSet.of(ta), [cvalue(ta)], tarrs(tapp(teff, trowempty, ta), ta))],
 	['return', scheme(TVarSet.of(ta, tr), [cvalue(ta)], tarrs(ta, tapp(teff, tr, ta)))],
+	['finally', scheme(TVarSet.of(ta, tb, tr), [cvalue(ta), cvalue(tb)], tarrs(tarrs(ta, tapp(teff, tr, tb)), tapp(teff, tr, ta), tapp(teff, tr, tb)))],	
 );
 
 const state = new InferState(new IdStore({ a: a.next(), b: b.next(), r: r.next() }));

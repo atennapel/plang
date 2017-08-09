@@ -85,6 +85,9 @@ export abstract class Type implements HasTVars<Type> {
 						[InferState, Type, Type, Subst, Constraint[]]);
 			}
 		}
+		/*if(t instanceof TFix) {
+			return Type.rewriteRow(st, t.unroll(), l);
+		}*/
 		return Result.err(new TypeError(`Unexpected type in rewriteRow: ${t}`));
 	}
 

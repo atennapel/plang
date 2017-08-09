@@ -11,9 +11,12 @@ import {
 	erecordselect,
 	erecordextend,
 	erecordrestrict,
+	erecordupdate,
 	evariantinject,
 	evariantembed,
 	evariantelim,
+	evariantupdate,
+	ehandle,
 	enumber,
 	estring,
 	eperform,
@@ -56,13 +59,16 @@ function makeapp(inp: Expr[]): Expr {
 function makevar(s: string) {
 	const n = +s;
 	if(!isNaN(n)) return enumber(n);
+	if(s.slice(0, 2) === '.:') return erecordupdate(s.slice(2));
 	if(s.slice(0, 2) === '.+') return erecordextend(s.slice(2));
 	if(s.slice(0, 2) === '.-') return erecordrestrict(s.slice(2));
 	if(s[0] === '.') return erecordselect(s.slice(1));
 	if(s.slice(0, 2) === '@+') return evariantembed(s.slice(2));
+	if(s.slice(0, 2) === '@:') return evariantupdate(s.slice(2));
 	if(s[0] === '@') return evariantinject(s.slice(1));
 	if(s[0] === '?') return evariantelim(s.slice(1));
 	if(s[0] === '!') return eperform(s.slice(1));
+	if(s[0] === '#') return ehandle(s.slice(1));
 	return evar(s);
 }
 

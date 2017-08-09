@@ -363,6 +363,33 @@ export function erecordrestrict(label: string) {
 	return new ERecordRestrict(label);
 }
 
+export class ERecordUpdate extends Expr {
+	readonly label: string;
+
+	constructor(label: string) {
+		super();
+		this.label = label;
+	}
+
+	toString() {
+		return `.:${this.label}`;
+	}
+
+	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		const [st1, tr] = state.freshTVar('r', krow);
+		const [st2, ta] = st1.freshTVar('a', ktype);
+		const [st3, tb] = st2.freshTVar('b', ktype);
+		return Result.ok([
+			st3, Subst.empty(),
+			[clacks(this.label, tr)],
+			tarrs(tarrs(ta, tb), tapp(trecord, trowextend(this.label, ta, tr)), tapp(trecord, trowextend(this.label, tb, tr)))
+		] as [InferState, Subst, Constraint[], Type]);
+	}
+}
+export function erecordupdate(label: string) {
+	return new ERecordUpdate(label);
+}
+
 export class EVariantInject extends Expr {
 	readonly label: string;
 
@@ -413,6 +440,33 @@ export class EVariantEmbed extends Expr {
 }
 export function evariantembed(label: string) {
 	return new EVariantEmbed(label);
+}
+
+export class EVariantUpdate extends Expr {
+	readonly label: string;
+
+	constructor(label: string) {
+		super();
+		this.label = label;
+	}
+
+	toString() {
+		return `@:${this.label}`;
+	}
+
+	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		const [st1, tr] = state.freshTVar('r', krow);
+		const [st2, ta] = st1.freshTVar('a', ktype);
+		const [st3, tb] = st2.freshTVar('b', ktype);
+		return Result.ok([
+			st3, Subst.empty(),
+			[clacks(this.label, tr)],
+			tarrs(tarrs(ta, tb), tapp(tvariant, trowextend(this.label, ta, tr)), tapp(tvariant, trowextend(this.label, tb, tr)))
+		] as [InferState, Subst, Constraint[], Type]);
+	}
+}
+export function evariantupdate(label: string) {
+	return new EVariantUpdate(label);
 }
 
 export class EVariantElim extends Expr {
@@ -467,6 +521,43 @@ export class EPerform extends Expr {
 }
 export function eperform(label: string) {
 	return new EPerform(label);
+}
+
+export class EHandle extends Expr {
+	readonly label: string;
+
+	constructor(label: string) {
+		super();
+		this.label = label;
+	}
+
+	toString() {
+		return `#${this.label}`;
+	}
+
+	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		const [st1, tr] = state.freshTVar('r', krow);
+		const [st2, ta] = st1.freshTVar('a', ktype);
+		const [st3, tb] = st2.freshTVar('b', ktype);
+		const [st4, tx] = st3.freshTVar('x', ktype);
+		const [st5, ty] = st4.freshTVar('y', ktype);
+		return Result.ok([
+			st5, Subst.empty(),
+			[clacks(this.label, tr), cvalue(ta), cvalue(tb), cvalue(tx), cvalue(ty)],
+			tarrs(
+				tarrs(
+					ta,
+					tarrs(tb, tapp(teff, tr, ty)),
+					tapp(teff, tr, ty)
+				),
+				tapp(teff, trowextend(this.label, tarrs(ta, tb), tr), tx),
+				tapp(teff, tr, ty)
+			)
+		] as [InferState, Subst, Constraint[], Type]);
+	}
+}
+export function ehandle(label: string) {
+	return new EHandle(label);
 }
 
 export class ENumber extends Expr {
