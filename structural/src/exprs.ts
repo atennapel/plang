@@ -11,7 +11,7 @@ import {
 	trowextend,
 	tnumber,
 	tstring,
-	scheme
+	scheme,
 } from './types';
 import Env from './Env';
 import { Result, Ok, Err } from './Result';
@@ -23,6 +23,7 @@ import { Constraint, clacks, cvalue } from './constraints';
 export abstract class Expr {	
 	abstract toString(): string;
 	abstract infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]>;
+	abstract compile(): string;
 
 	runInfer(env?: Env, state?: InferState) {
 		return this.infer(state || new InferState(), env || Env.empty())
@@ -68,6 +69,10 @@ export class EVar extends Expr {
 			Result.err(new TypeError(`Undefined variable: ${this.name}`))
 		);
 	}
+
+	compile() {
+		return this.name;
+	}
 }
 export function evar(name: string) {
 	return new EVar(name);
@@ -91,6 +96,10 @@ export class ELam extends Expr {
 		const [st1, tv] = state.freshTVar(this.name, ktype);
 		return this.body.infer(st1, env.add(this.name, scheme(TVarSet.empty(), [], tv)))
 			.map(([st2, sub1, cs, t]) => [st2, sub1, cs.map(c => c.subst(sub1)), tarrs(tv, t).subst(sub1)] as [InferState, Subst, Constraint[], Type]);
+	}
+
+	compile() {
+		return `(${this.name} => ${this.body.compile()})`;
 	}
 }
 export function elam(args: string[], body: Expr) {
@@ -125,6 +134,10 @@ export class EApp extends Expr {
 					});
 			}))
 	}
+
+	compile() {
+		return `${this.left.compile()}(${this.right.compile()})`;
+	}
 }
 export function eapp(...es: Expr[]) {
 	if(es.length === 0) throw new Error('eapp needs at least one argument');
@@ -157,6 +170,10 @@ export class ELet extends Expr {
 						return [st2, sub3, cs2.map(c => c.subst(sub3)), tlet.subst(sub3)] as [InferState, Subst, Constraint[], Type];
 					});
 			})
+	}
+
+	compile() {
+		return `(function(){var ${this.name}=${this.val.compile()};return(${this.body.compile()})})()`;
 	}
 }
 export function elet(name: string, val: Expr, body: Expr) {
@@ -193,6 +210,10 @@ export class ELetr extends Expr {
 						return [st, sub5, cs.map(c => c.subst(sub5)), tbody.subst(sub5)] as [InferState, Subst, Constraint[], Type];
 					});
 			}));
+	}
+
+	compile() {
+		return `(function(){var ${this.name}=${this.val.compile()};return(${this.body.compile()})})()`;
 	}
 }
 export function eletr(name: string, val: Expr, body: Expr) {
@@ -238,6 +259,10 @@ export class EDo extends Expr {
 					});
 			});
 	}
+
+	compile() {
+		return `_do(${this.val.compile()},${this.name}=>${this.body.compile()})`;
+	}
 }
 export function edo(name: string, val: Expr, body: Expr) {
 	return new EDo(name, val, body);
@@ -265,6 +290,10 @@ export class EAnno extends Expr {
 				return [st2, sub3, cs.map(c => c.subst(sub3)), this.type.subst(sub3)] as [InferState, Subst, Constraint[], Type];
 			}));
 	}
+
+	compile() {
+		return this.expr.compile();
+	}
 }
 export function eanno(expr: Expr, type: Type) {
 	return new EAnno(expr, type);
@@ -281,6 +310,10 @@ export class ERecordEmpty extends Expr {
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
 		return Result.ok([state, Subst.empty(), [], tapp(trecord, trowempty)] as [InferState, Subst, Constraint[], Type]);
+	}
+
+	compile() {
+		return `{}`;
 	}
 }
 export const erecordempty = new ERecordEmpty();
@@ -305,6 +338,10 @@ export class ERecordSelect extends Expr {
 			[clacks(this.label, tr)],
 			tarrs(tapp(trecord, trowextend(this.label, tt, tr)), tt)
 		] as [InferState, Subst, Constraint[], Type]);
+	}
+
+	compile() {
+		return `_select(${JSON.stringify(this.label)})`;
 	}
 }
 export function erecordselect(label: string) {
@@ -332,6 +369,10 @@ export class ERecordExtend extends Expr {
 			tarrs(tt, tapp(trecord, tr), tapp(trecord, trowextend(this.label, tt, tr)))
 		] as [InferState, Subst, Constraint[], Type]);
 	}
+
+	compile() {
+		return `_extend(${JSON.stringify(this.label)})`;
+	}
 }
 export function erecordextend(label: string) {
 	return new ERecordExtend(label);
@@ -357,6 +398,10 @@ export class ERecordRestrict extends Expr {
 			[clacks(this.label, tr)],
 			tarrs(tapp(trecord, trowextend(this.label, tt, tr)), tapp(trecord, tr))
 		] as [InferState, Subst, Constraint[], Type]);
+	}
+
+	compile() {
+		return `_restrict(${JSON.stringify(this.label)})`;
 	}
 }
 export function erecordrestrict(label: string) {
@@ -385,6 +430,10 @@ export class ERecordUpdate extends Expr {
 			tarrs(tarrs(ta, tb), tapp(trecord, trowextend(this.label, ta, tr)), tapp(trecord, trowextend(this.label, tb, tr)))
 		] as [InferState, Subst, Constraint[], Type]);
 	}
+
+	compile() {
+		return `_recordupdate(${JSON.stringify(this.label)})`;
+	}
 }
 export function erecordupdate(label: string) {
 	return new ERecordUpdate(label);
@@ -411,6 +460,10 @@ export class EVariantInject extends Expr {
 			tarrs(tt, tapp(tvariant, trowextend(this.label, tt, tr)))
 		] as [InferState, Subst, Constraint[], Type]);
 	}
+
+	compile() {
+		return `_inject(${JSON.stringify(this.label)})`;
+	}
 }
 export function evariantinject(label: string) {
 	return new EVariantInject(label);
@@ -436,6 +489,10 @@ export class EVariantEmbed extends Expr {
 			[clacks(this.label, tr)],
 			tarrs(tapp(tvariant, tr), tapp(tvariant, trowextend(this.label, tt, tr)))
 		] as [InferState, Subst, Constraint[], Type]);
+	}
+
+	compile() {
+		return `_embed(${JSON.stringify(this.label)})`;
 	}
 }
 export function evariantembed(label: string) {
@@ -464,6 +521,10 @@ export class EVariantUpdate extends Expr {
 			tarrs(tarrs(ta, tb), tapp(tvariant, trowextend(this.label, ta, tr)), tapp(tvariant, trowextend(this.label, tb, tr)))
 		] as [InferState, Subst, Constraint[], Type]);
 	}
+
+	compile() {
+		return `_variantupdate(${JSON.stringify(this.label)})`;
+	}
 }
 export function evariantupdate(label: string) {
 	return new EVariantUpdate(label);
@@ -491,6 +552,10 @@ export class EVariantElim extends Expr {
 			tarrs(tarrs(ta, tb), tarrs(tapp(tvariant, tr), tb), tapp(tvariant, trowextend(this.label, ta, tr)), tb)
 		] as [InferState, Subst, Constraint[], Type]);
 	}
+
+	compile() {
+		return `_elim(${JSON.stringify(this.label)})`;
+	}
 }
 export function evariantelim(label: string) {
 	return new EVariantElim(label);
@@ -517,6 +582,10 @@ export class EPerform extends Expr {
 			[clacks(this.label, tr), cvalue(ta), cvalue(tb)],
 			tarrs(ta, tapp(teff, trowextend(this.label, tarrs(ta, tb), tr), tb))
 		] as [InferState, Subst, Constraint[], Type]);
+	}
+
+	compile() {
+		return `_perform(${JSON.stringify(this.label)})`;
 	}
 }
 export function eperform(label: string) {
@@ -555,6 +624,10 @@ export class EHandle extends Expr {
 			)
 		] as [InferState, Subst, Constraint[], Type]);
 	}
+
+	compile() {
+		return `_handle(${JSON.stringify(this.label)})`;
+	}
 }
 export function ehandle(label: string) {
 	return new EHandle(label);
@@ -579,6 +652,10 @@ export class ENumber extends Expr {
 			tnumber,
 		] as [InferState, Subst, Constraint[], Type]);
 	}
+
+	compile() {
+		return `${this.val}`;
+	}
 }
 export function enumber(val: number) {
 	return new ENumber(val);
@@ -602,6 +679,10 @@ export class EString extends Expr {
 			[],
 			tstring,
 		] as [InferState, Subst, Constraint[], Type]);
+	}
+
+	compile() {
+		return JSON.stringify(this.val);
 	}
 }
 export function estring(val: string) {
