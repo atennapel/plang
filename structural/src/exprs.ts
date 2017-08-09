@@ -199,6 +199,50 @@ export function eletr(name: string, val: Expr, body: Expr) {
 	return new ELetr(name, val, body);
 }
 
+export class EDo extends Expr {
+	readonly name: string;
+	readonly val: Expr;
+	readonly body: Expr;
+
+	constructor(name: string, val: Expr, body: Expr) {
+		super();
+		this.name = name;
+		this.val = val;
+		this.body = body;
+	}
+
+	toString() {
+		return `(${this.name} <- ${this.val}; ${this.body})`;
+	}
+
+	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		return this.val.infer(state, env)
+			.then(([st1, sub1, cs1, tval]) => {
+				const [st2, tr] = st1.freshTVar('r', krow);
+				const [st3, tt] = st2.freshTVar('t', ktype);
+				return Type.unify(st3, tapp(teff, tr, tt), tval)
+					.then(([st4, sub2]) => {
+						const sub3 = sub1.compose(sub2);
+						return this.body.infer(st4, env.subst(sub3).add(this.name, scheme(TVarSet.empty(), [], tt.subst(sub3))))
+							.then(([st5, sub4, cs2, tbody]) => {
+								const sub5 = sub3.compose(sub4);
+								const [st6, tr2] = st5.freshTVar('r', krow);
+								const [st7, tt2] = st6.freshTVar('t', ktype);
+								return Type.unify(st7, tapp(teff, tr, tt2).subst(sub5), tbody.subst(sub5))
+									.map(([st, sub6]) => {
+										const sub7 = sub5.compose(sub6);
+										const cs = cs1.concat(cs2).map(c => c.subst(sub7));
+										return [st, sub7, cs, tbody.subst(sub7)] as [InferState, Subst, Constraint[], Type];
+									});
+							});
+					});
+			});
+	}
+}
+export function edo(name: string, val: Expr, body: Expr) {
+	return new EDo(name, val, body);
+}
+
 export class EAnno extends Expr {
 	readonly expr: Expr;
 	readonly type: Type;

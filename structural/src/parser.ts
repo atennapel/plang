@@ -6,6 +6,7 @@ import {
 	elam,
 	elet,
 	eletr,
+	edo,
 	erecordempty,
 	erecordselect,
 	erecordextend,
@@ -42,6 +43,8 @@ function makeapp(inp: Expr[]): Expr {
 				return eletr(f.name.slice(2), a[1], makeapp(a.slice(2)));
 			if(f.name[0] === ':')
 				return elet(f.name.slice(1), a[1], makeapp(a.slice(2)));
+			if(f.name[0] === '^')
+				return edo(f.name.slice(1), a[1], makeapp(a.slice(2)));
 		}
 		return a.length === 0? erecordempty:
 					a.length === 1? a[0]:

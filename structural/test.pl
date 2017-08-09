@@ -8,4 +8,11 @@
 
 :head (?Cons (\r .head r) end)
 
-(head $ cons 1 $ cons 2 $ cons 3 nil)
+:test (head $ cons 1 $ cons 2 $ cons 3 nil)
+
+(
+	^x (!get ())
+	^_ (!set 10)
+	^y (!get ())
+	return (+ x y)
+)
