@@ -2,10 +2,10 @@
 :cons (\ht @Cons (.+head h $ .+tail t ()))
 
 ::sum
-	(?Nil (\_ zero) $
+	(?Nil (\_ 0) $
 	 ?Cons (\r + (.head r) (sum $ .tail r))
 	 end)
 
 :head (?Cons (\r .head r) end)
 
-(head $ cons zero $ cons zero $ cons zero nil)
+(head $ cons 1 $ cons 2 $ cons 3 nil)

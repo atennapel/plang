@@ -1,5 +1,17 @@
 import { Kind, ktype, krow, karr } from './kinds';
-import { Type, tvar, tapp, tarrs, trowempty, trecord, tvariant, trowextend, tnumber, scheme } from './types';
+import {
+	Type,
+	tvar,
+	tapp,
+	tarrs,
+	trowempty,
+	trecord,
+	tvariant,
+	trowextend,
+	tnumber,
+	tstring,
+	scheme
+} from './types';
 import Env from './Env';
 import { Result, Ok, Err } from './Result';
 import InferState from './InferState';
@@ -407,4 +419,28 @@ export class ENumber extends Expr {
 }
 export function enumber(val: number) {
 	return new ENumber(val);
+}
+
+export class EString extends Expr {
+	readonly val: string;
+
+	constructor(val: string) {
+		super();
+		this.val = val;
+	}
+
+	toString(): string {
+		return JSON.stringify(this.val);
+	}
+
+	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		return Result.ok([
+			state, Subst.empty(),
+			[],
+			tstring,
+		] as [InferState, Subst, Constraint[], Type]);
+	}
+}
+export function estring(val: string) {
+	return new EString(val);
 }

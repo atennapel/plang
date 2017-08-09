@@ -14,6 +14,7 @@ import {
 	evariantembed,
 	evariantelim,
 	enumber,
+	estring,
 } from './exprs';
 import { Result } from './Result';
 
@@ -64,6 +65,7 @@ const DOLLAR = {toString: () => '$'};
 
 const START = 0;
 const NAME = 1;
+const STRING = 2;
 export default function parse(str: string): Result<SyntaxError, Expr> {
 	let state = START;
 	let t = '', level = 0;
@@ -72,6 +74,7 @@ export default function parse(str: string): Result<SyntaxError, Expr> {
 		const c = str[i] || ' ';
 		if(state === START) {
 			if(c === '$') r.push(DOLLAR as Expr);
+			else if(c === '"') state = STRING;
 			else if(c === '(') p.push(r), r = [], level++;
 			else if(c === ')') {
 				if(level <= 0) return Result.err(new SyntaxError('Unmatched parens'));
@@ -85,6 +88,9 @@ export default function parse(str: string): Result<SyntaxError, Expr> {
 		} else if(state === NAME) {
 			if(/[^\s\(\)]+/i.test(c)) t += c;
 			else i--, r.push(makevar(t)), t = '', state = START;
+		} else if(state === STRING) {
+			if(c === '"') r.push(estring(t)), t = '', state = START;
+			else t += c;
 		}
 	}
 	if(level !== 0)
