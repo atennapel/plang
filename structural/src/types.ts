@@ -379,6 +379,10 @@ export const teff = tcon('Eff', karr(krow, ktype, ktype));
 export const tnumber = tcon('Number', ktype);
 export const tstring = tcon('String', ktype);
 
+export function isEff(t: Type) {
+	return t instanceof TApp && t.left instanceof TApp && t.left.left.equals(teff);
+}
+
 export class Scheme implements HasTVars<Scheme> {
 	readonly tvars: TVarSet;
 	readonly constraints: Constraint[];

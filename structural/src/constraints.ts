@@ -1,4 +1,4 @@
-import { Type } from './types';
+import { Type, isEff } from './types';
 import HasTVars from './HasTVars'
 import TVarSet from './TVarSet';
 import Subst from './Subst';
@@ -41,4 +41,34 @@ export class CLacks extends Constraint {
 }
 export function clacks(label: string, type: Type) {
 	return new CLacks(label, type);
+}
+
+export class CValue extends Constraint {
+	readonly type: Type;
+
+	constructor(type: Type) {
+		super();
+		this.type = type;
+	}
+
+	toString() {
+		return `value(${this.type})`;
+	}
+
+	free() {
+		return this.type.free();
+	}
+
+	subst(sub: Subst): Constraint {
+		return new CValue(this.type.subst(sub));
+	}
+
+	check(): Result<TypeError, boolean> {
+		if(isEff(this.type))
+			return Result.err(new TypeError(`Constraint failed: ${this}`));
+		return Result.ok(true);
+	}
+}
+export function cvalue(type: Type) {
+	return new CValue(type);
 }

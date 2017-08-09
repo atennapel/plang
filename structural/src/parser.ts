@@ -15,6 +15,7 @@ import {
 	evariantelim,
 	enumber,
 	estring,
+	eperform,
 } from './exprs';
 import { Result } from './Result';
 
@@ -58,6 +59,7 @@ function makevar(s: string) {
 	if(s.slice(0, 2) === '@+') return evariantembed(s.slice(2));
 	if(s[0] === '@') return evariantinject(s.slice(1));
 	if(s[0] === '?') return evariantelim(s.slice(1));
+	if(s[0] === '!') return eperform(s.slice(1));
 	return evar(s);
 }
 

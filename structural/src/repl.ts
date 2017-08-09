@@ -17,6 +17,7 @@ import {
 	trowextend,
 	trecord,
 	tvariant,
+	teff,
 	trowempty,
 	tnumber,
 } from './types';
@@ -27,27 +28,30 @@ import {
 	karr,
 } from './kinds';
 import { id } from './Id';
-
-const Str = tcon('Str', ktype);
-const P = tcon('P', karr(ktype, ktype, ktype));
+import {
+	cvalue
+} from './constraints';
 
 const a = id('a', 0);
 const b = id('b', 0);
+const r = id('r', 0);
 const ta = tvar(a, ktype);
 const tb = tvar(b, ktype);
+const tr = tvar(r, krow);
 
 const env = Env.of(
-	['zero', tnumber.generalize()],
-	['str', Str.generalize()],
 	['inc', tarrs(tnumber, tnumber).generalize()],
 	['+', tarrs(tnumber, tnumber, tnumber).generalize()],
-	['fst', scheme(TVarSet.of(ta, tb), [], tarrs(tapp(P, ta, tb), ta))],
-	['snd', scheme(TVarSet.of(ta, tb), [], tarrs(tapp(P, ta, tb), tb))],
+	
 	['choose', scheme(TVarSet.of(ta), [], tarrs(ta, ta, ta))],
+	
 	['end', scheme(TVarSet.of(ta), [], tarrs(tapp(tvariant, trowempty), ta))],
+
+	['pure', scheme(TVarSet.of(ta), [cvalue(ta)], tarrs(tapp(teff, trowempty, ta), ta))],
+	['return', scheme(TVarSet.of(ta, tr), [cvalue(ta)], tarrs(ta, tapp(teff, tr, ta)))],
 );
 
-const state = new InferState(new IdStore({ a: a.next(), b: b.next() }));
+const state = new InferState(new IdStore({ a: a.next(), b: b.next(), r: r.next() }));
 
 function output(i: string) {
 	const res = parse(i).then(e => {

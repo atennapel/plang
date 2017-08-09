@@ -7,6 +7,7 @@ import {
 	trowempty,
 	trecord,
 	tvariant,
+	teff,
 	trowextend,
 	tnumber,
 	tstring,
@@ -17,7 +18,7 @@ import { Result, Ok, Err } from './Result';
 import InferState from './InferState';
 import Subst from './Subst';
 import TVarSet from './TVarSet';
-import { Constraint, clacks } from './constraints';
+import { Constraint, clacks, cvalue } from './constraints';
 
 export abstract class Expr {	
 	abstract toString(): string;
@@ -395,6 +396,33 @@ export class EVariantElim extends Expr {
 }
 export function evariantelim(label: string) {
 	return new EVariantElim(label);
+}
+
+export class EPerform extends Expr {
+	readonly label: string;
+
+	constructor(label: string) {
+		super();
+		this.label = label;
+	}
+
+	toString() {
+		return `!${this.label}`;
+	}
+
+	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		const [st1, tr] = state.freshTVar('r', krow);
+		const [st2, ta] = st1.freshTVar('a', ktype);
+		const [st3, tb] = st2.freshTVar('b', ktype);
+		return Result.ok([
+			st3, Subst.empty(),
+			[clacks(this.label, tr), cvalue(ta), cvalue(tb)],
+			tarrs(ta, tapp(teff, trowextend(this.label, tarrs(ta, tb), tr), tb))
+		] as [InferState, Subst, Constraint[], Type]);
+	}
+}
+export function eperform(label: string) {
+	return new EPerform(label);
 }
 
 export class ENumber extends Expr {
