@@ -375,7 +375,8 @@ export function tarrs(...ts: Type[]) {
 
 export const trecord = tcon('Rec', karr(krow, ktype));
 export const tvariant = tcon('Var', karr(krow, ktype));
-export const teff = tcon('Eff', karr(krow, ktype));
+export const teff = tcon('Eff', karr(krow, ktype, ktype));
+export const tnumber = tcon('Number', ktype);
 
 export class Scheme implements HasTVars<Scheme> {
 	readonly tvars: TVarSet;

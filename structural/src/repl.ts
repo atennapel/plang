@@ -18,6 +18,7 @@ import {
 	trecord,
 	tvariant,
 	trowempty,
+	tnumber,
 } from './types';
 import {
 	Kind,
@@ -27,8 +28,6 @@ import {
 } from './kinds';
 import { id } from './Id';
 
-const Int = tcon('Int', ktype);
-const Float = tcon('Float', ktype);
 const Str = tcon('Str', ktype);
 const P = tcon('P', karr(ktype, ktype, ktype));
 
@@ -38,15 +37,13 @@ const ta = tvar(a, ktype);
 const tb = tvar(b, ktype);
 
 const env = Env.of(
-	['zero', Int.generalize()],
-	['zerof', Float.generalize()],
+	['zero', tnumber.generalize()],
 	['str', Str.generalize()],
-	['inc', tarrs(Int, Int).generalize()],
-	['+', tarrs(Int, Int, Int).generalize()],
+	['inc', tarrs(tnumber, tnumber).generalize()],
+	['+', tarrs(tnumber, tnumber, tnumber).generalize()],
 	['fst', scheme(TVarSet.of(ta, tb), [], tarrs(tapp(P, ta, tb), ta))],
 	['snd', scheme(TVarSet.of(ta, tb), [], tarrs(tapp(P, ta, tb), tb))],
 	['choose', scheme(TVarSet.of(ta), [], tarrs(ta, ta, ta))],
-	['obj', tapp(trecord, trowextend('x', Int, trowextend('y', Float, trowempty))).generalize()],
 	['end', scheme(TVarSet.of(ta), [], tarrs(tapp(tvariant, trowempty), ta))],
 );
 
@@ -60,7 +57,7 @@ function output(i: string) {
 	if(res instanceof Ok) {
 		const [e, t, k] = res.val;
 		console.log(t.toString());
-		console.log(k.toString());
+		// console.log(k.toString());
 	} else {
 		console.log(res.toString());
 	}

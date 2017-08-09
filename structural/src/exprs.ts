@@ -1,5 +1,5 @@
 import { Kind, ktype, krow, karr } from './kinds';
-import { Type, tvar, tapp, tarrs, trowempty, trecord, tvariant, trowextend, scheme } from './types';
+import { Type, tvar, tapp, tarrs, trowempty, trecord, tvariant, trowextend, tnumber, scheme } from './types';
 import Env from './Env';
 import { Result, Ok, Err } from './Result';
 import InferState from './InferState';
@@ -383,4 +383,28 @@ export class EVariantElim extends Expr {
 }
 export function evariantelim(label: string) {
 	return new EVariantElim(label);
+}
+
+export class ENumber extends Expr {
+	readonly val: number;
+
+	constructor(val: number) {
+		super();
+		this.val = val;
+	}
+
+	toString(): string {
+		return `${this.val}`;
+	}
+
+	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		return Result.ok([
+			state, Subst.empty(),
+			[],
+			tnumber,
+		] as [InferState, Subst, Constraint[], Type]);
+	}
+}
+export function enumber(val: number) {
+	return new ENumber(val);
 }

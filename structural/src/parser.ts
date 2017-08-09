@@ -13,6 +13,7 @@ import {
 	evariantinject,
 	evariantembed,
 	evariantelim,
+	enumber,
 } from './exprs';
 import { Result } from './Result';
 
@@ -48,6 +49,8 @@ function makeapp(inp: Expr[]): Expr {
 }
 
 function makevar(s: string) {
+	const n = +s;
+	if(!isNaN(n)) return enumber(n);
 	if(s.slice(0, 2) === '.+') return erecordextend(s.slice(2));
 	if(s.slice(0, 2) === '.-') return erecordrestrict(s.slice(2));
 	if(s[0] === '.') return erecordselect(s.slice(1));
