@@ -1,22 +1,13 @@
-:nil (@Nil ())
-:cons (\ht @Cons (.+head h $ .+tail t ()))
+:Nothing (@Nothing ())
+:Just (\v @Just v)
 
-::sum
-	(?Nil (\_ 0) $
-	 ?Cons (\r + (.head r) (sum $ .tail r))
-	 end)
+:handleFail (\r (#fail (\_k ret Nothing) $ final (\v ret (Just v)) $ r))
 
-:head (?Cons (\r .head r) end)
+:fail (!fail ())
 
-:test (head $ cons 1 $ cons 2 $ cons 3 nil)
-
-::state (\v (
-	#get (\_k k v)
-	))
-
-state 1 (
-	^x (!get ())
-	^_ (!set 10)
-	^y (!get ())
-	return (+ x y)
+:program1 (
+	^_ fail
+	ret 100
 )
+
+(handleFail program1)

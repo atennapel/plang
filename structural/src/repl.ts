@@ -34,7 +34,7 @@ import {
 
 /**
  * TODO:
- * 	fix handle unification (#get (\_k k 10) $ !get ())
+ * 	fix handle unification in recursive handlers
  */
 
 function _inject(l: string) {return (v: any) => ({tag: l, val: v})}

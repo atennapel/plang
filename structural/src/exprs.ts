@@ -203,7 +203,8 @@ export class ELetr extends Expr {
 			.then(([st, sub1, cs, tval]) => Type.unify(st, tval.subst(sub1), tv.subst(sub1))
 			.then(([st1, sub2]) => {
 				const sub3 = sub1.compose(sub2);
-				const newEnv = env.add(this.name, tv.subst(sub3).generalize(env, cs));
+				const envsub = env.subst(sub3);
+				const newEnv = envsub.add(this.name, tv.subst(sub3).generalize(envsub, cs));
 				return this.body.infer(st1, newEnv)
 					.map(([st, sub4, cs, tbody]) => {
 						const sub5 = sub3.compose(sub4);
@@ -609,18 +610,17 @@ export class EHandle extends Expr {
 		const [st2, ta] = st1.freshTVar('a', ktype);
 		const [st3, tb] = st2.freshTVar('b', ktype);
 		const [st4, tx] = st3.freshTVar('x', ktype);
-		const [st5, ty] = st4.freshTVar('y', ktype);
 		return Result.ok([
-			st5, Subst.empty(),
-			[clacks(this.label, tr), cvalue(ta), cvalue(tb), cvalue(tx), cvalue(ty)],
+			st4, Subst.empty(),
+			[clacks(this.label, tr), cvalue(ta), cvalue(tb), cvalue(tx)],
 			tarrs(
 				tarrs(
 					ta,
-					tarrs(tb, tapp(teff, tr, ty)),
-					tapp(teff, tr, ty)
+					tarrs(tb, tapp(teff, tr, tx)),
+					tapp(teff, tr, tx)
 				),
 				tapp(teff, trowextend(this.label, tarrs(ta, tb), tr), tx),
-				tapp(teff, tr, ty)
+				tapp(teff, tr, tx)
 			)
 		] as [InferState, Subst, Constraint[], Type]);
 	}

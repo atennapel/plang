@@ -44,7 +44,10 @@ export abstract class Type implements HasTVars<Type> {
 			if(a instanceof TApp && b instanceof TApp)
 				return Type.unify(st, a.left, b.left)
 					.then(([st, s1, cs1]) => Type.unify(st, a.right.subst(s1), b.right.subst(s1))
-					.map(([st, s2, cs2]) => [st, s1.compose(s2), cs1.concat(cs2)] as [InferState, Subst, Constraint[]]));
+					.map(([st, s2, cs2]) => {
+						const s = s1.compose(s2);
+						return [st, s, cs1.concat(cs2).map(c => c.subst(s))] as [InferState, Subst, Constraint[]]
+					}));
 			if(a instanceof TFix && b instanceof TFix) {
 				const [st1, tv] = st.freshTVar('f', a.tvar._kind);
 				return Type.unify(st1, a.substTVar(tv), b.substTVar(tv));
