@@ -10,7 +10,7 @@ export default class IdStore {
 	}
 
 	toString() {
-		return 'IdStore';
+		return `IdStore(${Object.keys(this.store).map(k => `${k}: ${this.store[k]}`).join(', ')})`;
 	}
 
 	fresh(name: string): [IdStore, Id] {
@@ -19,14 +19,15 @@ export default class IdStore {
 		if(!this.store[name]) newStore[name] = new Id(name, 0);
 		const id = newStore[name];
 		newStore[name] = id.next();
-		return [new IdStore(newStore), id];
+		const idstore = new IdStore(newStore);
+		return [idstore, id];
 	}
 
 	freshN(n: number, names: string | string[]): [IdStore, Id[]] {
 		const vars: Id[] = [];
 		let cur: IdStore = this;
 		for(let i = 0; i < n; i++) {
-			const [st, id] = this.fresh(Array.isArray(names)? names[i]: names);
+			const [st, id] = cur.fresh(Array.isArray(names)? names[i]: names);
 			vars.push(id);
 			cur = st;
 		}

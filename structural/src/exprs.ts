@@ -262,7 +262,7 @@ export class EDo extends Expr {
 	}
 
 	compile() {
-		return `_do(${this.val.compile()},${this.name}=>${this.body.compile()})`;
+		return `_do(${this.val.compile()})(${this.name}=>${this.body.compile()})`;
 	}
 }
 export function edo(name: string, val: Expr, body: Expr) {
