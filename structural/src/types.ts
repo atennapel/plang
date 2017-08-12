@@ -24,9 +24,16 @@ export abstract class Type implements HasTVars<Type> {
 	abstract containsLabel(label: string): boolean;
 
 	static bind(st: InferState, a: TVar, b: Type): Result<TypeError, [InferState, Subst, Constraint[]]> {
+		console.log('bind ' + a + ' ' + b);
 		if(a.equals(b)) return Result.ok([st, Subst.empty(), []] as [InferState, Subst, Constraint[]]);
-		if(b.free().has(a))
-			return Result.ok([st, Subst.of([a, tfix(a, b)]), []] as [InferState, Subst, Constraint[]]);
+		if(b.free().has(a)) {
+			console.log('recursive');
+			if(a._kind.equals(krow)) {
+				return Result.err(new TypeError(`Recursive row type in ${a} and ${b}`));
+			} else {
+				return Result.ok([st, Subst.of([a, tfix(a, b)]), []] as [InferState, Subst, Constraint[]]);
+			}
+		}
 		return Result.ok([st, Subst.of([a, b]), []] as [InferState, Subst, Constraint[]]);
 	}
 
@@ -34,7 +41,7 @@ export abstract class Type implements HasTVars<Type> {
 		return a.kind().then(ka => b.kind().then(kb => {
 			if(!ka.equals(kb))
 				return Result.err(new TypeError(`Cannot unify kinds: ${ka} and ${kb}`));
-			// console.log(`unify ${a} and ${b}`);
+			console.log(`unify ${a} and ${b}`);
 			if(a instanceof TVar) return Type.bind(st, a, b);
 			if(b instanceof TVar) return Type.bind(st, b, a);
 			if(a instanceof TRowEmpty && b instanceof TRowEmpty)
@@ -57,18 +64,33 @@ export abstract class Type implements HasTVars<Type> {
 			if(a instanceof TRowExtend && b instanceof TRowExtend) {
 				return Type.rewriteRow(st, b, a.label)
 					.then(([st, fieldt2, rowtail2, theta1, cs]) =>
-						Type.unify(st, a.type.subst(theta1), fieldt2.subst(theta1))
-						.then(([st, theta2]) => {
-							const s = theta1.compose(theta2);
-							return Type.unify(st, a.rest.subst(s), rowtail2.subst(s))
-								.map(([st, theta3]) => {
-									const fs = s.compose(theta3);
-									return [st, fs, cs.map(c => c.subst(fs))] as [InferState, Subst, Constraint[]];
-								})
-						}));
+						Type.toList(rowtail2)
+							.then(([_, tail]) => {
+								if(tail && theta1.has(tail))
+									return Result.err(new TypeError(`Recursive row type in unify with ${a} and ${b}`));
+								return Type.unify(st, a.type.subst(theta1), fieldt2.subst(theta1))
+									.then(([st, theta2]) => {
+										const s = theta1.compose(theta2);
+										return Type.unify(st, a.rest.subst(s), rowtail2.subst(s))
+											.map(([st, theta3]) => {
+												const fs = s.compose(theta3);
+												return [st, fs, cs.map(c => c.subst(fs))] as [InferState, Subst, Constraint[]];
+											})
+									});
+							})
+					)
 			}
 			return Result.err(new TypeError(`Cannot unify ${a} and ${b}`));
 		}));
+	}
+
+	static toList(t: Type): Result<TypeError, [[string, Type][], TVar | null]> {
+		if(t instanceof TVar) return Result.ok([[], t] as [[string, Type][], TVar | null]);
+		if(t instanceof TRowEmpty) return Result.ok([[] as [string, Type][], null] as [[string, Type][], TVar | null]);
+		if(t instanceof TRowExtend)
+			return Type.toList(t.rest)
+				.map(([ls, mv]) => [[[t.label, t.type]].concat(ls), mv] as [[string, Type][], TVar | null]);
+		return Result.err(new TypeError(`unexpected type in toList: ${t}`));
 	}
 
 	static rewriteRow(st: InferState, t: Type, l: string): Result<TypeError, [InferState, Type, Type, Subst, Constraint[]]> {

@@ -60,10 +60,12 @@ export class EVar extends Expr {
 	}
 
 	infer(state: InferState, env: Env) {
+		console.log(`infer ${this}`);
 		return env.getMap<Result<TypeError, [InferState, Subst, Constraint[], Type]>>(
 			this.name,
 			s => {
 				const [st, cs, t] = s.instantiate(state);
+				console.log(this.name+' => '+t);
 				return Result.ok([st, Subst.empty(), cs, t] as [InferState, Subst, Constraint[], Type])
 			},
 			Result.err(new TypeError(`Undefined variable: ${this.name}`))
@@ -93,6 +95,7 @@ export class ELam extends Expr {
 	}
 
 	infer(state: InferState, env: Env) {
+		console.log(`infer ${this}`);
 		const [st1, tv] = state.freshTVar(this.name, ktype);
 		return this.body.infer(st1, env.add(this.name, scheme(TVarSet.empty(), [], tv)))
 			.map(([st2, sub1, cs, t]) => [st2, sub1, cs.map(c => c.subst(sub1)), tarrs(tv, t).subst(sub1)] as [InferState, Subst, Constraint[], Type]);
@@ -122,6 +125,7 @@ export class EApp extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tv] = state.freshTVar('t', ktype);
 		return this.left.infer(st1, env)
 			.then(([st2, sub1, cs1, tleft]) => this.right.infer(st2, env.subst(sub1))
@@ -161,6 +165,7 @@ export class ELet extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		return this.val.infer(state, env)
 			.then(([st1, sub1, cs1, tval]) => {
 				const newenv = env.subst(sub1);
@@ -197,20 +202,26 @@ export class ELetr extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st, tv] = state.freshTVar(this.name, ktype);
 		const newEnv = env.add(this.name, scheme(TVarSet.empty(), [], tv));
 		return this.val.infer(st, newEnv)
-			.then(([st, sub1, cs, tval]) => Type.unify(st, tval.subst(sub1), tv.subst(sub1))
-			.then(([st1, sub2]) => {
-				const sub3 = sub1.compose(sub2);
-				const envsub = env.subst(sub3);
-				const newEnv = envsub.add(this.name, tv.subst(sub3).generalize(envsub, cs));
-				return this.body.infer(st1, newEnv)
-					.map(([st, sub4, cs, tbody]) => {
-						const sub5 = sub3.compose(sub4);
-						return [st, sub5, cs.map(c => c.subst(sub5)), tbody.subst(sub5)] as [InferState, Subst, Constraint[], Type];
+			.then(([st, sub1, cs, tval]) => {
+				console.log('LETR');
+				console.log(''+tval.subst(sub1));
+				console.log(''+tv.subst(sub1));
+				return Type.unify(st, tval.subst(sub1), tv.subst(sub1))
+					.then(([st1, sub2]) => {
+						const sub3 = sub1.compose(sub2);
+						const envsub = env.subst(sub3);
+						const newEnv = envsub.add(this.name, tv.subst(sub3).generalize(envsub, cs));
+						return this.body.infer(st1, newEnv)
+							.map(([st, sub4, cs, tbody]) => {
+								const sub5 = sub3.compose(sub4);
+								return [st, sub5, cs.map(c => c.subst(sub5)), tbody.subst(sub5)] as [InferState, Subst, Constraint[], Type];
+							});
 					});
-			}));
+			});
 	}
 
 	compile() {
@@ -238,6 +249,7 @@ export class EDo extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		return this.val.infer(state, env)
 			.then(([st1, sub1, cs1, tval]) => {
 				const [st2, tr] = st1.freshTVar('r', krow);
@@ -284,6 +296,7 @@ export class EAnno extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		return this.expr.infer(state, env)
 			.then(([st1, sub1, cs, texpr]) => Type.unify(st1, this.type.subst(sub1), texpr)
 			.map(([st2, sub2]) => {
@@ -310,6 +323,7 @@ export class ERecordEmpty extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		return Result.ok([state, Subst.empty(), [], tapp(trecord, trowempty)] as [InferState, Subst, Constraint[], Type]);
 	}
 
@@ -332,6 +346,7 @@ export class ERecordSelect extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
 		const [st2, tt] = st1.freshTVar('t', ktype);
 		return Result.ok([
@@ -362,6 +377,7 @@ export class ERecordExtend extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
 		const [st2, tt] = st1.freshTVar('t', ktype);
 		return Result.ok([
@@ -392,6 +408,7 @@ export class ERecordRestrict extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
 		const [st2, tt] = st1.freshTVar('t', ktype);
 		return Result.ok([
@@ -422,6 +439,7 @@ export class ERecordUpdate extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
 		const [st2, ta] = st1.freshTVar('a', ktype);
 		const [st3, tb] = st2.freshTVar('b', ktype);
@@ -453,6 +471,7 @@ export class EVariantInject extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
 		const [st2, tt] = st1.freshTVar('t', ktype);
 		return Result.ok([
@@ -483,6 +502,7 @@ export class EVariantEmbed extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
 		const [st2, tt] = st1.freshTVar('t', ktype);
 		return Result.ok([
@@ -513,6 +533,7 @@ export class EVariantUpdate extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
 		const [st2, ta] = st1.freshTVar('a', ktype);
 		const [st3, tb] = st2.freshTVar('b', ktype);
@@ -544,6 +565,7 @@ export class EVariantElim extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
 		const [st2, ta] = st1.freshTVar('a', ktype);
 		const [st3, tb] = st2.freshTVar('b', ktype);
@@ -575,6 +597,7 @@ export class EPerform extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
 		const [st2, ta] = st1.freshTVar('a', ktype);
 		const [st3, tb] = st2.freshTVar('b', ktype);
@@ -593,6 +616,39 @@ export function eperform(label: string) {
 	return new EPerform(label);
 }
 
+export class EEffEmbed extends Expr {
+	readonly label: string;
+
+	constructor(label: string) {
+		super();
+		this.label = label;
+	}
+
+	toString() {
+		return `!+${this.label}`;
+	}
+
+	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
+		const [st1, tr] = state.freshTVar('r', krow);
+		const [st2, ta] = st1.freshTVar('a', ktype);
+		const [st3, tb] = st2.freshTVar('b', ktype);
+		const [st4, tx] = st3.freshTVar('x', ktype);
+		return Result.ok([
+			st4, Subst.empty(),
+			[clacks(this.label, tr), cvalue(ta), cvalue(tb), cvalue(tx)],
+			tarrs(tapp(teff, tr, tx), tapp(teff, trowextend(this.label, tarrs(ta, tb), tr), tx))
+		] as [InferState, Subst, Constraint[], Type]);
+	}
+
+	compile() {
+		return `_effembed(${JSON.stringify(this.label)})`;
+	}
+}
+export function eeffembed(label: string) {
+	return new EEffEmbed(label);
+}
+
 export class EHandle extends Expr {
 	readonly label: string;
 
@@ -605,22 +661,29 @@ export class EHandle extends Expr {
 		return `#${this.label}`;
 	}
 
+	// handle l : (a -> (b -> Eff r c) -> Eff p c) -> (Eff r c -> Eff p c) -> Eff { l : a -> b | r } c -> Eff p c
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
 		const [st2, ta] = st1.freshTVar('a', ktype);
 		const [st3, tb] = st2.freshTVar('b', ktype);
 		const [st4, tx] = st3.freshTVar('x', ktype);
+		const [st5, tp] = st4.freshTVar('p', krow);
 		return Result.ok([
-			st4, Subst.empty(),
-			[clacks(this.label, tr), cvalue(ta), cvalue(tb), cvalue(tx)],
+			st5, Subst.empty(),
+			[clacks(this.label, tr), clacks(this.label, tp), cvalue(ta), cvalue(tb), cvalue(tx)],
 			tarrs(
 				tarrs(
 					ta,
 					tarrs(tb, tapp(teff, tr, tx)),
-					tapp(teff, tr, tx)
+					tapp(teff, tp, tx)
+				),
+				tarrs(
+					tapp(teff, tr, tx),
+					tapp(teff, tp, tx)
 				),
 				tapp(teff, trowextend(this.label, tarrs(ta, tb), tr), tx),
-				tapp(teff, tr, tx)
+				tapp(teff, tp, tx)
 			)
 		] as [InferState, Subst, Constraint[], Type]);
 	}
@@ -646,6 +709,7 @@ export class ENumber extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		return Result.ok([
 			state, Subst.empty(),
 			[],
@@ -674,6 +738,7 @@ export class EString extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
 		return Result.ok([
 			state, Subst.empty(),
 			[],

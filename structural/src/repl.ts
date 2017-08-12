@@ -29,7 +29,8 @@ import {
 } from './kinds';
 import { id } from './Id';
 import {
-	cvalue
+	cvalue,
+	clacks,
 } from './constraints';
 
 /**
@@ -45,6 +46,7 @@ function _embed(l: string) {return (r: any) => r}
 function _elim(l: string) {return (f: any) => (x: any) => (v: any) => v.tag === l? f(v.val): x(v)}
 function _recordupdate(l: string) {return (f: any) => (r: any) => ({...r, [l]: f(r[l])})}
 function _variantupdate(l: string) {return (f: any) => (v: any) => v.tag === l? ({tag: l, val: f(v.val)}): v}
+function _effembed(l: string) {return (e: any) => e}
 function end() { throw new Error('impossible') }
 function add(x: number) {return (y: number) => x + y}
 const inc = add(1);
@@ -97,6 +99,8 @@ var final = function(fa: any) {return function(x: any) {
   if(x.tag === _Return) return fa(x.val);
   throw new Error('Effect chain does not use Return');
 }};
+const fixeff = _perform('Fix');
+function fix(f: any) {return function(n: any) { return f(fix(f))(n) }}
 
 const a = id('a', 0);
 const b = id('b', 0);
@@ -115,7 +119,17 @@ const env = Env.of(
 
 	['pure', scheme(TVarSet.of(ta), [cvalue(ta)], tarrs(tapp(teff, trowempty, ta), ta))],
 	['ret', scheme(TVarSet.of(ta, tr), [cvalue(ta)], tarrs(ta, tapp(teff, tr, ta)))],
-	['final', scheme(TVarSet.of(ta, tb, tr), [cvalue(ta), cvalue(tb)], tarrs(tarrs(ta, tapp(teff, tr, tb)), tapp(teff, tr, ta), tapp(teff, tr, tb)))],	
+	['final', scheme(TVarSet.of(ta, tb, tr), [cvalue(ta), cvalue(tb)], tarrs(tarrs(ta, tapp(teff, tr, tb)), tapp(teff, tr, ta), tapp(teff, tr, tb)))],
+
+	['fixeff', scheme(
+		TVarSet.of(ta, tr),
+		[cvalue(ta), clacks('Fix', tr)],
+		tarrs(
+			tarrs(ta, ta),
+			tapp(teff, trowextend('Fix', tarrs(tarrs(ta, ta), ta), tr), ta)
+		))
+	],
+	['fix', scheme(TVarSet.of(ta), [], tarrs(tarrs(ta, ta), ta))],
 );
 
 const state = new InferState(new IdStore({ a: a.next(), b: b.next(), r: r.next() }));

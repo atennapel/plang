@@ -7,7 +7,7 @@
     "build": "tsc",
 		"test": "npm run build && node build/src/index.js",
 		"repl": "node build/src/repl.js",
-		"testfile": "node build/src/repl.js test.pl",
+		"testfile": "node build/src/repl.js test.eff",
 		"buildrepl": "npm run build && npm run repl",
 		"buildtestfile": "npm run build && npm run testfile"
   },

@@ -16,6 +16,7 @@ import {
 	evariantembed,
 	evariantelim,
 	evariantupdate,
+	eeffembed,
 	ehandle,
 	enumber,
 	estring,
@@ -67,6 +68,7 @@ function makevar(s: string) {
 	if(s.slice(0, 2) === '@:') return evariantupdate(s.slice(2));
 	if(s[0] === '@') return evariantinject(s.slice(1));
 	if(s[0] === '?') return evariantelim(s.slice(1));
+	if(s.slice(0, 2) === '!+') return eeffembed(s.slice(2));
 	if(s[0] === '!') return eperform(s.slice(1));
 	if(s[0] === '#') return ehandle(s.slice(1));
 	return evar(s);
@@ -77,6 +79,7 @@ const DOLLAR = {toString: () => '$'};
 const START = 0;
 const NAME = 1;
 const STRING = 2;
+const COMMENT = 3;
 export default function parse(str: string): Result<SyntaxError, Expr> {
 	let state = START;
 	let t = '', level = 0;
@@ -84,7 +87,8 @@ export default function parse(str: string): Result<SyntaxError, Expr> {
 	for(let i = 0, l = str.length; i <= l; i++) {
 		const c = str[i] || ' ';
 		if(state === START) {
-			if(c === '$') r.push(DOLLAR as Expr);
+			if(c === ';') state = COMMENT;
+			else if(c === '$') r.push(DOLLAR as Expr);
 			else if(c === '"') state = STRING;
 			else if(c === '(') p.push(r), r = [], level++;
 			else if(c === ')') {
@@ -102,6 +106,8 @@ export default function parse(str: string): Result<SyntaxError, Expr> {
 		} else if(state === STRING) {
 			if(c === '"') r.push(estring(t)), t = '', state = START;
 			else t += c;
+		} else if(state === COMMENT) {
+			if(c === '\n') state = START;
 		}
 	}
 	if(level !== 0)
