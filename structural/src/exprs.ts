@@ -145,6 +145,7 @@ export class EApp extends Expr {
 }
 export function eapp(...es: Expr[]) {
 	if(es.length === 0) throw new Error('eapp needs at least one argument');
+	if(es.length === 1) return es[0];
 	return es.reduce((a, b) => new EApp(a, b));
 }
 
@@ -274,7 +275,7 @@ export class EDo extends Expr {
 	}
 
 	compile() {
-		return `_do(${this.val.compile()})(${this.name}=>${this.body.compile()})`;
+		return `_do(${this.val.compile()}, ${this.name}=>${this.body.compile()})`;
 	}
 }
 export function edo(name: string, val: Expr, body: Expr) {
@@ -650,50 +651,27 @@ export function eeffembed(label: string) {
 }
 
 export class EHandle extends Expr {
-	readonly label: string;
+	readonly map: [string, Expr][];
 
-	constructor(label: string) {
+	constructor(map: [string, Expr][]) {
 		super();
-		this.label = label;
+		this.map = map;
 	}
 
 	toString() {
-		return `#${this.label}`;
+		return `(handle {${this.map.map(([k, v]) => `${k}: ${v}`).join(', ')}})`;
 	}
 
-	// handle l : (a -> (b -> Eff p c) -> Eff r c) -> (Eff p c -> Eff r c) -> Eff { l : a -> b | p } c -> Eff r c
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
-		console.log(`infer ${this}`);
-		const [st1, tr] = state.freshTVar('r', krow);
-		const [st2, ta] = st1.freshTVar('a', ktype);
-		const [st3, tb] = st2.freshTVar('b', ktype);
-		const [st4, tx] = st3.freshTVar('x', ktype);
-		const [st5, tp] = st4.freshTVar('p', krow);
-		return Result.ok([
-			st5, Subst.empty(),
-			[clacks(this.label, tr), clacks(this.label, tp), cvalue(ta), cvalue(tb), cvalue(tx)],
-			tarrs(
-				tarrs(
-					ta,
-					tarrs(tb, tapp(teff, tp, tx)),
-					tapp(teff, tp, tx)
-				),
-				tarrs(
-					tapp(teff, tp, tx),
-					tapp(teff, tr, tx)
-				),
-				tapp(teff, trowextend(this.label, tarrs(ta, tb), tp), tx),
-				tapp(teff, tr, tx)
-			)
-		] as [InferState, Subst, Constraint[], Type]);
+		return Result.err(new TypeError('Cannot type handle yet'));
 	}
 
 	compile() {
-		return `_handle(${JSON.stringify(this.label)})`;
+		return `_handle({${this.map.map(([k, v]) => `${JSON.stringify(k)}: ${v.compile()}`).join(', ')}})`;
 	}
 }
-export function ehandle(label: string) {
-	return new EHandle(label);
+export function ehandle(map: [string, Expr][]) {
+	return new EHandle(map);
 }
 
 export class ENumber extends Expr {

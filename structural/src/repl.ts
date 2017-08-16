@@ -51,54 +51,47 @@ function end() { throw new Error('impossible') }
 function add(x: number) {return (y: number) => x + y}
 const inc = add(1);
 function choose(a: any) {return (b: any) => a}
-var pure = function(x: any) {return x.val};
-var _Return = 'Return';
-var ret = function(x: any) {return {tag: _Return, val: x}};
-var _Cont = 'Cont';
-var _perform = function(label: any) {return function(v: any) {
-  return {tag: _Cont, label: label, val: v, cont: ret};
-}};
-var _do = function(val: any) {return function(cb: any) {
-  if(val.tag === _Cont)
-    return {
-      tag: _Cont,
-      label: val.label,
-      val: val.val,
-      cont: (x: any) => _do(val.cont(x))(cb),
-    };
-  if(val.tag === _Return)
-    return cb(val.val);
-  throw new Error('Effect chain does not use Return');
-}};
-var _handle = function(label: any) {return function(fa: any) {return function(fb: any) {
-  return function(x: any): any {
-    if(x.tag === _Cont) {
-      if(x.label === label) {
-        return _handle(label)(fa)(fa(x.val)(x.cont));
-      } else {
-        return {
-          tag: _Cont,
-          label: x.label,
-          val: x.val,
-          cont: (v: any) => _handle(label)(fa)(x.cont(v)),
-        };
-      }
-    }
-    if(x.tag === _Return) return x;
-    throw new Error('Effect chain does not use Return');
-  };
-}}};
-var final = function(fa: any) {return function(x: any) {
-  if(x.tag === _Cont)
-    return {
-      tag: _Cont,
-      label: x.label,
-      val: x.val,
-      cont: (v: any) => final(fa)(x.cont(v)),
-    };
-  if(x.tag === _Return) return fa(x.val);
-  throw new Error('Effect chain does not use Return');
-}};
+
+class Return {
+	readonly val: any;
+	constructor(val: any) { this.val = val }
+	toString() { return 'Return(' + this.val + ')' }
+}
+class Cont {
+	readonly label: any;
+	readonly val: any;
+	readonly cont: any;
+	constructor(l: any, v: any, c: any) { this.label = l; this.val = v; this.cont = c }
+	toString() { return 'Cont(' + this.label + ', ' + this.val + ', ...)' }
+}
+
+const ret = (v: any) => new Return(v);
+const cont = (l: any, v: any, c: any) => new Cont(l, v, c);
+const _perform = (l: any) => (v: any) => cont(l, v, ret);
+const pure = (e: any) => {
+	if(e instanceof Return) return e.val;
+	throw new Error('invalid pure: ' + e);
+};
+
+const _do = (e: any, f: any) => {
+	if(e instanceof Return) return f(e.val);
+	if(e instanceof Cont) return cont(e.label, e.val, (y: any) => _do(e.cont(y), f));
+	throw new Error('invalid seq: ' + e);
+};
+const _handle = (m: any) => (e: any) => {
+	if(!m.value) m.value = ret;
+	if(e instanceof Return) return m.value(e.val);
+	if(e instanceof Cont) {
+		if(m[e.label]) {
+			return m[e.label](e.val, (x: any) => _handle(m)(e.cont(x)));
+		} else {
+			return cont(e.label, e.val, (x: any) => _handle(m)(e.cont(x)));
+		}
+	}
+	throw new Error('invalid handler: ' + e);
+};
+
+
 const fixeff = _perform('Fix');
 function fix(f: any) {return function(n: any) { return f(fix(f))(n) }}
 
@@ -119,7 +112,6 @@ const env = Env.of(
 
 	['pure', scheme(TVarSet.of(ta), [cvalue(ta)], tarrs(tapp(teff, trowempty, ta), ta))],
 	['ret', scheme(TVarSet.of(ta, tr), [cvalue(ta)], tarrs(ta, tapp(teff, tr, ta)))],
-	['final', scheme(TVarSet.of(ta, tb, tr), [cvalue(ta), cvalue(tb)], tarrs(tarrs(ta, tapp(teff, tr, tb)), tapp(teff, tr, ta), tapp(teff, tr, tb)))],
 
 	['fixeff', scheme(
 		TVarSet.of(ta, tr),
