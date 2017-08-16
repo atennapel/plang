@@ -1,5 +1,15 @@
-(
-	#Set (\sk k ()) $
-	#Get (\_k k 10) $
-	(\x x)
+:pair (\ab (.+fst a $ .+snd b ()))
+
+:fst .fst
+:snd .snd
+
+:choose !Choose
+
+:program (
+	^x (choose $ pair 1 2)
+	ret x
 )
+:id (\x x)
+
+#Choose (\vk k (fst v)) id program
+

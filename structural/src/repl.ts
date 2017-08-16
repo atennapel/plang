@@ -70,7 +70,7 @@ var _do = function(val: any) {return function(cb: any) {
     return cb(val.val);
   throw new Error('Effect chain does not use Return');
 }};
-var _handle = function(label: any) {return function(fa: any) {
+var _handle = function(label: any) {return function(fa: any) {return function(fb: any) {
   return function(x: any): any {
     if(x.tag === _Cont) {
       if(x.label === label) {
@@ -87,7 +87,7 @@ var _handle = function(label: any) {return function(fa: any) {
     if(x.tag === _Return) return x;
     throw new Error('Effect chain does not use Return');
   };
-}};
+}}};
 var final = function(fa: any) {return function(x: any) {
   if(x.tag === _Cont)
     return {
@@ -146,7 +146,9 @@ function output(i: string) {
 		const comp = e.compile()
 		console.log(comp);
 		try {
-			console.log(eval(comp));
+			const ev = eval(comp);
+			console.log(ev);
+			console.log(''+ev);
 		} catch(e) {
 			console.log(''+e);
 		}

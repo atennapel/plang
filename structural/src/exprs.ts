@@ -661,7 +661,7 @@ export class EHandle extends Expr {
 		return `#${this.label}`;
 	}
 
-	// handle l : (a -> (b -> Eff r c) -> Eff p c) -> (Eff r c -> Eff p c) -> Eff { l : a -> b | r } c -> Eff p c
+	// handle l : (a -> (b -> Eff p c) -> Eff r c) -> (Eff p c -> Eff r c) -> Eff { l : a -> b | p } c -> Eff r c
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
 		console.log(`infer ${this}`);
 		const [st1, tr] = state.freshTVar('r', krow);
@@ -675,15 +675,15 @@ export class EHandle extends Expr {
 			tarrs(
 				tarrs(
 					ta,
-					tarrs(tb, tapp(teff, tr, tx)),
+					tarrs(tb, tapp(teff, tp, tx)),
 					tapp(teff, tp, tx)
 				),
 				tarrs(
-					tapp(teff, tr, tx),
-					tapp(teff, tp, tx)
+					tapp(teff, tp, tx),
+					tapp(teff, tr, tx)
 				),
-				tapp(teff, trowextend(this.label, tarrs(ta, tb), tr), tx),
-				tapp(teff, tp, tx)
+				tapp(teff, trowextend(this.label, tarrs(ta, tb), tp), tx),
+				tapp(teff, tr, tx)
 			)
 		] as [InferState, Subst, Constraint[], Type]);
 	}
