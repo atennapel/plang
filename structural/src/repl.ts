@@ -67,7 +67,7 @@ class Cont {
 
 const ret = (v: any) => new Return(v);
 const cont = (l: any, v: any, c: any) => new Cont(l, v, c);
-const _perform = (l: any) => (v: any) => cont(l, v, ret);
+const _perform = (l: any) => (v: any) => cont(l, v, (t: any) => (v: any) => ret(t));
 const pure = (e: any) => {
 	if(e instanceof Return) return e.val;
 	throw new Error('invalid pure: ' + e);
@@ -75,24 +75,23 @@ const pure = (e: any) => {
 
 const _do = (e: any, f: any) => {
 	if(e instanceof Return) return f(e.val);
-	if(e instanceof Cont) return cont(e.label, e.val, (x: any, v: any) => _do(e.cont(x, v), f));
+	if(e instanceof Cont) return cont(e.label, e.val, (x: any) => (v: any) => _do(e.cont(x)(v), f));
 	throw new Error('invalid seq: ' + e);
 }
 const _handle = (m: any) => (v: any) => (e: any) => {
 	if(e instanceof Return) {
 		if(!m.return) return e;
-		return m.return(v, e.val);
+		return m.return(v)(e.val);
 	}
 	if(e instanceof Cont) {
 		if(m[e.label]) {
-			return m[e.label](v, e.val, (x: any, v: any) => _handle(m)(v)(e.cont(x, v)));
+			return m[e.label](v)(e.val)((x: any) => (v: any) => _handle(m)(v)(e.cont(x)(v)));
 		} else {
-			return cont(e.label, e.val, (x: any, v: any) => _handle(m)(v)(e.cont(x, v)));
+			return cont(e.label, e.val, (x: any) => (v: any) => _handle(m)(v)(e.cont(x)(v)));
 		}
 	}
 	throw new Error('invalid handle: ' + e);
 }
-
 
 const fixeff = _perform('Fix');
 function fix(f: any) {return function(n: any) { return f(fix(f))(n) }}

@@ -663,7 +663,86 @@ export class EHandle extends Expr {
 	}
 
 	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
-		return Result.err(new TypeError('Cannot type handle yet'));
+		const map = this.map;
+		if(map.length === 0) {
+			const [st1, ta] = state.freshTVar('v', ktype);
+			const [st2, tb] = st1.freshTVar('t', ktype);
+			const [st3, tr] = st2.freshTVar('r', krow);
+			return Result.ok([st3, Subst.empty(), [], tarrs(ta, tapp(teff, tr, tb), tapp(teff, tr, tb))] as [InferState, Subst, Constraint[], Type]);
+		}
+		const [st1, tv] = state.freshTVar('v', ktype);
+		const [st2, ta] = st1.freshTVar('a', ktype);
+		const [st3, tb] = st2.freshTVar('b', ktype);
+		const [st4, tr] = st3.freshTVar('r', krow);
+		let st = st4;
+		let sub = Subst.empty();
+		let cs: Constraint[] = [cvalue(ta), cvalue(tb)];
+		const labels: [string, Type][] = [];
+		let returnfound = false;
+		for(let i = 0, l = map.length; i < l; i++) {
+			const k = map[i][0], v = map[i][1];
+			if(k === 'return') {
+				returnfound = true;
+				const r = v.infer(st, env);
+				if(r instanceof Err) return r;
+				else if(r instanceof Ok) {
+					const rv: [InferState, Subst, Constraint[], Type] = r.val;
+					st = rv[0];
+					sub = sub.compose(rv[1]);
+					cs = cs.concat(rv[2]);
+					let t = rv[3].subst(sub);
+					const ru = Type.unify(st, t, tarrs(tv, ta, tapp(teff, tr, tb)).subst(sub));
+					if(ru instanceof Err) return ru;
+					else if(ru instanceof Ok) {
+						const ruv: [InferState, Subst, Constraint[]] = ru.val;
+						st = ruv[0];
+						sub = sub.compose(ruv[1]);
+						cs = cs.concat(ruv[2]);
+						t = t.subst(sub); 
+					}
+				}
+			} else {
+				const [stx, tx] = st.freshTVar('x', ktype);
+				st = stx;
+				const [sty, ty] = st.freshTVar('y', ktype);
+				st = sty;
+				labels.push([k, tarrs(tx, ty)]);
+				cs.push(clacks(k, tr));
+				const r = v.infer(st, env);
+				if(r instanceof Err) return r;
+				else if(r instanceof Ok) {
+					const rv: [InferState, Subst, Constraint[], Type] = r.val;
+					st = rv[0];
+					sub = sub.compose(rv[1]);
+					cs = cs.concat(rv[2]);
+					let t = rv[3].subst(sub);
+					const ru = Type.unify(st, t, tarrs(tv, tx, tarrs(ty, tv, tapp(teff, tr, tb)), tapp(teff, tr, tb)).subst(sub));
+					if(ru instanceof Err) return ru;
+					else if(ru instanceof Ok) {
+						const ruv: [InferState, Subst, Constraint[]] = ru.val;
+						st = ruv[0];
+						sub = sub.compose(ruv[1]);
+						cs = cs.concat(ruv[2]);
+						t = t.subst(sub);
+					}
+				}
+			}
+		}
+		if(!returnfound) {
+			const rru = Type.unify(st, ta.subst(sub), tb.subst(sub));
+			if(rru instanceof Err) return rru;
+			else if(rru instanceof Ok) {
+				const rruv: [InferState, Subst, Constraint[]] = rru.val;
+				st = rruv[0];
+				sub = sub.compose(rruv[1]);
+				cs = cs.concat(rruv[2]);
+			}
+		}
+		let c: Type = tr;
+		for(let i = labels.length - 1; i >= 0; i--) {
+			c = trowextend(labels[i][0], labels[i][1], c);
+		}
+		return Result.ok([st, sub, cs, tarrs(tv, tapp(teff, c, ta), tapp(teff, tr, tb)).subst(sub)] as [InferState, Subst, Constraint[], Type]);
 	}
 
 	compile() {

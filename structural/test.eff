@@ -1,15 +1,14 @@
-:pair (\ab (.+fst a $ .+snd b ()))
-
-:fst .fst
-:snd .snd
-
-:choose !Choose
+:get (!Get ())
+:set !Set
 
 :program (
-	^x (choose $ pair 1 2)
-	ret x
+	^x get
+	^_ (set 10)
+	^y get
+	ret (add x y)
 )
-:id (\x x)
 
-#Choose (\vk k (fst v)) id program
-
+handle {
+	Get (\v_k k v v)
+	Set (\_vk k () v)
+} 1 program
