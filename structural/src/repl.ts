@@ -75,21 +75,23 @@ const pure = (e: any) => {
 
 const _do = (e: any, f: any) => {
 	if(e instanceof Return) return f(e.val);
-	if(e instanceof Cont) return cont(e.label, e.val, (y: any) => _do(e.cont(y), f));
+	if(e instanceof Cont) return cont(e.label, e.val, (x: any, v: any) => _do(e.cont(x, v), f));
 	throw new Error('invalid seq: ' + e);
-};
-const _handle = (m: any) => (e: any) => {
-	if(!m.value) m.value = ret;
-	if(e instanceof Return) return m.value(e.val);
+}
+const _handle = (m: any) => (v: any) => (e: any) => {
+	if(e instanceof Return) {
+		if(!m.return) return e;
+		return m.return(v, e.val);
+	}
 	if(e instanceof Cont) {
 		if(m[e.label]) {
-			return m[e.label](e.val, (x: any) => _handle(m)(e.cont(x)));
+			return m[e.label](v, e.val, (x: any, v: any) => _handle(m)(v)(e.cont(x, v)));
 		} else {
-			return cont(e.label, e.val, (x: any) => _handle(m)(e.cont(x)));
+			return cont(e.label, e.val, (x: any, v: any) => _handle(m)(v)(e.cont(x, v)));
 		}
 	}
-	throw new Error('invalid handler: ' + e);
-};
+	throw new Error('invalid handle: ' + e);
+}
 
 
 const fixeff = _perform('Fix');

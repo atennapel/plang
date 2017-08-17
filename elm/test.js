@@ -13,7 +13,7 @@ const pure = e => {
 
 const seq = (e, f) => {
 	if(e instanceof Return) return f(e.val);
-	if(e instanceof Cont) return cont(e.label, e.val, y => seq(e.cont(y), f));
+	if(e instanceof Cont) return cont(e.label, e.val, (v, y) => seq(e.cont(v, y), f));
 	throw new Error('invalid seq: ' + e);
 };
 const handler = m => e => {
@@ -21,22 +21,35 @@ const handler = m => e => {
 	if(e instanceof Return) return m.value(e.val);
 	if(e instanceof Cont) {
 		if(m[e.label]) {
-			return m[e.label](e.val, x => handler(m)(e.cont(x)));
+			return m[e.label](e.val, x => handler(m)(e.cont(null, x)));
 		} else {
-			return cont(e.label, e.val, x => handler(m)(e.cont(x)));
+			return cont(e.label, e.val, x => handler(m)(e.cont(null, x)));
 		}
 	}
 	throw new Error('invalid handler: ' + e);
+};
+const paramhandler = m => v => e => {
+	if(!m.value) m.value = (a, b) => { console.log('val', a, b); return ret(b) };
+	if(e instanceof Return) return m.value(v, e.val);
+	if(e instanceof Cont) {
+		if(m[e.label]) {
+			return m[e.label](v, e.val, (v, x) => paramhandler(m)(v)(e.cont(v, x)));
+		} else {
+			return cont(e.label, e.val, (v, x) => paramhandler(m)(v)(e.cont(v, x)));
+		}
+	}
+	throw new Error('invalid paramhandler: ' + e);
 };
 
 const get = perform('Get')();
 const set = perform('Set');
 
 const program =
-	seq(get, x =>
-	seq(set(10), _ =>
-	seq(get, y =>
-	ret(x + y))));
+	seq(get, (x, v) => {
+		console.log('get', v, x);
+	return seq(set(10), (_, __) =>
+	seq(get, (y, _) =>
+	ret(x + y)))});
 
 // stateh : Eff { Get : {} -> v, Set : v -> {} | r } t -> Eff r (v -> Eff p t)
 const stateh =
@@ -47,6 +60,12 @@ const stateh =
 	});
 const state = v => e => pure(pure(stateh(e))(v));
 
-const r = state(100)(program);
+const state2 =
+	paramhandler({
+		Get: (v, t, k) => {console.log(v,t,k);return k(v, v)},
+		Set: (t, v, k) => {console.log(t, v, k);return k(v, null)}
+	});
+
+const r = state2(100)(program);
 console.log(r);
 console.log(''+r);
