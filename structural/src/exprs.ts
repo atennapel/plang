@@ -11,6 +11,8 @@ import {
 	trowextend,
 	tnumber,
 	tstring,
+	tlabelcon,
+	tlabel,
 	scheme,
 } from './types';
 import Env from './Env';
@@ -809,4 +811,33 @@ export class EString extends Expr {
 }
 export function estring(val: string) {
 	return new EString(val);
+}
+
+export class ELabel extends Expr {
+	readonly val: string;
+
+	constructor(val: string) {
+		super();
+		this.val = val;
+	}
+
+	toString(): string {
+		return `'${this.val}`;
+	}
+
+	infer(state: InferState, env: Env): Result<TypeError, [InferState, Subst, Constraint[], Type]> {
+		console.log(`infer ${this}`);
+		return Result.ok([
+			state, Subst.empty(),
+			[],
+			tapp(tlabelcon, tlabel(this.val)),
+		] as [InferState, Subst, Constraint[], Type]);
+	}
+
+	compile() {
+		return JSON.stringify(this.val);
+	}
+}
+export function elabel(val: string) {
+	return new ELabel(val);
 }

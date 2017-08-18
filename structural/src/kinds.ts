@@ -49,3 +49,4 @@ export function karr(...kinds: Kind[]) {
 
 export const ktype = kcon('Type');
 export const krow = kcon('Row');
+export const klabel = kcon('Label');

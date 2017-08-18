@@ -4,6 +4,7 @@ import {
 	karr,
 	ktype,
 	krow,
+	klabel,
 } from './kinds';
 import Id from './Id';
 import TVarSet from './TVarSet';
@@ -47,6 +48,8 @@ export abstract class Type implements HasTVars<Type> {
 			if(a instanceof TRowEmpty && b instanceof TRowEmpty)
 				return Result.ok([st, Subst.empty(), []] as [InferState, Subst, Constraint[]]);
 			if(a instanceof TCon && b instanceof TCon && a.name === b.name)
+				return Result.ok([st, Subst.empty(), []] as [InferState, Subst, Constraint[]]);
+			if(a instanceof TLabel && b instanceof TLabel && a.name === b.name)
 				return Result.ok([st, Subst.empty(), []] as [InferState, Subst, Constraint[]]);
 			if(a instanceof TApp && b instanceof TApp)
 				return Type.unify(st, a.left, b.left)
@@ -199,6 +202,42 @@ export class TCon extends Type {
 }
 export function tcon(name: string, kind: Kind) {
 	return new TCon(name, kind);
+}
+
+export class TLabel extends Type {
+	readonly name: string;
+
+	constructor(name: string) {
+		super();
+		this.name = name;
+	}
+
+	containsLabel(label: string): boolean {
+		return false;
+	}
+
+	toString() {
+		return `'${this.name}`;
+	}
+
+	equals(other: Type): boolean {
+		return other instanceof TLabel && this.name === other.name;
+	}
+
+	kind() {
+		return Result.ok(klabel);
+	}
+
+	free() {
+		return TVarSet.empty();
+	}
+
+	subst(sub: Subst): Type {
+		return this;
+	}
+}
+export function tlabel(name: string) {
+	return new TLabel(name);
 }
 
 export class TApp extends Type {
@@ -406,6 +445,7 @@ export const tvariant = tcon('Var', karr(krow, ktype));
 export const teff = tcon('Eff', karr(krow, ktype, ktype));
 export const tnumber = tcon('Number', ktype);
 export const tstring = tcon('String', ktype);
+export const tlabelcon = tcon('Label', karr(klabel, ktype));
 
 export function isEff(t: Type) {
 	return t instanceof TApp && t.left instanceof TApp && t.left.left.equals(teff);

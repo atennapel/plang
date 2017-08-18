@@ -20,12 +20,16 @@ import {
 	teff,
 	trowempty,
 	tnumber,
+	tlabelcon,
+	tlabel,
+	tstring,
 } from './types';
 import {
 	Kind,
 	ktype,
 	krow,
 	karr,
+	klabel,
 } from './kinds';
 import { id } from './Id';
 import {
@@ -95,15 +99,20 @@ const _handle = (m: any) => (v: any) => (e: any) => {
 
 const handleRandom = _handle({ Random: (_: any) => (u: any) => (k: any) => k(Math.random())() })({});
 
+const labelStr = (x: any) => x;
+const same = (a: any) => (b: any) => ({});
+
 const fixeff = _perform('Fix');
 function fix(f: any) {return function(n: any) { return f(fix(f))(n) }}
 
 const a = id('a', 0);
 const b = id('b', 0);
 const r = id('r', 0);
+const l = id('l', 0);
 const ta = tvar(a, ktype);
 const tb = tvar(b, ktype);
 const tr = tvar(r, krow);
+const tl = tvar(l, klabel);
 
 const tunit = tapp(trecord, trowempty);
 
@@ -129,9 +138,13 @@ const env = Env.of(
 	['fix', scheme(TVarSet.of(ta), [], tarrs(tarrs(ta, ta), ta))],
 
 	['handleRandom', scheme(TVarSet.of(ta, tr), [clacks('Random', tr)], tarrs(tapp(teff, trowextend('Random', tarrs(tunit, tnumber), tr), ta), tapp(teff, tr, ta)))],
+
+	['labelStr', scheme(TVarSet.of(tl), [], tarrs(tapp(tlabelcon, tl), tstring))],
+
+	['same', scheme(TVarSet.of(ta), [], tarrs(ta, ta, tunit))],
 );
 
-const state = new InferState(new IdStore({ a: a.next(), b: b.next(), r: r.next() }));
+const state = new InferState(new IdStore({ a: a.next(), b: b.next(), r: r.next(), l: l.next() }));
 
 function output(i: string) {
 	const res = parse(i).then(e => {
