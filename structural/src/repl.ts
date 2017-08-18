@@ -93,6 +93,8 @@ const _handle = (m: any) => (v: any) => (e: any) => {
 	throw new Error('invalid handle: ' + e);
 }
 
+const handleRandom = _handle({ Random: (_: any) => (u: any) => (k: any) => k(Math.random())() })({});
+
 const fixeff = _perform('Fix');
 function fix(f: any) {return function(n: any) { return f(fix(f))(n) }}
 
@@ -102,6 +104,8 @@ const r = id('r', 0);
 const ta = tvar(a, ktype);
 const tb = tvar(b, ktype);
 const tr = tvar(r, krow);
+
+const tunit = tapp(trecord, trowempty);
 
 const env = Env.of(
 	['inc', tarrs(tnumber, tnumber).generalize()],
@@ -123,6 +127,8 @@ const env = Env.of(
 		))
 	],
 	['fix', scheme(TVarSet.of(ta), [], tarrs(tarrs(ta, ta), ta))],
+
+	['handleRandom', scheme(TVarSet.of(ta, tr), [clacks('Random', tr)], tarrs(tapp(teff, trowextend('Random', tarrs(tunit, tnumber), tr), ta), tapp(teff, tr, ta)))],
 );
 
 const state = new InferState(new IdStore({ a: a.next(), b: b.next(), r: r.next() }));

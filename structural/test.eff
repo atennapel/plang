@@ -1,5 +1,6 @@
 :get (!Get ())
 :set !Set
+:flip (!Flip ())
 
 :program (
 	^x get
@@ -8,7 +9,20 @@
 	ret (add x y)
 )
 
-handle {
-	Get (\v_k k v v)
-	Set (\_vk k () v)
-} 1 program
+:pair (\xy {fst x snd y})
+
+:programf (
+	^b flip
+	^c flip
+	ret (pair b c)
+)
+
+:alwaysTrue (handle {
+	Flip (\v_k k 1 ())
+} ())
+:rand (!Random ())
+:flipRandom (handle {
+	Flip (\v_k (^r rand (k r ())))
+} ())
+
+(.fst $ pure $ handleRandom $ flipRandom programf)
