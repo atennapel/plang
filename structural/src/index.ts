@@ -17,6 +17,8 @@ import {
 	scheme,
 	trowextend,
 	trowempty,
+	tstring,
+	tnumber,
 } from './types';
 import {
 	evar,
@@ -40,31 +42,21 @@ import TVarSet from './TVarSet';
 import InferState from './InferState';
 import parse from './parser';
 
-const Int = tcon('Int', ktype);
-const Float = tcon('Float', ktype);
-const Str = tcon('Str', ktype);
-const P = tcon('P', karr(ktype, ktype, ktype));
-
 const a = id('a', 0);
 const b = id('b', 0);
 const ta = tvar(a, ktype);
 const tb = tvar(b, ktype);
 
 const env = Env.of(
-	['zero', Int.generalize()],
-	['zerof', Float.generalize()],
-	['str', Str.generalize()],
-	['inc', tarrs(Int, Int).generalize()],
-	['fst', scheme(TVarSet.of(ta, tb), [], tarrs(tapp(P, ta, tb), ta))],
-	['snd', scheme(TVarSet.of(ta, tb), [], tarrs(tapp(P, ta, tb), tb))],
+	['zero', tnumber.generalize()],
+	['str', tstring.generalize()],
+	['inc', tarrs(tnumber, tnumber).generalize()],
 	['choose', scheme(TVarSet.of(ta), [], tarrs(ta, ta, ta))],
-	['obj', tapp(trecord, trowextend('x', Int, trowextend('y', Float, trowempty))).generalize()]
+	['numStr', tarrs(tnumber, tstring).generalize()],
 );
 
-const expr = eapp(erecordrestrict('y'), evar('obj'));
+const t = tapp(trecord, trowextend('a', ta, trowextend('show', tarrs(ta, tstring), trowempty)));
+
+const expr = eanno(eapp(erecordextend('a'), evar('zero'), eapp(erecordextend('show'), evar('numStr'), erecordempty)), t);
 console.log(''+expr);
 console.log(''+expr.runInfer(env, new InferState(new IdStore({ a: a.next(), b: b.next() }))));
-
-console.log(
-	''+parse('a (b x) c')
-);

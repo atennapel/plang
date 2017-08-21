@@ -1,0 +1,20 @@
+{
+  "name": "thesis-bidir",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+		"test": "npm run build && node build/src/index.js",
+		"repl": "node build/src/repl.js",
+		"testfile": "node build/src/repl.js test.eff",
+		"buildrepl": "npm run build && npm run repl",
+		"buildtestfile": "npm run build && npm run testfile"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^8.0.19",
+    "typescript": "^2.2.2"
+  }
+}

@@ -10,3 +10,4 @@ new-ts/build
 bidir-ts/build/
 structural/build/
 elm/elm-stuff
+thesis-bidir/build
