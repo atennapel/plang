@@ -114,7 +114,7 @@ export class TExists extends Type {
   }
 
   apply(c: Context): Type {
-    return c.getOr(this.id, t => t.apply(c), this);
+    return c.getOrSolved(this.id, t => t.apply(c), this);
   }
 
   subst(id: Id, t: Type): Type {

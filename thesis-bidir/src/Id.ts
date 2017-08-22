@@ -6,7 +6,7 @@ export default class Id {
 	constructor(name: string, index: number) {
 		this.name = name;
 		this.index = index;
-		this.id = this.name + this.index;
+		this.id = `${this.name}$${this.index}`;
 	}
 
 	toString() {

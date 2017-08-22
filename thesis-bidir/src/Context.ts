@@ -85,10 +85,10 @@ export function cmarker(id: Id) {
 }
 
 export class CVar extends ContextElem {
-  readonly id: Id;
+  readonly id: string;
   readonly type: Type;
 
-  constructor(id: Id, type: Type) {
+  constructor(id: string, type: Type) {
     super();
     this.id = id;
     this.type = type;
@@ -99,15 +99,15 @@ export class CVar extends ContextElem {
   }
 
   equals(other: ContextElem): boolean {
-    return other instanceof CVar && this.id.equals(other.id) && this.type.equals(other.type);
+    return other instanceof CVar && this.id === other.id && this.type.equals(other.type);
   }
 
   isWellformed(c: Context): boolean {
     return this.type.isWellformed(c) && !c.contains((e: ContextElem) =>
-      (e instanceof CVar) && e.id.equals(this.id));
+      (e instanceof CVar) && e.id === this.id);
   }
 }
-export function cvar(id: Id, type: Type) {
+export function cvar(id: string, type: Type) {
   return new CVar(id, type);
 }
 
@@ -145,6 +145,10 @@ export default class Context {
     this.context = context;
   }
 
+  static empty() {
+    return new Context([]);
+  }
+
   toString() {
     return `Context[${this.context.join(', ')}]`;
   }
@@ -168,9 +172,15 @@ export default class Context {
     return this.indexOf(c) >= 0;
   }
 
-  getOr<R>(id: Id, map: (t: Type) => R, or: R) {
-    const i = this.indexOf(e => e instanceof CVar && e.id.equals(id));
-    return i >= 0? map((this.context[i] as CVar).type): or;
+  get(id: string): Result<Error, Type> {
+    const i = this.indexOf(e => e instanceof CVar && e.id === id);
+    if(i >= 0) return Result.ok((this.context[i] as CVar).type);
+    return Result.err(`id not in ${this}`);
+  }
+
+  getOrSolved<R>(id: Id, map: (t: Type) => R, or: R) {
+    const i = this.indexOf(e => e instanceof CSolved && e.id.equals(id));
+    return i >= 0? map((this.context[i] as CSolved).type): or;
   }
 
   append(...es: ContextElem[]) {
@@ -198,5 +208,25 @@ export default class Context {
         right: new Context(this.context.slice(i + 1)),
       });
     return Result.err(`Cannot split: ${c} in ${this}`);
+  }
+
+  insertAt(c: ContextElem | ((e: ContextElem) => boolean), elems: ContextElem[]): Result<Error, Context> {
+    const i = this.indexOf(c);
+    if(i < 0) Result.err(`Cannot insertAt: ${c} in ${this}`);
+    return Result.ok(new Context(
+      this.context.slice(0, i).concat(elems, this.context.slice(i + 1))
+    ));
+  }
+
+  solve(id: Id, type: Type): Result<Error, Context> {
+    const i = this.indexOf(cexists(id));
+    if(i < 0) Result.err(`Cannot solve: ${id} in ${this}`);
+    return Result.ok(new Context(
+      this.context.slice(0, i).concat([csolved(id, type)], this.context.slice(i + 1))
+    ));
+  }
+
+  unsolved(): Id[] {
+    return this.context.filter(e => e instanceof CExists).map(e => (e as CExists).id);
   }
 }
