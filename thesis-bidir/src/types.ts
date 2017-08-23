@@ -15,6 +15,10 @@ export abstract class Type {
   abstract apply(c: Context): Type;
   abstract subst(id: Id, t: Type): Type;
   abstract contains(id: Id): boolean;
+
+  substAll(sub: [Id, Type][]): Type {
+    return sub.reduce((t, [id, type]) => t.subst(id, type), this);
+  }
 }
 
 export class TUnit extends Type {
@@ -118,7 +122,7 @@ export class TExists extends Type {
   }
 
   subst(id: Id, t: Type): Type {
-    return this;
+    return this.id.equals(id)? t: this;
   }
 
   contains(id: Id): boolean {

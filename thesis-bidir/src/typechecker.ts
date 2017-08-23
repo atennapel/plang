@@ -55,9 +55,15 @@ export class InferState {
     const {st, id} = this.tvars.fresh(name);
     return ok({st: new InferState(st), id});
   }
+
+  freshN(n: number, names: string | string[]): InferResult<{st: InferState, ids: Id[]}> {
+    const {st, ids} = this.tvars.freshN(n, names);
+    return ok({st: new InferState(st), ids});
+  }
 }
 
 function instL(st: InferState, c: Context, a: Id, b: Type): InferResult<{st: InferState, c: Context}> {
+  console.log(`instL: ${a} and ${b} in ${c}`);
   if(!c.isWellformed()) return err(`ill-formed context: ${c}`);
   return c.split(cexists(a)).then(({left, right}) => {
     if(b.isMono()) {
@@ -74,9 +80,11 @@ function instL(st: InferState, c: Context, a: Id, b: Type): InferResult<{st: Inf
     } else if(b instanceof TForall) {
       if(!c.contains(cexists(a)))
         return err(`context does not contain existential: ${a} in ${c}`);
-      return instL(st, c.append(cforall(b.tvar.id)), a, b.type)
-        .then(({st, c}) => c.split(cforall(b.tvar.id))
-        .map(({left: c}) => ({st, c})));
+      return st.fresh('t')
+        .then(({st, id: alpha}) =>
+          instL(st, c.append(cforall(alpha)), a, b.type.subst(b.tvar.id, tvar(alpha)))
+        .then(({st, c}) => c.split(cforall(alpha))
+        .map(({left: c}) => ({st, c}))));
     } else if(b instanceof TArr) {
       if(!c.contains(cexists(a)))
         return err(`context does not contain existential: ${a} in ${c}`);
@@ -95,6 +103,7 @@ function instL(st: InferState, c: Context, a: Id, b: Type): InferResult<{st: Inf
   });
 }
 function instR(st: InferState, c: Context, a: Type, b: Id): InferResult<{st: InferState, c: Context}> {
+  console.log(`instR: ${a} and ${b} in ${c}`);
   if(!c.isWellformed()) return err(`ill-formed context: ${c}`);
   return c.split(cexists(b)).then(({left, right}) => {
     if(a.isMono()) {
@@ -135,12 +144,13 @@ function instR(st: InferState, c: Context, a: Type, b: Id): InferResult<{st: Inf
 }
 
 function subtype(st: InferState, c: Context, a: Type, b: Type): InferResult<{st: InferState, c: Context}> {
+  console.log(`subtype: ${a} and ${b} in ${c}`);
   if(!c.isWellformed()) return err(`ill-formed context: ${c}`);
   if(!a.isWellformed(c)) return err(`ill-formed type: ${a} in ${c}`);
   if(!b.isWellformed(c)) return err(`ill-formed type: ${b} in ${c}`);
-  if(a instanceof TVar && b instanceof TVar) return ok({st, c});
+  if(a instanceof TVar && b instanceof TVar && a.id.equals(b.id)) return ok({st, c});
   if(a instanceof TUnit && b instanceof TUnit) return ok({st, c});
-  if(a instanceof TExists && b instanceof TExists) {
+  if(a instanceof TExists && b instanceof TExists && a.id.equals(b.id)) {
     if(!c.contains(cexists(a.id)))
       return err(`context does not contain existential: ${a} in ${c}`);
     return ok({st, c});
@@ -157,9 +167,11 @@ function subtype(st: InferState, c: Context, a: Type, b: Type): InferResult<{st:
       .then(({left: c}) => ok({st, c}))));
   }
   if(b instanceof TForall) {
-    return subtype(st, c.append(b.tvar), a, b.type)
-      .then(({st, c}) => c.split(cforall(b.tvar.id))
-      .then(({left: c}) => ok({st, c})));
+    return st.fresh('t')
+      .then(({st, id: alpha}) =>
+        subtype(st, c.append(cforall(alpha)), a, b.type.subst(b.tvar.id, tvar(alpha)))
+      .then(({st, c}) => c.split(cforall(alpha))
+      .then(({left: c}) => ok({st, c}))));
   }
   if(a instanceof TExists) {
     if(!c.contains(cexists(a.id)))
@@ -179,13 +191,16 @@ function subtype(st: InferState, c: Context, a: Type, b: Type): InferResult<{st:
 }
 
 function typecheck(st: InferState, c: Context, e: Expr, t: Type): InferResult<{st: InferState, c: Context}> {
+  console.log(`typecheck: ${e} and ${t} in ${c}`);
   if(!c.isWellformed()) return err(`ill-formed context: ${c}`);
   if(!t.isWellformed(c)) return err(`ill-formed type: ${t} in ${c}`);
   if(e instanceof EUnit && t instanceof TUnit) return ok({st, c});
   if(t instanceof TForall) {
-    return typecheck(st, c.append(cforall(t.tvar.id)), e, t.type)
-      .then(({st, c}) => c.split(cforall(t.tvar.id))
-      .map(({left: c}) => ({st, c})));
+    return st.fresh('t')
+      .then(({st, id: alpha}) =>
+        typecheck(st, c.append(cforall(alpha)), e, t.type.subst(t.tvar.id, tvar(alpha)))
+      .then(({st, c}) => c.split(cforall(alpha))
+      .map(({left: c}) => ({st, c}))));
   }
   if(e instanceof ELam && t instanceof TArr) {
     return typecheck(st, c.append(cvar(e.arg, t.left)), e.body, t.right)
@@ -197,6 +212,7 @@ function typecheck(st: InferState, c: Context, e: Expr, t: Type): InferResult<{s
 }
 
 function typesynth(st: InferState, c: Context, e: Expr): InferResult<{st: InferState, c: Context, t: Type}> {
+  console.log(`typesynth: ${e} in ${c}`);
   if(!c.isWellformed()) return err(`ill-formed context: ${c}`);
   if(e instanceof EUnit) return ok({st, c, t: tunit});
   if(e instanceof EAnno) {
@@ -221,16 +237,21 @@ function typesynth(st: InferState, c: Context, e: Expr): InferResult<{st: InferS
           cvar(e.arg, texists(alpha))
         ), e.body, texists(beta))
       .then(({st, c}) => c.split(cmarker(alpha))
-      .map(({left, right}) => {
+      .then(({left, right}) => {
         const tau = tarr(texists(alpha), texists(beta)).apply(right);
         const vars = right.unsolved();
-        return {st, c: left, t: tforall(vars.map(tvar), tau)};
+        return st.freshN(vars.length, vars.map(v => v.name))
+          .map(({st, ids}) => {
+            const sub = ids.map((id, i) => [vars[i], tvar(id)] as [Id, Type]);
+            return {st, c: left, t: tforall(ids.map(tvar), tau.substAll(sub))};
+          });
       }))));
   }
   return err(`typesynth unhandled expression: ${e}`);
 }
 
 function typeapplysynth(st: InferState, c: Context, t: Type, e: Expr): InferResult<{st: InferState, c: Context, t: Type}> {
+  console.log(`typeapplysynth: ${t} and ${e} in ${c}`);
   if(!c.isWellformed()) return err(`ill-formed context: ${c}`);
   if(!t.isWellformed(c)) return err(`ill-formed type: ${t} in ${c}`);
   if(t instanceof TForall) {
@@ -258,5 +279,7 @@ function typeapplysynth(st: InferState, c: Context, t: Type, e: Expr): InferResu
 
 export function infer(e: Expr): InferResult<{t: Type, c: Context}> {
   return typesynth(InferState.empty(), Context.empty(), e)
-    .map(({st, c, t}) => ({t: t.apply(c), c}));
+    .then(({st, c, t}) => c.isComplete() && c.isWellformed()?
+      ok({t: t.apply(c), c}):
+      err(`ill-formed or incomplete context: ${c}`));
 }
