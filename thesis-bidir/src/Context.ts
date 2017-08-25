@@ -219,11 +219,12 @@ export default class Context {
   }
 
   solve(id: Id, type: Type): Result<Error, Context> {
-    const i = this.indexOf(cexists(id));
-    if(i < 0) Result.err(`Cannot solve: ${id} in ${this}`);
-    return Result.ok(new Context(
-      this.context.slice(0, i).concat([csolved(id, type)], this.context.slice(i + 1))
-    ));
+    return this.split(cexists(id))
+      .then(({left, right}) => {
+        const gamma = left.append(csolved(id, type)).concat(right);
+        if(type.isWellformed(left)) return Result.ok(gamma);
+        return Result.err(new Error(`Cannot solve ${id} and ${type} in ${this}`));
+      });
   }
 
   unsolved(): Id[] {

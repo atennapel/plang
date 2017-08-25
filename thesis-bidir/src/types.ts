@@ -6,6 +6,7 @@ import Context, {
   ContextElem,
 } from './Context';
 import Id from './Id';
+import Map from './Map';
 
 export abstract class Type {
   abstract toString(): string;
@@ -15,6 +16,7 @@ export abstract class Type {
   abstract apply(c: Context): Type;
   abstract subst(id: Id, t: Type): Type;
   abstract contains(id: Id): boolean;
+  abstract free(): Map<Id>;
 
   substAll(sub: [Id, Type][]): Type {
     return sub.reduce((t, [id, type]) => t.subst(id, type), this);
@@ -48,6 +50,10 @@ export class TUnit extends Type {
 
   contains(id: Id): boolean {
     return false;
+  }
+
+  free() {
+    return Map.empty<Id>();
   }
 }
 export const tunit = new TUnit();
@@ -86,6 +92,10 @@ export class TVar extends Type {
 
   contains(id: Id): boolean {
     return this.id.equals(id);
+  }
+
+  free() {
+    return Map.empty<Id>();
   }
 }
 export function tvar(id: Id) {
@@ -127,6 +137,10 @@ export class TExists extends Type {
 
   contains(id: Id): boolean {
     return this.id.equals(id);
+  }
+
+  free() {
+    return Map.of([this.id.id, this.id]);
   }
 }
 export function texists(id: Id) {
@@ -170,6 +184,10 @@ export class TArr extends Type {
   contains(id: Id): boolean {
     return this.left.contains(id) || this.right.contains(id);
   }
+
+  free() {
+    return this.left.free().union(this.right.free());
+  }
 }
 export function tarr(...ts: Type[]) {
   return ts.reduceRight((x, y) => new TArr(y, x));
@@ -211,6 +229,10 @@ export class TForall extends Type {
 
   contains(id: Id): boolean {
     return !this.tvar.id.equals(id) && this.type.contains(id);
+  }
+
+  free() {
+    return this.type.free();
   }
 }
 export function tforall(tvs: TVar[], t: Type) {
