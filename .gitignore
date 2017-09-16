@@ -11,3 +11,6 @@ bidir-ts/build/
 structural/build/
 elm/elm-stuff
 thesis-bidir/build
+dep/build
+thesis/build
+thesis2/build
