@@ -1,196 +1,59 @@
-type Env = { [key: number]: Expr };
-function extend(env: Env, id: number, type: Expr) {
-  return { ...env, [id]: type };
-}
-function showEnv(env: Env) {
-  return '{' + Object.keys(env).map((k: string) => `${k}: ${env[+k]}`).join(', ') + '}';
-}
-function adjustEnv(env: Env, by: number) {
-  const o: Env = {};
-  for(let k in env) {
-    o[+k + by] = env[k];
-  }
-  return o;
-}
-
-export abstract class Expr {
+// External
+abstract class Term {
   abstract toString(): string;
-  abstract equals(other: Expr): boolean;
-  abstract subst(index: number, expr: Expr): Expr;
-  abstract adjust(by: number): Expr;
-  abstract betareduce(): Expr | null;
-  abstract infer(env: Env): Expr | null;
-
-  betaequals(other: Expr): boolean {
-    return (this.betareduce() || this).equals(other.betareduce() || other);
-  }
+  abstract toInternal(map?: { [key: string]: {index: number, name: string} }): ITerm;
 }
 
-export class EVar extends Expr {
-  readonly index: number;
+class Var extends Term {
+  readonly name: string;
 
-  constructor(index: number) {
+  constructor(name: string) {
     super();
-    this.index = index;
+    this.name = name;
   }
 
   toString() {
-    return this.index.toString();
+    return this.name;
   }
 
-  equals(other: Expr): boolean {
-    return other instanceof EVar && this.index === other.index;
-  }
-
-  subst(index: number, expr: Expr): Expr {
-    return this.index === index? expr: this;
-  }
-
-  adjust(by: number): Expr {
-    return new EVar(this.index + by);
-  }
-
-  betareduce(): Expr | null {
-    return this;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    return env[this.index] || null;
+  toInternal(map: { [key: string]: {index: number, name: string} } = {}): ITerm {
+    return map[this.name]? ibound(map[this.name].index): ifree(this.name);
   }
 }
-export function evar(index: number) {
-  return new EVar(index);
+function vr(name: string) {
+  return new Var(name);
 }
 
-export class EUni extends Expr {
-  readonly index: number;
+class Abs extends Term {
+  readonly arg: string;
+  readonly term: Term;
 
-  constructor(index: number) {
+  constructor(arg: string, term: Term) {
     super();
-    this.index = index;
+    this.arg = arg;
+    this.term = term;
   }
 
   toString() {
-    return this.index === 0? '*': `*${this.index.toString()}`;
+    return `(\\${this.arg}.${this.term})`;
   }
 
-  equals(other: Expr): boolean {
-    return other instanceof EUni && this.index === other.index;
-  }
-
-  subst(index: number, expr: Expr): Expr {
-    return this;
-  }
-
-  adjust(by: number): Expr {
-    return this;
-  }
-
-  betareduce(): Expr | null {
-    return this;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    return new EUni(this.index + 1);
+  toInternal(map: { [key: string]: {index: number, name: string} } = {}): ITerm {
+    const n: { [key: string]: {index: number, name: string} } = {};
+    for(let k in map) n[k] = { index: map[k].index + 1, name: map[k].name };
+    n[this.arg] = { index: 0, name: this.arg };
+    return iabs(this.term.toInternal(n));
   }
 }
-export function euni(index: number) {
-  return new EUni(index);
+function abs(args: string[], term: Term) {
+  return args.reduceRight((x, y) => new Abs(y, x), term);
 }
 
-export class EPi extends Expr {
-  readonly type: Expr;
-  readonly expr: Expr;
+class App extends Term {
+  readonly left: Term;
+  readonly right: Term;
 
-  constructor(type: Expr, expr: Expr) {
-    super();
-    this.type = type;
-    this.expr = expr;
-  }
-
-  toString() {
-    return `(/${this.type}.${this.expr})`;
-  }
-
-  equals(other: Expr): boolean {
-    return other instanceof EPi && this.type.equals(other.type) && this.expr.equals(other.expr);
-  }
-
-  subst(index: number, expr: Expr): Expr {
-    return new EPi(this.type.subst(index + 1, expr), this.expr.subst(index + 1, expr));
-  }
-
-  adjust(by: number): Expr {
-    return new EPi(this.type, this.expr.adjust(by));
-  }
-
-  betareduce(): Expr | null {
-    const t = this.type.betareduce();
-    const e = this.expr.betareduce();
-    if(t || e) return new EPi(t || this.type, e || this.expr);
-    return null;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    return euni(0);
-  }
-}
-export function epi(type: Expr, expr: Expr) {
-  return new EPi(type, expr);
-}
-
-export class EAbs extends Expr {
-  readonly type: Expr;
-  readonly expr: Expr;
-
-  constructor(type: Expr, expr: Expr) {
-    super();
-    this.type = type;
-    this.expr = expr;
-  }
-
-  toString() {
-    return `(\\${this.type}.${this.expr})`;
-  }
-
-  equals(other: Expr): boolean {
-    return other instanceof EAbs && this.type.equals(other.type) && this.expr.equals(other.expr);
-  }
-
-  subst(index: number, expr: Expr): Expr {
-    return new EAbs(this.type.subst(index + 1, expr), this.expr.subst(index + 1, expr));
-  }
-
-  adjust(by: number): Expr {
-    return new EAbs(this.type, this.expr.adjust(by));
-  }
-
-  betareduce(): Expr | null {
-    const t = this.type.betareduce();
-    const e = this.expr.betareduce();
-    if(t || e) return new EAbs(t || this.type, e || this.expr);
-    return null;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    const body = this.expr.infer(extend(adjustEnv(env, 1), 0, this.type));
-    if(!body) return null;
-    return epi(this.type, body);
-  }
-}
-export function eabs(type: Expr, expr: Expr) {
-  return new EAbs(type, expr);
-}
-
-export class EApp extends Expr {
-  readonly left: Expr;
-  readonly right: Expr;
-
-  constructor(left: Expr, right: Expr) {
+  constructor(left: Term, right: Term) {
     super();
     this.left = left;
     this.right = right;
@@ -200,268 +63,161 @@ export class EApp extends Expr {
     return `(${this.left} ${this.right})`;
   }
 
-  equals(other: Expr): boolean {
-    return other instanceof EApp && this.left.equals(other.left) && this.right.equals(other.right);
-  }
-
-  subst(index: number, expr: Expr): Expr {
-    return new EApp(this.left.subst(index, expr), this.right.subst(index, expr));
-  }
-
-  adjust(by: number): Expr {
-    return new EApp(this.left.adjust(by), this.right.adjust(by));
-  }
-
-  betareduce(): Expr | null {
-    const l = this.left.betareduce();
-    const r = this.right.betareduce();
-    const left = l || this.left;
-    if(left instanceof EAbs) {
-      return left.expr.subst(0, r || this.right);
-    } else {
-      if(!l && !r) return null;
-      return new EApp(left, r || this.right);
-    }
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    const left = this.left.infer(env);
-    if(!left) return null;
-    if(left instanceof EPi) {
-      const right = this.right.infer(env);
-      if(!right) return null;
-      if(!left.type.equals(right)) return null;
-      return left.expr.subst(0, this.right);
-    } else return null;
+  toInternal(map: { [key: string]: {index: number, name: string} } = {}): ITerm {
+    return iapp(this.left.toInternal(map), this.right.toInternal(map));
   }
 }
-export function eapp(...es: Expr[]) {
-  if(es.length === 0) throw new Error('invalid eapp');
-  if(es.length === 1) return es[0];
-  return es.reduce((x, y) => new EApp(x, y));
+function app(...ts: Term[]) {
+  return ts.reduce((x, y) => new App(x, y));
 }
 
-export class ENat extends Expr {
+// Internal
+let freshI = 0;
+function fresh(): string { return `\$${freshI++}` }
+
+abstract class ITerm {
+  abstract toString(): string;
+
+  abstract open(e: ITerm, k?: number): ITerm;
+  abstract close(x: string, k?: number): ITerm;
+
+  abstract normalize(): ITerm;
+
+  openVar(name: string, k: number = 0): ITerm {
+    return this.open(ifree(name), k);
+  }
+  subst(x: string, e: ITerm): ITerm {
+    return this.close(x).open(e);
+  }
+}
+
+class IFree extends ITerm {
+  readonly name: string;
+
+  constructor(name: string) {
+    super();
+    this.name = name;
+  }
+
+  toString(): string {
+    return this.name;
+  }
+
+  open(e: ITerm, k: number = 0): ITerm {
+    return this;
+  }
+  close(x: string, k: number = 0): ITerm {
+    return this.name === x? ibound(k): this;
+  }
+
+  normalize(): ITerm {
+    return this;
+  }
+}
+function ifree(name: string) {
+  return new IFree(name);
+}
+
+class IBound extends ITerm {
+  readonly index: number;
+
+  constructor(index: number) {
+    super();
+    this.index = index;
+  }
+
+  toString(): string {
+    return `'${this.index}`;
+  }
+
+  open(e: ITerm, k: number = 0): ITerm {
+    return this.index === k? e: this;
+  }
+  close(x: string, k: number = 0): ITerm {
+    return this;
+  }
+
+  normalize(): ITerm {
+    return this;
+  }
+}
+function ibound(index: number) {
+  return new IBound(index);
+}
+
+class IAbs extends ITerm {
+  readonly term: ITerm;
+
+  constructor(term: ITerm) {
+    super();
+    this.term = term;
+  }
+
   toString() {
-    return 'Nat';
+    return `(\\${this.term})`;
   }
 
-  equals(other: Expr): boolean {
-    return other instanceof ENat;
+  open(e: ITerm, k: number = 0): ITerm {
+    return iabs(this.term.open(e, k + 1));
+  }
+  close(x: string, k: number = 0): ITerm {
+    return iabs(this.term.close(x, k + 1));
   }
 
-  subst(index: number, expr: Expr): Expr {
-    return this;
-  }
-
-  adjust(by: number): Expr {
-    return this;
-  }
-
-  betareduce(): Expr | null {
-    return this;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    return euni(0);
+  normalize(): ITerm {
+    const x = fresh();
+    return iabs(this.term.openVar(x).normalize().close(x));
   }
 }
-export const enat = new ENat();
+function iabs(term: ITerm) {
+  return new IAbs(term);
+}
 
-export class EZ extends Expr {
+class IApp extends ITerm {
+  readonly left: ITerm;
+  readonly right: ITerm;
+
+  constructor(left: ITerm, right: ITerm) {
+    super();
+    this.left = left;
+    this.right = right;
+  }
+
   toString() {
-    return 'z';
+    return `(${this.left} ${this.right})`;
   }
 
-  equals(other: Expr): boolean {
-    return other instanceof EZ;
+  open(e: ITerm, k: number = 0): ITerm {
+    return iapp(
+      this.left.open(e, k),
+      this.right.open(e, k)
+    );
+  }
+  close(x: string, k: number = 0): ITerm {
+    return iapp(
+      this.left.close(x, k),
+      this.right.close(x, k)
+    );
   }
 
-  subst(index: number, expr: Expr): Expr {
-    return this;
-  }
-
-  adjust(by: number): Expr {
-    return this;
-  }
-
-  betareduce(): Expr | null {
-    return this;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    return enat;
-  }
-}
-export const ez = new EZ();
-
-export class ES extends Expr {
-  toString() {
-    return 's';
-  }
-
-  equals(other: Expr): boolean {
-    return other instanceof ES;
-  }
-
-  subst(index: number, expr: Expr): Expr {
-    return this;
-  }
-
-  adjust(by: number): Expr {
-    return this;
-  }
-
-  betareduce(): Expr | null {
-    return this;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    return epi(enat, enat);
+  normalize(): ITerm {
+    const l = this.left.normalize();
+    const r = this.right.normalize();
+    if(l instanceof IAbs)
+      return l.term.open(r).normalize();
+    return iapp(l, r);
   }
 }
-export const es = new ES();
-
-export class ENatElim extends Expr {
-  toString() {
-    return 'natElim';
-  }
-
-  equals(other: Expr): boolean {
-    return other instanceof ENatElim;
-  }
-
-  subst(index: number, expr: Expr): Expr {
-    return this;
-  }
-
-  adjust(by: number): Expr {
-    return this;
-  }
-
-  betareduce(): Expr | null {
-    return this;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    return epi(epi(enat, euni(0)),
-            epi(eapp(V(1), ez),
-            epi(epi(enat, epi(eapp(V(4), V(1)), eapp(V(4), eapp(es, V(1))))),
-            epi(enat, eapp(V(3), V(0))))));
-  }
+function iapp(...ts: ITerm[]) {
+  return ts.reduce((x, y) => new IApp(x, y));
 }
-export const enatelim = new ENatElim;
 
-export class EVec extends Expr {
-  toString() {
-    return 'Vec';
-  }
+// testing
+const V = vr;
+const L = abs;
+const A = app;
 
-  equals(other: Expr): boolean {
-    return other instanceof EVec;
-  }
-
-  subst(index: number, expr: Expr): Expr {
-    return this;
-  }
-
-  adjust(by: number): Expr {
-    return this;
-  }
-
-  betareduce(): Expr | null {
-    return this;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    return epi(enat, epi(euni(0), euni(0)));
-  }
-}
-export const evec = new EVec();
-
-export class ENil extends Expr {
-  toString() {
-    return 'Nil';
-  }
-
-  equals(other: Expr): boolean {
-    return other instanceof ENil;
-  }
-
-  subst(index: number, expr: Expr): Expr {
-    return this;
-  }
-
-  adjust(by: number): Expr {
-    return this;
-  }
-
-  betareduce(): Expr | null {
-    return this;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    return epi(euni(0), eapp(evec, ez, V(0)));
-  }
-}
-export const enil = new ENil();
-
-export class ECons extends Expr {
-  toString() {
-    return 'Cons';
-  }
-
-  equals(other: Expr): boolean {
-    return other instanceof ECons;
-  }
-
-  subst(index: number, expr: Expr): Expr {
-    return this;
-  }
-
-  adjust(by: number): Expr {
-    return this;
-  }
-
-  betareduce(): Expr | null {
-    return this;
-  }
-
-  infer(env: Env): Expr | null {
-    console.log('infer:' + this + ' ; ' + showEnv(env));
-    return epi(euni(0), epi(enat, epi(V(2), epi(eapp(evec, V(2), V(3)), eapp(evec, eapp(es, V(2)), V(3))))));
-  }
-}
-export const econs = new ECons();
-
-const V = evar;
-const U = euni;
-const P = epi;
-const L = eabs;
-const A = eapp;
-
-const z = ez;
-const s = (n: Expr) => A(es, n);
-
-const U0 = U(0);
-
-const I = L(U0, L(V(1), V(0)));
-
-const e = A(enatelim, L(enat, P(enat, enat)), L(enat, V(0)));
+const e = A(L(['x', 'f'], A(V('f'), V('x'))), L(['x'], V('x')));
 console.log('' + e);
-console.log('' + e.infer({}));
-console.log('' + e.betareduce());
+console.log('' + e.toInternal().normalize());
 
-/*
-
-\*.\1.0
-/* /1 1
-
-*/
