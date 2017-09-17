@@ -135,6 +135,79 @@ function app(...ts: Term[]) {
   return ts.reduce((x, y) => new App(x, y));
 }
 
+class Nat extends Term {
+  toString() {
+    return `Nat`;
+  }
+
+  toInternal(map: { [key: string]: {index: number, name: string} } = {}): ITerm {
+    return inat;
+  }
+}
+const nat = new Nat();
+
+class Z extends Term {
+  toString() {
+    return `Z`;
+  }
+
+  toInternal(map: { [key: string]: {index: number, name: string} } = {}): ITerm {
+    return iz;
+  }
+}
+const z = new Z();
+
+class S extends Term {
+  readonly term: Term;
+
+  constructor(term: Term) {
+    super();
+    this.term = term;
+  }
+
+  toString() {
+    return `(S ${this.term})`;
+  }
+
+  toInternal(map: { [key: string]: {index: number, name: string} } = {}): ITerm {
+    return is(this.term.toInternal(map));
+  }
+}
+function s(t: Term) {
+  return new S(t);
+}
+
+class NatElim extends Term {
+  readonly p: Term;
+  readonly pz: Term;
+  readonly ps: Term;
+  readonly k: Term;
+
+  constructor(p: Term, pz: Term, ps: Term, k: Term) {
+    super();
+    this.p = p;
+    this.pz = pz;
+    this.ps = ps;
+    this.k = k;
+  }
+
+  toString() {
+    return `(natElim ${this.p} ${this.pz} ${this.ps} ${this.k})`;
+  }
+
+  toInternal(map: { [key: string]: {index: number, name: string} } = {}): ITerm {
+    return inatElim(
+      this.p.toInternal(map),
+      this.pz.toInternal(map),
+      this.ps.toInternal(map),
+      this.k.toInternal(map),
+    );
+  }
+}
+function natElim(p: Term, pz: Term, ps: Term, k: Term) {
+  return new NatElim(p, pz, ps, k);
+}
+
 // Result
 type InferResult<T> = Result<TypeError, T>;
 function ok<T>(t: T): InferResult<T> { return Result.ok(t) }
@@ -207,12 +280,15 @@ class Context {
 			if(fn(a[i])) return i;
 		return -1;
 	}
-
+  
+  hasVar(name: string): boolean {
+		return this.findIndex(e => e instanceof CVar && e.name === name) >= 0;
+	}
 	findVar(name: string): InferResult<ITerm> {
 		const i = this.findIndex(e => e instanceof CVar && e.name === name);
 		if(i < 0) return err(`Var ${name} not found in ${this}`);
 		return ok((this.elems[i] as CVar).type);
-	}
+  }
 	getDef(name: string): ITerm | null {
 		const i = this.findIndex(e => e instanceof CDef && e.name === name);
 		if(i < 0) return null;
@@ -287,11 +363,17 @@ class IFree extends ITerm {
   }
 
   normalize(ctx: Context): ITerm {
-    return ctx.getDef(this.name) || this;
+    const def = ctx.getDef(this.name);
+    if(def) return def.normalize(ctx);
+    return this;
 	}
 
 	infer(ctx: Context): InferResult<{ ctx: Context, type: ITerm }> {
-		return ctx.findVar(this.name).map(type => ({ ctx, type }));	
+    if(ctx.hasVar(this.name))
+      return ctx.findVar(this.name).map(type => ({ ctx, type }));
+    const def = ctx.getDef(this.name);
+    if(def) return def.infer(ctx);
+    return err(`Undefined variable ${this.name} in ${ctx}`);
 	}
 }
 function ifree(name: string, argname?: string) {
@@ -530,7 +612,7 @@ class IApp extends ITerm {
 	infer(ctx: Context): InferResult<{ ctx: Context, type: ITerm }> {
 		return this.left.infer(ctx)
 			.then(({ctx, type: type_}) => {
-				const type = type_.normalize(ctx);
+        const type = type_.normalize(ctx);
 				if(type instanceof IPi) {
 					return this.right.infer(ctx)
 						.then(({ctx, type: tright}) => {
@@ -546,6 +628,197 @@ function iapp(...ts: ITerm[]) {
   return ts.reduce((x, y) => new IApp(x, y));
 }
 
+class INat extends ITerm {
+  toString() {
+    return `Nat`;
+  }
+  toNamed(): Term {
+    return nat;
+  }
+	equivalent(o: ITerm): boolean {
+		return o instanceof INat;
+	}
+
+  open(e: ITerm, k: number = 0): ITerm {
+    return this;
+  }
+  close(x: string, k: number = 0): ITerm {
+    return this;
+  }
+
+  normalize(ctx: Context): ITerm {
+    return this;
+	}
+
+	infer(ctx: Context): InferResult<{ ctx: Context, type: ITerm }> {
+		return ok({ ctx, type: iuni(0) });
+	}
+}
+const inat = new INat();
+
+class IZ extends ITerm {
+  toString() {
+    return `Z`;
+  }
+  toNamed(): Term {
+    return z;
+  }
+	equivalent(o: ITerm): boolean {
+		return o instanceof Z;
+	}
+
+  open(e: ITerm, k: number = 0): ITerm {
+    return this;
+  }
+  close(x: string, k: number = 0): ITerm {
+    return this;
+  }
+
+  normalize(ctx: Context): ITerm {
+    return this;
+	}
+
+	infer(ctx: Context): InferResult<{ ctx: Context, type: ITerm }> {
+		return ok({ ctx, type: inat });
+	}
+}
+const iz = new IZ();
+
+class IS extends ITerm {
+  readonly term: ITerm;
+
+  constructor(term: ITerm) {
+    super();
+    this.term = term;
+  }
+
+  toString() {
+    return `(S ${this.term})`;
+  }
+  toNamed(): Term {
+    return s(this.term.toNamed());
+  }
+	equivalent(o: ITerm): boolean {
+		return o instanceof IS && this.term.equivalent(o.term);
+	}
+
+  open(e: ITerm, k: number = 0): ITerm {
+    return is(this.term.open(e, k));
+  }
+  close(x: string, k: number = 0): ITerm {
+    return is(this.term.close(x, k));
+  }
+
+  normalize(ctx: Context): ITerm {
+    return is(this.term.normalize(ctx));
+	}
+
+	infer(ctx: Context): InferResult<{ ctx: Context, type: ITerm }> {
+    return this.term.infer(ctx)
+      .then(({ctx, type}) => {
+        if(type.betaEquivalent(ctx, inat)) return ok({ctx, type: inat});
+        return err(`S applied to non-Nat: ${this.term} : ${type} in ${ctx}`);
+      });
+	}
+}
+function is(t: ITerm) {
+  return new IS(t);
+}
+
+class INatElim extends ITerm {
+  readonly p: ITerm;
+  readonly pz: ITerm;
+  readonly ps: ITerm;
+  readonly k: ITerm;
+
+  constructor(p: ITerm, pz: ITerm, ps: ITerm, k: ITerm) {
+    super();
+    this.p = p;
+    this.pz = pz;
+    this.ps = ps;
+    this.k = k;
+  }
+
+  toString() {
+    return `(natElim ${this.p} ${this.pz} ${this.ps} ${this.k})`;
+  }
+  toNamed(): Term {
+    return natElim(
+      this.p.toNamed(),
+      this.pz.toNamed(),
+      this.ps.toNamed(),
+      this.k.toNamed()
+    );
+  }
+	equivalent(o: ITerm): boolean {
+    return o instanceof INatElim &&
+      this.p.equivalent(o.p) &&
+      this.pz.equivalent(o.pz) &&
+      this.ps.equivalent(o.ps) &&
+      this.k.equivalent(o.k);
+	}
+
+  open(e: ITerm, k: number = 0): ITerm {
+    return inatElim(
+      this.p.open(e, k),
+      this.pz.open(e, k),
+      this.ps.open(e, k),
+      this.k.open(e, k)
+    );
+  }
+  close(x: string, k: number = 0): ITerm {
+    return inatElim(
+      this.p.close(x, k),
+      this.pz.close(x, k),
+      this.ps.close(x, k),
+      this.k.close(x, k)
+    );
+  }
+
+  eval(ctx: Context, p: ITerm, pz: ITerm, ps: ITerm, k: ITerm): ITerm {
+    if(k instanceof IZ) {
+      return pz;
+    } else if(k instanceof IS) {
+      return iapp(ps, k.term, this.eval(ctx, p, pz, ps, k.term)).normalize(ctx);
+    } else {
+      return inatElim(p, pz, ps, k);
+    }
+  }
+
+  normalize(ctx: Context): ITerm {
+    return this.eval(
+      ctx,
+      this.p.normalize(ctx),
+      this.pz.normalize(ctx),
+      this.ps.normalize(ctx),
+      this.k.normalize(ctx)
+    );
+	}
+
+	infer(ctx: Context): InferResult<{ ctx: Context, type: ITerm }> {
+    const p = this.p.normalize(ctx);
+    return this.pz.infer(ctx)
+      .then(({ctx, type: tpz}) => this.ps.infer(ctx)
+      .then(({ctx, type: tps}) => this.k.infer(ctx)
+      .then(({ctx, type: tk}) => {
+        if(!tpz.betaEquivalent(ctx, iapp(p, iz)))
+          return err(`P Z has invalid type in natElim: ${tpz} ~ ${iapp(p, iz)} in ${this} in ${ctx}`);
+        const etps = ipi(
+          [['l', inat], ['_', iapp(p, ibound(1))]],
+          iapp(p, is(ibound(1)))
+        );
+        if(!tps.betaEquivalent(ctx, etps))
+          return err(`P S has invalid type in natElim: ${tps} ~ ${etps} in ${this} in ${ctx}`);
+        if(!tk.betaEquivalent(ctx, inat))
+          return err(`k has invalid type in natElim: ${tk} ~ ${inat} in ${this} in ${ctx}`);
+        return ok({ ctx, type: iapp(p, this.k.normalize(ctx)) });
+      })));
+	}
+}
+function inatElim(p: ITerm, pz: ITerm, ps: ITerm, k: ITerm) {
+  return new INatElim(p, pz, ps, k);
+}
+
 // testing
 const V = vr;
 const U = uni;
@@ -555,19 +828,15 @@ const A = app;
 const F = arr;
 
 const ctx = context([
-	cvar('Nat', U(0)),
-	cvar('Z', V('Nat')),
-	cvar('S', F(V('Nat'), V('Nat'))),
-	cvar('natElim', P([['P', F(V('Nat'), U(0))]], F(A(V('P'), V('Z')), P([['n', V('Nat')]], F(A(V('P'), V('n')), A(V('P'), A(V('S'), V('n'))))), P([['n', V('Nat')]], A(V('P'), V('n')))))),
+  cdef('plus', L([['x', nat], ['y', nat]], A(natElim(
+    L([['_', nat]], arr(nat, nat)),
+    L([['n', nat]], V('n')),
+    L([['k', nat], ['rec', arr(nat, nat)], ['n', nat]], s(A(V('rec'), V('n')))),
+    V('x')
+  ), V('y')))),
+  cdef('inc', A(V('plus'), s(z))),
 ]);
 
-const e = A(
-	V('natElim'),
-	L([['_', V('Nat')]], F(V('Nat'), V('Nat'))),
-	L([['n', V('Nat')]], V('n')),
-	L([['p', V('Nat')], ['rec', F(V('Nat'), V('Nat'))], ['n', V('Nat')]], A(V('S'), A(V('rec'), V('n')))),
-	V('Z'),
-	V('Z'),
-);
+const e = A(V('inc'), s(z));
 console.log('' + e);
 console.log('' + e.eval(ctx).map(({ ctx, term, type }) => `${term} : ${type} in ${ctx}`));
