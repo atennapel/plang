@@ -1,7 +1,8 @@
 import { Result, Ok, Err } from './Result';
+import parse from './parser';
 
 // External
-abstract class Term {
+export abstract class Term {
   abstract toString(): string;
   abstract toInternal(map?: { [key: string]: {index: number, name: string} }): ITerm;
 
@@ -16,7 +17,7 @@ abstract class Term {
 	}
 }
 
-class Var extends Term {
+export class Var extends Term {
   readonly name: string;
 
   constructor(name: string) {
@@ -32,11 +33,11 @@ class Var extends Term {
     return map[this.name]? ibound(map[this.name].index): ifree(this.name);
   }
 }
-function vr(name: string) {
+export function vr(name: string) {
   return new Var(name);
 }
 
-class Uni extends Term {
+export class Uni extends Term {
   readonly index: number;
 
   constructor(index: number) {
@@ -52,11 +53,11 @@ class Uni extends Term {
     return iuni(this.index);
   }
 }
-function uni(index: number) {
+export function uni(index: number) {
   return new Uni(index);
 }
 
-class Abs extends Term {
+export class Abs extends Term {
   readonly arg: string;
   readonly type: Term;
   readonly term: Term;
@@ -79,11 +80,11 @@ class Abs extends Term {
     return iabs([[this.arg, this.type.toInternal(n)]], this.term.toInternal(n));
   }
 }
-function abs(args: [string, Term][], term: Term) {
+export function abs(args: [string, Term][], term: Term) {
   return args.reduceRight((x, [n, t]) => new Abs(n, t, x), term);
 }
 
-class Pi extends Term {
+export class Pi extends Term {
   readonly arg: string;
   readonly type: Term;
   readonly term: Term;
@@ -106,14 +107,14 @@ class Pi extends Term {
     return ipi([[this.arg, this.type.toInternal(n)]], this.term.toInternal(n));
   }
 }
-function pi(args: [string, Term][], term: Term) {
+export function pi(args: [string, Term][], term: Term) {
   return args.reduceRight((x, [n, t]) => new Pi(n, t, x), term);
 }
-function arr(...ts: Term[]) {
+export function arr(...ts: Term[]) {
   return ts.reduceRight((x, y) => new Pi('_', y, x));
 }
 
-class App extends Term {
+export class App extends Term {
   readonly left: Term;
   readonly right: Term;
 
@@ -131,11 +132,11 @@ class App extends Term {
     return iapp(this.left.toInternal(map), this.right.toInternal(map));
   }
 }
-function app(...ts: Term[]) {
+export function app(...ts: Term[]) {
   return ts.reduce((x, y) => new App(x, y));
 }
 
-class Nat extends Term {
+export class Nat extends Term {
   toString() {
     return `Nat`;
   }
@@ -144,9 +145,9 @@ class Nat extends Term {
     return inat;
   }
 }
-const nat = new Nat();
+export const nat = new Nat();
 
-class Z extends Term {
+export class Z extends Term {
   toString() {
     return `Z`;
   }
@@ -155,9 +156,9 @@ class Z extends Term {
     return iz;
   }
 }
-const z = new Z();
+export const z = new Z();
 
-class S extends Term {
+export class S extends Term {
   readonly term: Term;
 
   constructor(term: Term) {
@@ -173,11 +174,11 @@ class S extends Term {
     return is(this.term.toInternal(map));
   }
 }
-function s(t: Term) {
+export function s(t: Term) {
   return new S(t);
 }
 
-class NatElim extends Term {
+export class NatElim extends Term {
   readonly p: Term;
   readonly pz: Term;
   readonly ps: Term;
@@ -204,7 +205,7 @@ class NatElim extends Term {
     );
   }
 }
-function natElim(p: Term, pz: Term, ps: Term, k: Term) {
+export function natElim(p: Term, pz: Term, ps: Term, k: Term) {
   return new NatElim(p, pz, ps, k);
 }
 
@@ -835,8 +836,23 @@ const ctx = context([
     V('x')
   ), V('y')))),
   cdef('inc', A(V('plus'), s(z))),
+
+  cvar('Str', U(0)),
+  cvar('x', V('Str')),
+
+  cvar('Row', U(1)),
+  cvar('Empty', V('Row')),
+  cvar('Extend', P([['l', V('Str')], ['t', U(0)], ['r', V('Row')]], V('Row'))),
+
+  cvar('Rec', arr(V('Row'), U(0))),
+  cvar('Var', arr(V('Row'), U(0))),
+
+  cvar('select', P([['l', V('Str')], ['t', U(0)], ['r', V('Row')]], arr(A(V('Extend'), V('l'), V('t'), V('r')), V('t')))),
 ]);
 
-const e = A(V('inc'), s(z));
+const script = `
+  \\ n Nat . plus n 1
+`;
+const e = parse(script);
 console.log('' + e);
-console.log('' + e.eval(ctx).map(({ ctx, term, type }) => `${term} : ${type} in ${ctx}`));
+console.log('' + e.eval(ctx).map(({ ctx, term, type }) => `${term} : ${type}\n${ctx}`));

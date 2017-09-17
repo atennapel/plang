@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "index": "npm run build && node build/src/index.js",
-		"test": "npm run build && node build/src/test.js",
+    "test": "npm run build && node build/src/test.js",
+    "parser": "npm run build && node build/src/parser.js",
 		"repl": "node build/src/repl.js",
 		"testfile": "node build/src/repl.js test.eff",
 		"buildrepl": "npm run build && npm run repl",
