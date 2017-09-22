@@ -1,0 +1,8 @@
+LacksEmpty : (l : Str) -> Lacks l <>
+LacksDiff : (l : Str) -> (m : Str) -> (t : *) -> (r : Row) -> strDiff l m -> Lacks l r -> Lacks l < m : t | r >
+
+emptyRecord : Rec <>
+select : (l : Str) -> (t : *) -> (r : Row) -> Rec < l : t | r > -> t
+extend : (l : Str) -> (t : *) -> (r : Row) -> Lacks l r -> Rec r -> Rec < l : t | r >
+
+extend "y" Bool <x : Nat> (LacksDiff "y" "x" 0 (LacksEmpty "y")) $ extend "x" Nat <> (LacksEmpty "x") emptyRecord
