@@ -1,24 +1,15 @@
 {
-  "name": "plang",
+  "name": "bidir",
   "version": "1.0.0",
-  "description": "Unnamed typed programming language",
+  "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/atennapel/plang.git"
+    "build": "tsc",
+    "test": "npm run build && node build/src/index.js"
   },
   "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/atennapel/plang/issues"
-  },
-  "homepage": "https://github.com/atennapel/plang#readme",
-  "dependencies": {
-    "brfs": "^1.4.3",
-    "express": "^4.15.0"
+  "devDependencies": {
+    "typescript": "^2.2.2"
   }
 }

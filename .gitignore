@@ -1,16 +1,2 @@
-bundle.js
-node_modules
+build
 
-rewrite-ts/build
-rewrite-ts2/build
-rewrite-ts3/build
-npm-debug.log
-qualified/build
-new-ts/build
-bidir-ts/build/
-structural/build/
-elm/elm-stuff
-thesis-bidir/build
-dep/build
-thesis/build
-thesis2/build
