@@ -1,5 +1,4 @@
-import { Type } from './types';
-import { Result } from './Result';
+import { Type, TEx, TFun, tfun, TForall, tforall } from './types';
 
 export abstract class ContextElem {
   abstract toString(): string;
@@ -83,26 +82,21 @@ export class Context {
     return this.contains(e => e instanceof CTEx);
   }
 
-  findVar(name: string): Result<Error, Type> {
-    const r = this.find(e => e instanceof CVar && e.name === name? e.type: null);
-    return r === null? Result.err(new TypeError(`var ${name} not found in ${this}`)): Result.ok(r);
+  findVar(name: string): Type | null {
+    return this.find(e => e instanceof CVar && e.name === name? e.type: null);
   }
-  findSolved(name: string): Result<Error, Type> {
-    const r = this.find(e => e instanceof CSolved && e.name === name? e.type: null);
-    return r === null? Result.err(new TypeError(`solved ex ${name} not found in ${this}`)): Result.ok(r);
+  findSolved(name: string): Type | null {
+    return this.find(e => e instanceof CSolved && e.name === name? e.type: null);
   }
 
-  findTVar(name: string): Result<Error, null> {
-    const r = this.find(e => e instanceof CTVar && e.name === name? true: null);
-    return r === null? Result.err(new TypeError(`tvar ${name} not found in ${this}`)): Result.ok(null);
+  findTVar(name: string): true | null {
+    return this.find(e => e instanceof CTVar && e.name === name? true: null);
   }
-  findEx(name: string): Result<Error, null> {
-    const r = this.find(e => e instanceof CTEx && e.name === name? true: null);
-    return r === null? Result.err(new TypeError(`ex ^${name} not found in ${this}`)): Result.ok(null);
+  findEx(name: string): true | null {
+    return this.find(e => e instanceof CTEx && e.name === name? true: null);
   }
-  findMarker(name: string): Result<Error, null> {
-    const r = this.find(e => e instanceof CMarker && e.name === name? true: null);
-    return r === null? Result.err(new TypeError(`marker |>${name} not found in ${this}`)): Result.ok(null);
+  findMarker(name: string): true | null {
+    return this.find(e => e instanceof CMarker && e.name === name? true: null);
   }
 
   append(other: Context): Context {
@@ -120,6 +114,33 @@ export class Context {
   }
 
   isOrdered(a: string, b: string): boolean {
-    
+    const ia = this.findIndex(e => e instanceof CTEx && e.name === a);
+    const ib = this.findIndex(e => e instanceof CTEx && e.name === b);
+    return ia < 0 || ib < 0? false: ia < ib;
+  }
+
+  vars(): string[] {
+    return this.elems.filter(e => e instanceof CVar).map((e: CVar) => e.name);
+  }
+  tvars(): string[] {
+    return this.elems.filter(e => e instanceof CTVar).map((e: CTVar) => e.name);
+  }
+  texs(): string[] {
+    return this.elems.filter(e => e instanceof CTEx || e instanceof CSolved)
+      .map((e: CTEx | CSolved) => e.name);
+  }
+  unsolved(): string[] {
+    return this.elems.filter(e => e instanceof CTEx).map((e: CTEx) => e.name);
+  }
+
+  apply(type: Type): Type {
+    if(type instanceof TEx) {
+      const r = this.find(e =>
+        (e instanceof CTEx || e instanceof CSolved) && e.name === type.name? e: null);
+      return r === null? type: r instanceof CSolved? this.apply(r.type): type; 
+    }
+    if(type instanceof TFun) return tfun(this.apply(type.left), this.apply(type.right));
+    if(type instanceof TForall) return tforall(type.name, this.apply(type.type));
+    return type;
   }
 }
