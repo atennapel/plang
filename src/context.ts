@@ -1,26 +1,53 @@
-import { Type, TEx, TFun, tfun, TForall, tforall } from './types';
+import { Type, TEx, TFun, tfun, TForall, tforall, TApp, tapp } from './types';
+import { Kind } from './kinds';
 
 export abstract class ContextElem {
   abstract toString(): string;
 }
 
-export class CTVar extends ContextElem {
+export class CKCon extends ContextElem {
   constructor(public readonly name: string) { super() }
   
   toString() {
-    return `${this.name}`;
+    return `kind ${this.name}`;
   }
 }
-export const ctvar = (name: string) => new CTVar(name);
+export const ckcon = (name: string) => new CKCon(name);
+export const isCKCon =
+  (name: string) => (e: ContextElem): e is CKCon => e instanceof CKCon && e.name === name;
+
+export class CTCon extends ContextElem {
+  constructor(public readonly name: string, public readonly kind: Kind) { super() }
+  
+  toString() {
+    return `type ${this.name} : ${this.kind}`;
+  }
+}
+export const ctcon = (name: string, kind: Kind) => new CTCon(name, kind);
+export const isCTCon =
+  (name: string) => (e: ContextElem): e is CTCon => e instanceof CTCon && e.name === name;
+
+export class CTVar extends ContextElem {
+  constructor(public readonly name: string, public readonly kind: Kind) { super() }
+  
+  toString() {
+    return `tvar ${this.name} : ${this.kind}`;
+  }
+}
+export const ctvar = (name: string, kind: Kind) => new CTVar(name, kind);
+export const isCTVar =
+  (name: string) => (e: ContextElem): e is CTVar => e instanceof CTVar && e.name === name;
 
 export class CTEx extends ContextElem {
-  constructor(public readonly name: string) { super() }
+  constructor(public readonly name: string, public readonly kind: Kind) { super() }
   
   toString() {
-    return `^${this.name}`;
+    return `^${this.name} : ${this.kind}`;
   }
 }
-export const ctex = (name: string) => new CTEx(name);
+export const ctex = (name: string, kind: Kind) => new CTEx(name, kind);
+export const isCTEx =
+  (name: string) => (e: ContextElem): e is CTEx => e instanceof CTEx && e.name === name;
 
 export class CVar extends ContextElem {
   constructor(public readonly name: string, public readonly type: Type) { super() }
@@ -30,15 +57,17 @@ export class CVar extends ContextElem {
   }
 }
 export const cvar = (name: string, type: Type) => new CVar(name, type);
+export const isCVar =
+  (name: string) => (e: ContextElem): e is CVar => e instanceof CVar && e.name === name;
 
 export class CSolved extends ContextElem {
-  constructor(public readonly name: string, public readonly type: Type) { super() }
+  constructor(public readonly name: string, public readonly kind: Kind, public readonly type: Type) { super() }
   
   toString() {
-    return `^${this.name} = ${this.type}`;
+    return `^${this.name} : ${this.kind} = ${this.type}`;
   }
 }
-export const csolved = (name: string, type: Type) => new CSolved(name, type);
+export const csolved = (name: string, kind: Kind, type: Type) => new CSolved(name, kind, type);
 
 export class CMarker extends ContextElem {
   constructor(public readonly name: string) { super() }
@@ -48,6 +77,8 @@ export class CMarker extends ContextElem {
   }
 }
 export const cmarker = (name: string) => new CMarker(name);
+export const isCMarker =
+  (name: string) => (e: ContextElem): e is CMarker => e instanceof CMarker && e.name === name;
 
 export class Context {
   constructor(public readonly elems: ContextElem[]) {}
@@ -79,7 +110,7 @@ export class Context {
   }
 
   isComplete(): boolean {
-    return this.contains(e => e instanceof CTEx);
+    return !this.contains(e => e instanceof CTEx);
   }
 
   findVar(name: string): Type | null {
@@ -89,16 +120,29 @@ export class Context {
     return this.find(e => e instanceof CSolved && e.name === name? e.type: null);
   }
 
-  findTVar(name: string): true | null {
-    return this.find(e => e instanceof CTVar && e.name === name? true: null);
+  findTCon(name: string): Kind | null {
+    return this.find(e => e instanceof CTCon && e.name === name? e.kind: null);
   }
-  findEx(name: string): true | null {
-    return this.find(e => e instanceof CTEx && e.name === name? true: null);
+  findTVar(name: string): Kind | null {
+    return this.find(e => e instanceof CTVar && e.name === name? e.kind: null);
+  }
+  findEx(name: string): Kind | null {
+    return this.find(e => e instanceof CTEx && e.name === name? e.kind: null);
+  }
+  findKCon(name: string): true | null {
+    return this.find(e => e instanceof CKCon && e.name === name? true: null);
   }
   findMarker(name: string): true | null {
     return this.find(e => e instanceof CMarker && e.name === name? true: null);
   }
 
+  findExOrSolved(name: string): Kind | null {
+    return this.findEx(name) || this.find(e => e instanceof CSolved && e.name === name? e.kind: null);
+  }
+
+  add(...es: ContextElem[]): Context {
+    return new Context(this.elems.concat(es));
+  }
   append(other: Context): Context {
     return new Context(this.elems.concat(other.elems));
   }
@@ -119,6 +163,12 @@ export class Context {
     return ia < 0 || ib < 0? false: ia < ib;
   }
 
+  kcons(): string[] {
+    return this.elems.filter(e => e instanceof CKCon).map((e: CKCon) => e.name);
+  }
+  tcons(): string[] {
+    return this.elems.filter(e => e instanceof CTCon).map((e: CTCon) => e.name);
+  }
   vars(): string[] {
     return this.elems.filter(e => e instanceof CVar).map((e: CVar) => e.name);
   }
@@ -129,8 +179,8 @@ export class Context {
     return this.elems.filter(e => e instanceof CTEx || e instanceof CSolved)
       .map((e: CTEx | CSolved) => e.name);
   }
-  unsolved(): string[] {
-    return this.elems.filter(e => e instanceof CTEx).map((e: CTEx) => e.name);
+  unsolved(): [string, Kind][] {
+    return this.elems.filter(e => e instanceof CTEx).map((e: CTEx) => [e.name, e.kind] as [string, Kind]);
   }
 
   apply(type: Type): Type {
@@ -140,7 +190,8 @@ export class Context {
       return r === null? type: r instanceof CSolved? this.apply(r.type): type; 
     }
     if(type instanceof TFun) return tfun(this.apply(type.left), this.apply(type.right));
-    if(type instanceof TForall) return tforall(type.name, this.apply(type.type));
+    if(type instanceof TApp) return tapp(this.apply(type.left), this.apply(type.right));
+    if(type instanceof TForall) return tforall(type.name, type.kind, this.apply(type.type));
     return type;
   }
 }

@@ -1,3 +1,5 @@
+import * as readline from 'readline';
+
 import {
   tvar,
   tex,
@@ -70,30 +72,25 @@ const ctx = initialContext.add(
   cvar('singleton', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a'))))),
 );
 
-const s = `
-  s (s (s z))
-`;
-const e = parse(s);
-console.log(''+e);
-const i = infer(ctx, e);
-if(isErr(i)) console.log(''+i.err);
-else if(isOk(i)) {
-  const val = i.val;
-  console.log(''+val.ty);
-  //console.log(''+val.ctx);
-}
-const c = compile(e, lib)
-console.log(c);
-try {
-  const e = eval(c);
-  console.log(e);
-} catch(e) {
-  console.log(''+e);
-}
+const rl = readline.createInterface(process.stdin, process.stdout);
 
-/**
- * TODO:
- *  simple parser
- *  tfun as a type constructor
- *  ADT
- */
+console.log('REPL');
+process.stdin.setEncoding('utf8');
+function input() {
+  rl.question('> ', function(i: string) {
+    try {
+      const p = parse(i);
+      const tr = infer(ctx, p);
+      if(isErr(tr)) throw tr.err;
+      else if(isOk(tr)) {
+        const c = compile(p, lib);
+        const res = eval(c);
+        console.log(`${res} : ${tr.val.ty}`);
+      }
+    } catch(e) {
+      console.log(''+e);
+    }
+    setTimeout(input, 0);
+  });
+};
+input();
