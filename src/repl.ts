@@ -72,6 +72,13 @@ const ctx = initialContext.add(
   cvar('singleton', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a'))))),
 );
 
+function show(x: any): string {
+  if(x === null) return `()`;
+  if(Array.isArray(x)) return `(${show(x[0])}, ${show(x[1])})`;
+  if(typeof x === 'function') return `[Function]`;
+  return `${x}`;
+}
+
 const rl = readline.createInterface(process.stdin, process.stdout);
 
 console.log('REPL');
@@ -85,7 +92,7 @@ function input() {
       else if(isOk(tr)) {
         const c = compile(p, lib);
         const res = eval(c);
-        console.log(`${res} : ${tr.val.ty}`);
+        console.log(`${show(res)} : ${tr.val.ty}`);
       }
     } catch(e) {
       console.log(''+e);
