@@ -7,8 +7,9 @@
     "build": "tsc",
     "test": "node build/src/index.js",
     "buildtest": "npm run build && npm run test",
-    "repl": "node build/src/repl.js",
-    "buildrepl": "npm run build && npm run repl"
+    "repl": "node build/src/cli.js",
+    "buildrepl": "npm run build && npm run repl",
+    "bundle": "npm run build && browserify build/src/web.js -o web/bundle.js"
   },
   "author": "",
   "license": "ISC",

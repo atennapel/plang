@@ -1,5 +1,3 @@
-import * as readline from 'readline';
-
 import {
   tvar,
   tex,
@@ -79,25 +77,17 @@ function show(x: any): string {
   return `${x}`;
 }
 
-const rl = readline.createInterface(process.stdin, process.stdout);
-
-console.log('REPL');
-process.stdin.setEncoding('utf8');
-function input() {
-  rl.question('> ', function(i: string) {
-    try {
-      const p = parse(i);
-      const tr = infer(ctx, p);
-      if(isErr(tr)) throw tr.err;
-      else if(isOk(tr)) {
-        const c = compile(p, lib);
-        const res = eval(c);
-        console.log(`${show(res)} : ${tr.val.ty}`);
-      }
-    } catch(e) {
-      console.log(''+e);
+export default function run(i: string, cb: (output: string, err?: boolean) => void): void {
+  try {
+    const p = parse(i);
+    const tr = infer(ctx, p);
+    if(isErr(tr)) throw tr.err;
+    else if(isOk(tr)) {
+      const c = compile(p, lib);
+      const res = eval(c);
+      cb(`${show(res)} : ${tr.val.ty}`);
     }
-    setTimeout(input, 0);
-  });
-};
-input();
+  } catch(e) {
+    cb(''+e, true);
+  }
+}
