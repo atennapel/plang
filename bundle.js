@@ -821,7 +821,7 @@ function checkKindType(kind) {
     return exports.ktype.equals(kind) ? ok(null) : err(`kind is not ${exports.ktype}: ${kind}`);
 }
 function kindWF(ctx, kind) {
-    // console.log(`kindWF ${kind} in ${ctx}`);
+    //console.log(`kindWF ${kind} in ${ctx}`);
     if (kind instanceof kinds_1.KCon)
         return findKCon(ctx, kind.name);
     if (kind instanceof kinds_1.KFun)
@@ -829,7 +829,7 @@ function kindWF(ctx, kind) {
     return util_1.impossible();
 }
 function typeWF(ctx, ty) {
-    // console.log(`typeWF ${ty} in ${ctx}`);
+    //console.log(`typeWF ${ty} in ${ctx}`);
     if (ty instanceof types_1.TCon)
         return findTCon(ctx, ty.name).then(k => kindWF(ctx, k).map(() => k));
     if (ty instanceof types_1.TVar)
@@ -855,7 +855,7 @@ function typeWF(ctx, ty) {
     return util_1.impossible();
 }
 function contextWF(ctx) {
-    // console.log(`contextWF ${ctx}`);
+    //console.log(`contextWF ${ctx}`);
     const a = ctx.elems;
     const l = a.length;
     for (let i = 0; i < l; i++) {
@@ -903,7 +903,7 @@ function contextWF(ctx) {
 }
 // subtype
 function subtype(ctx, a, b) {
-    // console.log(`subtype ${a} and ${b} in ${ctx}`);
+    console.log(`subtype ${a} and ${b} in ${ctx}`);
     const wf = typeWF(ctx, a).then(k1 => typeWF(ctx, b).then(k2 => ok({ k1, k2 })));
     if (Result_1.isErr(wf))
         return new Result_1.Err(wf.err);
@@ -943,7 +943,7 @@ function subtype(ctx, a, b) {
 }
 // inst
 function solve(ctx, name, ty) {
-    // console.log(`solve ${name} and ${ty} in ${ctx}`);
+    console.log(`solve ${name} and ${ty} in ${ctx}`);
     if (ty.isMono()) {
         const s = ctx.split(context_1.isCTEx(name));
         return typeWF(s.left, ty)
@@ -953,7 +953,7 @@ function solve(ctx, name, ty) {
         return err(`polymorphic type in solve: ${name} := ${ty} in ${ctx}`);
 }
 function instL(ctx, a, b) {
-    // console.log(`instL ${a} and ${b} in ${ctx}`);
+    console.log(`instL ${a} and ${b} in ${ctx}`);
     if (b instanceof types_1.TEx && ctx.isOrdered(a, b.name))
         return solve(ctx, b.name, types_1.tex(a));
     if (b instanceof types_1.TEx && ctx.isOrdered(b.name, a))
@@ -985,7 +985,7 @@ function instL(ctx, a, b) {
     return err(`instL failed: ${a} and ${b} in ${ctx}`);
 }
 function instR(ctx, a, b) {
-    // console.log(`instR ${a} and ${b} in ${ctx}`);
+    console.log(`instR ${a} and ${b} in ${ctx}`);
     if (a instanceof types_1.TEx && ctx.isOrdered(b, a.name))
         return solve(ctx, a.name, types_1.tex(b));
     if (a instanceof types_1.TEx && ctx.isOrdered(a.name, b))
@@ -1018,7 +1018,7 @@ function instR(ctx, a, b) {
 }
 // synth/check
 function synth(ctx, e) {
-    //console.log(`synth ${e} in ${ctx}`);
+    console.log(`synth ${e} in ${ctx}`);
     const r = contextWF(ctx);
     if (Result_1.isErr(r))
         return new Result_1.Err(r.err);
@@ -1081,7 +1081,7 @@ function synth(ctx, e) {
     return err(`cannot synth ${e} in ${ctx}`);
 }
 function checkTy(ctx, e, ty) {
-    // console.log(`checkTy ${e} and ${ty} in ${ctx}`);
+    console.log(`checkTy ${e} and ${ty} in ${ctx}`);
     const r = contextWF(ctx);
     if (Result_1.isErr(r))
         return new Result_1.Err(r.err);
@@ -1099,7 +1099,7 @@ function checkTy(ctx, e, ty) {
         .then(({ ctx: ctx_, ty: ty_ }) => subtype(ctx_, ctx_.apply(ty_), ctx_.apply(ty)));
 }
 function synthapp(ctx, ty, e) {
-    // console.log(`synthapp ${ty} and ${e} in ${ctx}`);
+    console.log(`synthapp ${ty} and ${e} in ${ctx}`);
     const r = contextWF(ctx);
     if (Result_1.isErr(r))
         return new Result_1.Err(r.err);
@@ -1113,7 +1113,7 @@ function synthapp(ctx, ty, e) {
             const texs = ctx.texs();
             const a1 = fresh(texs, ty.name);
             const a2 = fresh(texs.concat([a1]), ty.name);
-            return checkTy(ctx.add(context_1.ctex(a2, exports.ktype), context_1.ctex(a1, exports.ktype), context_1.csolved(ty.name, exports.ktype, types_1.tfun(types_1.tex(a1), types_1.tex(a2)))), e, types_1.tex(a1))
+            return checkTy(ctx.replace(context_1.isCTEx(ty.name), new context_1.Context([context_1.ctex(a2, exports.ktype), context_1.ctex(a1, exports.ktype), context_1.csolved(ty.name, exports.ktype, types_1.tfun(types_1.tex(a1), types_1.tex(a2)))])), e, types_1.tex(a1))
                 .then(ctx_ => ok({ ctx: ctx_, ty: types_1.tex(a2) }));
         });
     if (ty instanceof types_1.TFun)
