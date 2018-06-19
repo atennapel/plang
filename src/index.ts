@@ -99,4 +99,5 @@ try {
  *  ADT (data/codata)
  *  positivity check
  *  functor/foldable/cata generation
+ *  pretty printer
  */

@@ -42,6 +42,9 @@ const lib = {
   nil: `[]`,
   cons: `(h => t => [h].concat(t))`,
   singleton: `(x => [x])`,
+  inl: `(v => ({ _tag: 'inl', _val: v }))`,
+  inr: `(v => ({ _tag: 'inr', _val: v }))`,
+  case: `(fa => fb => x => x._tag === 'inl'? fa(x._val): fb(x._val))`,
 };
 
 const ctx = initialContext.add(
@@ -64,6 +67,11 @@ const ctx = initialContext.add(
   cvar('fst', tforalls([['a', ktype], ['b', ktype]], tfuns(tapps(tcon('Pair'), tvar('a'), tvar('b')), tvar('a')))),
   cvar('snd', tforalls([['a', ktype], ['b', ktype]], tfuns(tapps(tcon('Pair'), tvar('a'), tvar('b')), tvar('b')))),
 
+  ctcon('Sum', kfuns(ktype, ktype, ktype)),
+  cvar('inl', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('a'), tapps(tcon('Sum'), tvar('a'), tvar('b'))))),
+  cvar('inr', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('b'), tapps(tcon('Sum'), tvar('a'), tvar('b'))))),
+  cvar('case', tforalls([['a', ktype], ['b', ktype], ['c', ktype]], tfuns(tfuns(tvar('a'), tvar('c')), tfuns(tvar('b'), tvar('c')), tapps(tcon('Sum'), tvar('a'), tvar('b')), tvar('c')))),
+
   ctcon('List', kfuns(ktype, ktype)),
   cvar('nil', tforalls([['a', ktype]], tapps(tcon('List'), tvar('a')))),
   cvar('cons', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a')), tapps(tcon('List'), tvar('a'))))),
@@ -74,6 +82,8 @@ function show(x: any): string {
   if(x === null) return `()`;
   if(Array.isArray(x)) return `(${show(x[0])}, ${show(x[1])})`;
   if(typeof x === 'function') return `[Function]`;
+  if(x._tag === 'inl') return `Inl ${show(x._val)}`;
+  if(x._tag === 'inr') return `Inr ${show(x._val)}`;
   return `${x}`;
 }
 

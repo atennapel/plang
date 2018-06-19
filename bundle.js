@@ -708,8 +708,11 @@ const lib = {
     nil: `[]`,
     cons: `(h => t => [h].concat(t))`,
     singleton: `(x => [x])`,
+    inl: `(v => ({ _tag: 'inl', _val: v }))`,
+    inr: `(v => ({ _tag: 'inr', _val: v }))`,
+    case: `(fa => fb => x => x._tag === 'inl'? fa(x._val): fb(x._val))`,
 };
-const ctx = typechecker_1.initialContext.add(context_1.ctcon('Unit', typechecker_1.ktype), context_1.ctcon('Void', typechecker_1.ktype), context_1.cvar('unit', types_1.tcon('Unit')), context_1.cvar('void', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Void'), types_1.tvar('t')))), context_1.ctcon('Nat', typechecker_1.ktype), context_1.cvar('z', types_1.tcon('Nat')), context_1.cvar('s', types_1.tfuns(types_1.tcon('Nat'), types_1.tcon('Nat'))), context_1.ctcon('Bool', typechecker_1.ktype), context_1.cvar('true', types_1.tcon('Bool')), context_1.cvar('false', types_1.tcon('Bool')), context_1.cvar('if', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Bool'), types_1.tvar('t'), types_1.tvar('t'), types_1.tvar('t')))), context_1.ctcon('Pair', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('pair', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tvar('b'), types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('fst', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('a')))), context_1.cvar('snd', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('b')))), context_1.ctcon('List', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('nil', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tapps(types_1.tcon('List'), types_1.tvar('a')))), context_1.cvar('cons', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('List'), types_1.tvar('a')), types_1.tapps(types_1.tcon('List'), types_1.tvar('a'))))), context_1.cvar('singleton', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('List'), types_1.tvar('a'))))));
+const ctx = typechecker_1.initialContext.add(context_1.ctcon('Unit', typechecker_1.ktype), context_1.ctcon('Void', typechecker_1.ktype), context_1.cvar('unit', types_1.tcon('Unit')), context_1.cvar('void', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Void'), types_1.tvar('t')))), context_1.ctcon('Nat', typechecker_1.ktype), context_1.cvar('z', types_1.tcon('Nat')), context_1.cvar('s', types_1.tfuns(types_1.tcon('Nat'), types_1.tcon('Nat'))), context_1.ctcon('Bool', typechecker_1.ktype), context_1.cvar('true', types_1.tcon('Bool')), context_1.cvar('false', types_1.tcon('Bool')), context_1.cvar('if', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Bool'), types_1.tvar('t'), types_1.tvar('t'), types_1.tvar('t')))), context_1.ctcon('Pair', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('pair', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tvar('b'), types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('fst', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('a')))), context_1.cvar('snd', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('b')))), context_1.ctcon('Sum', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('inl', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('inr', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('b'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('case', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype], ['c', typechecker_1.ktype]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('c')), types_1.tfuns(types_1.tvar('b'), types_1.tvar('c')), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('c')))), context_1.ctcon('List', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('nil', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tapps(types_1.tcon('List'), types_1.tvar('a')))), context_1.cvar('cons', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('List'), types_1.tvar('a')), types_1.tapps(types_1.tcon('List'), types_1.tvar('a'))))), context_1.cvar('singleton', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('List'), types_1.tvar('a'))))));
 function show(x) {
     if (x === null)
         return `()`;
@@ -717,6 +720,10 @@ function show(x) {
         return `(${show(x[0])}, ${show(x[1])})`;
     if (typeof x === 'function')
         return `[Function]`;
+    if (x._tag === 'inl')
+        return `Inl ${show(x._val)}`;
+    if (x._tag === 'inr')
+        return `Inr ${show(x._val)}`;
     return `${x}`;
 }
 function run(i, cb) {
@@ -1342,10 +1349,7 @@ input.onkeydown = function (keyEvent) {
     var txt = (val || '').trim();
     if (keyEvent.keyCode === 13) {
         keyEvent.preventDefault();
-        if (keyEvent.ctrlKey) {
-            input.value += '\n';
-        }
-        else if (txt) {
+        if (txt) {
             hist.push(val);
             index = hist.length;
             input.value = '';
@@ -1356,11 +1360,11 @@ input.onkeydown = function (keyEvent) {
             getOutput(txt, addResult);
         }
     }
-    else if (keyEvent.keyCode === 38 && keyEvent.ctrlKey && index > 0) {
+    else if (keyEvent.keyCode === 38 && index > 0) {
         keyEvent.preventDefault();
         input.value = hist[--index];
     }
-    else if (keyEvent.keyCode === 40 && keyEvent.ctrlKey && index < hist.length - 1) {
+    else if (keyEvent.keyCode === 40 && index < hist.length - 1) {
         keyEvent.preventDefault();
         input.value = hist[++index];
     }

@@ -20,9 +20,7 @@ input.onkeydown = function(keyEvent: any) {
 	var txt = (val || '').trim();
 	if(keyEvent.keyCode === 13) {
 		keyEvent.preventDefault();
-		if(keyEvent.ctrlKey) {	
-			input.value += '\n';
-		} else if(txt) {
+		if(txt) {
 			hist.push(val);
 			index = hist.length;
 			input.value = '';
@@ -32,10 +30,10 @@ input.onkeydown = function(keyEvent: any) {
 			content.insertBefore(div, input);
 			getOutput(txt, addResult);
 		}
-	} else if(keyEvent.keyCode === 38 && keyEvent.ctrlKey && index > 0) {
+	} else if(keyEvent.keyCode === 38 && index > 0) {
 		keyEvent.preventDefault();
 		input.value = hist[--index];
-	} else if(keyEvent.keyCode === 40 && keyEvent.ctrlKey && index < hist.length-1) {
+	} else if(keyEvent.keyCode === 40 && index < hist.length-1) {
 		keyEvent.preventDefault();
 		input.value = hist[++index];
 	} else if(keyEvent.keyCode === 40 && keyEvent.ctrlKey && index >= hist.length-1) {
