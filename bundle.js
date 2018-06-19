@@ -57,7 +57,7 @@ function compile(expr) {
 }
 exports.default = compile;
 
-},{"./exprs":4,"./util":10}],3:[function(require,module,exports){
+},{"./exprs":4,"./util":11}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -265,7 +265,7 @@ class Context {
 }
 exports.Context = Context;
 
-},{"./types":9}],4:[function(require,module,exports){
+},{"./types":10}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Expr {
@@ -696,7 +696,75 @@ function kind(x) {
     return kinds(x.val);
 }
 
-},{"./exprs":4,"./kinds":5,"./typechecker":8,"./types":9}],7:[function(require,module,exports){
+},{"./exprs":4,"./kinds":5,"./typechecker":9,"./types":10}],7:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const kinds_1 = require("./kinds");
+const types_1 = require("./types");
+const util_1 = require("./util");
+const typechecker_1 = require("./typechecker");
+const RARROW = ' \u2192 ';
+const FORALL = '\u2200';
+// Kinds
+function flattenKFun(f) {
+    const r = [];
+    let c = f;
+    while (c instanceof kinds_1.KFun) {
+        r.push(c.left);
+        c = c.right;
+    }
+    r.push(c);
+    return r;
+}
+function ppKind(k) {
+    if (k instanceof kinds_1.KCon)
+        return `${k.name}`;
+    if (k instanceof kinds_1.KFun)
+        return flattenKFun(k).map(k => k instanceof kinds_1.KFun ? `(${ppKind(k)})` : ppKind(k)).join(`${RARROW}`);
+    return util_1.impossible();
+}
+exports.ppKind = ppKind;
+// Types
+function flattenTFun(f) {
+    const r = [];
+    let c = f;
+    while (c instanceof types_1.TFun) {
+        r.push(c.left);
+        c = c.right;
+    }
+    r.push(c);
+    return r;
+}
+function flattenTForall(f) {
+    const r = [];
+    let c = f;
+    while (c instanceof types_1.TForall) {
+        r.push([c.name, c.kind]);
+        c = c.type;
+    }
+    return { args: r, ty: c };
+}
+function ppType(t) {
+    if (t instanceof types_1.TCon)
+        return `${t.name}`;
+    if (t instanceof types_1.TVar)
+        return `${t.name}`;
+    if (t instanceof types_1.TEx)
+        return `^${t.name}`;
+    if (t instanceof types_1.TApp)
+        return `(${ppType(t.left)} ${ppType(t.right)})`;
+    if (t instanceof types_1.TFun)
+        return flattenTFun(t).map(t => t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t)).join(`${RARROW}`);
+    if (t instanceof types_1.TForall) {
+        const f = flattenTForall(t);
+        const args = f.args.map(([x, k]) => k.equals(typechecker_1.ktype) ? x : `(${x} : ${ppKind(k)})`);
+        return `${FORALL}${args.join(' ')}. ${ppType(f.ty)}`;
+    }
+    return util_1.impossible();
+}
+exports.ppType = ppType;
+
+},{"./kinds":5,"./typechecker":9,"./types":10,"./util":11}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -706,6 +774,7 @@ const context_1 = require("./context");
 const kinds_1 = require("./kinds");
 const Result_1 = require("./Result");
 const parser_1 = require("./parser");
+const prettyprinter_1 = require("./prettyprinter");
 exports.context = typechecker_1.initialContext.add(context_1.ctcon('Unit', typechecker_1.ktype), context_1.ctcon('Void', typechecker_1.ktype), context_1.cvar('unit', types_1.tcon('Unit')), context_1.cvar('impossible', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Void'), types_1.tvar('t')))), context_1.ctcon('Nat', typechecker_1.ktype), context_1.cvar('Z', types_1.tcon('Nat')), context_1.cvar('S', types_1.tfuns(types_1.tcon('Nat'), types_1.tcon('Nat'))), context_1.cvar('rec', types_1.tforalls([['r', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('r'), types_1.tfuns(types_1.tvar('r'), types_1.tcon('Nat'), types_1.tvar('r')), types_1.tcon('Nat'), types_1.tvar('r')))), context_1.ctcon('Bool', typechecker_1.ktype), context_1.cvar('true', types_1.tcon('Bool')), context_1.cvar('false', types_1.tcon('Bool')), context_1.cvar('iff', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Bool'), types_1.tvar('t'), types_1.tvar('t'), types_1.tvar('t')))), context_1.ctcon('Pair', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('pair', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tvar('b'), types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('fst', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('a')))), context_1.cvar('snd', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('b')))), context_1.ctcon('Sum', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('inl', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('inr', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('b'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('match', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype], ['c', typechecker_1.ktype]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('c')), types_1.tfuns(types_1.tvar('b'), types_1.tvar('c')), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('c')))), context_1.ctcon('List', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('nil', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tapps(types_1.tcon('List'), types_1.tvar('a')))), context_1.cvar('cons', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('List'), types_1.tvar('a')), types_1.tapps(types_1.tcon('List'), types_1.tvar('a'))))), context_1.cvar('fold', types_1.tforalls([['t', typechecker_1.ktype], ['r', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('r'), types_1.tfuns(types_1.tvar('r'), types_1.tvar('t'), types_1.tvar('r')), types_1.tapps(types_1.tcon('List'), types_1.tvar('t')), types_1.tvar('r')))));
 function show(x) {
     if (x === null)
@@ -754,7 +823,7 @@ function run(i, cb) {
                 console.log(c);
                 const res = eval(`(typeof global === 'undefined'? window: global)['${name}'] = ${c}`);
                 ctx = ctx.add(context_1.cvar(name, tr.val.ty));
-                cb(`${name} : ${tr.val.ty} = ${show(res)}`);
+                cb(`${name} : ${prettyprinter_1.ppType(tr.val.ty)} = ${show(res)}`);
             }
         }
         catch (e) {
@@ -773,7 +842,7 @@ function run(i, cb) {
                 const c = compilerJS_1.default(p);
                 console.log(c);
                 const res = eval(c);
-                cb(`${show(res)} : ${tr.val.ty}`);
+                cb(`${show(res)} : ${prettyprinter_1.ppType(tr.val.ty)}`);
             }
         }
         catch (e) {
@@ -783,7 +852,7 @@ function run(i, cb) {
 }
 exports.default = run;
 
-},{"./Result":1,"./compilerJS":2,"./context":3,"./kinds":5,"./parser":6,"./typechecker":8,"./types":9}],8:[function(require,module,exports){
+},{"./Result":1,"./compilerJS":2,"./context":3,"./kinds":5,"./parser":6,"./prettyprinter":7,"./typechecker":9,"./types":10}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const Result_1 = require("./Result");
@@ -1185,7 +1254,7 @@ function infer(ctx, e) {
 }
 exports.infer = infer;
 
-},{"./Result":1,"./context":3,"./exprs":4,"./kinds":5,"./types":9,"./util":10}],9:[function(require,module,exports){
+},{"./Result":1,"./context":3,"./exprs":4,"./kinds":5,"./types":10,"./util":11}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Type {
@@ -1358,14 +1427,14 @@ exports.TForall = TForall;
 exports.tforall = (name, kind, type) => new TForall(name, kind, type);
 exports.tforalls = (ns, type) => ns.reduceRight((a, b) => exports.tforall(b[0], b[1], a), type);
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function err(msg) { throw new Error(msg); }
 exports.err = err;
 exports.impossible = () => err('impossible');
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -1424,4 +1493,4 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":7}]},{},[11]);
+},{"./repl":8}]},{},[12]);

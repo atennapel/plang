@@ -27,6 +27,7 @@ import {
 } from './kinds';
 import { isErr, isOk } from './Result';
 import { parse } from './parser';
+import { ppType } from './prettyprinter';
 
 export const context = initialContext.add(
   ctcon('Unit', ktype),
@@ -96,7 +97,7 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
         console.log(c);
         const res = eval(`(typeof global === 'undefined'? window: global)['${name}'] = ${c}`);
         ctx = ctx.add(cvar(name, tr.val.ty));
-        cb(`${name} : ${tr.val.ty} = ${show(res)}`);
+        cb(`${name} : ${ppType(tr.val.ty)} = ${show(res)}`);
       }
     } catch(e) {
       cb(''+e, true);
@@ -111,7 +112,7 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
         const c = compile(p);
         console.log(c);
         const res = eval(c);
-        cb(`${show(res)} : ${tr.val.ty}`);
+        cb(`${show(res)} : ${ppType(tr.val.ty)}`);
       }
     } catch(e) {
       cb(''+e, true);

@@ -27,6 +27,7 @@ import {
 } from './kinds';
 import { isErr, isOk } from './Result';
 import { parse } from './parser';
+import { ppKind, ppType } from './prettyprinter';
 
 const lib = {
   unit: `null`,
@@ -75,6 +76,10 @@ const ctx = initialContext.add(
   
 );
 
+console.log(ppType(tforalls([['t', ktype], ['r', ktype]],
+  tfuns(tvar('r'), tfuns(tvar('r'), tvar('t'), tvar('r')), tapps(tcon('List'), tvar('t')), tforalls([['x', kfuns(ktype, ktype)]], tvar('r')), tvar('r')))));
+
+/*
 const s = `
   \\v -> inr v
 `;
@@ -95,10 +100,12 @@ try {
 } catch(e) {
   console.log(''+e);
 }
+*/
 
 /**
  * TODO:
- *  pretty printer
+ *  pretty printer tapp
+ *  pretty print context
  *  repl: duplicate lets
  *  row polymorphism
  *  parser: f \x -> x
@@ -108,4 +115,5 @@ try {
  *  ADT (data/codata)
  *  positivity check
  *  functor/foldable/cata generation
+ *  pretty printer expr
  */
