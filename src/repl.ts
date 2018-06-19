@@ -28,7 +28,7 @@ import {
 import { isErr, isOk } from './Result';
 import { parse } from './parser';
 
-const lib = {
+export const lib = {
   unit: `null`,
   void: `(() => { throw new Error('void') })`,
   z: `0`,
@@ -36,9 +36,9 @@ const lib = {
   true: `true`,
   false: `false`,
   if: `(c => a => b => c ? a : b)`,
-  pair: `(a => b => [a, b])`,
-  fst: `(p => p[0])`,
-  snd: `(p => p[1])`,
+  pair: `(a => b => ({_tag: 'pair', _fst:a, _snd:b}))`,
+  fst: `(p => p._fst)`,
+  snd: `(p => p._snd)`,
   nil: `[]`,
   cons: `(h => t => [h].concat(t))`,
   singleton: `(x => [x])`,
@@ -47,7 +47,7 @@ const lib = {
   case: `(fa => fb => x => x._tag === 'inl'? fa(x._val): fb(x._val))`,
 };
 
-const ctx = initialContext.add(
+export const context = initialContext.add(
   ctcon('Unit', ktype),
   ctcon('Void', ktype),
   cvar('unit', tcon('Unit')),
@@ -80,24 +80,55 @@ const ctx = initialContext.add(
 
 function show(x: any): string {
   if(x === null) return `()`;
-  if(Array.isArray(x)) return `(${show(x[0])}, ${show(x[1])})`;
+  if(Array.isArray(x)) return `[${x.map(show).join(', ')}]`;
   if(typeof x === 'function') return `[Function]`;
   if(x._tag === 'inl') return `Inl ${show(x._val)}`;
   if(x._tag === 'inr') return `Inr ${show(x._val)}`;
+  if(x._tag === 'pair') return `(${show(x._fst)}, ${x._snd})`;
   return `${x}`;
 }
 
+let ctx = context;
 export default function run(i: string, cb: (output: string, err?: boolean) => void): void {
-  try {
-    const p = parse(i);
-    const tr = infer(ctx, p);
-    if(isErr(tr)) throw tr.err;
-    else if(isOk(tr)) {
-      const c = compile(p, lib);
-      const res = eval(c);
-      cb(`${show(res)} : ${tr.val.ty}`);
+  const cmd = i.trim().toLowerCase();
+  if(cmd === ':help') {
+    cb('commands :help :context :let');
+  } else if(cmd === ':context') {
+    cb(ctx.elems.join('\n'));
+  } else if(cmd.slice(0, 4) === ':let') {
+    const rest = i.slice(4).trim();
+    const j = rest.indexOf('=');
+    if(j < 0) return cb('= not found', true);
+    const spl = rest.split('=');
+    const name = spl[0].trim();
+    if(name.length === 0 || !/[a-z][a-zA-Z0-9]*/.test(name)) return cb('invalid name', true);
+    const expr = spl[1].trim();
+    if(expr.length === 0) return cb('invalid expression', true);
+    try {
+      const p = parse(expr);
+      const tr = infer(ctx, p);
+      if(isErr(tr)) throw tr.err;
+      else if(isOk(tr)) {
+        const c = compile(p, lib);
+        const res = eval(`(typeof global === 'undefined'? window: global)['${name}'] = ${c}`);
+        ctx = ctx.add(cvar(name, tr.val.ty));
+        cb(`${name} : ${tr.val.ty} = ${show(res)}`);
+      }
+    } catch(e) {
+      cb(''+e, true);
+    };
+  } else {
+    try {
+      const p = parse(i);
+      const tr = infer(ctx, p);
+      if(isErr(tr)) throw tr.err;
+      else if(isOk(tr)) {
+        const c = compile(p, lib);
+        const res = eval(c);
+        cb(`${show(res)} : ${tr.val.ty}`);
+      }
+    } catch(e) {
+      cb(''+e, true);
     }
-  } catch(e) {
-    cb(''+e, true);
   }
 }

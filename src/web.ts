@@ -13,7 +13,7 @@ function onresize() {
 }
 window.addEventListener('resize', onresize);
 onresize();
-addResult("REPL");
+addResult("REPL (try :help)");
 input.focus();
 input.onkeydown = function(keyEvent: any) {
 	var val = input.value;
@@ -43,7 +43,7 @@ input.onkeydown = function(keyEvent: any) {
 }
 
 function addResult(msg: string, err?: boolean) {
-	var divout = document.createElement('div');
+	var divout = document.createElement('pre');
 	divout.className = 'line output';
 	if(err) divout.className += ' error';
 	divout.innerHTML = '' + msg;
