@@ -64,16 +64,14 @@ const ctx = initialContext.add(
   cvar('pair', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('a'), tvar('b'), tapps(tcon('Pair'), tvar('a'), tvar('b'))))),
   cvar('fst', tforalls([['a', ktype], ['b', ktype]], tfuns(tapps(tcon('Pair'), tvar('a'), tvar('b')), tvar('a')))),
   cvar('snd', tforalls([['a', ktype], ['b', ktype]], tfuns(tapps(tcon('Pair'), tvar('a'), tvar('b')), tvar('b')))),
-
+*/
   ctcon('List', kfuns(ktype, ktype)),
   cvar('nil', tforalls([['a', ktype]], tapps(tcon('List'), tvar('a')))),
   cvar('cons', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a')), tapps(tcon('List'), tvar('a'))))),
-  cvar('singleton', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a'))))),
-  */
 );
 
 const s = `
-  \\f x -> f x
+  (\\x -> x) nil
 `;
 const e = parse(s);
 console.log(''+e);
@@ -100,4 +98,7 @@ try {
  *  positivity check
  *  functor/foldable/cata generation
  *  pretty printer
+ *  REPL library fix
+ *  repl: duplicate lets
+ *  row polymorphism
  */

@@ -1059,7 +1059,7 @@ function instR(ctx, a, b) {
     if (Result_1.isOk(r))
         return r;
     if (a instanceof types_1.TApp) {
-        return typeWF(ctx, a).then((kf) => {
+        return typeWF(ctx, a.left).then((kf) => {
             const texs = ctx.texs();
             const b1 = fresh(texs, b);
             const b2 = fresh(texs.concat([b1]), b);

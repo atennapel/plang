@@ -290,7 +290,7 @@ function instR(ctx: Context, a: Type, b: string): IResult<Context> {
   const r = solve(ctx, b, a);
   if(isOk(r)) return r;
   if(a instanceof TApp) {
-    return typeWF(ctx, a).then((kf: KFun) => {
+    return typeWF(ctx, a.left).then((kf: KFun) => {
       const texs = ctx.texs();
       const b1 = fresh(texs, b);
       const b2 = fresh(texs.concat([b1]), b);
