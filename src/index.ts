@@ -45,6 +45,7 @@ const lib = {
 };
 
 const ctx = initialContext.add(
+  /*
   ctcon('Unit', ktype),
   ctcon('Void', ktype),
   cvar('unit', tcon('Unit')),
@@ -68,10 +69,11 @@ const ctx = initialContext.add(
   cvar('nil', tforalls([['a', ktype]], tapps(tcon('List'), tvar('a')))),
   cvar('cons', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a')), tapps(tcon('List'), tvar('a'))))),
   cvar('singleton', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a'))))),
+  */
 );
 
 const s = `
-  s (s (s z))
+  \\f x -> f x
 `;
 const e = parse(s);
 console.log(''+e);
@@ -93,7 +95,8 @@ try {
 
 /**
  * TODO:
- *  simple parser
  *  tfun as a type constructor
- *  ADT
+ *  ADT (data/codata)
+ *  positivity check
+ *  functor/foldable/cata generation
  */

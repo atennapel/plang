@@ -138,7 +138,7 @@ function checkKindType(kind: Kind): IResult<null> {
 }
 
 function kindWF(ctx: Context, kind: Kind): IResult<null> {
-  // console.log(`kindWF ${kind} in ${ctx}`);
+  //console.log(`kindWF ${kind} in ${ctx}`);
   if(kind instanceof KCon) return findKCon(ctx, kind.name);
   if(kind instanceof KFun)
     return kindWF(ctx, kind.left).then(() => kindWF(ctx, kind.right));
@@ -146,7 +146,7 @@ function kindWF(ctx: Context, kind: Kind): IResult<null> {
 }
 
 function typeWF(ctx: Context, ty: Type): IResult<Kind> {
-  // console.log(`typeWF ${ty} in ${ctx}`);
+  //console.log(`typeWF ${ty} in ${ctx}`);
   if(ty instanceof TCon) return findTCon(ctx, ty.name).then(k => kindWF(ctx, k).map(() => k));
   if(ty instanceof TVar) return findTVar(ctx, ty.name).then(k => kindWF(ctx, k).map(() => k));
   if(ty instanceof TEx) return findExOrSolved(ctx, ty.name).then(k => kindWF(ctx, k).map(() => k));
@@ -169,7 +169,7 @@ function typeWF(ctx: Context, ty: Type): IResult<Kind> {
 }
 
 function contextWF(ctx: Context): IResult<null> {
-  // console.log(`contextWF ${ctx}`);
+  //console.log(`contextWF ${ctx}`);
   const a = ctx.elems;
   const l = a.length;
   for(let i = 0; i < l; i++) {
@@ -205,7 +205,7 @@ function contextWF(ctx: Context): IResult<null> {
 
 // subtype
 function subtype(ctx: Context, a: Type, b: Type): IResult<Context> {
-  // console.log(`subtype ${a} and ${b} in ${ctx}`);
+  console.log(`subtype ${a} and ${b} in ${ctx}`);
   const wf = typeWF(ctx, a).then(k1 => typeWF(ctx, b).then(k2 => ok({k1, k2})));
   if(isErr(wf)) return new Err(wf.err);
   const wfok = wf as Ok<TypeError, { k1: Kind, k2: Kind }>;
@@ -245,7 +245,7 @@ function subtype(ctx: Context, a: Type, b: Type): IResult<Context> {
 
 // inst
 function solve(ctx: Context, name: string, ty: Type): IResult<Context> {
-  // console.log(`solve ${name} and ${ty} in ${ctx}`);
+  console.log(`solve ${name} and ${ty} in ${ctx}`);
   if(ty.isMono()) {
     const s = ctx.split(isCTEx(name));
     return typeWF(s.left, ty)
@@ -254,7 +254,7 @@ function solve(ctx: Context, name: string, ty: Type): IResult<Context> {
 }
 
 function instL(ctx: Context, a: string, b: Type): IResult<Context> {
-  // console.log(`instL ${a} and ${b} in ${ctx}`);
+  console.log(`instL ${a} and ${b} in ${ctx}`);
   if(b instanceof TEx && ctx.isOrdered(a, b.name)) return solve(ctx, b.name, tex(a));
   if(b instanceof TEx && ctx.isOrdered(b.name, a)) return solve(ctx, a, b);
   const r = solve(ctx, a, b);
@@ -284,7 +284,7 @@ function instL(ctx: Context, a: string, b: Type): IResult<Context> {
 }
 
 function instR(ctx: Context, a: Type, b: string): IResult<Context> {
-  // console.log(`instR ${a} and ${b} in ${ctx}`);
+  console.log(`instR ${a} and ${b} in ${ctx}`);
   if(a instanceof TEx && ctx.isOrdered(b, a.name)) return solve(ctx, a.name, tex(b));
   if(a instanceof TEx && ctx.isOrdered(a.name, b)) return solve(ctx, b, a);
   const r = solve(ctx, b, a);
@@ -315,7 +315,7 @@ function instR(ctx: Context, a: Type, b: string): IResult<Context> {
 
 // synth/check
 function synth(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }> {
-  //console.log(`synth ${e} in ${ctx}`);
+  console.log(`synth ${e} in ${ctx}`);
   const r = contextWF(ctx);
   if(isErr(r)) return new Err(r.err);
   if(e instanceof EVar) return findVar(ctx, e.name).then(ty => ok({ ctx, ty }));
@@ -377,7 +377,7 @@ function synth(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }> {
 }
 
 function checkTy(ctx: Context, e: Expr, ty: Type): IResult<Context> {
-  // console.log(`checkTy ${e} and ${ty} in ${ctx}`);
+  console.log(`checkTy ${e} and ${ty} in ${ctx}`);
   const r = contextWF(ctx);
   if(isErr(r)) return new Err(r.err);
   if(ty instanceof TForall) {
@@ -395,7 +395,7 @@ function checkTy(ctx: Context, e: Expr, ty: Type): IResult<Context> {
 }
 
 function synthapp(ctx: Context, ty: Type, e: Expr): IResult<{ ctx: Context, ty: Type }> {
-  // console.log(`synthapp ${ty} and ${e} in ${ctx}`);
+  console.log(`synthapp ${ty} and ${e} in ${ctx}`);
   const r = contextWF(ctx);
   if(isErr(r)) return new Err(r.err);
   if(ty instanceof TForall) {
@@ -408,7 +408,11 @@ function synthapp(ctx: Context, ty: Type, e: Expr): IResult<{ ctx: Context, ty: 
         const texs = ctx.texs();
         const a1 = fresh(texs, ty.name);
         const a2 = fresh(texs.concat([a1]), ty.name);
-        return checkTy(ctx.add(ctex(a2, ktype), ctex(a1, ktype), csolved(ty.name, ktype, tfun(tex(a1), tex(a2)))), e, tex(a1))
+        return checkTy(ctx.replace(
+            isCTEx(ty.name),
+            new Context([ctex(a2, ktype), ctex(a1, ktype), csolved(ty.name, ktype, tfun(tex(a1), tex(a2)))])),
+            e, tex(a1)
+          )
           .then(ctx_ => ok({ ctx: ctx_, ty: tex(a2) }));
       });
   if(ty instanceof TFun)
