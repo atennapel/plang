@@ -29,7 +29,7 @@ function tokenize(s: string): Ret[] {
   for(let i = 0; i <= s.length; i++) {
     const c = s[i] || ' ';
     if(state === START) {
-      if(/[a-z]/i.test(c)) t += c, state = NAME;
+      if(/[a-z0-9]/i.test(c)) t += c, state = NAME;
       else if(c === '-' && s[i+1] === '>') r.push(token('->')), i++;
       else if(c === '/' && s[i+1] === '\\') r.push(token('/\\')), i++;
       else if(c === '@') r.push(token('@'));
@@ -156,7 +156,17 @@ function exprs(x: Ret[]): Expr {
 }
 
 function expr(x: Ret): Expr {
-  return x.tag === 'token'? evar(x.val): exprs(x.val);
+  if(x.tag === 'token') {
+    const n = +x.val;
+    if(!isNaN(n) && n >= 0) {
+      let t: Expr = evar('z');
+      for(let i = 0; i < n; i++) {
+        t = eapp(evar('s'), t);
+      }
+      return t;
+    } else return evar(x.val);
+  }
+  return exprs(x.val as any);
 }
 
 function types(x: Ret[]): Type {

@@ -33,6 +33,7 @@ export const lib = {
   void: `(() => { throw new Error('void') })`,
   z: `0`,
   s: `(val => val + 1)`,
+  rec: `(fz => fs => n => (function rec(fz, fs, n) { return n === 0? fz: fs(rec(fz, fs, n - 1))(n - 1) })(fz,fs,n))`,
   true: `true`,
   false: `false`,
   if: `(c => a => b => c ? a : b)`,
@@ -41,10 +42,10 @@ export const lib = {
   snd: `(p => p._snd)`,
   nil: `[]`,
   cons: `(h => t => [h].concat(t))`,
-  singleton: `(x => [x])`,
   inl: `(v => ({ _tag: 'inl', _val: v }))`,
   inr: `(v => ({ _tag: 'inr', _val: v }))`,
   case: `(fa => fb => x => x._tag === 'inl'? fa(x._val): fb(x._val))`,
+  fold: `(fnil => fcons => l => l.reduceRight((a, b) => fcons(a)(b), fnil))`,
 };
 
 export const context = initialContext.add(
@@ -56,6 +57,7 @@ export const context = initialContext.add(
   ctcon('Nat', ktype),
   cvar('z', tcon('Nat')),
   cvar('s', tfuns(tcon('Nat'), tcon('Nat'))),
+  cvar('rec', tforalls([['r', ktype]], tfuns(tvar('r'), tfuns(tvar('r'), tcon('Nat'), tvar('r')), tcon('Nat'), tvar('r')))),
 
   ctcon('Bool', ktype),
   cvar('true', tcon('Bool')),
@@ -75,7 +77,7 @@ export const context = initialContext.add(
   ctcon('List', kfuns(ktype, ktype)),
   cvar('nil', tforalls([['a', ktype]], tapps(tcon('List'), tvar('a')))),
   cvar('cons', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a')), tapps(tcon('List'), tvar('a'))))),
-  cvar('singleton', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a'))))),
+  cvar('fold', tforalls([['t', ktype], ['r', ktype]], tfuns(tvar('r'), tfuns(tvar('r'), tvar('t'), tvar('r')), tapps(tcon('List'), tvar('t')), tvar('r')))),
 );
 
 function show(x: any): string {
@@ -106,10 +108,12 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
     if(expr.length === 0) return cb('invalid expression', true);
     try {
       const p = parse(expr);
+      console.log(''+p);
       const tr = infer(ctx, p);
       if(isErr(tr)) throw tr.err;
       else if(isOk(tr)) {
         const c = compile(p, lib);
+        console.log(c);
         const res = eval(`(typeof global === 'undefined'? window: global)['${name}'] = ${c}`);
         ctx = ctx.add(cvar(name, tr.val.ty));
         cb(`${name} : ${tr.val.ty} = ${show(res)}`);
@@ -120,10 +124,12 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
   } else {
     try {
       const p = parse(i);
+      console.log(''+p);
       const tr = infer(ctx, p);
       if(isErr(tr)) throw tr.err;
       else if(isOk(tr)) {
         const c = compile(p, lib);
+        console.log(c);
         const res = eval(c);
         cb(`${show(res)} : ${tr.val.ty}`);
       }
