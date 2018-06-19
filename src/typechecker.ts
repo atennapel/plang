@@ -294,7 +294,7 @@ function instR(ctx: Context, a: Type, b: string): IResult<Context> {
       const texs = ctx.texs();
       const b1 = fresh(texs, b);
       const b2 = fresh(texs.concat([b1]), b);
-      return instR(ctx.replace(isCTEx(b), new Context([ctex(b2, kf.right), ctex(b1, kf), csolved(b, kf.right, tapp(tex(b1), tex(b2)))])), a.left, b1)
+      return instR(ctx.replace(isCTEx(b), new Context([ctex(b2, kf.left), ctex(b1, kf), csolved(b, kf.right, tapp(tex(b1), tex(b2)))])), a.left, b1)
         .then(ctx_ => instR(ctx_, ctx_.apply(a.right), b2));
     });
   }

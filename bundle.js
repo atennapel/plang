@@ -1063,7 +1063,7 @@ function instR(ctx, a, b) {
             const texs = ctx.texs();
             const b1 = fresh(texs, b);
             const b2 = fresh(texs.concat([b1]), b);
-            return instR(ctx.replace(context_1.isCTEx(b), new context_1.Context([context_1.ctex(b2, kf.right), context_1.ctex(b1, kf), context_1.csolved(b, kf.right, types_1.tapp(types_1.tex(b1), types_1.tex(b2)))])), a.left, b1)
+            return instR(ctx.replace(context_1.isCTEx(b), new context_1.Context([context_1.ctex(b2, kf.left), context_1.ctex(b1, kf), context_1.csolved(b, kf.right, types_1.tapp(types_1.tex(b1), types_1.tex(b2)))])), a.left, b1)
                 .then(ctx_ => instR(ctx_, ctx_.apply(a.right), b2));
         });
     }

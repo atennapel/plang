@@ -64,14 +64,19 @@ const ctx = initialContext.add(
   cvar('pair', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('a'), tvar('b'), tapps(tcon('Pair'), tvar('a'), tvar('b'))))),
   cvar('fst', tforalls([['a', ktype], ['b', ktype]], tfuns(tapps(tcon('Pair'), tvar('a'), tvar('b')), tvar('a')))),
   cvar('snd', tforalls([['a', ktype], ['b', ktype]], tfuns(tapps(tcon('Pair'), tvar('a'), tvar('b')), tvar('b')))),
-*/
+
   ctcon('List', kfuns(ktype, ktype)),
   cvar('nil', tforalls([['a', ktype]], tapps(tcon('List'), tvar('a')))),
   cvar('cons', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a')), tapps(tcon('List'), tvar('a'))))),
+  */
+  ctcon('Sum', kfuns(ktype, ktype, ktype)),
+  cvar('inl', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('a'), tapps(tcon('Sum'), tvar('a'), tvar('b'))))),
+  cvar('inr', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('b'), tapps(tcon('Sum'), tvar('a'), tvar('b'))))),
+  
 );
 
 const s = `
-  (\\x -> x) nil
+  \\v -> inr v
 `;
 const e = parse(s);
 console.log(''+e);
@@ -101,4 +106,7 @@ try {
  *  REPL library fix
  *  repl: duplicate lets
  *  row polymorphism
+ *  parser: f \x -> x
+ *  repl: let with arguments
+ *  parser: $
  */
