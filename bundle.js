@@ -40,19 +40,19 @@ exports.isErr = isErr;
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
 const exprs_1 = require("./exprs");
-function compile(expr, lib = {}) {
+function compile(expr) {
     if (expr instanceof exprs_1.EVar)
-        return lib[expr.name] || `${expr.name}`;
+        return `${expr.name}`;
     if (expr instanceof exprs_1.EApp)
-        return `${compile(expr.left, lib)}(${compile(expr.right, lib)})`;
+        return `${compile(expr.left)}(${compile(expr.right)})`;
     if (expr instanceof exprs_1.EAbs)
-        return `(${expr.name} => ${compile(expr.expr, lib)})`;
+        return `(${expr.name} => ${compile(expr.expr)})`;
     if (expr instanceof exprs_1.EAnno)
-        return compile(expr.expr, lib);
+        return compile(expr.expr);
     if (expr instanceof exprs_1.ETApp)
-        return compile(expr.expr, lib);
+        return compile(expr.expr);
     if (expr instanceof exprs_1.ETAbs)
-        return compile(expr.expr, lib);
+        return compile(expr.expr);
     return util_1.impossible();
 }
 exports.default = compile;
@@ -622,9 +622,9 @@ function expr(x) {
     if (x.tag === 'token') {
         const n = +x.val;
         if (!isNaN(n) && n >= 0) {
-            let t = exprs_1.evar('z');
+            let t = exprs_1.evar('Z');
             for (let i = 0; i < n; i++) {
-                t = exprs_1.eapp(exprs_1.evar('s'), t);
+                t = exprs_1.eapp(exprs_1.evar('S'), t);
             }
             return t;
         }
@@ -706,26 +706,7 @@ const context_1 = require("./context");
 const kinds_1 = require("./kinds");
 const Result_1 = require("./Result");
 const parser_1 = require("./parser");
-exports.lib = {
-    unit: `null`,
-    void: `(() => { throw new Error('void') })`,
-    z: `0`,
-    s: `(val => val + 1)`,
-    rec: `(fz => fs => n => (function rec(fz, fs, n) { return n === 0? fz: fs(rec(fz, fs, n - 1))(n - 1) })(fz,fs,n))`,
-    true: `true`,
-    false: `false`,
-    if: `(c => a => b => c ? a : b)`,
-    pair: `(a => b => ({_tag: 'pair', _fst:a, _snd:b}))`,
-    fst: `(p => p._fst)`,
-    snd: `(p => p._snd)`,
-    nil: `[]`,
-    cons: `(h => t => [h].concat(t))`,
-    inl: `(v => ({ _tag: 'inl', _val: v }))`,
-    inr: `(v => ({ _tag: 'inr', _val: v }))`,
-    case: `(fa => fb => x => x._tag === 'inl'? fa(x._val): fb(x._val))`,
-    fold: `(fnil => fcons => l => l.reduceRight((a, b) => fcons(a)(b), fnil))`,
-};
-exports.context = typechecker_1.initialContext.add(context_1.ctcon('Unit', typechecker_1.ktype), context_1.ctcon('Void', typechecker_1.ktype), context_1.cvar('unit', types_1.tcon('Unit')), context_1.cvar('void', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Void'), types_1.tvar('t')))), context_1.ctcon('Nat', typechecker_1.ktype), context_1.cvar('z', types_1.tcon('Nat')), context_1.cvar('s', types_1.tfuns(types_1.tcon('Nat'), types_1.tcon('Nat'))), context_1.cvar('rec', types_1.tforalls([['r', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('r'), types_1.tfuns(types_1.tvar('r'), types_1.tcon('Nat'), types_1.tvar('r')), types_1.tcon('Nat'), types_1.tvar('r')))), context_1.ctcon('Bool', typechecker_1.ktype), context_1.cvar('true', types_1.tcon('Bool')), context_1.cvar('false', types_1.tcon('Bool')), context_1.cvar('if', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Bool'), types_1.tvar('t'), types_1.tvar('t'), types_1.tvar('t')))), context_1.ctcon('Pair', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('pair', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tvar('b'), types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('fst', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('a')))), context_1.cvar('snd', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('b')))), context_1.ctcon('Sum', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('inl', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('inr', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('b'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('case', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype], ['c', typechecker_1.ktype]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('c')), types_1.tfuns(types_1.tvar('b'), types_1.tvar('c')), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('c')))), context_1.ctcon('List', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('nil', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tapps(types_1.tcon('List'), types_1.tvar('a')))), context_1.cvar('cons', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('List'), types_1.tvar('a')), types_1.tapps(types_1.tcon('List'), types_1.tvar('a'))))), context_1.cvar('fold', types_1.tforalls([['t', typechecker_1.ktype], ['r', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('r'), types_1.tfuns(types_1.tvar('r'), types_1.tvar('t'), types_1.tvar('r')), types_1.tapps(types_1.tcon('List'), types_1.tvar('t')), types_1.tvar('r')))));
+exports.context = typechecker_1.initialContext.add(context_1.ctcon('Unit', typechecker_1.ktype), context_1.ctcon('Void', typechecker_1.ktype), context_1.cvar('unit', types_1.tcon('Unit')), context_1.cvar('impossible', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Void'), types_1.tvar('t')))), context_1.ctcon('Nat', typechecker_1.ktype), context_1.cvar('Z', types_1.tcon('Nat')), context_1.cvar('S', types_1.tfuns(types_1.tcon('Nat'), types_1.tcon('Nat'))), context_1.cvar('rec', types_1.tforalls([['r', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('r'), types_1.tfuns(types_1.tvar('r'), types_1.tcon('Nat'), types_1.tvar('r')), types_1.tcon('Nat'), types_1.tvar('r')))), context_1.ctcon('Bool', typechecker_1.ktype), context_1.cvar('true', types_1.tcon('Bool')), context_1.cvar('false', types_1.tcon('Bool')), context_1.cvar('iff', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Bool'), types_1.tvar('t'), types_1.tvar('t'), types_1.tvar('t')))), context_1.ctcon('Pair', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('pair', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tvar('b'), types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('fst', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('a')))), context_1.cvar('snd', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('b')))), context_1.ctcon('Sum', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('inl', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('inr', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('b'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('match', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype], ['c', typechecker_1.ktype]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('c')), types_1.tfuns(types_1.tvar('b'), types_1.tvar('c')), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('c')))), context_1.ctcon('List', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('nil', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tapps(types_1.tcon('List'), types_1.tvar('a')))), context_1.cvar('cons', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('List'), types_1.tvar('a')), types_1.tapps(types_1.tcon('List'), types_1.tvar('a'))))), context_1.cvar('fold', types_1.tforalls([['t', typechecker_1.ktype], ['r', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('r'), types_1.tfuns(types_1.tvar('r'), types_1.tvar('t'), types_1.tvar('r')), types_1.tapps(types_1.tcon('List'), types_1.tvar('t')), types_1.tvar('r')))));
 function show(x) {
     if (x === null)
         return `()`;
@@ -769,7 +750,7 @@ function run(i, cb) {
             if (Result_1.isErr(tr))
                 throw tr.err;
             else if (Result_1.isOk(tr)) {
-                const c = compilerJS_1.default(p, exports.lib);
+                const c = compilerJS_1.default(p);
                 console.log(c);
                 const res = eval(`(typeof global === 'undefined'? window: global)['${name}'] = ${c}`);
                 ctx = ctx.add(context_1.cvar(name, tr.val.ty));
@@ -789,7 +770,7 @@ function run(i, cb) {
             if (Result_1.isErr(tr))
                 throw tr.err;
             else if (Result_1.isOk(tr)) {
-                const c = compilerJS_1.default(p, exports.lib);
+                const c = compilerJS_1.default(p);
                 console.log(c);
                 const res = eval(c);
                 cb(`${show(res)} : ${tr.val.ty}`);

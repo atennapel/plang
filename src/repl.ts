@@ -28,41 +28,21 @@ import {
 import { isErr, isOk } from './Result';
 import { parse } from './parser';
 
-export const lib = {
-  unit: `null`,
-  void: `(() => { throw new Error('void') })`,
-  z: `0`,
-  s: `(val => val + 1)`,
-  rec: `(fz => fs => n => (function rec(fz, fs, n) { return n === 0? fz: fs(rec(fz, fs, n - 1))(n - 1) })(fz,fs,n))`,
-  true: `true`,
-  false: `false`,
-  if: `(c => a => b => c ? a : b)`,
-  pair: `(a => b => ({_tag: 'pair', _fst:a, _snd:b}))`,
-  fst: `(p => p._fst)`,
-  snd: `(p => p._snd)`,
-  nil: `[]`,
-  cons: `(h => t => [h].concat(t))`,
-  inl: `(v => ({ _tag: 'inl', _val: v }))`,
-  inr: `(v => ({ _tag: 'inr', _val: v }))`,
-  case: `(fa => fb => x => x._tag === 'inl'? fa(x._val): fb(x._val))`,
-  fold: `(fnil => fcons => l => l.reduceRight((a, b) => fcons(a)(b), fnil))`,
-};
-
 export const context = initialContext.add(
   ctcon('Unit', ktype),
   ctcon('Void', ktype),
   cvar('unit', tcon('Unit')),
-  cvar('void', tforalls([['t', ktype]], tfuns(tcon('Void'), tvar('t')))),
+  cvar('impossible', tforalls([['t', ktype]], tfuns(tcon('Void'), tvar('t')))),
   
   ctcon('Nat', ktype),
-  cvar('z', tcon('Nat')),
-  cvar('s', tfuns(tcon('Nat'), tcon('Nat'))),
+  cvar('Z', tcon('Nat')),
+  cvar('S', tfuns(tcon('Nat'), tcon('Nat'))),
   cvar('rec', tforalls([['r', ktype]], tfuns(tvar('r'), tfuns(tvar('r'), tcon('Nat'), tvar('r')), tcon('Nat'), tvar('r')))),
 
   ctcon('Bool', ktype),
   cvar('true', tcon('Bool')),
   cvar('false', tcon('Bool')),
-  cvar('if', tforalls([['t', ktype]], tfuns(tcon('Bool'), tvar('t'), tvar('t'), tvar('t')))),
+  cvar('iff', tforalls([['t', ktype]], tfuns(tcon('Bool'), tvar('t'), tvar('t'), tvar('t')))),
 
   ctcon('Pair', kfuns(ktype, ktype, ktype)),
   cvar('pair', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('a'), tvar('b'), tapps(tcon('Pair'), tvar('a'), tvar('b'))))),
@@ -72,7 +52,7 @@ export const context = initialContext.add(
   ctcon('Sum', kfuns(ktype, ktype, ktype)),
   cvar('inl', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('a'), tapps(tcon('Sum'), tvar('a'), tvar('b'))))),
   cvar('inr', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('b'), tapps(tcon('Sum'), tvar('a'), tvar('b'))))),
-  cvar('case', tforalls([['a', ktype], ['b', ktype], ['c', ktype]], tfuns(tfuns(tvar('a'), tvar('c')), tfuns(tvar('b'), tvar('c')), tapps(tcon('Sum'), tvar('a'), tvar('b')), tvar('c')))),
+  cvar('match', tforalls([['a', ktype], ['b', ktype], ['c', ktype]], tfuns(tfuns(tvar('a'), tvar('c')), tfuns(tvar('b'), tvar('c')), tapps(tcon('Sum'), tvar('a'), tvar('b')), tvar('c')))),
 
   ctcon('List', kfuns(ktype, ktype)),
   cvar('nil', tforalls([['a', ktype]], tapps(tcon('List'), tvar('a')))),
@@ -112,7 +92,7 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
       const tr = infer(ctx, p);
       if(isErr(tr)) throw tr.err;
       else if(isOk(tr)) {
-        const c = compile(p, lib);
+        const c = compile(p);
         console.log(c);
         const res = eval(`(typeof global === 'undefined'? window: global)['${name}'] = ${c}`);
         ctx = ctx.add(cvar(name, tr.val.ty));
@@ -128,7 +108,7 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
       const tr = infer(ctx, p);
       if(isErr(tr)) throw tr.err;
       else if(isOk(tr)) {
-        const c = compile(p, lib);
+        const c = compile(p);
         console.log(c);
         const res = eval(c);
         cb(`${show(res)} : ${tr.val.ty}`);

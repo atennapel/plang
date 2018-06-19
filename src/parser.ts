@@ -159,9 +159,9 @@ function expr(x: Ret): Expr {
   if(x.tag === 'token') {
     const n = +x.val;
     if(!isNaN(n) && n >= 0) {
-      let t: Expr = evar('z');
+      let t: Expr = evar('Z');
       for(let i = 0; i < n; i++) {
-        t = eapp(evar('s'), t);
+        t = eapp(evar('S'), t);
       }
       return t;
     } else return evar(x.val);

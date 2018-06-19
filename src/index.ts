@@ -87,7 +87,7 @@ else if(isOk(i)) {
   console.log(''+val.ty);
   //console.log(''+val.ctx);
 }
-const c = compile(e, lib)
+const c = compile(e)
 console.log(c);
 try {
   const e = eval(c);
@@ -98,15 +98,14 @@ try {
 
 /**
  * TODO:
- *  tfun as a type constructor
- *  ADT (data/codata)
- *  positivity check
- *  functor/foldable/cata generation
  *  pretty printer
- *  REPL library fix
  *  repl: duplicate lets
  *  row polymorphism
  *  parser: f \x -> x
  *  repl: let with arguments
  *  parser: $
+ *  tfun as a type constructor
+ *  ADT (data/codata)
+ *  positivity check
+ *  functor/foldable/cata generation
  */
