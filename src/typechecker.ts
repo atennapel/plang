@@ -458,7 +458,7 @@ export function infer(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }
     }));
 }
 
-function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
+export function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
   if(d instanceof DValue) {
     return (d.type?
       checkTy(ctx, d.val, d.type).map(ctx => ({ ctx, ty: d.type as Type })):

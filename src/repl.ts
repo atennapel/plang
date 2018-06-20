@@ -15,7 +15,7 @@ import {
   etabss,
 } from './exprs';
 import { compile, compileProgram } from './compilerJS';
-import { infer, ktype, initialContext } from './typechecker';
+import { infer, ktype, initialContext, inferDefinition } from './typechecker';
 import {
   Context,
   ctcon,
@@ -26,8 +26,12 @@ import {
   kfuns,
 } from './kinds';
 import { isErr, isOk } from './Result';
-import { parse } from './parser';
+import { parse, parseDefinition } from './parser';
 import { ppType, ppContextElem } from './prettyprinter';
+import {
+  DData,
+  DValue,
+} from './definitions';
 
 export const context = initialContext.add(
   ctcon('Unit', ktype),
@@ -79,31 +83,27 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
     cb('commands :help :context :let');
   } else if(cmd === ':context') {
     cb(ctx.elems.map(ppContextElem).join('\n'));
-  } else if(cmd.slice(0, 4) === ':let') {
+  } else if(cmd.slice(0, 4) === ':def') {
     const rest = i.slice(4).trim();
-    const j = rest.indexOf('=');
-    if(j < 0) return cb('= not found', true);
-    const spl = rest.split('=');
-    const name = spl[0].trim();
-    if(name.length === 0 || !/[a-z][a-zA-Z0-9]*/.test(name)) return cb('invalid name', true);
-    if(ctx.vars().indexOf(name) >= 0) return cb(`${name} is already defined`, true);
-    const expr = spl[1].trim();
-    if(expr.length === 0) return cb('invalid expression', true);
     try {
-      const p = parse(expr);
-      console.log(''+p);
-      const tr = infer(ctx, p);
-      if(isErr(tr)) throw tr.err;
-      else if(isOk(tr)) {
-        const c = compile(p);
-        console.log(c);
-        const res = eval(`(typeof global === 'undefined'? window: global)['${name}'] = ${c}`);
-        ctx = ctx.add(cvar(name, tr.val.ty));
-        cb(`${name} : ${ppType(tr.val.ty)} = ${show(res)}`);
+      const d = parseDefinition(rest);
+      const t = inferDefinition(ctx, d);
+      if(isErr(t)) throw t.err;
+      else if(isOk(t)) {
+        ctx = t.val;
+        if(d instanceof DValue) {
+          const c = compile(d.val);
+          console.log(c);
+          const res = eval(`(typeof global === 'undefined'? window: global)['${d.name}'] = ${c}`);
+          cb(`${d.name} : ${ppType(ctx.apply(ctx.findVar(d.name) as any))} = ${show(res)}`);
+        } else if(d instanceof DData) {
+          d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = makeConstr('${n}', ${ts.length})`));
+          cb(`defined ${d.name}`);
+        } else return cb('unknown definition', true);
       }
-    } catch(e) {
-      cb(''+e, true);
-    };
+    } catch(err) {
+      return cb(''+err, true);
+    }
   } else {
     try {
       const p = parse(i);

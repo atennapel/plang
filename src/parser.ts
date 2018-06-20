@@ -261,7 +261,7 @@ function parseConstr(s: Ret[]): [string, Type[]] {
   return [name, s.slice(1).map(type)];
 }
 
-function parseDefinition(s: string): Definition {
+export function parseDefinition(s: string): Definition {
   if(s.startsWith('data ')) {
     const ts = tokenize(s.slice(5));
     if(ts.length === 0) throw new SyntaxError('data name missing');

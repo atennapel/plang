@@ -832,6 +832,7 @@ function parseDefinition(s) {
         return new definitions_1.DValue(name, parse(rest));
     }
 }
+exports.parseDefinition = parseDefinition;
 function parseProgram(s) {
     return s.split(';').filter(x => x.trim().length > 0).map(x => parseDefinition(x.trim()));
 }
@@ -960,6 +961,7 @@ const kinds_1 = require("./kinds");
 const Result_1 = require("./Result");
 const parser_1 = require("./parser");
 const prettyprinter_1 = require("./prettyprinter");
+const definitions_1 = require("./definitions");
 exports.context = typechecker_1.initialContext.add(context_1.ctcon('Unit', typechecker_1.ktype), context_1.ctcon('Void', typechecker_1.ktype), context_1.cvar('unit', types_1.tcon('Unit')), context_1.cvar('impossible', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Void'), types_1.tvar('t')))), context_1.ctcon('Nat', typechecker_1.ktype), context_1.cvar('Z', types_1.tcon('Nat')), context_1.cvar('S', types_1.tfuns(types_1.tcon('Nat'), types_1.tcon('Nat'))), context_1.cvar('rec', types_1.tforalls([['r', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('r'), types_1.tfuns(types_1.tvar('r'), types_1.tcon('Nat'), types_1.tvar('r')), types_1.tcon('Nat'), types_1.tvar('r')))), context_1.ctcon('Bool', typechecker_1.ktype), context_1.cvar('true', types_1.tcon('Bool')), context_1.cvar('false', types_1.tcon('Bool')), context_1.cvar('iff', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Bool'), types_1.tvar('t'), types_1.tvar('t'), types_1.tvar('t')))), context_1.ctcon('Pair', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('pair', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tvar('b'), types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('fst', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('a')))), context_1.cvar('snd', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('b')))), context_1.ctcon('Sum', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('inl', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('inr', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('b'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('match', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype], ['c', typechecker_1.ktype]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('c')), types_1.tfuns(types_1.tvar('b'), types_1.tvar('c')), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('c')))), context_1.ctcon('List', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('nil', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tapps(types_1.tcon('List'), types_1.tvar('a')))), context_1.cvar('cons', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('List'), types_1.tvar('a')), types_1.tapps(types_1.tcon('List'), types_1.tvar('a'))))), context_1.cvar('fold', types_1.tforalls([['t', typechecker_1.ktype], ['r', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('r'), types_1.tfuns(types_1.tvar('r'), types_1.tvar('t'), types_1.tvar('r')), types_1.tapps(types_1.tcon('List'), types_1.tvar('t')), types_1.tvar('r')))));
 function show(x) {
     if (x === null)
@@ -987,38 +989,32 @@ function run(i, cb) {
     else if (cmd === ':context') {
         cb(ctx.elems.map(prettyprinter_1.ppContextElem).join('\n'));
     }
-    else if (cmd.slice(0, 4) === ':let') {
+    else if (cmd.slice(0, 4) === ':def') {
         const rest = i.slice(4).trim();
-        const j = rest.indexOf('=');
-        if (j < 0)
-            return cb('= not found', true);
-        const spl = rest.split('=');
-        const name = spl[0].trim();
-        if (name.length === 0 || !/[a-z][a-zA-Z0-9]*/.test(name))
-            return cb('invalid name', true);
-        if (ctx.vars().indexOf(name) >= 0)
-            return cb(`${name} is already defined`, true);
-        const expr = spl[1].trim();
-        if (expr.length === 0)
-            return cb('invalid expression', true);
         try {
-            const p = parser_1.parse(expr);
-            console.log('' + p);
-            const tr = typechecker_1.infer(ctx, p);
-            if (Result_1.isErr(tr))
-                throw tr.err;
-            else if (Result_1.isOk(tr)) {
-                const c = compilerJS_1.compile(p);
-                console.log(c);
-                const res = eval(`(typeof global === 'undefined'? window: global)['${name}'] = ${c}`);
-                ctx = ctx.add(context_1.cvar(name, tr.val.ty));
-                cb(`${name} : ${prettyprinter_1.ppType(tr.val.ty)} = ${show(res)}`);
+            const d = parser_1.parseDefinition(rest);
+            const t = typechecker_1.inferDefinition(ctx, d);
+            if (Result_1.isErr(t))
+                throw t.err;
+            else if (Result_1.isOk(t)) {
+                ctx = t.val;
+                if (d instanceof definitions_1.DValue) {
+                    const c = compilerJS_1.compile(d.val);
+                    console.log(c);
+                    const res = eval(`(typeof global === 'undefined'? window: global)['${d.name}'] = ${c}`);
+                    cb(`${d.name} : ${prettyprinter_1.ppType(ctx.apply(ctx.findVar(d.name)))} = ${show(res)}`);
+                }
+                else if (d instanceof definitions_1.DData) {
+                    d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = makeConstr('${n}', ${ts.length})`));
+                    cb(`defined ${d.name}`);
+                }
+                else
+                    return cb('unknown definition', true);
             }
         }
-        catch (e) {
-            cb('' + e, true);
+        catch (err) {
+            return cb('' + err, true);
         }
-        ;
     }
     else {
         try {
@@ -1041,7 +1037,7 @@ function run(i, cb) {
 }
 exports.default = run;
 
-},{"./Result":1,"./compilerJS":2,"./context":3,"./kinds":6,"./parser":7,"./prettyprinter":8,"./typechecker":10,"./types":11}],10:[function(require,module,exports){
+},{"./Result":1,"./compilerJS":2,"./context":3,"./definitions":4,"./kinds":6,"./parser":7,"./prettyprinter":8,"./typechecker":10,"./types":11}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const Result_1 = require("./Result");
@@ -1488,6 +1484,7 @@ function inferDefinition(ctx, d) {
     }
     return util_1.impossible();
 }
+exports.inferDefinition = inferDefinition;
 function inferProgram(ctx, ds) {
     let c = ctx;
     for (let i = 0; i < ds.length; i++) {
