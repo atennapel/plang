@@ -16,6 +16,7 @@ import {
   TApp,
   tapp,
   tforall,
+  tfuns,
 } from './types';
 import {
   Context,
@@ -57,6 +58,11 @@ import {
   kcon,
   kfun,
 } from './kinds';
+import {
+  Definition,
+  DValue,
+  DData,
+} from './definitions';
 
 // errors
 type IResult<T> = Result<TypeError, T>;
@@ -68,6 +74,15 @@ const not = <T>(r: IResult<T>, m: string): IResult<null> => {
   return impossible();
 };
 const check = (b: boolean, m: string): IResult<null> => b? ok(null): err(m);
+
+function noDups(d: string[]): IResult<null> {
+  const o: { [key: string]: boolean } = {};
+  for(let i = 0; i < d.length; i++) {
+    if(o[d[i]]) return err(`duplicate ${d[i]}`);
+    o[d[i]] = true;
+  }
+  return ok(null);
+}
 
 // fresh
 const fresh = (ns: string[], n: string): string => {
@@ -144,7 +159,7 @@ function checkKindType(kind: Kind): IResult<null> {
 }
 
 function kindWF(ctx: Context, kind: Kind): IResult<null> {
-  //console.log(`kindWF ${kind} in ${ctx}`);
+  // console.log(`kindWF ${kind} in ${ctx}`);
   if(kind instanceof KCon) return findKCon(ctx, kind.name);
   if(kind instanceof KFun)
     return kindWF(ctx, kind.left).then(() => kindWF(ctx, kind.right));
@@ -441,4 +456,47 @@ export function infer(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }
         });
       }))
     }));
+}
+
+function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
+  if(d instanceof DValue) {
+    return (d.type?
+      checkTy(ctx, d.val, d.type).map(ctx => ({ ctx, ty: d.type as Type })):
+      synth(ctx, d.val))
+      .then(({ ctx, ty }) => contextWF(ctx.add(cvar(d.name, ty)))
+      .map(() => ctx.add(cvar(d.name, ty))));
+  } else if(d instanceof DData) {
+    const name = d.name;
+    const params = d.params;
+    const constrs = d.constrs;
+    return noDups(params.map(([n, _]) => n))
+      .then(() => noDups(constrs.map(([n, _]) => n)))
+      .then(() => {
+        for(let i = 0; i < params.length; i++) {
+          const r = kindWF(ctx, params[i][1]);
+          if(isErr(r)) return new Err(r.err);
+        }
+        if(constrs.length === 0) {
+          const x = fresh(params.map(([n, _]) => n), 't');
+          return ok(ctx.add(ctcon(name, d.getKind()), cvar(name, tforalls(params, tforalls([[x, ktype]], tfuns(d.getType(), tvar(x)))))));
+        }
+        return ok(ctx.add(ctcon(name, d.getKind())).append(new Context(
+          constrs.map(([n, ts]) => cvar(n, tforalls(params, tfuns.apply(null, ts.concat([d.getType()]))))))));
+      })
+      .then((ctx: Context) => contextWF(ctx).map(() => ctx));
+  }
+  return impossible();
+}
+
+export function inferProgram(ctx: Context, ds: Definition[]): IResult<Context> {
+  let c = ctx;
+  for(let i = 0; i < ds.length; i++) {
+    const d = ds[i];
+    const r = inferDefinition(c, d);
+    if(isErr(r)) return new Err(r.err);
+    else if(isOk(r)) {
+      c = r.val;
+    } else impossible();
+  }
+  return ok(c);
 }

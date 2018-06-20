@@ -1,5 +1,22 @@
+const makeConstr = (tag, n, a_) => {
+  const a = a_ || [];
+  if(n === 0) return {_adt: true, _tag: tag, _args: a};
+  return x => makeConstr(tag, n - 1, a.concat([x]));
+};
+
 const unit = null;
 const impossible = () => { throw new Error('impossible') };
+
+function show(x) {
+  if(x === null) return `()`;
+  if(x._adt) return x._args.length === 0? `${x._tag}`: `(${x._tag}${x._args.length > 0? ` ${x._args.map(show).join(' ')}`: ''})`;
+  if(Array.isArray(x)) return `[${x.map(show).join(', ')}]`;
+  if(typeof x === 'function') return `[Function]`;
+  if(x._tag === 'inl') return `(Inl ${show(x._val)})`;
+  if(x._tag === 'inr') return `(Inr ${show(x._val)})`;
+  if(x._tag === 'pair') return `(${show(x._fst)}, ${show(x._snd)})`;
+  return `${x}`;
+}
 
 const Z = 0;
 const S = x => x + 1;
@@ -10,7 +27,6 @@ function _rec(fz, fs, n) {
     v = fs(v)(m);
   }
   return v;
-  // return n === 0? fz: fs(rec(fz, fs, n - 1))(n - 1);
 }
 const rec = fz => fs => n => _rec(fz, fs, n);
 
@@ -29,7 +45,6 @@ function _fold(fnil, fcons, a) {
     v = fcons(v)(a[i]);
   }
   return v;
-  // return a.reduceRight((a, b) => fcons(a)(b), fnil);
 }
 const fold = fnil => fcons => l => _fold(fnil, fcons, l);
 

@@ -5,9 +5,11 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "node build/src/index.js",
-    "buildtest": "npm run build && npm run test",
-    "bundle": "npm run build && browserify build/src/web.js -o bundle.js"
+    "index": "node build/src/index.js",
+    "buildindex": "npm run build && npm run index",
+    "bundle": "npm run build && browserify build/src/web.js -o bundle.js",
+    "test": "compile test.pl && node test.pl.js",
+    "buildtest": "npm run build && npm run test"
   },
   "author": "",
   "license": "ISC",

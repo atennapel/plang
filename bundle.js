@@ -40,6 +40,7 @@ exports.isErr = isErr;
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
 const exprs_1 = require("./exprs");
+const definitions_1 = require("./definitions");
 function compile(expr) {
     if (expr instanceof exprs_1.EVar)
         return `${expr.name}`;
@@ -55,9 +56,21 @@ function compile(expr) {
         return compile(expr.expr);
     return util_1.impossible();
 }
-exports.default = compile;
+exports.compile = compile;
+function compileDefinition(d) {
+    if (d instanceof definitions_1.DValue)
+        return `${d.name} = ${compile(d.val)}`;
+    if (d instanceof definitions_1.DData)
+        return d.constrs.length === 0 ? `${d.name} = impossible` :
+            d.constrs.map(([n, ts]) => `${n} = makeConstr('${n}', ${ts.length})`).join(';');
+    return util_1.impossible();
+}
+function compileProgram(p, withMain, lib = '') {
+    return `;${lib.trim()};${p.map(compileDefinition).join(';')}${withMain ? `;console.log(show(main))` : ''};`;
+}
+exports.compileProgram = compileProgram;
 
-},{"./exprs":4,"./util":11}],3:[function(require,module,exports){
+},{"./definitions":4,"./exprs":5,"./util":12}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -265,7 +278,47 @@ class Context {
 }
 exports.Context = Context;
 
-},{"./types":10}],4:[function(require,module,exports){
+},{"./types":11}],4:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const kinds_1 = require("./kinds");
+const types_1 = require("./types");
+const typechecker_1 = require("./typechecker");
+class Definition {
+}
+exports.Definition = Definition;
+class DValue extends Definition {
+    constructor(name, val, type) {
+        super();
+        this.name = name;
+        this.val = val;
+        this.type = type;
+    }
+    toString() {
+        return `${this.name}${this.type ? ` : ${this.type}` : ''} = ${this.val}`;
+    }
+}
+exports.DValue = DValue;
+class DData extends Definition {
+    constructor(name, params, constrs) {
+        super();
+        this.name = name;
+        this.params = params;
+        this.constrs = constrs;
+    }
+    toString() {
+        return `data ${this.name} ${this.params.length === 0 ? '' : this.params.map(([x, k]) => `(${x} : ${k})`).join(' ')}${this.constrs.length === 0 ? '' : ` = ${this.constrs.map(([x, ts]) => `${x}${ts.length === 0 ? '' : ts.join(' ')}`).join(' | ')}`}`;
+    }
+    getKind() {
+        return kinds_1.kfuns.apply(null, this.params.map(([n, k]) => k).concat([typechecker_1.ktype]));
+    }
+    getType() {
+        return types_1.tapps.apply(null, [types_1.tcon(this.name)].concat(this.params.map(([x, _]) => types_1.tvar(x))));
+    }
+}
+exports.DData = DData;
+
+},{"./kinds":6,"./typechecker":10,"./types":11}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Expr {
@@ -392,7 +445,7 @@ exports.ETApp = ETApp;
 exports.etapp = (expr, type) => new ETApp(expr, type);
 exports.etapps = (expr, ...ts) => ts.reduce(exports.etapp, expr);
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Kind {
@@ -429,13 +482,14 @@ exports.KFun = KFun;
 exports.kfun = (left, right) => new KFun(left, right);
 exports.kfuns = (...ts) => ts.reduceRight((a, b) => exports.kfun(b, a));
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
 const kinds_1 = require("./kinds");
 const types_1 = require("./types");
 const typechecker_1 = require("./typechecker");
+const definitions_1 = require("./definitions");
 function matchingBracket(c) {
     if (c === '(')
         return ')';
@@ -467,6 +521,10 @@ function tokenize(s) {
                 r.push(token(':'));
             else if (c === '.')
                 r.push(token('.'));
+            else if (c === '=')
+                r.push(token('='));
+            else if (c === '|')
+                r.push(token('|'));
             else if (c === '\\')
                 r.push(token('\\'));
             else if (c === '(')
@@ -675,7 +733,7 @@ function types(x) {
                 throw new SyntaxError(`invalid arg to forall: ${c}`);
         }
         if (found < 0)
-            throw new SyntaxError(`missing -> after forall`);
+            throw new SyntaxError(`missing . after forall`);
         const rest = x.slice(found + 1);
         if (rest.length === 0)
             throw new SyntaxError(`missing body in forall`);
@@ -705,8 +763,81 @@ function kind(x) {
         return kinds_1.kcon(x.val);
     return kinds(x.val);
 }
+// definitions
+function parseDataName(s) {
+    if (s.length === 0)
+        throw new SyntaxError('missing data name');
+    if (s[0].tag !== 'token')
+        throw new SyntaxError('invalid data name');
+    const name = s[0].val;
+    const args = [];
+    for (let i = 1; i < s.length; i++) {
+        const c = s[i];
+        if (c.tag === 'token')
+            args.push([c.val, typechecker_1.ktype]);
+        else if (c.tag === 'paren' && containsToken(c.val, ':')) {
+            const s = splitOn(c.val, x => isToken(x, ':'));
+            if (s.length !== 2)
+                throw new SyntaxError('nested anno arg :');
+            const l = s[0].map(x => {
+                if (x.tag === 'token')
+                    return x.val;
+                throw new SyntaxError(`invalid arg to data: ${x}`);
+            });
+            const r = kinds(s[1]);
+            l.forEach(n => args.push([n, r]));
+        }
+        else
+            throw new SyntaxError(`invalid arg to data: ${c}`);
+    }
+    return [name, args];
+}
+function parseConstr(s) {
+    if (s.length === 0)
+        throw new SyntaxError('missing constructor name in data');
+    if (s[0].tag !== 'token')
+        throw new SyntaxError('invalid data constructor name');
+    const name = s[0].val;
+    return [name, s.slice(1).map(type)];
+}
+function parseDefinition(s) {
+    if (s.startsWith('data ')) {
+        const ts = tokenize(s.slice(5));
+        if (ts.length === 0)
+            throw new SyntaxError('data name missing');
+        if (ts[0].tag !== 'token')
+            throw new SyntaxError('invalid data name');
+        const name = ts[0].val;
+        if (ts.length === 1)
+            return new definitions_1.DData(name, [], []);
+        if (containsToken(ts, '=')) {
+            const spl = splitOn(ts, x => isToken(x, '='));
+            if (spl.length !== 2)
+                throw new SyntaxError('missing right side of = in data');
+            const dataName = parseDataName(spl[0]);
+            const constr = splitOn(spl[1], x => isToken(x, '|')).map(parseConstr);
+            return new definitions_1.DData(dataName[0], dataName[1], constr);
+        }
+        else
+            throw new SyntaxError('= is missing in data');
+    }
+    else {
+        const spl = s.split('=');
+        if (!spl || spl.length !== 2)
+            throw new SyntaxError('error on =');
+        const name = spl[0].trim();
+        if (!/[a-z][A-Z0-9a-z]*/.test(name))
+            throw new SyntaxError(`invalid name: ${name}`);
+        const rest = spl[1].trim();
+        return new definitions_1.DValue(name, parse(rest));
+    }
+}
+function parseProgram(s) {
+    return s.split(';').filter(x => x.trim().length > 0).map(x => parseDefinition(x.trim()));
+}
+exports.parseProgram = parseProgram;
 
-},{"./exprs":4,"./kinds":5,"./typechecker":9,"./types":10}],7:[function(require,module,exports){
+},{"./definitions":4,"./exprs":5,"./kinds":6,"./typechecker":10,"./types":11}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -818,7 +949,7 @@ function ppContext(c) {
 }
 exports.ppContext = ppContext;
 
-},{"./context":3,"./kinds":5,"./typechecker":9,"./types":10,"./util":11}],8:[function(require,module,exports){
+},{"./context":3,"./kinds":6,"./typechecker":10,"./types":11,"./util":12}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -833,14 +964,16 @@ exports.context = typechecker_1.initialContext.add(context_1.ctcon('Unit', typec
 function show(x) {
     if (x === null)
         return `()`;
+    if (x._adt)
+        return x._args.length === 0 ? `${x._tag}` : `(${x._tag}${x._args.length > 0 ? ` ${x._args.map(show).join(' ')}` : ''})`;
     if (Array.isArray(x))
         return `[${x.map(show).join(', ')}]`;
     if (typeof x === 'function')
         return `[Function]`;
     if (x._tag === 'inl')
-        return `Inl ${show(x._val)}`;
+        return `(Inl ${show(x._val)})`;
     if (x._tag === 'inr')
-        return `Inr ${show(x._val)}`;
+        return `(Inr ${show(x._val)})`;
     if (x._tag === 'pair')
         return `(${show(x._fst)}, ${show(x._snd)})`;
     return `${x}`;
@@ -875,7 +1008,7 @@ function run(i, cb) {
             if (Result_1.isErr(tr))
                 throw tr.err;
             else if (Result_1.isOk(tr)) {
-                const c = compilerJS_1.default(p);
+                const c = compilerJS_1.compile(p);
                 console.log(c);
                 const res = eval(`(typeof global === 'undefined'? window: global)['${name}'] = ${c}`);
                 ctx = ctx.add(context_1.cvar(name, tr.val.ty));
@@ -895,7 +1028,7 @@ function run(i, cb) {
             if (Result_1.isErr(tr))
                 throw tr.err;
             else if (Result_1.isOk(tr)) {
-                const c = compilerJS_1.default(p);
+                const c = compilerJS_1.compile(p);
                 console.log(c);
                 const res = eval(c);
                 cb(`${show(res)} : ${prettyprinter_1.ppType(tr.val.ty)}`);
@@ -908,7 +1041,7 @@ function run(i, cb) {
 }
 exports.default = run;
 
-},{"./Result":1,"./compilerJS":2,"./context":3,"./kinds":5,"./parser":6,"./prettyprinter":7,"./typechecker":9,"./types":10}],9:[function(require,module,exports){
+},{"./Result":1,"./compilerJS":2,"./context":3,"./kinds":6,"./parser":7,"./prettyprinter":8,"./typechecker":10,"./types":11}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const Result_1 = require("./Result");
@@ -917,6 +1050,7 @@ const types_1 = require("./types");
 const context_1 = require("./context");
 const exprs_1 = require("./exprs");
 const kinds_1 = require("./kinds");
+const definitions_1 = require("./definitions");
 const err = (msg) => Result_1.Result.err(new TypeError(msg));
 const ok = (val) => Result_1.Result.ok(val);
 const not = (r, m) => {
@@ -927,6 +1061,15 @@ const not = (r, m) => {
     return util_1.impossible();
 };
 const check = (b, m) => b ? ok(null) : err(m);
+function noDups(d) {
+    const o = {};
+    for (let i = 0; i < d.length; i++) {
+        if (o[d[i]])
+            return err(`duplicate ${d[i]}`);
+        o[d[i]] = true;
+    }
+    return ok(null);
+}
 // fresh
 const fresh = (ns, n) => {
     const l = ns.length;
@@ -998,7 +1141,7 @@ function checkKindType(kind) {
     return exports.ktype.equals(kind) ? ok(null) : err(`kind is not ${exports.ktype}: ${kind}`);
 }
 function kindWF(ctx, kind) {
-    //console.log(`kindWF ${kind} in ${ctx}`);
+    // console.log(`kindWF ${kind} in ${ctx}`);
     if (kind instanceof kinds_1.KCon)
         return findKCon(ctx, kind.name);
     if (kind instanceof kinds_1.KFun)
@@ -1315,8 +1458,54 @@ function infer(ctx, e) {
     }));
 }
 exports.infer = infer;
+function inferDefinition(ctx, d) {
+    if (d instanceof definitions_1.DValue) {
+        return (d.type ?
+            checkTy(ctx, d.val, d.type).map(ctx => ({ ctx, ty: d.type })) :
+            synth(ctx, d.val))
+            .then(({ ctx, ty }) => contextWF(ctx.add(context_1.cvar(d.name, ty)))
+            .map(() => ctx.add(context_1.cvar(d.name, ty))));
+    }
+    else if (d instanceof definitions_1.DData) {
+        const name = d.name;
+        const params = d.params;
+        const constrs = d.constrs;
+        return noDups(params.map(([n, _]) => n))
+            .then(() => noDups(constrs.map(([n, _]) => n)))
+            .then(() => {
+            for (let i = 0; i < params.length; i++) {
+                const r = kindWF(ctx, params[i][1]);
+                if (Result_1.isErr(r))
+                    return new Result_1.Err(r.err);
+            }
+            if (constrs.length === 0) {
+                const x = fresh(params.map(([n, _]) => n), 't');
+                return ok(ctx.add(context_1.ctcon(name, d.getKind()), context_1.cvar(name, types_1.tforalls(params, types_1.tforalls([[x, exports.ktype]], types_1.tfuns(d.getType(), types_1.tvar(x)))))));
+            }
+            return ok(ctx.add(context_1.ctcon(name, d.getKind())).append(new context_1.Context(constrs.map(([n, ts]) => context_1.cvar(n, types_1.tforalls(params, types_1.tfuns.apply(null, ts.concat([d.getType()]))))))));
+        })
+            .then((ctx) => contextWF(ctx).map(() => ctx));
+    }
+    return util_1.impossible();
+}
+function inferProgram(ctx, ds) {
+    let c = ctx;
+    for (let i = 0; i < ds.length; i++) {
+        const d = ds[i];
+        const r = inferDefinition(c, d);
+        if (Result_1.isErr(r))
+            return new Result_1.Err(r.err);
+        else if (Result_1.isOk(r)) {
+            c = r.val;
+        }
+        else
+            util_1.impossible();
+    }
+    return ok(c);
+}
+exports.inferProgram = inferProgram;
 
-},{"./Result":1,"./context":3,"./exprs":4,"./kinds":5,"./types":10,"./util":11}],10:[function(require,module,exports){
+},{"./Result":1,"./context":3,"./definitions":4,"./exprs":5,"./kinds":6,"./types":11,"./util":12}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Type {
@@ -1507,14 +1696,14 @@ exports.TForall = TForall;
 exports.tforall = (name, kind, type) => new TForall(name, kind, type);
 exports.tforalls = (ns, type) => ns.reduceRight((a, b) => exports.tforall(b[0], b[1], a), type);
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function err(msg) { throw new Error(msg); }
 exports.err = err;
 exports.impossible = () => err('impossible');
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -1573,4 +1762,4 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":8}]},{},[12]);
+},{"./repl":9}]},{},[13]);

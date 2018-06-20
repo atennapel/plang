@@ -2,6 +2,8 @@ import { Expr, eapp, etapp, evar, EVar, eabss, etabss, eanno, eapps } from './ex
 import { Kind, kfuns, kcon } from './kinds';
 import { Type, tcon, tvar, tapps, tforalls, tfuns } from './types'
 import { ktype } from './typechecker';
+import { Definition, DValue, DData } from './definitions'; 
+import { impossible } from './util';
 
 function matchingBracket(c: string) {
   if(c === '(') return ')';
@@ -36,6 +38,8 @@ function tokenize(s: string): Ret[] {
       else if(c === '$') r.push(token('$'));
       else if(c === ':') r.push(token(':'));
       else if(c === '.') r.push(token('.'));
+      else if(c === '=') r.push(token('='));
+      else if(c === '|') r.push(token('|'));
       else if(c === '\\') r.push(token('\\'));
       else if(c === '(') b.push(c), p.push(r), r = [];
       else if(c === ')') {
@@ -200,7 +204,7 @@ function types(x: Ret[]): Type {
         l.forEach(n => args.push([n, r]));
       } else throw new SyntaxError(`invalid arg to forall: ${c}`);
     }
-    if(found < 0) throw new SyntaxError(`missing -> after forall`);
+    if(found < 0) throw new SyntaxError(`missing . after forall`);
     const rest = x.slice(found + 1);
     if(rest.length === 0) throw new SyntaxError(`missing body in forall`);
     return tforalls(args.map(x => typeof x === 'string'? [x, ktype] as [string, Kind]: x), types(rest));
@@ -225,4 +229,62 @@ function kinds(x: Ret[]): Kind {
 function kind(x: Ret): Kind {
   if(x.tag === 'token') return kcon(x.val);
   return kinds(x.val);
+}
+
+// definitions
+function parseDataName(s: Ret[]): [string, [string, Kind][]] {
+  if(s.length === 0) throw new SyntaxError('missing data name');
+  if(s[0].tag !== 'token') throw new SyntaxError('invalid data name');
+  const name = s[0].val as string;
+  const args: any[] = [];
+  for(let i = 1; i < s.length; i++) {
+    const c = s[i];
+    if(c.tag === 'token') args.push([c.val, ktype]);
+    else if(c.tag === 'paren' && containsToken(c.val, ':')) {
+      const s = splitOn(c.val, x => isToken(x, ':'));
+      if(s.length !== 2) throw new SyntaxError('nested anno arg :');
+      const l = s[0].map(x => {
+        if(x.tag === 'token') return x.val;
+        throw new SyntaxError(`invalid arg to data: ${x}`);
+      });
+      const r = kinds(s[1]);
+      l.forEach(n => args.push([n, r]));
+    } else throw new SyntaxError(`invalid arg to data: ${c}`);
+  }
+  return [name, args];
+}
+
+function parseConstr(s: Ret[]): [string, Type[]] {
+  if(s.length === 0) throw new SyntaxError('missing constructor name in data');
+  if(s[0].tag !== 'token') throw new SyntaxError('invalid data constructor name');
+  const name = s[0].val as string;
+  return [name, s.slice(1).map(type)];
+}
+
+function parseDefinition(s: string): Definition {
+  if(s.startsWith('data ')) {
+    const ts = tokenize(s.slice(5));
+    if(ts.length === 0) throw new SyntaxError('data name missing');
+    if(ts[0].tag !== 'token') throw new SyntaxError('invalid data name');
+    const name = ts[0].val as string;
+    if(ts.length === 1) return new DData(name, [], []);
+    if(containsToken(ts, '=')) {
+      const spl = splitOn(ts, x => isToken(x, '='));
+      if(spl.length !== 2) throw new SyntaxError('missing right side of = in data');
+      const dataName = parseDataName(spl[0]);
+      const constr = splitOn(spl[1], x => isToken(x, '|')).map(parseConstr);
+      return new DData(dataName[0], dataName[1], constr);
+    } else throw new SyntaxError('= is missing in data');
+  } else {
+    const spl = s.split('=');
+    if(!spl || spl.length !== 2) throw new SyntaxError('error on =');
+    const name = spl[0].trim();
+    if(!/[a-z][A-Z0-9a-z]*/.test(name)) throw new SyntaxError(`invalid name: ${name}`);
+    const rest = spl[1].trim();
+    return new DValue(name, parse(rest));
+  }
+}
+
+export function parseProgram(s: string): Definition[] {
+  return s.split(';').filter(x => x.trim().length > 0).map(x => parseDefinition(x.trim()));
 }
