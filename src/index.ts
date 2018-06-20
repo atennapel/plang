@@ -101,14 +101,13 @@ try {
 
 /**
  * TODO:
- *  parser: f \x -> x
- *  parser: $
- *  repl: save/load commands
  *  row polymorphism
- *  tfun as a type constructor
  *  ADT (data/codata)
  *  positivity check
  *  functor/foldable/cata generation
+ *  tfun as a type constructor
+ *  repl: save/load/clear commands
+ *  parser: f \x -> x
  *  pretty printer expr
  *  repl: let with arguments
  */

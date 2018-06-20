@@ -461,6 +461,8 @@ function tokenize(s) {
                 r.push(token('/\\')), i++;
             else if (c === '@')
                 r.push(token('@'));
+            else if (c === '$')
+                r.push(token('$'));
             else if (c === ':')
                 r.push(token(':'));
             else if (c === '.')
@@ -528,6 +530,7 @@ function exprs(x) {
         const s = splitOn(x, x => isToken(x, ':'));
         if (s.length !== 2)
             throw new SyntaxError('nested anno :');
+        s.forEach(x => x.length === 0 ? (() => { throw new SyntaxError('invalid anno :'); })() : null);
         const l = exprs(s[0]);
         const r = types(s[1]);
         return exprs_1.eanno(l, r);
@@ -597,6 +600,13 @@ function exprs(x) {
         if (rest.length === 0)
             throw new SyntaxError(`missing body in tabs`);
         return exprs_1.etabss(args.map(x => typeof x === 'string' ? [x, typechecker_1.ktype] : x), exprs(rest));
+    }
+    if (containsToken(x, '$')) {
+        const s = splitOn(x, x => isToken(x, '$'));
+        s.forEach(x => x.length === 0 ? (() => { throw new SyntaxError('invalid application with $'); })() : null);
+        if (s.length < 2)
+            throw new SyntaxError('$ is missing an argument');
+        return s.map(exprs).reduceRight((a, b) => exprs_1.eapp(b, a));
     }
     if (isToken(x[0], '@'))
         throw new SyntaxError('beginning @');
@@ -755,6 +765,9 @@ function flattenTApp(a) {
     r.push(c);
     return r.reverse();
 }
+function isSymbol(n) {
+    return !/[a-z]/i.test(n[0]);
+}
 function ppType(t) {
     if (t instanceof types_1.TCon)
         return `${t.name}`;
@@ -762,8 +775,15 @@ function ppType(t) {
         return `${t.name}`;
     if (t instanceof types_1.TEx)
         return `^${t.name}`;
-    if (t instanceof types_1.TApp)
-        return flattenTApp(t).map(t => t instanceof types_1.TApp || t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t)).join(` `);
+    if (t instanceof types_1.TApp) {
+        const f = flattenTApp(t);
+        const first = f[0];
+        if (first instanceof types_1.TCon && isSymbol(first.name) && f.length === 3) {
+            const args = f.slice(1).map(t => t instanceof types_1.TApp || t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t));
+            return `${args[0]} ${first.name} ${args[1]}`;
+        }
+        return f.map(t => t instanceof types_1.TApp || t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t)).join(` `);
+    }
     if (t instanceof types_1.TFun)
         return flattenTFun(t).map(t => t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t)).join(`${RARROW}`);
     if (t instanceof types_1.TForall) {
@@ -822,7 +842,7 @@ function show(x) {
     if (x._tag === 'inr')
         return `Inr ${show(x._val)}`;
     if (x._tag === 'pair')
-        return `(${show(x._fst)}, ${x._snd})`;
+        return `(${show(x._fst)}, ${show(x._snd)})`;
     return `${x}`;
 }
 let ctx = exports.context;

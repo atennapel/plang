@@ -1,4 +1,4 @@
-import { Expr, eapp, etapp, evar, EVar, eabss, etabss, eanno } from './exprs';
+import { Expr, eapp, etapp, evar, EVar, eabss, etabss, eanno, eapps } from './exprs';
 import { Kind, kfuns, kcon } from './kinds';
 import { Type, tcon, tvar, tapps, tforalls, tfuns } from './types'
 import { ktype } from './typechecker';
@@ -33,6 +33,7 @@ function tokenize(s: string): Ret[] {
       else if(c === '-' && s[i+1] === '>') r.push(token('->')), i++;
       else if(c === '/' && s[i+1] === '\\') r.push(token('/\\')), i++;
       else if(c === '@') r.push(token('@'));
+      else if(c === '$') r.push(token('$'));
       else if(c === ':') r.push(token(':'));
       else if(c === '.') r.push(token('.'));
       else if(c === '\\') r.push(token('\\'));
@@ -84,6 +85,7 @@ function exprs(x: Ret[]): Expr {
   if(containsToken(x, ':')) {
     const s = splitOn(x, x => isToken(x, ':'));
     if(s.length !== 2) throw new SyntaxError('nested anno :');
+    s.forEach(x => x.length === 0? (() => {throw new SyntaxError('invalid anno :')})(): null);
     const l = exprs(s[0]);
     const r = types(s[1]);
     return eanno(l, r);
@@ -137,6 +139,12 @@ function exprs(x: Ret[]): Expr {
     const rest = x.slice(found + 1);
     if(rest.length === 0) throw new SyntaxError(`missing body in tabs`);
     return etabss(args.map(x => typeof x === 'string'? [x, ktype] as [string, Kind]: x), exprs(rest));
+  }
+  if(containsToken(x, '$')) {
+    const s = splitOn(x, x => isToken(x, '$'));
+    s.forEach(x => x.length === 0? (() => {throw new SyntaxError('invalid application with $')})(): null);
+    if(s.length < 2) throw new SyntaxError('$ is missing an argument');
+    return s.map(exprs).reduceRight((a, b) => eapp(b, a));
   }
   if(isToken(x[0], '@')) throw new SyntaxError('beginning @');
   let r = expr(x[0]);

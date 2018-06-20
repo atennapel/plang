@@ -59,12 +59,23 @@ function flattenTApp(a: TApp): Type[] {
   return r.reverse();
 }
 
+function isSymbol(n: string): boolean {
+  return !/[a-z]/i.test(n[0]);
+}
+
 export function ppType(t: Type): string {
   if(t instanceof TCon) return `${t.name}`;
   if(t instanceof TVar) return `${t.name}`;
   if(t instanceof TEx) return `^${t.name}`;
-  if(t instanceof TApp)
-    return flattenTApp(t).map(t => t instanceof TApp || t instanceof TFun || t instanceof TForall? `(${ppType(t)})`: ppType(t)).join(` `);
+  if(t instanceof TApp) {
+    const f = flattenTApp(t);
+    const first = f[0];
+    if(first instanceof TCon && isSymbol(first.name) && f.length === 3) {
+      const args = f.slice(1).map(t => t instanceof TApp || t instanceof TFun || t instanceof TForall? `(${ppType(t)})`: ppType(t));
+      return `${args[0]} ${first.name} ${args[1]}`;
+    }
+    return f.map(t => t instanceof TApp || t instanceof TFun || t instanceof TForall? `(${ppType(t)})`: ppType(t)).join(` `);
+  }
   if(t instanceof TFun)
     return flattenTFun(t).map(t => t instanceof TFun || t instanceof TForall? `(${ppType(t)})`: ppType(t)).join(`${RARROW}`);
   if(t instanceof TForall) {
