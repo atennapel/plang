@@ -80,12 +80,13 @@ console.log(compileProgram(p));
 /**
  * TODO:
  *  functor/foldable/cata generation
- *  positivity check
- *  ADT codata
+ *  ADT codata check
  *  row polymorphism
  *  tfun as a type constructor
  *  repl: save/load/clear commands
  *  parser: f \x -> x
  *  pretty printer expr
  *  repl: let with arguments
+ * PROBLEM:
+ *  repl types not showing properly (Fix NilF)
  */

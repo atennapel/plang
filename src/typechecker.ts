@@ -480,6 +480,15 @@ export function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
           const x = fresh(params.map(([n, _]) => n), 't');
           return ok(ctx.add(ctcon(name, d.getKind()), cvar(name, tforalls(params, tforalls([[x, ktype]], tfuns(d.getType(), tvar(x)))))));
         }
+        for(let i = 0; i < constrs.length; i++) {
+          const c = constrs[i];
+          const n = c[0];
+          const ts = c[1];
+          for(let j = 0; j < ts.length; j++) {
+            if(ts[j].occursNegatively(n, false))
+              return err(`${n} occurs in a negative position in ${ts[j]}`);
+          }
+        }
         return ok(ctx.add(ctcon(name, d.getKind())).append(new Context(
           constrs.map(([n, ts]) => cvar(n, tforalls(params, tfuns.apply(null, ts.concat([d.getType()]))))))));
       })

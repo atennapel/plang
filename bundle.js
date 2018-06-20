@@ -1478,6 +1478,15 @@ function inferDefinition(ctx, d) {
                 const x = fresh(params.map(([n, _]) => n), 't');
                 return ok(ctx.add(context_1.ctcon(name, d.getKind()), context_1.cvar(name, types_1.tforalls(params, types_1.tforalls([[x, exports.ktype]], types_1.tfuns(d.getType(), types_1.tvar(x)))))));
             }
+            for (let i = 0; i < constrs.length; i++) {
+                const c = constrs[i];
+                const n = c[0];
+                const ts = c[1];
+                for (let j = 0; j < ts.length; j++) {
+                    if (ts[j].occursNegatively(n, false))
+                        return err(`${n} occurs in a negative position in ${ts[j]}`);
+                }
+            }
             return ok(ctx.add(context_1.ctcon(name, d.getKind())).append(new context_1.Context(constrs.map(([n, ts]) => context_1.cvar(n, types_1.tforalls(params, types_1.tfuns.apply(null, ts.concat([d.getType()]))))))));
         })
             .then((ctx) => contextWF(ctx).map(() => ctx));
@@ -1528,11 +1537,17 @@ class TCon extends Type {
     containsEx(name) {
         return false;
     }
+    containsTCon(name) {
+        return this.name === name;
+    }
     texs() {
         return [];
     }
     tvars() {
         return [];
+    }
+    occursNegatively(name, negative) {
+        return this.name === name && negative;
     }
 }
 exports.TCon = TCon;
@@ -1557,11 +1572,17 @@ class TVar extends Type {
     containsEx(name) {
         return false;
     }
+    containsTCon(name) {
+        return false;
+    }
     texs() {
         return [];
     }
     tvars() {
         return [this.name];
+    }
+    occursNegatively(name, negative) {
+        return false;
     }
 }
 exports.TVar = TVar;
@@ -1586,11 +1607,17 @@ class TEx extends Type {
     containsEx(name) {
         return this.name === name;
     }
+    containsTCon(name) {
+        return false;
+    }
     texs() {
         return [this.name];
     }
     tvars() {
         return [];
+    }
+    occursNegatively(name, negative) {
+        return false;
     }
 }
 exports.TEx = TEx;
@@ -1616,11 +1643,17 @@ class TApp extends Type {
     containsEx(name) {
         return this.left.containsEx(name) || this.right.containsEx(name);
     }
+    containsTCon(name) {
+        return this.left.containsTCon(name) || this.right.containsTCon(name);
+    }
     texs() {
         return this.left.texs().concat(this.right.texs());
     }
     tvars() {
         return this.left.tvars().concat(this.right.tvars());
+    }
+    occursNegatively(name, negative) {
+        return this.left.occursNegatively(name, negative) || this.right.occursNegatively(name, negative);
     }
 }
 exports.TApp = TApp;
@@ -1647,11 +1680,17 @@ class TFun extends Type {
     containsEx(name) {
         return this.left.containsEx(name) || this.right.containsEx(name);
     }
+    containsTCon(name) {
+        return this.left.containsTCon(name) || this.right.containsTCon(name);
+    }
     texs() {
         return this.left.texs().concat(this.right.texs());
     }
     tvars() {
         return this.left.tvars().concat(this.right.tvars());
+    }
+    occursNegatively(name, negative) {
+        return this.left.occursNegatively(name, !negative) || this.right.occursNegatively(name, negative);
     }
 }
 exports.TFun = TFun;
@@ -1682,11 +1721,17 @@ class TForall extends Type {
     containsEx(name) {
         return this.type.containsEx(name);
     }
+    containsTCon(name) {
+        return this.type.containsTCon(name);
+    }
     texs() {
         return this.type.texs();
     }
     tvars() {
         return [this.name].concat(this.type.tvars());
+    }
+    occursNegatively(name, negative) {
+        return this.type.occursNegatively(name, negative);
     }
 }
 exports.TForall = TForall;

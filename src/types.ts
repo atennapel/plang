@@ -6,8 +6,10 @@ export abstract class Type {
   abstract subst(name: string, type: Type): Type;
   abstract substEx(name: string, type: Type): Type;
   abstract containsEx(name: string): boolean;
+  abstract containsTCon(name: string): boolean;
   abstract texs(): string[];
   abstract tvars(): string[];
+  abstract occursNegatively(name: string, negative: boolean): boolean;
 }
 
 export class TCon extends Type {
@@ -28,11 +30,17 @@ export class TCon extends Type {
   containsEx(name: string): boolean {
     return false;
   }
+  containsTCon(name: string): boolean {
+    return this.name === name;
+  }
   texs(): string[] {
     return [];
   }
   tvars(): string[] {
     return [];
+  }
+  occursNegatively(name: string, negative: boolean): boolean {
+    return this.name === name && negative;
   }
 }
 export const tcon = (name: string) => new TCon(name);
@@ -55,11 +63,17 @@ export class TVar extends Type {
   containsEx(name: string): boolean {
     return false;
   }
+  containsTCon(name: string): boolean {
+    return false;
+  }
   texs(): string[] {
     return [];
   }
   tvars(): string[] {
     return [this.name];
+  }
+  occursNegatively(name: string, negative: boolean): boolean {
+    return false;
   }
 }
 export const tvar = (name: string) => new TVar(name);
@@ -82,11 +96,17 @@ export class TEx extends Type {
   containsEx(name: string): boolean {
     return this.name === name;
   }
+  containsTCon(name: string): boolean {
+    return false;
+  }
   texs(): string[] {
     return [this.name];
   }
   tvars(): string[] {
     return [];
+  }
+  occursNegatively(name: string, negative: boolean): boolean {
+    return false;
   }
 }
 export const tex = (name: string) => new TEx(name);
@@ -112,11 +132,17 @@ export class TApp extends Type {
   containsEx(name: string): boolean {
     return this.left.containsEx(name) || this.right.containsEx(name);
   }
+  containsTCon(name: string): boolean {
+    return this.left.containsTCon(name) || this.right.containsTCon(name);
+  }
   texs(): string[] {
     return this.left.texs().concat(this.right.texs());
   }
   tvars(): string[] {
     return this.left.tvars().concat(this.right.tvars());
+  }
+  occursNegatively(name: string, negative: boolean): boolean {
+    return this.left.occursNegatively(name, negative) || this.right.occursNegatively(name, negative);
   }
 }
 export const tapp = (left: Type, right: Type) => new TApp(left, right);
@@ -143,11 +169,17 @@ export class TFun extends Type {
   containsEx(name: string): boolean {
     return this.left.containsEx(name) || this.right.containsEx(name);
   }
+  containsTCon(name: string): boolean {
+    return this.left.containsTCon(name) || this.right.containsTCon(name);
+  }
   texs(): string[] {
     return this.left.texs().concat(this.right.texs());
   }
   tvars(): string[] {
     return this.left.tvars().concat(this.right.tvars());
+  }
+  occursNegatively(name: string, negative: boolean): boolean {
+    return this.left.occursNegatively(name, !negative) || this.right.occursNegatively(name, negative);
   }
 }
 export const tfun = (left: Type, right: Type) => new TFun(left, right);
@@ -178,11 +210,17 @@ export class TForall extends Type {
   containsEx(name: string): boolean {
     return this.type.containsEx(name);
   }
+  containsTCon(name: string): boolean {
+    return this.type.containsTCon(name);
+  }
   texs(): string[] {
     return this.type.texs();
   }
   tvars(): string[] {
     return [this.name].concat(this.type.tvars());
+  }
+  occursNegatively(name: string, negative: boolean): boolean {
+    return this.type.occursNegatively(name, negative);
   }
 }
 export const tforall = (name: string, kind: Kind, type: Type) => new TForall(name, kind, type);
