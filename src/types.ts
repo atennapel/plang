@@ -7,6 +7,7 @@ export abstract class Type {
   abstract substEx(name: string, type: Type): Type;
   abstract containsEx(name: string): boolean;
   abstract texs(): string[];
+  abstract tvars(): string[];
 }
 
 export class TCon extends Type {
@@ -28,6 +29,9 @@ export class TCon extends Type {
     return false;
   }
   texs(): string[] {
+    return [];
+  }
+  tvars(): string[] {
     return [];
   }
 }
@@ -54,6 +58,9 @@ export class TVar extends Type {
   texs(): string[] {
     return [];
   }
+  tvars(): string[] {
+    return [this.name];
+  }
 }
 export const tvar = (name: string) => new TVar(name);
 
@@ -77,6 +84,9 @@ export class TEx extends Type {
   }
   texs(): string[] {
     return [this.name];
+  }
+  tvars(): string[] {
+    return [];
   }
 }
 export const tex = (name: string) => new TEx(name);
@@ -105,6 +115,9 @@ export class TApp extends Type {
   texs(): string[] {
     return this.left.texs().concat(this.right.texs());
   }
+  tvars(): string[] {
+    return this.left.tvars().concat(this.right.tvars());
+  }
 }
 export const tapp = (left: Type, right: Type) => new TApp(left, right);
 export const tapps = (...ts: Type[]) => ts.reduce(tapp);
@@ -132,6 +145,9 @@ export class TFun extends Type {
   }
   texs(): string[] {
     return this.left.texs().concat(this.right.texs());
+  }
+  tvars(): string[] {
+    return this.left.tvars().concat(this.right.tvars());
   }
 }
 export const tfun = (left: Type, right: Type) => new TFun(left, right);
@@ -164,6 +180,9 @@ export class TForall extends Type {
   }
   texs(): string[] {
     return this.type.texs();
+  }
+  tvars(): string[] {
+    return [this.name].concat(this.type.tvars());
   }
 }
 export const tforall = (name: string, kind: Kind, type: Type) => new TForall(name, kind, type);

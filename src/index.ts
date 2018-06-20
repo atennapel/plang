@@ -76,9 +76,6 @@ const ctx = initialContext.add(
   
 );
 
-console.log(ppType(tforalls([['t', ktype], ['r', ktype]],
-  tfuns(tvar('r'), tfuns(tvar('r'), tvar('t'), tvar('r')), tapps(tcon('List'), tvar('t')), tforalls([['x', kfuns(ktype, ktype)]], tvar('r')), tvar('r')))));
-
 /*
 const s = `
   \\v -> inr v
@@ -104,16 +101,14 @@ try {
 
 /**
  * TODO:
- *  pretty printer tapp
- *  pretty print context
- *  repl: duplicate lets
- *  row polymorphism
  *  parser: f \x -> x
- *  repl: let with arguments
  *  parser: $
+ *  repl: save/load commands
+ *  row polymorphism
  *  tfun as a type constructor
  *  ADT (data/codata)
  *  positivity check
  *  functor/foldable/cata generation
  *  pretty printer expr
+ *  repl: let with arguments
  */

@@ -1,9 +1,10 @@
 import { Kind, KCon, KFun } from './kinds';
 import { Type, TCon, TVar, TEx, TApp, TFun, TForall } from './types';
+import { Context, ContextElem, CKCon, CTCon, CTVar, CTEx, CVar, CSolved, CMarker } from './context';
 import { impossible } from './util';
 import { ktype } from './typechecker'; 
 
-const RARROW = ' \u2192 ';
+const RARROW = ' -> ';
 const FORALL = '\u2200';
 
 // Kinds
@@ -47,11 +48,23 @@ function flattenTForall(f: TForall): { args: [string, Kind][], ty: Type } {
   return { args: r, ty: c };
 }
 
+function flattenTApp(a: TApp): Type[] {
+  const r = [];
+  let c: Type = a;
+  while(c instanceof TApp) {
+    r.push(c.right);
+    c = c.left;
+  }
+  r.push(c);
+  return r.reverse();
+}
+
 export function ppType(t: Type): string {
   if(t instanceof TCon) return `${t.name}`;
   if(t instanceof TVar) return `${t.name}`;
   if(t instanceof TEx) return `^${t.name}`;
-  if(t instanceof TApp) return `(${ppType(t.left)} ${ppType(t.right)})`;
+  if(t instanceof TApp)
+    return flattenTApp(t).map(t => t instanceof TApp || t instanceof TFun || t instanceof TForall? `(${ppType(t)})`: ppType(t)).join(` `);
   if(t instanceof TFun)
     return flattenTFun(t).map(t => t instanceof TFun || t instanceof TForall? `(${ppType(t)})`: ppType(t)).join(`${RARROW}`);
   if(t instanceof TForall) {
@@ -60,4 +73,20 @@ export function ppType(t: Type): string {
     return `${FORALL}${args.join(' ')}. ${ppType(f.ty)}`;
   }
   return impossible();
+}
+
+// ContextElem
+export function ppContextElem(e: ContextElem): string {
+  if(e instanceof CKCon) return `kind ${e.name}`;
+  if(e instanceof CTCon) return `type ${e.name} : ${ppKind(e.kind)}`;
+  if(e instanceof CTVar) return `tvar ${e.name} : ${ppKind(e.kind)}`;
+  if(e instanceof CTEx) return `tex ^${e.name} : ${ppKind(e.kind)}`;
+  if(e instanceof CVar) return `${e.name} : ${ppType(e.type)}`;
+  if(e instanceof CSolved) return `^${e.name} : ${ppKind(e.kind)} = ${ppType(e.type)}`;
+  if(e instanceof CMarker) return `|>^${e.name}`;
+  return impossible();
+}
+
+export function ppContext(c: Context): string {
+  return `[${c.elems.map(ppContextElem).join(', ')}]`;
 }

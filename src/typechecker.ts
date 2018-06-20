@@ -74,9 +74,15 @@ const fresh = (ns: string[], n: string): string => {
   const l = ns.length;
   for(let i = 0; i < l; i++) {
     if(ns[i] === n) {
-      const j = n.indexOf('$');
-      if(j < 0) return fresh(ns, `${n}$0`);
-      return fresh(ns, `${n.slice(0, j)}\$${(+n.slice(j + 1)) + 1}`);
+      const m = n.split('').reverse().join('').match(/^([0-9]+).+$/i);
+      if(!m) {
+        return fresh(ns, `${n}0`);
+      } else {
+        const jr = m[1];
+        const jl = jr.length;
+        const j = +(jr.split('').reverse().join(''));
+        return fresh(ns, `${n.slice(0, -jl)}${j+1}`);
+      }
     }
   }
   return n;

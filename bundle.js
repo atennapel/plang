@@ -701,9 +701,10 @@ function kind(x) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
 const types_1 = require("./types");
+const context_1 = require("./context");
 const util_1 = require("./util");
 const typechecker_1 = require("./typechecker");
-const RARROW = ' \u2192 ';
+const RARROW = ' -> ';
 const FORALL = '\u2200';
 // Kinds
 function flattenKFun(f) {
@@ -744,6 +745,16 @@ function flattenTForall(f) {
     }
     return { args: r, ty: c };
 }
+function flattenTApp(a) {
+    const r = [];
+    let c = a;
+    while (c instanceof types_1.TApp) {
+        r.push(c.right);
+        c = c.left;
+    }
+    r.push(c);
+    return r.reverse();
+}
 function ppType(t) {
     if (t instanceof types_1.TCon)
         return `${t.name}`;
@@ -752,7 +763,7 @@ function ppType(t) {
     if (t instanceof types_1.TEx)
         return `^${t.name}`;
     if (t instanceof types_1.TApp)
-        return `(${ppType(t.left)} ${ppType(t.right)})`;
+        return flattenTApp(t).map(t => t instanceof types_1.TApp || t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t)).join(` `);
     if (t instanceof types_1.TFun)
         return flattenTFun(t).map(t => t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t)).join(`${RARROW}`);
     if (t instanceof types_1.TForall) {
@@ -763,8 +774,31 @@ function ppType(t) {
     return util_1.impossible();
 }
 exports.ppType = ppType;
+// ContextElem
+function ppContextElem(e) {
+    if (e instanceof context_1.CKCon)
+        return `kind ${e.name}`;
+    if (e instanceof context_1.CTCon)
+        return `type ${e.name} : ${ppKind(e.kind)}`;
+    if (e instanceof context_1.CTVar)
+        return `tvar ${e.name} : ${ppKind(e.kind)}`;
+    if (e instanceof context_1.CTEx)
+        return `tex ^${e.name} : ${ppKind(e.kind)}`;
+    if (e instanceof context_1.CVar)
+        return `${e.name} : ${ppType(e.type)}`;
+    if (e instanceof context_1.CSolved)
+        return `^${e.name} : ${ppKind(e.kind)} = ${ppType(e.type)}`;
+    if (e instanceof context_1.CMarker)
+        return `|>^${e.name}`;
+    return util_1.impossible();
+}
+exports.ppContextElem = ppContextElem;
+function ppContext(c) {
+    return `[${c.elems.map(ppContextElem).join(', ')}]`;
+}
+exports.ppContext = ppContext;
 
-},{"./kinds":5,"./typechecker":9,"./types":10,"./util":11}],8:[function(require,module,exports){
+},{"./context":3,"./kinds":5,"./typechecker":9,"./types":10,"./util":11}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -798,7 +832,7 @@ function run(i, cb) {
         cb('commands :help :context :let');
     }
     else if (cmd === ':context') {
-        cb(ctx.elems.join('\n'));
+        cb(ctx.elems.map(prettyprinter_1.ppContextElem).join('\n'));
     }
     else if (cmd.slice(0, 4) === ':let') {
         const rest = i.slice(4).trim();
@@ -809,6 +843,8 @@ function run(i, cb) {
         const name = spl[0].trim();
         if (name.length === 0 || !/[a-z][a-zA-Z0-9]*/.test(name))
             return cb('invalid name', true);
+        if (ctx.vars().indexOf(name) >= 0)
+            return cb(`${name} is already defined`, true);
         const expr = spl[1].trim();
         if (expr.length === 0)
             return cb('invalid expression', true);
@@ -876,10 +912,16 @@ const fresh = (ns, n) => {
     const l = ns.length;
     for (let i = 0; i < l; i++) {
         if (ns[i] === n) {
-            const j = n.indexOf('$');
-            if (j < 0)
-                return fresh(ns, `${n}$0`);
-            return fresh(ns, `${n.slice(0, j)}\$${(+n.slice(j + 1)) + 1}`);
+            const m = n.split('').reverse().join('').match(/^([0-9]+).+$/i);
+            if (!m) {
+                return fresh(ns, `${n}0`);
+            }
+            else {
+                const jr = m[1];
+                const jl = jr.length;
+                const j = +(jr.split('').reverse().join(''));
+                return fresh(ns, `${n.slice(0, -jl)}${j + 1}`);
+            }
         }
     }
     return n;
@@ -1283,6 +1325,9 @@ class TCon extends Type {
     texs() {
         return [];
     }
+    tvars() {
+        return [];
+    }
 }
 exports.TCon = TCon;
 exports.tcon = (name) => new TCon(name);
@@ -1309,6 +1354,9 @@ class TVar extends Type {
     texs() {
         return [];
     }
+    tvars() {
+        return [this.name];
+    }
 }
 exports.TVar = TVar;
 exports.tvar = (name) => new TVar(name);
@@ -1334,6 +1382,9 @@ class TEx extends Type {
     }
     texs() {
         return [this.name];
+    }
+    tvars() {
+        return [];
     }
 }
 exports.TEx = TEx;
@@ -1362,6 +1413,9 @@ class TApp extends Type {
     texs() {
         return this.left.texs().concat(this.right.texs());
     }
+    tvars() {
+        return this.left.tvars().concat(this.right.tvars());
+    }
 }
 exports.TApp = TApp;
 exports.tapp = (left, right) => new TApp(left, right);
@@ -1389,6 +1443,9 @@ class TFun extends Type {
     }
     texs() {
         return this.left.texs().concat(this.right.texs());
+    }
+    tvars() {
+        return this.left.tvars().concat(this.right.tvars());
     }
 }
 exports.TFun = TFun;
@@ -1421,6 +1478,9 @@ class TForall extends Type {
     }
     texs() {
         return this.type.texs();
+    }
+    tvars() {
+        return [this.name].concat(this.type.tvars());
     }
 }
 exports.TForall = TForall;

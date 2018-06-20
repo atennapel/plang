@@ -27,7 +27,7 @@ import {
 } from './kinds';
 import { isErr, isOk } from './Result';
 import { parse } from './parser';
-import { ppType } from './prettyprinter';
+import { ppType, ppContextElem } from './prettyprinter';
 
 export const context = initialContext.add(
   ctcon('Unit', ktype),
@@ -77,7 +77,7 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
   if(cmd === ':help') {
     cb('commands :help :context :let');
   } else if(cmd === ':context') {
-    cb(ctx.elems.join('\n'));
+    cb(ctx.elems.map(ppContextElem).join('\n'));
   } else if(cmd.slice(0, 4) === ':let') {
     const rest = i.slice(4).trim();
     const j = rest.indexOf('=');
@@ -85,6 +85,7 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
     const spl = rest.split('=');
     const name = spl[0].trim();
     if(name.length === 0 || !/[a-z][a-zA-Z0-9]*/.test(name)) return cb('invalid name', true);
+    if(ctx.vars().indexOf(name) >= 0) return cb(`${name} is already defined`, true);
     const expr = spl[1].trim();
     if(expr.length === 0) return cb('invalid expression', true);
     try {
