@@ -33,37 +33,7 @@ import {
   DValue,
 } from './definitions';
 
-export const context = initialContext.add(
-  ctcon('Unit', ktype),
-  ctcon('Void', ktype),
-  cvar('unit', tcon('Unit')),
-  cvar('impossible', tforalls([['t', ktype]], tfuns(tcon('Void'), tvar('t')))),
-  
-  ctcon('Nat', ktype),
-  cvar('Z', tcon('Nat')),
-  cvar('S', tfuns(tcon('Nat'), tcon('Nat'))),
-  cvar('rec', tforalls([['r', ktype]], tfuns(tvar('r'), tfuns(tvar('r'), tcon('Nat'), tvar('r')), tcon('Nat'), tvar('r')))),
-
-  ctcon('Bool', ktype),
-  cvar('true', tcon('Bool')),
-  cvar('false', tcon('Bool')),
-  cvar('iff', tforalls([['t', ktype]], tfuns(tcon('Bool'), tvar('t'), tvar('t'), tvar('t')))),
-
-  ctcon('Pair', kfuns(ktype, ktype, ktype)),
-  cvar('pair', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('a'), tvar('b'), tapps(tcon('Pair'), tvar('a'), tvar('b'))))),
-  cvar('fst', tforalls([['a', ktype], ['b', ktype]], tfuns(tapps(tcon('Pair'), tvar('a'), tvar('b')), tvar('a')))),
-  cvar('snd', tforalls([['a', ktype], ['b', ktype]], tfuns(tapps(tcon('Pair'), tvar('a'), tvar('b')), tvar('b')))),
-
-  ctcon('Sum', kfuns(ktype, ktype, ktype)),
-  cvar('inl', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('a'), tapps(tcon('Sum'), tvar('a'), tvar('b'))))),
-  cvar('inr', tforalls([['a', ktype], ['b', ktype]], tfuns(tvar('b'), tapps(tcon('Sum'), tvar('a'), tvar('b'))))),
-  cvar('match', tforalls([['a', ktype], ['b', ktype], ['c', ktype]], tfuns(tfuns(tvar('a'), tvar('c')), tfuns(tvar('b'), tvar('c')), tapps(tcon('Sum'), tvar('a'), tvar('b')), tvar('c')))),
-
-  ctcon('List', kfuns(ktype, ktype)),
-  cvar('nil', tforalls([['a', ktype]], tapps(tcon('List'), tvar('a')))),
-  cvar('cons', tforalls([['a', ktype]], tfuns(tvar('a'), tapps(tcon('List'), tvar('a')), tapps(tcon('List'), tvar('a'))))),
-  cvar('fold', tforalls([['t', ktype], ['r', ktype]], tfuns(tvar('r'), tfuns(tvar('r'), tvar('t'), tvar('r')), tapps(tcon('List'), tvar('t')), tvar('r')))),
-);
+export const context = initialContext;
 
 function show(x: any): string {
   if(x === null) return `()`;

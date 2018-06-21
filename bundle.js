@@ -966,16 +966,13 @@ exports.ppContext = ppContext;
 },{"./context":3,"./kinds":6,"./typechecker":10,"./types":11,"./util":12}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const types_1 = require("./types");
 const compilerJS_1 = require("./compilerJS");
 const typechecker_1 = require("./typechecker");
-const context_1 = require("./context");
-const kinds_1 = require("./kinds");
 const Result_1 = require("./Result");
 const parser_1 = require("./parser");
 const prettyprinter_1 = require("./prettyprinter");
 const definitions_1 = require("./definitions");
-exports.context = typechecker_1.initialContext.add(context_1.ctcon('Unit', typechecker_1.ktype), context_1.ctcon('Void', typechecker_1.ktype), context_1.cvar('unit', types_1.tcon('Unit')), context_1.cvar('impossible', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Void'), types_1.tvar('t')))), context_1.ctcon('Nat', typechecker_1.ktype), context_1.cvar('Z', types_1.tcon('Nat')), context_1.cvar('S', types_1.tfuns(types_1.tcon('Nat'), types_1.tcon('Nat'))), context_1.cvar('rec', types_1.tforalls([['r', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('r'), types_1.tfuns(types_1.tvar('r'), types_1.tcon('Nat'), types_1.tvar('r')), types_1.tcon('Nat'), types_1.tvar('r')))), context_1.ctcon('Bool', typechecker_1.ktype), context_1.cvar('true', types_1.tcon('Bool')), context_1.cvar('false', types_1.tcon('Bool')), context_1.cvar('iff', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tcon('Bool'), types_1.tvar('t'), types_1.tvar('t'), types_1.tvar('t')))), context_1.ctcon('Pair', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('pair', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tvar('b'), types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('fst', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('a')))), context_1.cvar('snd', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tapps(types_1.tcon('Pair'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('b')))), context_1.ctcon('Sum', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('inl', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('inr', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('b'), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b'))))), context_1.cvar('match', types_1.tforalls([['a', typechecker_1.ktype], ['b', typechecker_1.ktype], ['c', typechecker_1.ktype]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('c')), types_1.tfuns(types_1.tvar('b'), types_1.tvar('c')), types_1.tapps(types_1.tcon('Sum'), types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('c')))), context_1.ctcon('List', kinds_1.kfuns(typechecker_1.ktype, typechecker_1.ktype)), context_1.cvar('nil', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tapps(types_1.tcon('List'), types_1.tvar('a')))), context_1.cvar('cons', types_1.tforalls([['a', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(types_1.tcon('List'), types_1.tvar('a')), types_1.tapps(types_1.tcon('List'), types_1.tvar('a'))))), context_1.cvar('fold', types_1.tforalls([['t', typechecker_1.ktype], ['r', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('r'), types_1.tfuns(types_1.tvar('r'), types_1.tvar('t'), types_1.tvar('r')), types_1.tapps(types_1.tcon('List'), types_1.tvar('t')), types_1.tvar('r')))));
+exports.context = typechecker_1.initialContext;
 function show(x) {
     if (x === null)
         return `()`;
@@ -1051,7 +1048,7 @@ function run(i, cb) {
 }
 exports.default = run;
 
-},{"./Result":1,"./compilerJS":2,"./context":3,"./definitions":4,"./kinds":6,"./parser":7,"./prettyprinter":8,"./typechecker":10,"./types":11}],10:[function(require,module,exports){
+},{"./Result":1,"./compilerJS":2,"./definitions":4,"./parser":7,"./prettyprinter":8,"./typechecker":10}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const Result_1 = require("./Result");
