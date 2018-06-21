@@ -79,6 +79,8 @@ console.log(compileProgram(p));
 
 /**
  * TODO:
+ *  repl tutorial command
+ *  prelude
  *  functor/foldable/cata generation
  *  ADT codata check
  *  row polymorphism
@@ -89,4 +91,5 @@ console.log(compileProgram(p));
  *  repl: let with arguments
  * PROBLEM:
  *  repl types not showing properly (Fix NilF)
+ *  repl texists in :context bug
  */
