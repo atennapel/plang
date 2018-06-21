@@ -36,7 +36,7 @@ export function compileCase(n: string, c: [string, any[]][]) {
   const a = [];
   for(let i = 0; i < c.length; i++) a.push(`f${c[i][0]}`);
   return `${a.join('=>')}${a.length === 0? '': '=>'}x=>{switch(x._tag){${c.map(([cn, ts]) =>
-    `case '${cn}':return f${cn}${ts.map((_, i) => `(x.args[${i}])`)};break;`).join('')}}throw new Error('case failed for ${n}')}`;
+    `case '${cn}':return f${cn}${ts.map((_, i) => `(x._args[${i}])`)};break;`).join('')}}throw new Error('case failed for ${n}')}`;
 }
 
 function compileDefinition(d: Definition): string {
