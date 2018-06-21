@@ -190,7 +190,7 @@ function typeWF(ctx: Context, ty: Type): IResult<Kind> {
 }
 
 function contextWF(ctx: Context): IResult<null> {
-  //console.log(`contextWF ${ctx}`);
+  // console.log(`contextWF ${ctx}`);
   const a = ctx.elems;
   const l = a.length;
   for(let i = 0; i < l; i++) {
@@ -476,10 +476,6 @@ export function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
           const r = kindWF(ctx, params[i][1]);
           if(isErr(r)) return new Err(r.err);
         }
-        if(constrs.length === 0) {
-          const x = fresh(params.map(([n, _]) => n), 't');
-          return ok(ctx.add(ctcon(name, d.getKind()), cvar(name, tforalls(params, tforalls([[x, ktype]], tfuns(d.getType(), tvar(x)))))));
-        }
         for(let i = 0; i < constrs.length; i++) {
           const c = constrs[i];
           const n = c[0];
@@ -489,8 +485,15 @@ export function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
               return err(`${n} occurs in a negative position in ${ts[j]}`);
           }
         }
+        const r = fresh(params.map(([n, _]) => n), 'r');
+        console.log(''+tforalls(params, tforalls([[r, ktype]],
+          tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.concat([tvar(r)]))).concat([d.getType(), tvar(r)])))));
         return ok(ctx.add(ctcon(name, d.getKind())).append(new Context(
-          constrs.map(([n, ts]) => cvar(n, tforalls(params, tfuns.apply(null, ts.concat([d.getType()]))))))));
+          constrs.map(([n, ts]) => cvar(n, tforalls(params, tfuns.apply(null, ts.concat([d.getType()]))))))
+          ).add(
+            cvar(`case${d.name}`, tforalls(params, tforalls([[r, ktype]],
+              tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.concat([tvar(r)]))).concat([d.getType(), tvar(r)])))))
+          ));
       })
       .then((ctx: Context) => contextWF(ctx).map(() => ctx));
   }

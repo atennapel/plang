@@ -1,11 +1,4 @@
-const makeConstr = (tag, n, a_) => {
-  const a = a_ || [];
-  if(n === 0) return {_adt: true, _tag: tag, _args: a};
-  return x => makeConstr(tag, n - 1, a.concat([x]));
-};
-
 const unit = null;
-const impossible = () => { throw new Error('impossible') };
 
 function show(x) {
   if(x === null) return `()`;

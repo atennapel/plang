@@ -14,7 +14,7 @@ import {
   etapps,
   etabss,
 } from './exprs';
-import { compile, compileProgram } from './compilerJS';
+import { compile, compileProgram, compileConstructor, compileCase } from './compilerJS';
 import { infer, ktype, initialContext, inferDefinition } from './typechecker';
 import {
   Context,
@@ -97,7 +97,8 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
           const res = eval(`(typeof global === 'undefined'? window: global)['${d.name}'] = ${c}`);
           cb(`${d.name} : ${ppType(ctx.apply(ctx.findVar(d.name) as any))} = ${show(res)}`);
         } else if(d instanceof DData) {
-          d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = makeConstr('${n}', ${ts.length})`));
+          d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = ${compileConstructor(n, ts.length)}`));
+          eval(`(typeof global === 'undefined'? window: global)['case${d.name}'] = ${compileCase(d.name, d.constrs)}`);
           cb(`defined ${d.name}`);
         } else return cb('unknown definition', true);
       }

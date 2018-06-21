@@ -26,11 +26,23 @@ export function compile(expr: Expr): string {
   return impossible();
 }
 
+export function compileConstructor(n: string, l: number) {
+  const a = [];
+  for(let i = 0; i < l; i++) a.push(`x${i}`);
+  return `(${a.join('=>')}${a.length === 0? '': '=>'}({_adt:true,_tag:'${n}',_args:[${a.join(',')}]}))`;
+}
+
+export function compileCase(n: string, c: [string, any[]][]) {
+  const a = [];
+  for(let i = 0; i < c.length; i++) a.push(`f${c[i][0]}`);
+  return `${a.join('=>')}${a.length === 0? '': '=>'}x=>{switch(x._tag){${c.map(([cn, ts]) =>
+    `case '${cn}':return f${cn}${ts.map((_, i) => `(x.args[${i}])`)};break;`).join('')}}throw new Error('case failed for ${n}')}`;
+}
+
 function compileDefinition(d: Definition): string {
-  if(d instanceof DValue) return `${d.name} = ${compile(d.val)}`;
+  if(d instanceof DValue) return `const ${d.name} = ${compile(d.val)}`;
   if(d instanceof DData)
-    return d.constrs.length === 0? `${d.name} = impossible`:
-      d.constrs.map(([n, ts]) => `${n} = makeConstr('${n}', ${ts.length})`).join(';');
+    return d.constrs.map(([n, ts]) => `const ${n} = ${compileConstructor(n, ts.length)}`).join(';') + ';' + `const case${d.name} = ${compileCase(d.name, d.constrs)};`;
   return impossible();
 }
 
