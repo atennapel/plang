@@ -6,7 +6,7 @@ import { inferProgram, initialContext } from './typechecker';
 import { parseProgram } from './parser'
 import { ppType, ppContext } from './prettyprinter';
 
-const lib = fs.readFileSync('lib.compile.js', {encoding: 'utf8'});
+const lib = fs.readFileSync('lib.js', {encoding: 'utf8'});
 const inp = fs.readFileSync(process.argv[2], {encoding: 'utf8'});
 const ds = parseProgram(inp);
 const t = inferProgram(initialContext, ds);

@@ -84,7 +84,7 @@ function splitOn(x: Ret[], f: (x:Ret) => boolean) {
 }
 
 function exprs(x: Ret[]): Expr {
-  if(x.length === 0) return evar('unit');
+  if(x.length === 0) return evar('Unit');
   if(x.length === 1) return expr(x[0]);
   if(containsToken(x, ':')) {
     const s = splitOn(x, x => isToken(x, ':'));
@@ -171,9 +171,9 @@ function expr(x: Ret): Expr {
   if(x.tag === 'token') {
     const n = +x.val;
     if(!isNaN(n) && n >= 0) {
-      let t: Expr = evar('Z');
+      let t: Expr = evar('z');
       for(let i = 0; i < n; i++) {
-        t = eapp(evar('S'), t);
+        t = eapp(evar('s'), t);
       }
       return t;
     } else return evar(x.val);

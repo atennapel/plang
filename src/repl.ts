@@ -15,7 +15,7 @@ import {
   etabss,
 } from './exprs';
 import { compile, compileProgram, compileConstructor, compileCase } from './compilerJS';
-import { infer, ktype, initialContext, inferDefinition } from './typechecker';
+import { infer, ktype, initialContext, inferDefinition, inferProgram } from './typechecker';
 import {
   Context,
   ctcon,
@@ -26,7 +26,7 @@ import {
   kfuns,
 } from './kinds';
 import { isErr, isOk } from './Result';
-import { parse, parseDefinition } from './parser';
+import { parse, parseDefinition, parseProgram } from './parser';
 import { ppType, ppContextElem } from './prettyprinter';
 import {
   DData,
@@ -50,7 +50,17 @@ let ctx = context;
 export default function run(i: string, cb: (output: string, err?: boolean) => void): void {
   const cmd = i.trim().toLowerCase();
   if(cmd === ':help') {
-    cb('commands :help :context :let');
+    cb('commands :help :context :def :prelude');
+  } else if(cmd === ':prelude') {
+    try {
+      const ds = parseProgram(eval('_prelude'));
+      const t = inferProgram(ctx, ds);
+      if(isErr(t)) throw t.err;
+      else if(isOk(t)) ctx = t.val;
+      cb('prelude loaded');
+    } catch(err) {
+      return cb(''+err, true);
+    }
   } else if(cmd === ':context') {
     cb(ctx.elems.map(ppContextElem).join('\n'));
   } else if(cmd.slice(0, 4) === ':def') {

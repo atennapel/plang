@@ -157,6 +157,16 @@ export class Context {
     return i < 0? this: new Context(this.elems.slice(0, i).concat(other.elems, this.elems.slice(i + 1)));
   }
 
+  removeAll(fn: (e: ContextElem) => boolean): Context {
+    const r = [];
+    const a = this.elems;
+    const l = a.length;
+    for(let i = 0; i < l; i++) {
+      if(!fn(a[i])) r.push(a[i]);
+    }
+    return new Context(r);
+  }
+
   isOrdered(a: string, b: string): boolean {
     const ia = this.findIndex(e => e instanceof CTEx && e.name === a);
     const ib = this.findIndex(e => e instanceof CTEx && e.name === b);
@@ -193,5 +203,15 @@ export class Context {
     if(type instanceof TApp) return tapp(this.apply(type.left), this.apply(type.right));
     if(type instanceof TForall) return tforall(type.name, type.kind, this.apply(type.type));
     return type;
+  }
+
+  applyContextElem(e: ContextElem): ContextElem {
+    if(e instanceof CVar) return cvar(e.name, this.apply(e.type));
+    if(e instanceof CSolved) return csolved(e.name, e.kind, this.apply(e.type));
+    return e;
+  }
+
+  applyContext(context: Context): Context {
+    return new Context(context.elems.map(e => this.applyContextElem(e)));
   }
 }

@@ -251,6 +251,16 @@ class Context {
         const i = this.findIndex(fn);
         return i < 0 ? this : new Context(this.elems.slice(0, i).concat(other.elems, this.elems.slice(i + 1)));
     }
+    removeAll(fn) {
+        const r = [];
+        const a = this.elems;
+        const l = a.length;
+        for (let i = 0; i < l; i++) {
+            if (!fn(a[i]))
+                r.push(a[i]);
+        }
+        return new Context(r);
+    }
     isOrdered(a, b) {
         const ia = this.findIndex(e => e instanceof CTEx && e.name === a);
         const ib = this.findIndex(e => e instanceof CTEx && e.name === b);
@@ -287,6 +297,16 @@ class Context {
         if (type instanceof types_1.TForall)
             return types_1.tforall(type.name, type.kind, this.apply(type.type));
         return type;
+    }
+    applyContextElem(e) {
+        if (e instanceof CVar)
+            return exports.cvar(e.name, this.apply(e.type));
+        if (e instanceof CSolved)
+            return exports.csolved(e.name, e.kind, this.apply(e.type));
+        return e;
+    }
+    applyContext(context) {
+        return new Context(context.elems.map(e => this.applyContextElem(e)));
     }
 }
 exports.Context = Context;
@@ -594,7 +614,7 @@ function splitOn(x, f) {
 }
 function exprs(x) {
     if (x.length === 0)
-        return exprs_1.evar('unit');
+        return exprs_1.evar('Unit');
     if (x.length === 1)
         return expr(x[0]);
     if (containsToken(x, ':')) {
@@ -703,9 +723,9 @@ function expr(x) {
     if (x.tag === 'token') {
         const n = +x.val;
         if (!isNaN(n) && n >= 0) {
-            let t = exprs_1.evar('Z');
+            let t = exprs_1.evar('z');
             for (let i = 0; i < n; i++) {
-                t = exprs_1.eapp(exprs_1.evar('S'), t);
+                t = exprs_1.eapp(exprs_1.evar('s'), t);
             }
             return t;
         }
@@ -994,7 +1014,21 @@ let ctx = exports.context;
 function run(i, cb) {
     const cmd = i.trim().toLowerCase();
     if (cmd === ':help') {
-        cb('commands :help :context :let');
+        cb('commands :help :context :def :prelude');
+    }
+    else if (cmd === ':prelude') {
+        try {
+            const ds = parser_1.parseProgram(eval('_prelude'));
+            const t = typechecker_1.inferProgram(ctx, ds);
+            if (Result_1.isErr(t))
+                throw t.err;
+            else if (Result_1.isOk(t))
+                ctx = t.val;
+            cb('prelude loaded');
+        }
+        catch (err) {
+            return cb('' + err, true);
+        }
     }
     else if (cmd === ':context') {
         cb(ctx.elems.map(prettyprinter_1.ppContextElem).join('\n'));
@@ -1450,15 +1484,19 @@ function synthapp(ctx, ty, e) {
 }
 function infer(ctx, e) {
     return synth(ctx, e)
-        .then(({ ctx: ctx_, ty }) => contextWF(ctx_)
+        .then(({ ctx: ctx__, ty }) => contextWF(ctx__)
         .then(() => {
+        const ctx_ = ctx__.applyContext(ctx__);
         const ty_ = ctx_.apply(ty);
         return typeWF(ctx_, ty_).then(k => checkKindType(k).then(() => {
             if (ctx_.isComplete())
                 return ok({ ctx: ctx_, ty: ty_ });
-            const u = orderedTExs(ctx_.unsolved(), ty_);
+            const unsolved = ctx_.unsolved();
+            const unsolvedNames = unsolved.map(([n, _]) => n);
+            const u = orderedTExs(unsolved, ty_);
             return ok({
-                ctx: ctx_,
+                ctx: ctx_.removeAll(e => (e instanceof context_1.CTEx || e instanceof context_1.CMarker) && unsolvedNames.indexOf(e.name) >= 0)
+                    .removeAll(e => e instanceof context_1.CSolved),
                 ty: types_1.tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, types_1.tvar(n)), ty_)),
             });
         }));
@@ -1467,9 +1505,7 @@ function infer(ctx, e) {
 exports.infer = infer;
 function inferDefinition(ctx, d) {
     if (d instanceof definitions_1.DValue) {
-        return (d.type ?
-            checkTy(ctx, d.val, d.type).map(ctx => ({ ctx, ty: d.type })) :
-            synth(ctx, d.val))
+        return infer(ctx, (d.type ? exprs_1.eanno(d.val, d.type) : d.val))
             .then(({ ctx, ty }) => contextWF(ctx.add(context_1.cvar(d.name, ty)))
             .map(() => ctx.add(context_1.cvar(d.name, ty))));
     }
@@ -1495,7 +1531,6 @@ function inferDefinition(ctx, d) {
                 }
             }
             const r = fresh(params.map(([n, _]) => n), 'r');
-            console.log('' + types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)])))));
             return ok(ctx.add(context_1.ctcon(name, d.getKind())).append(new context_1.Context(constrs.map(([n, ts]) => context_1.cvar(n, types_1.tforalls(params, types_1.tfuns.apply(null, ts.concat([d.getType()]))))))).add(context_1.cvar(`case${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)])))))));
         })
             .then((ctx) => contextWF(ctx).map(() => ctx));
@@ -1511,6 +1546,7 @@ function inferProgram(ctx, ds) {
         if (Result_1.isErr(r))
             return new Result_1.Err(r.err);
         else if (Result_1.isOk(r)) {
+            console.log('' + d, '' + r.val);
             c = r.val;
         }
         else

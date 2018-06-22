@@ -50,6 +50,7 @@ import {
   ETAbs,
   EAnno,
   evar,
+  eanno,
 } from './exprs';
 import {
   Kind,
@@ -444,14 +445,18 @@ function synthapp(ctx: Context, ty: Type, e: Expr): IResult<{ ctx: Context, ty: 
 
 export function infer(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }> {
   return synth(ctx, e)
-    .then(({ ctx: ctx_, ty }) => contextWF(ctx_)
+    .then(({ ctx: ctx__, ty }) => contextWF(ctx__)
     .then(() => {
+      const ctx_ = ctx__.applyContext(ctx__);
       const ty_ = ctx_.apply(ty);
       return typeWF(ctx_, ty_).then(k => checkKindType(k).then(() => {
         if(ctx_.isComplete()) return ok({ ctx: ctx_, ty: ty_ });
-        const u = orderedTExs(ctx_.unsolved(), ty_);
+        const unsolved = ctx_.unsolved();
+        const unsolvedNames = unsolved.map(([n, _]) => n);
+        const u = orderedTExs(unsolved, ty_);
         return ok({
-          ctx: ctx_,
+          ctx: ctx_.removeAll(e => (e instanceof CTEx || e instanceof CMarker) && unsolvedNames.indexOf(e.name) >= 0)
+                    .removeAll(e => e instanceof CSolved),
           ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), ty_)),
         });
       }))
@@ -460,9 +465,7 @@ export function infer(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }
 
 export function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
   if(d instanceof DValue) {
-    return (d.type?
-      checkTy(ctx, d.val, d.type).map(ctx => ({ ctx, ty: d.type as Type })):
-      synth(ctx, d.val))
+    return infer(ctx, (d.type? eanno(d.val, d.type): d.val))
       .then(({ ctx, ty }) => contextWF(ctx.add(cvar(d.name, ty)))
       .map(() => ctx.add(cvar(d.name, ty))));
   } else if(d instanceof DData) {
@@ -486,8 +489,6 @@ export function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
           }
         }
         const r = fresh(params.map(([n, _]) => n), 'r');
-        console.log(''+tforalls(params, tforalls([[r, ktype]],
-          tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.concat([tvar(r)]))).concat([d.getType(), tvar(r)])))));
         return ok(ctx.add(ctcon(name, d.getKind())).append(new Context(
           constrs.map(([n, ts]) => cvar(n, tforalls(params, tfuns.apply(null, ts.concat([d.getType()]))))))
           ).add(
@@ -507,6 +508,7 @@ export function inferProgram(ctx: Context, ds: Definition[]): IResult<Context> {
     const r = inferDefinition(c, d);
     if(isErr(r)) return new Err(r.err);
     else if(isOk(r)) {
+      console.log(''+d, ''+r.val);
       c = r.val;
     } else impossible();
   }
