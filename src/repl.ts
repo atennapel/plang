@@ -56,8 +56,11 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
       const ds = parseProgram(eval('_prelude'));
       const t = inferProgram(ctx, ds);
       if(isErr(t)) throw t.err;
-      else if(isOk(t)) ctx = t.val;
-      cb('prelude loaded');
+      else if(isOk(t)) {
+        eval(compileProgram(ds, false, '', true));
+        ctx = t.val;
+        cb('prelude loaded');
+      }
     } catch(err) {
       return cb(''+err, true);
     }

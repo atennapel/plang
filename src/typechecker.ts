@@ -227,7 +227,7 @@ function contextWF(ctx: Context): IResult<null> {
 
 // subtype
 function subtype(ctx: Context, a: Type, b: Type): IResult<Context> {
-  console.log(`subtype ${a} and ${b} in ${ctx}`);
+  // console.log(`subtype ${a} and ${b} in ${ctx}`);
   const wf = typeWF(ctx, a).then(k1 => typeWF(ctx, b).then(k2 => ok({k1, k2})));
   if(isErr(wf)) return new Err(wf.err);
   const wfok = wf as Ok<TypeError, { k1: Kind, k2: Kind }>;
@@ -267,7 +267,7 @@ function subtype(ctx: Context, a: Type, b: Type): IResult<Context> {
 
 // inst
 function solve(ctx: Context, name: string, ty: Type): IResult<Context> {
-  console.log(`solve ${name} and ${ty} in ${ctx}`);
+  // console.log(`solve ${name} and ${ty} in ${ctx}`);
   if(ty.isMono()) {
     const s = ctx.split(isCTEx(name));
     return typeWF(s.left, ty)
@@ -276,7 +276,7 @@ function solve(ctx: Context, name: string, ty: Type): IResult<Context> {
 }
 
 function instL(ctx: Context, a: string, b: Type): IResult<Context> {
-  console.log(`instL ${a} and ${b} in ${ctx}`);
+  // console.log(`instL ${a} and ${b} in ${ctx}`);
   if(b instanceof TEx && ctx.isOrdered(a, b.name)) return solve(ctx, b.name, tex(a));
   if(b instanceof TEx && ctx.isOrdered(b.name, a)) return solve(ctx, a, b);
   const r = solve(ctx, a, b);
@@ -306,7 +306,7 @@ function instL(ctx: Context, a: string, b: Type): IResult<Context> {
 }
 
 function instR(ctx: Context, a: Type, b: string): IResult<Context> {
-  console.log(`instR ${a} and ${b} in ${ctx}`);
+  // console.log(`instR ${a} and ${b} in ${ctx}`);
   if(a instanceof TEx && ctx.isOrdered(b, a.name)) return solve(ctx, a.name, tex(b));
   if(a instanceof TEx && ctx.isOrdered(a.name, b)) return solve(ctx, b, a);
   const r = solve(ctx, b, a);
@@ -337,7 +337,7 @@ function instR(ctx: Context, a: Type, b: string): IResult<Context> {
 
 // synth/check
 function synth(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }> {
-  console.log(`synth ${e} in ${ctx}`);
+  // console.log(`synth ${e} in ${ctx}`);
   const r = contextWF(ctx);
   if(isErr(r)) return new Err(r.err);
   if(e instanceof EVar) return findVar(ctx, e.name).then(ty => ok({ ctx, ty }));
@@ -399,7 +399,7 @@ function synth(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }> {
 }
 
 function checkTy(ctx: Context, e: Expr, ty: Type): IResult<Context> {
-  console.log(`checkTy ${e} and ${ty} in ${ctx}`);
+  // console.log(`checkTy ${e} and ${ty} in ${ctx}`);
   const r = contextWF(ctx);
   if(isErr(r)) return new Err(r.err);
   if(ty instanceof TForall) {
@@ -417,7 +417,7 @@ function checkTy(ctx: Context, e: Expr, ty: Type): IResult<Context> {
 }
 
 function synthapp(ctx: Context, ty: Type, e: Expr): IResult<{ ctx: Context, ty: Type }> {
-  console.log(`synthapp ${ty} and ${e} in ${ctx}`);
+  // console.log(`synthapp ${ty} and ${e} in ${ctx}`);
   const r = contextWF(ctx);
   if(isErr(r)) return new Err(r.err);
   if(ty instanceof TForall) {
@@ -455,8 +455,7 @@ export function infer(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }
         const unsolvedNames = unsolved.map(([n, _]) => n);
         const u = orderedTExs(unsolved, ty_);
         return ok({
-          ctx: ctx_.removeAll(e => (e instanceof CTEx || e instanceof CMarker) && unsolvedNames.indexOf(e.name) >= 0)
-                    .removeAll(e => e instanceof CSolved),
+          ctx: ctx_.removeAll(e => (e instanceof CSolved) || ((e instanceof CTEx || e instanceof CMarker) && unsolvedNames.indexOf(e.name) >= 0)),
           ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), ty_)),
         });
       }))
@@ -465,10 +464,13 @@ export function infer(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }
 
 export function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
   if(d instanceof DValue) {
+    console.log(''+d);
     return infer(ctx, (d.type? eanno(d.val, d.type): d.val))
+      .map(x => ({ ty: x.ty, ctx: x.ctx.removeAll(e => e instanceof CSolved) }))
       .then(({ ctx, ty }) => contextWF(ctx.add(cvar(d.name, ty)))
       .map(() => ctx.add(cvar(d.name, ty))));
   } else if(d instanceof DData) {
+    console.log(''+d);
     const name = d.name;
     const params = d.params;
     const constrs = d.constrs;

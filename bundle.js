@@ -1,4 +1,4 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Result {
@@ -71,15 +71,15 @@ function compileCase(n, c) {
     return `${a.join('=>')}${a.length === 0 ? '' : '=>'}x=>{switch(x._tag){${c.map(([cn, ts]) => `case '${cn}':return f${cn}${ts.map((_, i) => `(x._args[${i}])`).join('')};break;`).join('')}}throw new Error('case failed for ${n}')}`;
 }
 exports.compileCase = compileCase;
-function compileDefinition(d) {
+function compileDefinition(d, attachVars) {
     if (d instanceof definitions_1.DValue)
-        return `const ${d.name} = ${compile(d.val)}`;
+        return attachVars ? `(typeof global === 'undefined'? window: global)['${d.name}'] = ${compile(d.val)}` : `const ${d.name} = ${compile(d.val)}`;
     if (d instanceof definitions_1.DData)
         return d.constrs.map(([n, ts]) => `const ${n} = ${compileConstructor(n, ts.length)}`).join(';') + ';' + `const case${d.name} = ${compileCase(d.name, d.constrs)};`;
     return util_1.impossible();
 }
-function compileProgram(p, withMain, lib = '') {
-    return `;${lib.trim()};${p.map(compileDefinition).join(';')}${withMain ? `;console.log(show(main))` : ''};`;
+function compileProgram(p, withMain, lib = '', attachVars) {
+    return `;${lib.trim()};${p.map(d => compileDefinition(d, attachVars)).join(';')}${withMain ? `;console.log(show(main))` : ''};`;
 }
 exports.compileProgram = compileProgram;
 
@@ -1022,9 +1022,11 @@ function run(i, cb) {
             const t = typechecker_1.inferProgram(ctx, ds);
             if (Result_1.isErr(t))
                 throw t.err;
-            else if (Result_1.isOk(t))
+            else if (Result_1.isOk(t)) {
+                eval(compilerJS_1.compileProgram(ds, false, '', true));
                 ctx = t.val;
-            cb('prelude loaded');
+                cb('prelude loaded');
+            }
         }
         catch (err) {
             return cb('' + err, true);
@@ -1264,7 +1266,7 @@ function contextWF(ctx) {
 }
 // subtype
 function subtype(ctx, a, b) {
-    console.log(`subtype ${a} and ${b} in ${ctx}`);
+    // console.log(`subtype ${a} and ${b} in ${ctx}`);
     const wf = typeWF(ctx, a).then(k1 => typeWF(ctx, b).then(k2 => ok({ k1, k2 })));
     if (Result_1.isErr(wf))
         return new Result_1.Err(wf.err);
@@ -1304,7 +1306,7 @@ function subtype(ctx, a, b) {
 }
 // inst
 function solve(ctx, name, ty) {
-    console.log(`solve ${name} and ${ty} in ${ctx}`);
+    // console.log(`solve ${name} and ${ty} in ${ctx}`);
     if (ty.isMono()) {
         const s = ctx.split(context_1.isCTEx(name));
         return typeWF(s.left, ty)
@@ -1314,7 +1316,7 @@ function solve(ctx, name, ty) {
         return err(`polymorphic type in solve: ${name} := ${ty} in ${ctx}`);
 }
 function instL(ctx, a, b) {
-    console.log(`instL ${a} and ${b} in ${ctx}`);
+    // console.log(`instL ${a} and ${b} in ${ctx}`);
     if (b instanceof types_1.TEx && ctx.isOrdered(a, b.name))
         return solve(ctx, b.name, types_1.tex(a));
     if (b instanceof types_1.TEx && ctx.isOrdered(b.name, a))
@@ -1346,7 +1348,7 @@ function instL(ctx, a, b) {
     return err(`instL failed: ${a} and ${b} in ${ctx}`);
 }
 function instR(ctx, a, b) {
-    console.log(`instR ${a} and ${b} in ${ctx}`);
+    // console.log(`instR ${a} and ${b} in ${ctx}`);
     if (a instanceof types_1.TEx && ctx.isOrdered(b, a.name))
         return solve(ctx, a.name, types_1.tex(b));
     if (a instanceof types_1.TEx && ctx.isOrdered(a.name, b))
@@ -1379,7 +1381,7 @@ function instR(ctx, a, b) {
 }
 // synth/check
 function synth(ctx, e) {
-    console.log(`synth ${e} in ${ctx}`);
+    // console.log(`synth ${e} in ${ctx}`);
     const r = contextWF(ctx);
     if (Result_1.isErr(r))
         return new Result_1.Err(r.err);
@@ -1442,7 +1444,7 @@ function synth(ctx, e) {
     return err(`cannot synth ${e} in ${ctx}`);
 }
 function checkTy(ctx, e, ty) {
-    console.log(`checkTy ${e} and ${ty} in ${ctx}`);
+    // console.log(`checkTy ${e} and ${ty} in ${ctx}`);
     const r = contextWF(ctx);
     if (Result_1.isErr(r))
         return new Result_1.Err(r.err);
@@ -1460,7 +1462,7 @@ function checkTy(ctx, e, ty) {
         .then(({ ctx: ctx_, ty: ty_ }) => subtype(ctx_, ctx_.apply(ty_), ctx_.apply(ty)));
 }
 function synthapp(ctx, ty, e) {
-    console.log(`synthapp ${ty} and ${e} in ${ctx}`);
+    // console.log(`synthapp ${ty} and ${e} in ${ctx}`);
     const r = contextWF(ctx);
     if (Result_1.isErr(r))
         return new Result_1.Err(r.err);
@@ -1495,8 +1497,7 @@ function infer(ctx, e) {
             const unsolvedNames = unsolved.map(([n, _]) => n);
             const u = orderedTExs(unsolved, ty_);
             return ok({
-                ctx: ctx_.removeAll(e => (e instanceof context_1.CTEx || e instanceof context_1.CMarker) && unsolvedNames.indexOf(e.name) >= 0)
-                    .removeAll(e => e instanceof context_1.CSolved),
+                ctx: ctx_.removeAll(e => (e instanceof context_1.CSolved) || ((e instanceof context_1.CTEx || e instanceof context_1.CMarker) && unsolvedNames.indexOf(e.name) >= 0)),
                 ty: types_1.tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, types_1.tvar(n)), ty_)),
             });
         }));
@@ -1505,11 +1506,14 @@ function infer(ctx, e) {
 exports.infer = infer;
 function inferDefinition(ctx, d) {
     if (d instanceof definitions_1.DValue) {
+        console.log('' + d);
         return infer(ctx, (d.type ? exprs_1.eanno(d.val, d.type) : d.val))
+            .map(x => ({ ty: x.ty, ctx: x.ctx.removeAll(e => e instanceof context_1.CSolved) }))
             .then(({ ctx, ty }) => contextWF(ctx.add(context_1.cvar(d.name, ty)))
             .map(() => ctx.add(context_1.cvar(d.name, ty))));
     }
     else if (d instanceof definitions_1.DData) {
+        console.log('' + d);
         const name = d.name;
         const params = d.params;
         const constrs = d.constrs;

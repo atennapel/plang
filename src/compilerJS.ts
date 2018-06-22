@@ -39,13 +39,14 @@ export function compileCase(n: string, c: [string, any[]][]) {
     `case '${cn}':return f${cn}${ts.map((_, i) => `(x._args[${i}])`).join('')};break;`).join('')}}throw new Error('case failed for ${n}')}`;
 }
 
-function compileDefinition(d: Definition): string {
-  if(d instanceof DValue) return `const ${d.name} = ${compile(d.val)}`;
+function compileDefinition(d: Definition, attachVars?: boolean): string {
+  if(d instanceof DValue)
+    return attachVars? `(typeof global === 'undefined'? window: global)['${d.name}'] = ${compile(d.val)}`: `const ${d.name} = ${compile(d.val)}`;
   if(d instanceof DData)
     return d.constrs.map(([n, ts]) => `const ${n} = ${compileConstructor(n, ts.length)}`).join(';') + ';' + `const case${d.name} = ${compileCase(d.name, d.constrs)};`;
   return impossible();
 }
 
-export function compileProgram(p: Definition[], withMain?: boolean, lib: string = ''): string {
-  return `;${lib.trim()};${p.map(compileDefinition).join(';')}${withMain? `;console.log(show(main))`: ''};`;
+export function compileProgram(p: Definition[], withMain?: boolean, lib: string = '', attachVars?: boolean): string {
+  return `;${lib.trim()};${p.map(d => compileDefinition(d, attachVars)).join(';')}${withMain? `;console.log(show(main))`: ''};`;
 }
