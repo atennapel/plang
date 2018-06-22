@@ -26,6 +26,10 @@ export function compile(expr: Expr): string {
   return impossible();
 }
 
+function varPrefix(name: string, attachVars?: boolean) {
+  return attachVars? `(typeof global === 'undefined'? window: global)['${name}']`: `const ${name}`;
+}
+
 export function compileConstructor(n: string, l: number) {
   const a = [];
   for(let i = 0; i < l; i++) a.push(`x${i}`);
@@ -41,9 +45,9 @@ export function compileCase(n: string, c: [string, any[]][]) {
 
 function compileDefinition(d: Definition, attachVars?: boolean): string {
   if(d instanceof DValue)
-    return attachVars? `(typeof global === 'undefined'? window: global)['${d.name}'] = ${compile(d.val)}`: `const ${d.name} = ${compile(d.val)}`;
+    return `${varPrefix(d.name, attachVars)} = ${compile(d.val)}`;
   if(d instanceof DData)
-    return d.constrs.map(([n, ts]) => `const ${n} = ${compileConstructor(n, ts.length)}`).join(';') + ';' + `const case${d.name} = ${compileCase(d.name, d.constrs)};`;
+    return d.constrs.map(([n, ts]) => `${varPrefix(n, attachVars)} = ${compileConstructor(n, ts.length)}`).join(';') + ';' + `${varPrefix(`case${d.name}`, attachVars)} = ${compileCase(d.name, d.constrs)};`;
   return impossible();
 }
 

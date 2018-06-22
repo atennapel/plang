@@ -57,6 +57,9 @@ function compile(expr) {
     return util_1.impossible();
 }
 exports.compile = compile;
+function varPrefix(name, attachVars) {
+    return attachVars ? `(typeof global === 'undefined'? window: global)['${name}']` : `const ${name}`;
+}
 function compileConstructor(n, l) {
     const a = [];
     for (let i = 0; i < l; i++)
@@ -73,9 +76,9 @@ function compileCase(n, c) {
 exports.compileCase = compileCase;
 function compileDefinition(d, attachVars) {
     if (d instanceof definitions_1.DValue)
-        return attachVars ? `(typeof global === 'undefined'? window: global)['${d.name}'] = ${compile(d.val)}` : `const ${d.name} = ${compile(d.val)}`;
+        return `${varPrefix(d.name, attachVars)} = ${compile(d.val)}`;
     if (d instanceof definitions_1.DData)
-        return d.constrs.map(([n, ts]) => `const ${n} = ${compileConstructor(n, ts.length)}`).join(';') + ';' + `const case${d.name} = ${compileCase(d.name, d.constrs)};`;
+        return d.constrs.map(([n, ts]) => `${varPrefix(n, attachVars)} = ${compileConstructor(n, ts.length)}`).join(';') + ';' + `${varPrefix(`case${d.name}`, attachVars)} = ${compileCase(d.name, d.constrs)};`;
     return util_1.impossible();
 }
 function compileProgram(p, withMain, lib = '', attachVars) {
