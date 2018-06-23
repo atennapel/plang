@@ -2,6 +2,7 @@ import { Kind } from './kinds';
 
 export abstract class Type {
   abstract toString(): string;
+  abstract equals(other: Type): boolean;
   abstract isMono(): boolean;
   abstract subst(name: string, type: Type): Type;
   abstract substEx(name: string, type: Type): Type;
@@ -17,6 +18,9 @@ export class TCon extends Type {
 
   toString() {
     return `${this.name}`;
+  }
+  equals(other: Type): boolean {
+    return other instanceof TCon && this.name === other.name;
   }
   isMono() {
     return true;
@@ -51,6 +55,9 @@ export class TVar extends Type {
   toString() {
     return `${this.name}`;
   }
+  equals(other: Type): boolean {
+    return other instanceof TVar && this.name === other.name;
+  }
   isMono() {
     return true;
   }
@@ -83,6 +90,9 @@ export class TEx extends Type {
 
   toString() {
     return `^${this.name}`;
+  }
+  equals(other: Type): boolean {
+    return other instanceof TEx && this.name === other.name;
   }
   isMono() {
     return true;
@@ -119,6 +129,9 @@ export class TApp extends Type {
 
   toString() {
     return `(${this.left} ${this.right})`;
+  }
+  equals(other: Type): boolean {
+    return other instanceof TApp && this.left.equals(other.left) && this.right.equals(other.right);
   }
   isMono() {
     return this.left.isMono() && this.right.isMono();
@@ -157,6 +170,9 @@ export class TFun extends Type {
   toString() {
     return `(${this.left} -> ${this.right})`;
   }
+  equals(other: Type): boolean {
+    return other instanceof TFun && this.left.equals(other.left) && this.right.equals(other.right);
+  }
   isMono() {
     return this.left.isMono() && this.right.isMono();
   }
@@ -194,6 +210,12 @@ export class TForall extends Type {
 
   toString() {
     return `(forall(${this.name} : ${this.kind}). ${this.type})`;
+  }
+  equals(other: Type): boolean {
+    return other instanceof TForall &&
+      this.name === other.name &&
+      this.kind.equals(other.kind) &&
+      this.type.equals(other.type);
   }
   isMono() {
     return false;

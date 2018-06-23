@@ -85,6 +85,18 @@ function noDups(d: string[]): IResult<null> {
   return ok(null);
 }
 
+function mapM<A, B>(a: A[], fn: (a: A) => IResult<B>): IResult<B[]> {
+  const l = a.length;
+  const r: B[] = [];
+  for(let i = 0; i < l; i++) {
+    const c = fn(a[i]);
+    if(isErr(c)) return new Err(c.err);
+    else if(isOk(c)) r.push(c.val);
+    else return impossible();
+  }
+  return ok(r);
+};
+
 // fresh
 const fresh = (ns: string[], n: string): string => {
   const l = ns.length;
@@ -495,7 +507,9 @@ export function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
           constrs.map(([n, ts]) => cvar(n, tforalls(params, tfuns.apply(null, ts.concat([d.getType()]))))))
           ).add(
             cvar(`case${d.name}`, tforalls(params, tforalls([[r, ktype]],
-              tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.concat([tvar(r)]))).concat([d.getType(), tvar(r)])))))
+              tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.concat([tvar(r)]))).concat([d.getType(), tvar(r)]))))),
+            cvar(`fold${d.name}`, tforalls(params, tforalls([[r, ktype]],
+              tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.map(t => t.equals(d.getType())? tvar(r): t).concat([tvar(r)]))).concat([d.getType(), tvar(r)])))))
           ));
       })
       .then((ctx: Context) => contextWF(ctx).map(() => ctx));

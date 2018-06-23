@@ -14,7 +14,7 @@ import {
   etapps,
   etabss,
 } from './exprs';
-import { compile, compileProgram, compileConstructor, compileCase } from './compilerJS';
+import { compile, compileProgram, compileConstructor, compileCase, compileFold } from './compilerJS';
 import { infer, ktype, initialContext, inferDefinition, inferProgram } from './typechecker';
 import {
   Context,
@@ -36,13 +36,30 @@ import {
 export const context = initialContext;
 
 function show(x: any): string {
-  if(x === null) return `()`;
-  if(x._adt) return x._args.length === 0? `${x._tag}`: `(${x._tag}${x._args.length > 0? ` ${x._args.map(show).join(' ')}`: ''})`;
-  if(Array.isArray(x)) return `[${x.map(show).join(', ')}]`;
+  if(x._adt) {
+    if(x._tag === 'Z') return '0';
+    if(x._tag === 'S') {
+      let c = x;
+      let n = 0;
+      while(c._tag === 'S') {
+        n++;
+        c = c._args[0];
+      }
+      return `${n}`;
+    }
+    if(x._tag === 'Nil') return '[]';
+    if(x._tag === 'Cons') {
+      let c = x;
+      let r = [];
+      while(c._tag === 'Cons') {
+        r.push(c._args[0]);
+        c = c._args[1];
+      }
+      return '[' + r.map(show).join(', ') + ']';
+    }
+    return x._args.length === 0? `${x._tag}`: `(${x._tag}${x._args.length > 0? ` ${x._args.map(show).join(' ')}`: ''})`;
+  }
   if(typeof x === 'function') return `[Function]`;
-  if(x._tag === 'inl') return `(Inl ${show(x._val)})`;
-  if(x._tag === 'inr') return `(Inr ${show(x._val)})`;
-  if(x._tag === 'pair') return `(${show(x._fst)}, ${show(x._snd)})`;
   return `${x}`;
 }
 
@@ -82,6 +99,7 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
         } else if(d instanceof DData) {
           d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = ${compileConstructor(n, ts.length)}`));
           eval(`(typeof global === 'undefined'? window: global)['case${d.name}'] = ${compileCase(d.name, d.constrs)}`);
+          eval(`(typeof global === 'undefined'? window: global)['fold${d.name}'] = ${compileFold(d.name, d.constrs, d.getType())}`);
           cb(`defined ${d.name}`);
         } else return cb('unknown definition', true);
       }

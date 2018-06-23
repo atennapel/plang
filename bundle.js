@@ -1,4 +1,4 @@
-(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Result {
@@ -74,11 +74,20 @@ function compileCase(n, c) {
     return `${a.join('=>')}${a.length === 0 ? '' : '=>'}x=>{switch(x._tag){${c.map(([cn, ts]) => `case '${cn}':return f${cn}${ts.map((_, i) => `(x._args[${i}])`).join('')};break;`).join('')}}throw new Error('case failed for ${n}')}`;
 }
 exports.compileCase = compileCase;
+function compileFold(n, c, rtype) {
+    const a = [];
+    for (let i = 0; i < c.length; i++)
+        a.push(`f${c[i][0]}`);
+    return `${a.join('=>')}${a.length === 0 ? '' : '=>'}case${n}${c.map(([cn, ts]) => `(${ts.length === 0 ? `f${cn}` : ts.map((_, i) => `x${i}`).join('=>') + '=>' + `f${cn}` + ts.map((t, i) => t.equals(rtype) ? `(fold${n}${a.map(x => `(${x})`).join('')}(x${i}))` : `(x${i})`).join('')})`).join('')}`;
+}
+exports.compileFold = compileFold;
 function compileDefinition(d, attachVars) {
     if (d instanceof definitions_1.DValue)
         return `${varPrefix(d.name, attachVars)} = ${compile(d.val)}`;
     if (d instanceof definitions_1.DData)
-        return d.constrs.map(([n, ts]) => `${varPrefix(n, attachVars)} = ${compileConstructor(n, ts.length)}`).join(';') + ';' + `${varPrefix(`case${d.name}`, attachVars)} = ${compileCase(d.name, d.constrs)};`;
+        return d.constrs.map(([n, ts]) => `${varPrefix(n, attachVars)} = ${compileConstructor(n, ts.length)}`).join(';') + ';' +
+            `${varPrefix(`case${d.name}`, attachVars)} = ${compileCase(d.name, d.constrs)};` +
+            `${varPrefix(`fold${d.name}`, attachVars)} = ${compileFold(d.name, d.constrs, d.getType())};`;
     return util_1.impossible();
 }
 function compileProgram(p, withMain, lib = '', attachVars) {
@@ -726,9 +735,9 @@ function expr(x) {
     if (x.tag === 'token') {
         const n = +x.val;
         if (!isNaN(n) && n >= 0) {
-            let t = exprs_1.evar('z');
+            let t = exprs_1.evar('Z');
             for (let i = 0; i < n; i++) {
-                t = exprs_1.eapp(exprs_1.evar('s'), t);
+                t = exprs_1.eapp(exprs_1.evar('S'), t);
             }
             return t;
         }
@@ -997,20 +1006,33 @@ const prettyprinter_1 = require("./prettyprinter");
 const definitions_1 = require("./definitions");
 exports.context = typechecker_1.initialContext;
 function show(x) {
-    if (x === null)
-        return `()`;
-    if (x._adt)
+    if (x._adt) {
+        if (x._tag === 'Z')
+            return '0';
+        if (x._tag === 'S') {
+            let c = x;
+            let n = 0;
+            while (c._tag === 'S') {
+                n++;
+                c = c._args[0];
+            }
+            return `${n}`;
+        }
+        if (x._tag === 'Nil')
+            return '[]';
+        if (x._tag === 'Cons') {
+            let c = x;
+            let r = [];
+            while (c._tag === 'Cons') {
+                r.push(c._args[0]);
+                c = c._args[1];
+            }
+            return '[' + r.map(show).join(', ') + ']';
+        }
         return x._args.length === 0 ? `${x._tag}` : `(${x._tag}${x._args.length > 0 ? ` ${x._args.map(show).join(' ')}` : ''})`;
-    if (Array.isArray(x))
-        return `[${x.map(show).join(', ')}]`;
+    }
     if (typeof x === 'function')
         return `[Function]`;
-    if (x._tag === 'inl')
-        return `(Inl ${show(x._val)})`;
-    if (x._tag === 'inr')
-        return `(Inr ${show(x._val)})`;
-    if (x._tag === 'pair')
-        return `(${show(x._fst)}, ${show(x._snd)})`;
     return `${x}`;
 }
 let ctx = exports.context;
@@ -1056,6 +1078,7 @@ function run(i, cb) {
                 else if (d instanceof definitions_1.DData) {
                     d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = ${compilerJS_1.compileConstructor(n, ts.length)}`));
                     eval(`(typeof global === 'undefined'? window: global)['case${d.name}'] = ${compilerJS_1.compileCase(d.name, d.constrs)}`);
+                    eval(`(typeof global === 'undefined'? window: global)['fold${d.name}'] = ${compilerJS_1.compileFold(d.name, d.constrs, d.getType())}`);
                     cb(`defined ${d.name}`);
                 }
                 else
@@ -1116,6 +1139,21 @@ function noDups(d) {
     }
     return ok(null);
 }
+function mapM(a, fn) {
+    const l = a.length;
+    const r = [];
+    for (let i = 0; i < l; i++) {
+        const c = fn(a[i]);
+        if (Result_1.isErr(c))
+            return new Result_1.Err(c.err);
+        else if (Result_1.isOk(c))
+            r.push(c.val);
+        else
+            return util_1.impossible();
+    }
+    return ok(r);
+}
+;
 // fresh
 const fresh = (ns, n) => {
     const l = ns.length;
@@ -1538,7 +1576,7 @@ function inferDefinition(ctx, d) {
                 }
             }
             const r = fresh(params.map(([n, _]) => n), 'r');
-            return ok(ctx.add(context_1.ctcon(name, d.getKind())).append(new context_1.Context(constrs.map(([n, ts]) => context_1.cvar(n, types_1.tforalls(params, types_1.tfuns.apply(null, ts.concat([d.getType()]))))))).add(context_1.cvar(`case${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)])))))));
+            return ok(ctx.add(context_1.ctcon(name, d.getKind())).append(new context_1.Context(constrs.map(([n, ts]) => context_1.cvar(n, types_1.tforalls(params, types_1.tfuns.apply(null, ts.concat([d.getType()]))))))).add(context_1.cvar(`case${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)]))))), context_1.cvar(`fold${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.map(t => t.equals(d.getType()) ? types_1.tvar(r) : t).concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)])))))));
         })
             .then((ctx) => contextWF(ctx).map(() => ctx));
     }
@@ -1577,6 +1615,9 @@ class TCon extends Type {
     toString() {
         return `${this.name}`;
     }
+    equals(other) {
+        return other instanceof TCon && this.name === other.name;
+    }
     isMono() {
         return true;
     }
@@ -1611,6 +1652,9 @@ class TVar extends Type {
     }
     toString() {
         return `${this.name}`;
+    }
+    equals(other) {
+        return other instanceof TVar && this.name === other.name;
     }
     isMono() {
         return true;
@@ -1647,6 +1691,9 @@ class TEx extends Type {
     toString() {
         return `^${this.name}`;
     }
+    equals(other) {
+        return other instanceof TEx && this.name === other.name;
+    }
     isMono() {
         return true;
     }
@@ -1682,6 +1729,9 @@ class TApp extends Type {
     }
     toString() {
         return `(${this.left} ${this.right})`;
+    }
+    equals(other) {
+        return other instanceof TApp && this.left.equals(other.left) && this.right.equals(other.right);
     }
     isMono() {
         return this.left.isMono() && this.right.isMono();
@@ -1720,6 +1770,9 @@ class TFun extends Type {
     toString() {
         return `(${this.left} -> ${this.right})`;
     }
+    equals(other) {
+        return other instanceof TFun && this.left.equals(other.left) && this.right.equals(other.right);
+    }
     isMono() {
         return this.left.isMono() && this.right.isMono();
     }
@@ -1757,6 +1810,12 @@ class TForall extends Type {
     }
     toString() {
         return `(forall(${this.name} : ${this.kind}). ${this.type})`;
+    }
+    equals(other) {
+        return other instanceof TForall &&
+            this.name === other.name &&
+            this.kind.equals(other.kind) &&
+            this.type.equals(other.type);
     }
     isMono() {
         return false;
