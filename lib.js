@@ -69,10 +69,10 @@ data Maybe t = Nothing | Just t;
 data List t = Nil | Cons t (List t);
 
 inc = S;
-add = \\x y -> foldNat x inc y;
+add = \\x y -> cataNat x inc y;
 pred = caseNat Z id;
 
-length = foldList 0 (\\h a -> S a);
-map = \\f -> foldList Nil (\\h a -> Cons (f h) a);
-sum = foldList 0 add;
+length = cataList 0 (\\h a -> S a);
+map = \\f -> cataList Nil (\\h a -> Cons (f h) a);
+sum = cataList 0 add;
 `;

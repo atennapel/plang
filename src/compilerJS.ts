@@ -44,10 +44,18 @@ export function compileCase(n: string, c: [string, any[]][]) {
     `case '${cn}':return f${cn}${ts.map((_, i) => `(x._args[${i}])`).join('')};break;`).join('')}}throw new Error('case failed for ${n}')}`;
 }
 
-export function compileFold(n: string, c: [string, any[]][], rtype: Type) {
+export function compileCata(n: string, c: [string, any[]][], rtype: Type) {
   const a: string[] = [];
   for(let i = 0; i < c.length; i++) a.push(`f${c[i][0]}`);
-  return `${a.join('=>')}${a.length === 0? '': '=>'}case${n}${c.map(([cn, ts]) => `(${ts.length === 0? `f${cn}`: ts.map((_, i) => `x${i}`).join('=>') + '=>' + `f${cn}` + ts.map((t, i) => t.equals(rtype)? `(fold${n}${a.map(x => `(${x})`).join('')}(x${i}))`: `(x${i})`).join('')})`).join('')}`;
+  return `${a.join('=>')}${a.length === 0? '': '=>'}case${n}${c.map(([cn, ts]) => `(${ts.length === 0? `f${cn}`: ts.map((_, i) => `x${i}`).join('=>') + '=>' + `f${cn}` + ts.map((t, i) => t.equals(rtype)? `(cata${n}${a.map(x => `(${x})`).join('')}(x${i}))`: `(x${i})`).join('')})`).join('')}`;
+}
+
+export function compilePara(n: string, c: [string, any[]][], rtype: Type) {
+  const a: string[] = [];
+  for(let i = 0; i < c.length; i++) a.push(`f${c[i][0]}`);
+  return `${a.join('=>')}${a.length === 0? '': '=>'}case${n}${c.map(([cn, ts]) =>
+      `(${ts.length === 0? `f${cn}`: ts.map((_, i) => `x${i}`).join('=>') + '=>' + `f${cn}` +
+        ts.map((t, i) => t.equals(rtype)? `(x${i})(para${n}${a.map(x => `(${x})`).join('')}(x${i}))`: `(x${i})`).join('')})`).join('')}`;
 }
 
 function compileDefinition(d: Definition, attachVars?: boolean): string {
@@ -56,7 +64,8 @@ function compileDefinition(d: Definition, attachVars?: boolean): string {
   if(d instanceof DData)
     return d.constrs.map(([n, ts]) => `${varPrefix(n, attachVars)} = ${compileConstructor(n, ts.length)}`).join(';') + ';' +
       `${varPrefix(`case${d.name}`, attachVars)} = ${compileCase(d.name, d.constrs)};` +
-      `${varPrefix(`fold${d.name}`, attachVars)} = ${compileFold(d.name, d.constrs, d.getType())};`;
+      `${varPrefix(`cata${d.name}`, attachVars)} = ${compileCata(d.name, d.constrs, d.getType())};` +
+      `${varPrefix(`para${d.name}`, attachVars)} = ${compilePara(d.name, d.constrs, d.getType())};`;
   return impossible();
 }
 

@@ -508,8 +508,10 @@ export function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
           ).add(
             cvar(`case${d.name}`, tforalls(params, tforalls([[r, ktype]],
               tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.concat([tvar(r)]))).concat([d.getType(), tvar(r)]))))),
-            cvar(`fold${d.name}`, tforalls(params, tforalls([[r, ktype]],
-              tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.map(t => t.equals(d.getType())? tvar(r): t).concat([tvar(r)]))).concat([d.getType(), tvar(r)])))))
+            cvar(`cata${d.name}`, tforalls(params, tforalls([[r, ktype]],
+              tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.map(t => t.equals(d.getType())? tvar(r): t).concat([tvar(r)]))).concat([d.getType(), tvar(r)]))))),
+            cvar(`para${d.name}`, tforalls(params, tforalls([[r, ktype]],
+              tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.map(t => t.equals(d.getType())? [t, tvar(r)]: [t]).reduce((a, b) => a.concat(b), []).concat([tvar(r)]))).concat([d.getType(), tvar(r)])))))
           ));
       })
       .then((ctx: Context) => contextWF(ctx).map(() => ctx));

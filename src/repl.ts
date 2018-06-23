@@ -14,7 +14,7 @@ import {
   etapps,
   etabss,
 } from './exprs';
-import { compile, compileProgram, compileConstructor, compileCase, compileFold } from './compilerJS';
+import { compile, compileProgram, compileConstructor, compileCase, compileCata, compilePara } from './compilerJS';
 import { infer, ktype, initialContext, inferDefinition, inferProgram } from './typechecker';
 import {
   Context,
@@ -99,7 +99,8 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
         } else if(d instanceof DData) {
           d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = ${compileConstructor(n, ts.length)}`));
           eval(`(typeof global === 'undefined'? window: global)['case${d.name}'] = ${compileCase(d.name, d.constrs)}`);
-          eval(`(typeof global === 'undefined'? window: global)['fold${d.name}'] = ${compileFold(d.name, d.constrs, d.getType())}`);
+          eval(`(typeof global === 'undefined'? window: global)['cata${d.name}'] = ${compileCata(d.name, d.constrs, d.getType())}`);
+          eval(`(typeof global === 'undefined'? window: global)['para${d.name}'] = ${compilePara(d.name, d.constrs, d.getType())}`);
           cb(`defined ${d.name}`);
         } else return cb('unknown definition', true);
       }
