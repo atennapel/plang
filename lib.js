@@ -74,5 +74,5 @@ pred = caseNat Z id;
 
 length = foldList 0 (\\h a -> S a);
 map = \\f -> foldList Nil (\\h a -> Cons (f h) a);
-sum = foldList 0 add l;
+sum = foldList 0 add;
 `;
