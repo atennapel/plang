@@ -25,7 +25,6 @@ import {
   kcon,
   kfuns,
 } from './kinds';
-import { isErr, isOk } from './Result';
 import { parse, parseDefinition, parseProgram } from './parser';
 import { ppType, ppContextElem } from './prettyprinter';
 import {
@@ -72,12 +71,9 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
     try {
       const ds = parseProgram(eval('_prelude'));
       const t = inferProgram(ctx, ds);
-      if(isErr(t)) throw t.err;
-      else if(isOk(t)) {
-        eval(compileProgram(ds, false, '', true));
-        ctx = t.val;
-        cb('prelude loaded');
-      }
+      eval(compileProgram(ds, false, '', true));
+      ctx = t;
+      cb('prelude loaded');
     } catch(err) {
       return cb(''+err, true);
     }
@@ -88,22 +84,19 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
     try {
       const d = parseDefinition(rest);
       const t = inferDefinition(ctx, d);
-      if(isErr(t)) throw t.err;
-      else if(isOk(t)) {
-        ctx = t.val;
-        if(d instanceof DValue) {
-          const c = compile(d.val);
-          console.log(c);
-          const res = eval(`(typeof global === 'undefined'? window: global)['${d.name}'] = ${c}`);
-          cb(`${d.name} : ${ppType(ctx.apply(ctx.findVar(d.name) as any))} = ${show(res)}`);
-        } else if(d instanceof DData) {
-          d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = ${compileConstructor(n, ts.length)}`));
-          eval(`(typeof global === 'undefined'? window: global)['case${d.name}'] = ${compileCase(d.name, d.constrs)}`);
-          eval(`(typeof global === 'undefined'? window: global)['cata${d.name}'] = ${compileCata(d.name, d.constrs, d.getType())}`);
-          eval(`(typeof global === 'undefined'? window: global)['para${d.name}'] = ${compilePara(d.name, d.constrs, d.getType())}`);
-          cb(`defined ${d.name}`);
-        } else return cb('unknown definition', true);
-      }
+      ctx = t;
+      if(d instanceof DValue) {
+        const c = compile(d.val);
+        console.log(c);
+        const res = eval(`(typeof global === 'undefined'? window: global)['${d.name}'] = ${c}`);
+        cb(`${d.name} : ${ppType(ctx.apply(ctx.findVar(d.name) as any))} = ${show(res)}`);
+      } else if(d instanceof DData) {
+        d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = ${compileConstructor(n, ts.length)}`));
+        eval(`(typeof global === 'undefined'? window: global)['case${d.name}'] = ${compileCase(d.name, d.constrs)}`);
+        eval(`(typeof global === 'undefined'? window: global)['cata${d.name}'] = ${compileCata(d.name, d.constrs, d.getType())}`);
+        eval(`(typeof global === 'undefined'? window: global)['para${d.name}'] = ${compilePara(d.name, d.constrs, d.getType())}`);
+        cb(`defined ${d.name}`);
+      } else return cb('unknown definition', true);
     } catch(err) {
       return cb(''+err, true);
     }
@@ -112,13 +105,10 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
       const p = parse(i);
       console.log(''+p);
       const tr = infer(ctx, p);
-      if(isErr(tr)) throw tr.err;
-      else if(isOk(tr)) {
-        const c = compile(p);
-        console.log(c);
-        const res = eval(c);
-        cb(`${show(res)} : ${ppType(tr.val.ty)}`);
-      }
+      const c = compile(p);
+      console.log(c);
+      const res = eval(c);
+      cb(`${show(res)} : ${ppType(tr.ty)}`);
     } catch(e) {
       cb(''+e, true);
     }

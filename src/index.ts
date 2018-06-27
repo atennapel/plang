@@ -30,7 +30,6 @@ import {
   DValue,
   DData,
 } from './definitions';
-import { isErr, isOk } from './Result';
 import { parse } from './parser';
 import { ppKind, ppType, ppContextElem, ppContext } from './prettyprinter';
 
@@ -70,11 +69,8 @@ const p: Definition[] = [
   new DData('Void', [], []),
 ];
 const i = inferProgram(ctx, p);
-if(isErr(i)) console.log(''+i.err);
-else if(isOk(i)) {
-  const val = i.val;
-  console.log(ppContext(val));
-}
+const val = i;
+console.log(ppContext(val));
 console.log(compileProgram(p));
 
 /**
