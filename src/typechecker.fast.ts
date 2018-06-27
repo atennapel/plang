@@ -333,25 +333,28 @@ function instL(ctx: Context, a: string, b: Type): IResult<Context> {
   const r = solve(ctx, a, b);
   if(isOk(r)) return r;
   if(b instanceof TApp) {
-    return typeWF(ctx, b.left).then((kf: KFun) => {
-      const texs = ctx.texs();
-      const a1 = fresh(texs, a);
-      const a2 = fresh(texs.concat([a1]), a);
-      return instL(ctx.replace(isCTEx(a), new Context([ctex(a2, kf.left), ctex(a1, kf), csolved(a, kf.right, tapp(tex(a1), tex(a2)))])), a1, b.left)
-        .then(ctx_ => instL(ctx_, a2, ctx_.apply(b.right)));
-    });
+    const kf = typeWF(ctx, b.left) as IResult<KFun>;
+    if(isErr(kf)) return kf;
+    const texs = ctx.texs();
+    const a1 = fresh(texs, a);
+    const a2 = fresh(texs.concat([a1]), a);
+    const ctx_ = instL(ctx.replace(isCTEx(a), new Context([ctex(a2, kf.left), ctex(a1, kf), csolved(a, kf.right, tapp(tex(a1), tex(a2)))])), a1, b.left);
+    if(isErr(ctx_)) return ctx_;
+    return instL(ctx_, a2, ctx_.apply(b.right));
   }
   if(b instanceof TFun) {
     const texs = ctx.texs();
     const a1 = fresh(texs, a);
     const a2 = fresh(texs.concat([a1]), a);
-    return instR(ctx.replace(isCTEx(a), new Context([ctex(a2, ktype), ctex(a1, ktype), csolved(a, ktype, tfun(tex(a1), tex(a2)))])), b.left, a1)
-      .then(ctx_ => instL(ctx_, a2, ctx_.apply(b.right)));
+    const ctx_ = instR(ctx.replace(isCTEx(a), new Context([ctex(a2, ktype), ctex(a1, ktype), csolved(a, ktype, tfun(tex(a1), tex(a2)))])), b.left, a1);
+    if(isErr(ctx_)) return ctx_;
+    return instL(ctx_, a2, ctx_.apply(b.right));
   }
   if(b instanceof TForall) {
     const x = fresh(ctx.tvars(), b.name);
-    return instL(ctx.add(ctvar(x, b.kind)), a, b.open(tvar(x)))
-      .then(ctx_ => ok(ctx_.split(isCTVar(x)).left));
+    const ctx_ = instL(ctx.add(ctvar(x, b.kind)), a, b.open(tvar(x)));
+    if(isErr(ctx_)) return ctx_;
+    return ok(ctx_.split(isCTVar(x)).left);
   }
   return err(`instL failed: ${a} and ${b} in ${ctx}`);
 }
@@ -363,25 +366,28 @@ function instR(ctx: Context, a: Type, b: string): IResult<Context> {
   const r = solve(ctx, b, a);
   if(isOk(r)) return r;
   if(a instanceof TApp) {
-    return typeWF(ctx, a.left).then((kf: KFun) => {
-      const texs = ctx.texs();
-      const b1 = fresh(texs, b);
-      const b2 = fresh(texs.concat([b1]), b);
-      return instR(ctx.replace(isCTEx(b), new Context([ctex(b2, kf.left), ctex(b1, kf), csolved(b, kf.right, tapp(tex(b1), tex(b2)))])), a.left, b1)
-        .then(ctx_ => instR(ctx_, ctx_.apply(a.right), b2));
-    });
+    const kf = typeWF(ctx, a.left) as IResult<KFun>;
+    if(isErr(kf)) return kf;
+    const texs = ctx.texs();
+    const b1 = fresh(texs, b);
+    const b2 = fresh(texs.concat([b1]), b);
+    const ctx_ = instR(ctx.replace(isCTEx(b), new Context([ctex(b2, kf.left), ctex(b1, kf), csolved(b, kf.right, tapp(tex(b1), tex(b2)))])), a.left, b1);
+    if(isErr(ctx_)) return ctx_;
+    return instR(ctx_, ctx_.apply(a.right), b2);
   }
   if(a instanceof TFun) {
     const texs = ctx.texs();
     const b1 = fresh(texs, b);
     const b2 = fresh(texs.concat([b1]), b);
-    return instL(ctx.replace(isCTEx(b), new Context([ctex(b2, ktype), ctex(b1, ktype), csolved(b, ktype, tfun(tex(b1), tex(b2)))])), b1, a.left)
-      .then(ctx_ => instR(ctx_, ctx_.apply(a.right), b2));
+    const ctx_ = instL(ctx.replace(isCTEx(b), new Context([ctex(b2, ktype), ctex(b1, ktype), csolved(b, ktype, tfun(tex(b1), tex(b2)))])), b1, a.left);
+    if(isErr(ctx_)) return ctx_;
+    return instR(ctx_, ctx_.apply(a.right), b2);
   }
   if(a instanceof TForall) {
     const x = fresh(ctx.texs(), a.name);
-    return instR(ctx.add(cmarker(x), ctex(x, a.kind)), a.open(tex(x)), b)
-      .then(ctx_ => ok(ctx_.split(isCMarker(x)).left));
+    const ctx_ = instR(ctx.add(cmarker(x), ctex(x, a.kind)), a.open(tex(x)), b);
+    if(isErr(ctx_)) return ctx_;
+    return ok(ctx_.split(isCMarker(x)).left);
   }
   return err(`instR failed: ${a} and ${b} in ${ctx}`);
 }
@@ -390,63 +396,76 @@ function instR(ctx: Context, a: Type, b: string): IResult<Context> {
 function synth(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }> {
   // console.log(`synth ${e} in ${ctx}`);
   const r = contextWF(ctx);
-  if(isErr(r)) return new Err(r.err);
-  if(e instanceof EVar) return findVar(ctx, e.name).then(ty => ok({ ctx, ty }));
+  if(isErr(r)) return r;
+  if(e instanceof EVar) {
+    const ty = findVar(ctx, e.name);
+    if(isErr(ty)) return ty;
+    return { ctx, ty };
+  }
   if(e instanceof EAbs) {
     if(e.isAnnotated()) {
       const ty = e.type as Type;
-      return typeWF(ctx, ty).then(k => checkKindType(k).then(() => {
-        const x = fresh(ctx.vars(), e.name);
-        const b = fresh(ctx.texs(), e.name);
-        return checkTy(ctx.add(cmarker(b), ctex(b, ktype), cvar(x, ty)), e.open(evar(x)), tex(b))
-          .then(ctx_ => {
-            const s = ctx_.split(isCMarker(b));
-            const t = s.right.apply(tfun(ty, tex(b)));
-            const u = orderedTExs(s.right.unsolved(), t);
-            return ok({
-              ctx: s.left,
-              ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), t)),
-            });
-          });
-      }));
+      const k = typeWF(ctx, ty);
+      if(isErr(k)) return k;
+      const _ = checkKindType(k);
+      if(isErr(_)) return _;
+      const x = fresh(ctx.vars(), e.name);
+      const b = fresh(ctx.texs(), e.name);
+      const ctx_ = checkTy(ctx.add(cmarker(b), ctex(b, ktype), cvar(x, ty)), e.open(evar(x)), tex(b));
+      if(isErr(ctx_)) return ctx_;
+      const s = ctx_.split(isCMarker(b));
+      const t = s.right.apply(tfun(ty, tex(b)));
+      const u = orderedTExs(s.right.unsolved(), t);
+      return ok({
+        ctx: s.left,
+        ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), t)),
+      });
     } else {
       const x = fresh(ctx.vars(), e.name);
       const texs = ctx.texs();
       const a = fresh(texs, e.name);
       const b = fresh(texs.concat([a]), e.name);
-      return checkTy(ctx.add(cmarker(a), ctex(a, ktype), ctex(b, ktype), cvar(x, tex(a))), e.open(evar(x)), tex(b))
-        .then(ctx_ => {
-          const s = ctx_.split(isCMarker(a));
-          console.log(''+s.right);
-          const t = s.right.apply(tfun(tex(a), tex(b)));
-          const u = orderedTExs(s.right.unsolved(), t);
-          return ok({
-            ctx: s.left,
-            ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), t)),
-          });
-        });
+      const ctx_ = checkTy(ctx.add(cmarker(a), ctex(a, ktype), ctex(b, ktype), cvar(x, tex(a))), e.open(evar(x)), tex(b));
+      if(isErr(ctx_)) return ctx_;
+      const s = ctx_.split(isCMarker(a));
+      console.log(''+s.right);
+      const t = s.right.apply(tfun(tex(a), tex(b)));
+      const u = orderedTExs(s.right.unsolved(), t);
+      return ok({
+        ctx: s.left,
+        ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), t)),
+      });
     }
   }
-  if(e instanceof EApp)
-    return synth(ctx, e.left)
-      .then(({ ctx: ctx_, ty}) => synthapp(ctx_, ctx_.apply(ty), e.right));
-  if(e instanceof EAnno)
-    return typeWF(ctx, e.type)
-      .then(() => checkTy(ctx, e.expr, e.type).then(ctx_ => ok({ ctx: ctx_, ty: e.type })));
-  if(e instanceof ETAbs)
-    return kindWF(ctx, e.kind).then(() => {
-      const x = fresh(ctx.vars(), e.name);
-      return synth(ctx.add(ctvar(x, e.kind)), e.expr.substType(e.name, tvar(x))).then(({ctx: ctx_, ty}) =>
-        ok({ ctx: ctx_, ty: tforall(x, e.kind, ctx_.apply(ty)) }));
-    });
-  if(e instanceof ETApp)
-    return typeWF(ctx, e.type)
-      .then(() => synth(ctx, e.expr)
-      .then(({ ctx: ctx_, ty }) => {
-        const ty_ = ctx_.apply(ty);
-        return ty_ instanceof TForall? ok({ ctx: ctx_, ty: ty_.open(e.type) }):
-          err(`type application on non-polymorphic type: ${e} with ${ty_} in ${ctx_}`);
-      }));
+  if(e instanceof EApp) {
+    const r = synth(ctx, e.left);
+    if(isErr(r)) return r;
+    return synthapp(r.ctx, r.ctx.apply(r.ty), e.right);
+  }
+  if(e instanceof EAnno) {
+    const _ = typeWF(ctx, e.type);
+    if(isErr(_)) return _;
+    const ctx_ = checkTy(ctx, e.expr, e.type);
+    if(isErr(ctx_)) return ctx_;
+    return { ctx: ctx_, ty: e.type };
+  }
+  if(e instanceof ETAbs) {
+    const _ = kindWF(ctx, e.kind);
+    if(isErr(_)) return _;
+    const x = fresh(ctx.vars(), e.name);
+    const r = synth(ctx.add(ctvar(x, e.kind)), e.expr.substType(e.name, tvar(x)));
+    if(isErr(r)) return r;
+    return ok({ ctx: r.ctx, ty: tforall(x, e.kind, r.ctx.apply(r.ty)) });
+  }
+  if(e instanceof ETApp) {
+    const _ = typeWF(ctx, e.type);
+    if(isErr(_)) return _;
+    const r = synth(ctx, e.expr);
+    if(isErr(r)) return r;
+    const ty_ = r.ctx.apply(r.ty);
+    return ty_ instanceof TForall? ok({ ctx: r.ctx, ty: ty_.open(e.type) }):
+      err(`type application on non-polymorphic type: ${e} with ${ty_} in ${r.ctx}`);
+  }
   if(e instanceof EQuery) {
     const q = fresh(ctx.texs(), 'q');
     return ok({ ctx: ctx.add(ctex(q, ktype)), ty: tex(q) });
@@ -457,20 +476,22 @@ function synth(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }> {
 function checkTy(ctx: Context, e: Expr, ty: Type): IResult<Context> {
   // console.log(`checkTy ${e} and ${ty} in ${ctx}`);
   const r = contextWF(ctx);
-  if(isErr(r)) return new Err(r.err);
+  if(isErr(r)) return r;
   if(e instanceof EQuery) {
     const q = fresh(ctx.texs(), 'q');
     return ok(ctx.add(csolved(q, ktype, ty)));
   }
   if(ty instanceof TForall) {
     const x = fresh(ctx.tvars(), ty.name);
-    return checkTy(ctx.add(ctvar(x, ty.kind)), e, ty.open(tvar(x)))
-      .then(ctx_ => ok(ctx_.split(isCTVar(x)).left));
+    const ctx_ = checkTy(ctx.add(ctvar(x, ty.kind)), e, ty.open(tvar(x)));
+    if(isErr(ctx_)) return ctx_;
+    return ok(ctx_.split(isCTVar(x)).left);
   }
   if(e instanceof EAbs && !e.isAnnotated() && ty instanceof TFun) {
     const x = fresh(ctx.vars(), e.name);
-    return checkTy(ctx.add(cvar(x, ty.left)), e.open(evar(x)), ty.right)
-      .then(ctx_ => ok(ctx_.split(isCVar(x)).left));
+    const ctx_ = checkTy(ctx.add(cvar(x, ty.left)), e.open(evar(x)), ty.right);
+    if(isErr(ctx_)) return ctx_;
+    return ok(ctx_.split(isCVar(x)).left);
   }
   /*if(e instanceof EQuery) {
     const evars = ctx.elems.filter(e => e instanceof CVar) as CVar[];
@@ -489,98 +510,111 @@ function checkTy(ctx: Context, e: Expr, ty: Type): IResult<Context> {
     }
     return err(`multiple implicit values found for ${ty}: [${found.map(x => x.name).join(', ')}] in ${ctx}`);
   }*/
-  return synth(ctx, e)
-    .then(({ ctx: ctx_, ty: ty_ }) => subtype(ctx_, ctx_.apply(ty_), ctx_.apply(ty)));
+  const rr = synth(ctx, e);
+  if(isErr(rr)) return rr;
+  return subtype(rr.ctx, rr.ctx.apply(rr.ty), rr.ctx.apply(ty));
 }
 
 function synthapp(ctx: Context, ty: Type, e: Expr): IResult<{ ctx: Context, ty: Type }> {
   // console.log(`synthapp ${ty} and ${e} in ${ctx}`);
   const r = contextWF(ctx);
-  if(isErr(r)) return new Err(r.err);
+  if(isErr(r)) return r;
   if(ty instanceof TForall) {
     const x = fresh(ctx.texs(), ty.name);
     return synthapp(ctx.add(ctex(x, ty.kind)), ty.open(tex(x)), e);
   }
-  if(ty instanceof TEx)
-    return findEx(ctx, ty.name)
-      .then(() => {
-        const texs = ctx.texs();
-        const a1 = fresh(texs, ty.name);
-        const a2 = fresh(texs.concat([a1]), ty.name);
-        return checkTy(ctx.replace(
-            isCTEx(ty.name),
-            new Context([ctex(a2, ktype), ctex(a1, ktype), csolved(ty.name, ktype, tfun(tex(a1), tex(a2)))])),
-            e, tex(a1)
-          )
-          .then(ctx_ => ok({ ctx: ctx_, ty: tex(a2) }));
-      });
-  if(ty instanceof TFun)
-    return checkTy(ctx, e, ty.left)
-      .then(ctx_ => ok({ ctx: ctx_, ty: ty.right }));
+  if(ty instanceof TEx) {
+    const _ = findEx(ctx, ty.name);
+    if(isErr(_)) return _;
+    const texs = ctx.texs();
+    const a1 = fresh(texs, ty.name);
+    const a2 = fresh(texs.concat([a1]), ty.name);
+    const ctx_ = checkTy(ctx.replace(
+      isCTEx(ty.name),
+      new Context([ctex(a2, ktype), ctex(a1, ktype), csolved(ty.name, ktype, tfun(tex(a1), tex(a2)))])),
+      e, tex(a1)
+    );
+    if(isErr(ctx_)) return ctx_;
+    return ok({ ctx: ctx_, ty: tex(a2) });
+  }
+  if(ty instanceof TFun) {
+    const ctx_ = checkTy(ctx, e, ty.left);
+    if(isErr(ctx_)) return ctx_;
+    return ok({ ctx: ctx_, ty: ty.right });
+  }
   return err(`cannot synthapp ${ty} with ${e} in ${ctx}`);
 }
 
 export function infer(ctx: Context, e: Expr): IResult<{ ctx: Context, ty: Type }> {
-  return synth(ctx, e)
-    .then(({ ctx: ctx__, ty }) => contextWF(ctx__)
-    .then(() => {
-      const ctx_ = ctx__.applyContext(ctx__);
-      const ty_ = ctx_.apply(ty);
-      return typeWF(ctx_, ty_).then(k => checkKindType(k).then(() => {
-        console.log(''+new Context(ctx_.elems.filter(e => (e instanceof CTEx || e instanceof CSolved) && e.name.startsWith('q'))));
-        if(ctx_.isComplete()) return ok({ ctx: ctx_, ty: ty_ });
-        const unsolved = ctx_.unsolved();
-        const unsolvedNames = unsolved.map(([n, _]) => n);
-        const u = orderedTExs(unsolved, ty_);
-        return ok({
-          ctx: ctx_.removeAll(e => (e instanceof CSolved) || ((e instanceof CTEx || e instanceof CMarker) && unsolvedNames.indexOf(e.name) >= 0)),
-          ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), ty_)),
-        });
-      }))
-    }));
+  const r = synth(ctx, e);
+  if(isErr(r)) return r;
+  const ctx__ = r.ctx;
+  const ty = r.ty;
+  const r2 = contextWF(ctx__);
+  if(isErr(r2)) return r2;
+  const ctx_ = ctx__.applyContext(ctx__);
+  const ty_ = ctx_.apply(ty);
+  const k = typeWF(ctx_, ty_);
+  if(isErr(k)) return k;
+  const r3 = checkKindType(k);
+  if(isErr(r3)) return r3;
+  console.log(''+new Context(ctx_.elems.filter(e => (e instanceof CTEx || e instanceof CSolved) && e.name.startsWith('q'))));
+  if(ctx_.isComplete()) return ok({ ctx: ctx_, ty: ty_ });
+  const unsolved = ctx_.unsolved();
+  const unsolvedNames = unsolved.map(([n, _]) => n);
+  const u = orderedTExs(unsolved, ty_);
+  return ok({
+    ctx: ctx_.removeAll(e => (e instanceof CSolved) || ((e instanceof CTEx || e instanceof CMarker) && unsolvedNames.indexOf(e.name) >= 0)),
+    ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), ty_)),
+  });
 }
 
 export function inferDefinition(ctx: Context, d: Definition): IResult<Context> {
   if(d instanceof DValue) {
     console.log(''+d);
-    return infer(ctx, (d.type? eanno(d.val, d.type): d.val))
-      .map(x => ({ ty: x.ty, ctx: x.ctx.removeAll(e => e instanceof CSolved) }))
-      .then(({ ctx, ty }) => contextWF(ctx.add(cvar(d.name, ty)))
-      .map(() => ctx.add(cvar(d.name, ty))));
+    const r = infer(ctx, (d.type? eanno(d.val, d.type): d.val));
+    if(isErr(r)) return r;
+    const ty_ = r.ty;
+    const ctx_ = r.ctx.removeAll(e => e instanceof CSolved).add(cvar(d.name, ty_));
+    const r2 = contextWF(ctx_);
+    if(isErr(r2)) return r2;
+    return ctx_;
   } else if(d instanceof DData) {
     console.log(''+d);
     const name = d.name;
     const params = d.params;
     const constrs = d.constrs;
-    return noDups(params.map(([n, _]) => n))
-      .then(() => noDups(constrs.map(([n, _]) => n)))
-      .then(() => {
-        for(let i = 0; i < params.length; i++) {
-          const r = kindWF(ctx, params[i][1]);
-          if(isErr(r)) return new Err(r.err);
-        }
-        for(let i = 0; i < constrs.length; i++) {
-          const c = constrs[i];
-          const n = c[0];
-          const ts = c[1];
-          for(let j = 0; j < ts.length; j++) {
-            if(ts[j].occursNegatively(n, false))
-              return err(`${n} occurs in a negative position in ${ts[j]}`);
-          }
-        }
-        const r = fresh(params.map(([n, _]) => n), 'r');
-        return ok(ctx.add(ctcon(name, d.getKind())).append(new Context(
-          constrs.map(([n, ts]) => cvar(n, tforalls(params, tfuns.apply(null, ts.concat([d.getType()]))))))
-          ).add(
-            cvar(`case${d.name}`, tforalls(params, tforalls([[r, ktype]],
-              tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.concat([tvar(r)]))).concat([d.getType(), tvar(r)]))))),
-            cvar(`cata${d.name}`, tforalls(params, tforalls([[r, ktype]],
-              tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.map(t => t.equals(d.getType())? tvar(r): t).concat([tvar(r)]))).concat([d.getType(), tvar(r)]))))),
-            cvar(`para${d.name}`, tforalls(params, tforalls([[r, ktype]],
-              tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.map(t => t.equals(d.getType())? [t, tvar(r)]: [t]).reduce((a, b) => a.concat(b), []).concat([tvar(r)]))).concat([d.getType(), tvar(r)])))))
-          ));
-      })
-      .then((ctx: Context) => contextWF(ctx).map(() => ctx));
+    const r1 = noDups(params.map(([n, _]) => n));
+    if(isErr(r1)) return r1;
+    const r2 = noDups(constrs.map(([n, _]) => n));
+    if(isErr(r2)) return r2;
+    for(let i = 0; i < params.length; i++) {
+      const r = kindWF(ctx, params[i][1]);
+      if(isErr(r)) return r;
+    }
+    for(let i = 0; i < constrs.length; i++) {
+      const c = constrs[i];
+      const n = c[0];
+      const ts = c[1];
+      for(let j = 0; j < ts.length; j++) {
+        if(ts[j].occursNegatively(n, false))
+          return err(`${n} occurs in a negative position in ${ts[j]}`);
+      }
+    }
+    const r = fresh(params.map(([n, _]) => n), 'r');
+    const ctx_ = (ctx.add(ctcon(name, d.getKind())).append(new Context(
+      constrs.map(([n, ts]) => cvar(n, tforalls(params, tfuns.apply(null, ts.concat([d.getType()]))))))
+      ).add(
+        cvar(`case${d.name}`, tforalls(params, tforalls([[r, ktype]],
+          tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.concat([tvar(r)]))).concat([d.getType(), tvar(r)]))))),
+        cvar(`cata${d.name}`, tforalls(params, tforalls([[r, ktype]],
+          tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.map(t => t.equals(d.getType())? tvar(r): t).concat([tvar(r)]))).concat([d.getType(), tvar(r)]))))),
+        cvar(`para${d.name}`, tforalls(params, tforalls([[r, ktype]],
+          tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.map(t => t.equals(d.getType())? [t, tvar(r)]: [t]).reduce((a, b) => a.concat(b), []).concat([tvar(r)]))).concat([d.getType(), tvar(r)])))))
+      ));
+    const r3 = contextWF(ctx_);
+    if(isErr(r3)) return r3;
+    return ctx_;
   }
   return impossible();
 }
