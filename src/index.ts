@@ -75,7 +75,8 @@ console.log(compileProgram(p));
 
 /**
  * TODO:
- *  clean up generalization
+ *  fix strings (show "asd")
+ *  generate new expr in typechecker
  *  operators
  *  implicits
  *  fix positivity check

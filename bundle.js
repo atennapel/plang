@@ -1441,6 +1441,15 @@ function instR(ctx, a, b) {
     return err(`instR failed: ${a} and ${b} in ${ctx}`);
 }
 // synth/check
+function generalize(ctx, marker, ty) {
+    const s = ctx.split(marker);
+    const t = s.right.apply(ty);
+    const u = orderedTExs(s.right.unsolved(), t);
+    return {
+        ctx: s.left,
+        ty: types_1.tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, types_1.tvar(n)), t)),
+    };
+}
 function synth(ctx, e) {
     // console.log(`synth ${e} in ${ctx}`);
     contextWF(ctx);
@@ -1459,13 +1468,7 @@ function synth(ctx, e) {
             const x = fresh(ctx.vars(), e.name);
             const b = fresh(ctx.texs(), e.name);
             const ctx_ = checkTy(ctx.add(context_1.cmarker(b), context_1.ctex(b, exports.ktype), context_1.cvar(x, ty)), e.open(exprs_1.evar(x)), types_1.tex(b));
-            const s = ctx_.split(context_1.isCMarker(b));
-            const t = s.right.apply(types_1.tfun(ty, types_1.tex(b)));
-            const u = orderedTExs(s.right.unsolved(), t);
-            return ({
-                ctx: s.left,
-                ty: types_1.tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, types_1.tvar(n)), t)),
-            });
+            return generalize(ctx_, context_1.isCMarker(b), types_1.tfun(ty, types_1.tex(b)));
         }
         else {
             const x = fresh(ctx.vars(), e.name);
@@ -1473,14 +1476,7 @@ function synth(ctx, e) {
             const a = fresh(texs, e.name);
             const b = fresh(texs.concat([a]), e.name);
             const ctx_ = checkTy(ctx.add(context_1.cmarker(a), context_1.ctex(a, exports.ktype), context_1.ctex(b, exports.ktype), context_1.cvar(x, types_1.tex(a))), e.open(exprs_1.evar(x)), types_1.tex(b));
-            const s = ctx_.split(context_1.isCMarker(a));
-            console.log('' + s.right);
-            const t = s.right.apply(types_1.tfun(types_1.tex(a), types_1.tex(b)));
-            const u = orderedTExs(s.right.unsolved(), t);
-            return ({
-                ctx: s.left,
-                ty: types_1.tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, types_1.tvar(n)), t)),
-            });
+            return generalize(ctx_, context_1.isCMarker(a), types_1.tfun(types_1.tex(a), types_1.tex(b)));
         }
     }
     if (e instanceof exprs_1.EApp) {
@@ -1571,7 +1567,8 @@ function synthapp(ctx, ty, e) {
     return err(`cannot synthapp ${ty} with ${e} in ${ctx}`);
 }
 function infer(ctx, e) {
-    const r = synth(ctx, e);
+    const m = fresh(ctx.texs(), 'i');
+    const r = synth(ctx.add(context_1.cmarker(m)), e);
     const ctx__ = r.ctx;
     const ty = r.ty;
     contextWF(ctx__);
@@ -1580,15 +1577,7 @@ function infer(ctx, e) {
     const k = typeWF(ctx_, ty_);
     checkKindType(k);
     console.log('' + new context_1.Context(ctx_.elems.filter(e => (e instanceof context_1.CTEx || e instanceof context_1.CSolved) && e.name.startsWith('q'))));
-    if (ctx_.isComplete())
-        return ({ ctx: ctx_, ty: ty_ });
-    const unsolved = ctx_.unsolved();
-    const unsolvedNames = unsolved.map(([n, _]) => n);
-    const u = orderedTExs(unsolved, ty_);
-    return ({
-        ctx: ctx_.removeAll(e => (e instanceof context_1.CSolved) || ((e instanceof context_1.CTEx || e instanceof context_1.CMarker) && unsolvedNames.indexOf(e.name) >= 0)),
-        ty: types_1.tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, types_1.tvar(n)), ty_)),
-    });
+    return generalize(ctx_, context_1.isCMarker(m), ty_);
 }
 exports.infer = infer;
 function inferDefinition(ctx, d) {
@@ -1596,7 +1585,7 @@ function inferDefinition(ctx, d) {
         console.log('' + d);
         const r = infer(ctx, (d.type ? exprs_1.eanno(d.val, d.type) : d.val));
         const ty_ = r.ty;
-        const ctx_ = r.ctx.removeAll(e => e instanceof context_1.CSolved).add(context_1.cvar(d.name, ty_));
+        const ctx_ = r.ctx.add(context_1.cvar(d.name, ty_));
         contextWF(ctx_);
         return ctx_;
     }

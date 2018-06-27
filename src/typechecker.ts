@@ -39,6 +39,7 @@ import {
   isCTCon,
   ckcon,
   isCKCon,
+  ContextElem,
 } from './context';
 import {
   Expr,
@@ -355,6 +356,16 @@ function instR(ctx: Context, a: Type, b: string): Context {
 }
 
 // synth/check
+function generalize(ctx: Context, marker: (e: ContextElem) => boolean, ty: Type): { ctx: Context, ty: Type } {
+  const s = ctx.split(marker);
+  const t = s.right.apply(ty);
+  const u = orderedTExs(s.right.unsolved(), t);
+  return {
+    ctx: s.left,
+    ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), t)),
+  };
+}
+
 function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type } {
   // console.log(`synth ${e} in ${ctx}`);
   contextWF(ctx);
@@ -373,27 +384,14 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type } {
       const x = fresh(ctx.vars(), e.name);
       const b = fresh(ctx.texs(), e.name);
       const ctx_ = checkTy(ctx.add(cmarker(b), ctex(b, ktype), cvar(x, ty)), e.open(evar(x)), tex(b));
-      const s = ctx_.split(isCMarker(b));
-      const t = s.right.apply(tfun(ty, tex(b)));
-      const u = orderedTExs(s.right.unsolved(), t);
-      return ({
-        ctx: s.left,
-        ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), t)),
-      });
+      return generalize(ctx_, isCMarker(b), tfun(ty, tex(b)));
     } else {
       const x = fresh(ctx.vars(), e.name);
       const texs = ctx.texs();
       const a = fresh(texs, e.name);
       const b = fresh(texs.concat([a]), e.name);
       const ctx_ = checkTy(ctx.add(cmarker(a), ctex(a, ktype), ctex(b, ktype), cvar(x, tex(a))), e.open(evar(x)), tex(b));
-      const s = ctx_.split(isCMarker(a));
-      console.log(''+s.right);
-      const t = s.right.apply(tfun(tex(a), tex(b)));
-      const u = orderedTExs(s.right.unsolved(), t);
-      return ({
-        ctx: s.left,
-        ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), t)),
-      });
+      return generalize(ctx_, isCMarker(a), tfun(tex(a), tex(b)));
     }
   }
   if(e instanceof EApp) {
@@ -490,7 +488,8 @@ function synthapp(ctx: Context, ty: Type, e: Expr): { ctx: Context, ty: Type } {
 }
 
 export function infer(ctx: Context, e: Expr): { ctx: Context, ty: Type } {
-  const r = synth(ctx, e);
+  const m = fresh(ctx.texs(), 'i');
+  const r = synth(ctx.add(cmarker(m)), e);
   const ctx__ = r.ctx;
   const ty = r.ty;
   contextWF(ctx__);
@@ -499,14 +498,7 @@ export function infer(ctx: Context, e: Expr): { ctx: Context, ty: Type } {
   const k = typeWF(ctx_, ty_);
   checkKindType(k);
   console.log(''+new Context(ctx_.elems.filter(e => (e instanceof CTEx || e instanceof CSolved) && e.name.startsWith('q'))));
-  if(ctx_.isComplete()) return ({ ctx: ctx_, ty: ty_ });
-  const unsolved = ctx_.unsolved();
-  const unsolvedNames = unsolved.map(([n, _]) => n);
-  const u = orderedTExs(unsolved, ty_);
-  return ({
-    ctx: ctx_.removeAll(e => (e instanceof CSolved) || ((e instanceof CTEx || e instanceof CMarker) && unsolvedNames.indexOf(e.name) >= 0)),
-    ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), ty_)),
-  });
+  return generalize(ctx_, isCMarker(m), ty_);
 }
 
 export function inferDefinition(ctx: Context, d: Definition): Context {
@@ -514,7 +506,7 @@ export function inferDefinition(ctx: Context, d: Definition): Context {
     console.log(''+d);
     const r = infer(ctx, (d.type? eanno(d.val, d.type): d.val));
     const ty_ = r.ty;
-    const ctx_ = r.ctx.removeAll(e => e instanceof CSolved).add(cvar(d.name, ty_));
+    const ctx_ = r.ctx.add(cvar(d.name, ty_));
     contextWF(ctx_);
     return ctx_;
   } else if(d instanceof DData) {

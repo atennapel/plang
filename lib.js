@@ -50,10 +50,20 @@ comp2 = \\f g x y -> f (g x y);
 data Void;
 data Unit = Unit;
 
+data Pair a b = Pair a b;
+fst = casePair (\\a b -> a);
+snd = casePair (\\a b -> b);
+
+data Either a b = Left a | Right b;
+
 data Bool = True | False;
 data Nat = Z | S Nat;
 data Maybe t = Nothing | Just t;
 data List t = Nil | Cons t (List t);
+
+not = caseBool False True;
+and = caseBool id (\\x -> False);
+or = caseBool (\\x -> True) id;
 
 inc = S;
 add = \\x y -> cataNat x inc y;
