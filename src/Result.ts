@@ -4,7 +4,12 @@ export abstract class Result<E, T> {
   static err<E, T>(e: E) { return new Err<E, T>(e) }
   abstract map<R>(fn: (val: T) => R): Result<E, R>;
   abstract then<R>(fn: (val: T) => Result<E, R>): Result<E, R>;
-	abstract catch(fn: (err: E) => Result<E, T>): Result<E, T>;
+  abstract catch(fn: (err: E) => Result<E, T>): Result<E, T>;
+  abstract toString(): string;
+
+  peek(fn?: (x: T) => string): Result<E, T> {
+    return this.map(x => { console.log(`${fn? fn(x): x}`); return x });
+  }
 }
 
 export class Ok<E, T> extends Result<E, T> {

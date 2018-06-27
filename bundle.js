@@ -5,6 +5,9 @@ class Result {
     constructor() { }
     static ok(t) { return new Ok(t); }
     static err(e) { return new Err(e); }
+    peek(fn) {
+        return this.map(x => { console.log(`${fn ? fn(x) : x}`); return x; });
+    }
 }
 exports.Result = Result;
 class Ok extends Result {
@@ -48,6 +51,8 @@ function compile(expr) {
         return `${compile(expr.left)}(${compile(expr.right)})`;
     if (expr instanceof exprs_1.EAbs)
         return `(${expr.name} => ${compile(expr.expr)})`;
+    if (expr instanceof exprs_1.EQuery)
+        return expr._impl ? expr._impl : `(() => { throw new Error('? without implicit') })()`;
     if (expr instanceof exprs_1.EAnno)
         return compile(expr.expr);
     if (expr instanceof exprs_1.ETApp)
@@ -378,6 +383,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 class Expr {
 }
 exports.Expr = Expr;
+class EQuery extends Expr {
+    toString() {
+        return `?`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EQuery = EQuery;
+exports.equery = new EQuery();
 class EVar extends Expr {
     constructor(name) {
         super();
@@ -575,6 +593,8 @@ function tokenize(s) {
                 r.push(token(':'));
             else if (c === '.')
                 r.push(token('.'));
+            else if (c === '?')
+                r.push(token('?'));
             else if (c === '=')
                 r.push(token('='));
             else if (c === '|')
@@ -750,6 +770,8 @@ function expr(x) {
             }
             return t;
         }
+        else if (x.val === '?')
+            return exprs_1.equery;
         else
             return exprs_1.evar(x.val);
     }
@@ -1464,6 +1486,7 @@ function synth(ctx, e) {
             return checkTy(ctx.add(context_1.cmarker(a), context_1.ctex(a, exports.ktype), context_1.ctex(b, exports.ktype), context_1.cvar(x, types_1.tex(a))), e.open(exprs_1.evar(x)), types_1.tex(b))
                 .then(ctx_ => {
                 const s = ctx_.split(context_1.isCMarker(a));
+                console.log('' + s.right);
                 const t = s.right.apply(types_1.tfun(types_1.tex(a), types_1.tex(b)));
                 const u = orderedTExs(s.right.unsolved(), t);
                 return ok({
@@ -1492,6 +1515,10 @@ function synth(ctx, e) {
             return ty_ instanceof types_1.TForall ? ok({ ctx: ctx_, ty: ty_.open(e.type) }) :
                 err(`type application on non-polymorphic type: ${e} with ${ty_} in ${ctx_}`);
         }));
+    if (e instanceof exprs_1.EQuery) {
+        const q = fresh(ctx.texs(), 'q');
+        return ok({ ctx: ctx.add(context_1.ctex(q, exports.ktype)), ty: types_1.tex(q) });
+    }
     return err(`cannot synth ${e} in ${ctx}`);
 }
 function checkTy(ctx, e, ty) {
@@ -1499,6 +1526,10 @@ function checkTy(ctx, e, ty) {
     const r = contextWF(ctx);
     if (Result_1.isErr(r))
         return new Result_1.Err(r.err);
+    if (e instanceof exprs_1.EQuery) {
+        const q = fresh(ctx.texs(), 'q');
+        return ok(ctx.add(context_1.csolved(q, exports.ktype, ty)));
+    }
     if (ty instanceof types_1.TForall) {
         const x = fresh(ctx.tvars(), ty.name);
         return checkTy(ctx.add(context_1.ctvar(x, ty.kind)), e, ty.open(types_1.tvar(x)))
@@ -1509,6 +1540,23 @@ function checkTy(ctx, e, ty) {
         return checkTy(ctx.add(context_1.cvar(x, ty.left)), e.open(exprs_1.evar(x)), ty.right)
             .then(ctx_ => ok(ctx_.split(context_1.isCVar(x)).left));
     }
+    /*if(e instanceof EQuery) {
+      const evars = ctx.elems.filter(e => e instanceof CVar) as CVar[];
+      const res = evars.map(e => ({ name: e.name, res: subtype(ctx, e.type, ty) }));
+      const found: { name: string, res: IResult<Context> }[] = [];
+      for(let i = res.length - 1; i >= 0; i--) {
+        const c = res[i];
+        if(isOk(c.res)) found.push(c);
+      }
+      if(found.length === 0)
+        return err(`no implicit value found for ${ty} in ${ctx}`);
+      if(found.length === 1) {
+        (e as any)._impl = found[0].name;
+        console.log(`implicit found ${found[0].name} for ${ty}`);
+        return ok(ctx);
+      }
+      return err(`multiple implicit values found for ${ty}: [${found.map(x => x.name).join(', ')}] in ${ctx}`);
+    }*/
     return synth(ctx, e)
         .then(({ ctx: ctx_, ty: ty_ }) => subtype(ctx_, ctx_.apply(ty_), ctx_.apply(ty)));
 }
@@ -1542,6 +1590,7 @@ function infer(ctx, e) {
         const ctx_ = ctx__.applyContext(ctx__);
         const ty_ = ctx_.apply(ty);
         return typeWF(ctx_, ty_).then(k => checkKindType(k).then(() => {
+            console.log('' + new context_1.Context(ctx_.elems.filter(e => (e instanceof context_1.CTEx || e instanceof context_1.CSolved) && e.name.startsWith('q'))));
             if (ctx_.isComplete())
                 return ok({ ctx: ctx_, ty: ty_ });
             const unsolved = ctx_.unsolved();

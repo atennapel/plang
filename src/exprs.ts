@@ -7,6 +7,19 @@ export abstract class Expr {
   abstract substType(name: string, type: Type): Expr;
 }
 
+export class EQuery extends Expr {
+  toString() {
+    return `?`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const equery = new EQuery();
+
 export class EVar extends Expr {
   constructor(public readonly name: string) { super() }
 

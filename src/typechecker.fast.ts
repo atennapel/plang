@@ -1,4 +1,3 @@
-import { Result, Ok, Err, isOk, isErr } from './Result';
 import { impossible } from './util'; 
 
 import {
@@ -67,15 +66,17 @@ import {
 } from './definitions';
 
 // errors
-type IResult<T> = Result<TypeError, T>;
-const err = <T>(msg: string): IResult<T> => Result.err(new TypeError(msg));
-const ok = <T>(val: T): IResult<T> => Result.ok(val);
+type IResult<T> = TypeError | T;
+const err = <T>(msg: string): IResult<T> => new TypeError(msg);
+const ok = <T>(val: T): IResult<T> => val;
 const not = <T>(r: IResult<T>, m: string): IResult<null> => {
-  if(isOk(r)) return err(m);
-  if(isErr(r)) return ok(null);
-  return impossible();
+  if(r instanceof TypeError) return null;
+  return err(m);
 };
-const check = (b: boolean, m: string): IResult<null> => b? ok(null): err(m);
+const check = (b: boolean, m: string): IResult<null> => b? null: err(m);
+
+const isErr = <T>(r: IResult<T>): r is TypeError => r instanceof TypeError;
+const isOk = <T>(r: IResult<T>): r is T => !(r instanceof TypeError);
 
 function noDups(d: string[]): IResult<null> {
   const o: { [key: string]: boolean } = {};
@@ -83,20 +84,8 @@ function noDups(d: string[]): IResult<null> {
     if(o[d[i]]) return err(`duplicate ${d[i]}`);
     o[d[i]] = true;
   }
-  return ok(null);
+  return null;
 }
-
-function mapM<A, B>(a: A[], fn: (a: A) => IResult<B>): IResult<B[]> {
-  const l = a.length;
-  const r: B[] = [];
-  for(let i = 0; i < l; i++) {
-    const c = fn(a[i]);
-    if(isErr(c)) return new Err(c.err);
-    else if(isOk(c)) r.push(c.val);
-    else return impossible();
-  }
-  return ok(r);
-};
 
 // fresh
 const fresh = (ns: string[], n: string): string => {
@@ -175,31 +164,65 @@ function checkKindType(kind: Kind): IResult<null> {
 function kindWF(ctx: Context, kind: Kind): IResult<null> {
   // console.log(`kindWF ${kind} in ${ctx}`);
   if(kind instanceof KCon) return findKCon(ctx, kind.name);
-  if(kind instanceof KFun)
-    return kindWF(ctx, kind.left).then(() => kindWF(ctx, kind.right));
+  if(kind instanceof KFun) {
+    const kwf = kindWF(ctx, kind.left);
+    if(isErr(kwf)) return kwf;
+    return kindWF(ctx, kind.right); 
+  }
   return impossible();
 }
 
 function typeWF(ctx: Context, ty: Type): IResult<Kind> {
   //console.log(`typeWF ${ty} in ${ctx}`);
-  if(ty instanceof TCon) return findTCon(ctx, ty.name).then(k => kindWF(ctx, k).map(() => k));
-  if(ty instanceof TVar) return findTVar(ctx, ty.name).then(k => kindWF(ctx, k).map(() => k));
-  if(ty instanceof TEx) return findExOrSolved(ctx, ty.name).then(k => kindWF(ctx, k).map(() => k));
-  if(ty instanceof TFun)
-    return typeWF(ctx, ty.left).then(k1 =>
-        checkKindType(k1).then(() => typeWF(ctx, ty.right).then(k2 => checkKindType(k2).map(() => ktype))));
-  if(ty instanceof TForall) return kindWF(ctx, ty.kind).then(() => typeWF(ctx.add(ctvar(ty.name, ty.kind)), ty.type));
-  if(ty instanceof TApp)
-    return typeWF(ctx, ty.left).then(kleft => {
-      if(kleft instanceof KFun)
-        return typeWF(ctx, ty.right)
-          .then(kright => {
-            if(!kright.equals(kleft.left))
-              return err(`kind mismatch in type constructor: ${ty} in ${ctx}`);
-            return ok(kleft.right);
-          });
-      else return err(`not a type constructor: ${ty} in ${ctx}`);
-    });
+  if(ty instanceof TCon) {
+    const k = findTCon(ctx, ty.name);
+    if(isErr(k)) return k;
+    const r = kindWF(ctx, k);
+    if(isErr(r)) return r;
+    return k;
+  }
+  if(ty instanceof TVar) {
+    const k = findTVar(ctx, ty.name);
+    if(isErr(k)) return k;
+    const r = kindWF(ctx, k);
+    if(isErr(r)) return r;
+    return k;
+  }
+  if(ty instanceof TEx) {
+    const k = findExOrSolved(ctx, ty.name);
+    if(isErr(k)) return k;
+    const r = kindWF(ctx, k);
+    if(isErr(r)) return r;
+    return k;
+  }
+  if(ty instanceof TFun) {
+    const k1 = typeWF(ctx, ty.left);
+    if(isErr(k1)) return k1;
+    const _ = checkKindType(k1);
+    if(isErr(_)) return _;
+    const k2 = typeWF(ctx, ty.right);
+    if(isErr(k2)) return k2;
+    const __ = checkKindType(k2);
+    if(isErr(__)) return __;
+    return ktype;
+  }
+  if(ty instanceof TForall) {
+    const _ = kindWF(ctx, ty.kind);
+    if(isErr(_)) return _;
+    return typeWF(ctx.add(ctvar(ty.name, ty.kind)), ty.type);
+  }
+  if(ty instanceof TApp) {
+    const kleft = typeWF(ctx, ty.left);
+    if(isErr(kleft)) return kleft;
+    if(kleft instanceof KFun) {
+      const kright = typeWF(ctx, ty.right);
+      if(isErr(kright)) return kright;
+      if(!kright.equals(kleft.left))
+        return err(`kind mismatch in type constructor: ${ty} in ${ctx}`);
+      return ok(kleft.right);
+    }
+    else return err(`not a type constructor: ${ty} in ${ctx}`);
+  }
   return impossible();
 }
 
@@ -214,25 +237,27 @@ function contextWF(ctx: Context): IResult<null> {
       const m = not(findKCon(p, e.name), `duplicate kcon ^${e.name}`);
       if(isErr(m)) return m;
     } else if(e instanceof CTCon) {
-      const m = not(findTCon(p, e.name), `duplicate tcon ${e.name}`)
-        .then(() => kindWF(p, e.kind));
+      const m = not(findTCon(p, e.name), `duplicate tcon ${e.name}`);
       if(isErr(m)) return m;
+      return kindWF(p, e.kind);
     } else if(e instanceof CTVar) {
-      const m = not(findTVar(p, e.name), `duplicate tvar ${e.name}`)
-        .then(() => kindWF(p, e.kind));
+      const m = not(findTVar(p, e.name), `duplicate tvar ${e.name}`);
       if(isErr(m)) return m;
+      return kindWF(p, e.kind);
     } else if(e instanceof CTEx || e instanceof CSolved) {
-      const m = not(findExOrSolved(p, e.name), `duplicate tex ^${e.name}`)
-        .then(() => kindWF(p, e.kind));
+      const m = not(findExOrSolved(p, e.name), `duplicate tex ^${e.name}`);
       if(isErr(m)) return m;
+      return kindWF(p, e.kind);
     } else if(e instanceof CVar) {
-      const m = not(findVar(p, e.name), `duplicate var ${e.name}`)
-        .then(() => typeWF(p, e.type).then(k => checkKindType(k)));
+      const m = not(findVar(p, e.name), `duplicate var ${e.name}`);
       if(isErr(m)) return m;
+      const k = typeWF(p, e.type);
+      if(isErr(k)) return k;
+      return checkKindType(k);
     } else if(e instanceof CMarker) {
-      const m = not(findMarker(p, e.name), `duplicate marker ^${e.name}`)
-        .then(() => not(findExOrSolved(p, e.name), `duplicate marker ^${e.name}`));
+      const m = not(findMarker(p, e.name), `duplicate marker ^${e.name}`);
       if(isErr(m)) return m;
+      return not(findExOrSolved(p, e.name), `duplicate marker ^${e.name}`);
     } else return impossible();
   }
   return ok(null);
@@ -241,40 +266,52 @@ function contextWF(ctx: Context): IResult<null> {
 // subtype
 function subtype(ctx: Context, a: Type, b: Type): IResult<Context> {
   // console.log(`subtype ${a} and ${b} in ${ctx}`);
-  const wf = typeWF(ctx, a).then(k1 => typeWF(ctx, b).then(k2 => ok({k1, k2})));
-  if(isErr(wf)) return new Err(wf.err);
-  const wfok = wf as Ok<TypeError, { k1: Kind, k2: Kind }>;
-  const k = wfok.val.k1;
-  if(!k.equals(wfok.val.k2))
-    return err(`kind mismatch ${a} and ${b}, ${k} and ${wfok.val.k2} in ${ctx}`);
+  const k = typeWF(ctx, a)
+  if(isErr(k)) return k;
+  const k2 = typeWF(ctx, b);
+  if(isErr(k2)) return k2;
+  if(!k.equals(k2))
+    return err(`kind mismatch ${a} and ${b}, ${k} and ${k2} in ${ctx}`);
   if(((a instanceof TVar && b instanceof TVar) ||
     (a instanceof TEx && b instanceof TEx) ||
     (a instanceof TCon && b instanceof TCon)) && a.name === b.name)
     return ok(ctx);
-  if(a instanceof TApp && b instanceof TApp)
-    return subtype(ctx, a.left, b.left)
-      .then(ctx_ => subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right)));
-  if(a instanceof TFun && b instanceof TFun)
-    return subtype(ctx, b.left, a.left)
-      .then(ctx_ => subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right)));
+  if(a instanceof TApp && b instanceof TApp) {
+    const ctx_ = subtype(ctx, a.left, b.left);
+    if(isErr(ctx_)) return ctx_;
+    return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
+  }
+  if(a instanceof TFun && b instanceof TFun) {
+    const ctx_ = subtype(ctx, b.left, a.left);
+    if(isErr(ctx_)) return ctx_;
+    return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
+  }
   if(a instanceof TForall) {
     const x = fresh(ctx.texs(), a.name);
-    return subtype(ctx.add(cmarker(x), ctex(x, a.kind)), a.open(tex(x)), b)
-      .then(ctx_ => ok(ctx_.split(isCMarker(x)).left));
+    const ctx_ = subtype(ctx.add(cmarker(x), ctex(x, a.kind)), a.open(tex(x)), b);
+    if(isErr(ctx_)) return ctx_;
+    return ok(ctx_.split(isCMarker(x)).left);
   }
   if(b instanceof TForall) {
     const x = fresh(ctx.tvars(), b.name);
-    return subtype(ctx.add(ctvar(x, b.kind)), a, b.open(tvar(x)))
-      .then(ctx_ => ok(ctx_.split(isCTVar(x)).left));
+    const ctx_ = subtype(ctx.add(ctvar(x, b.kind)), a, b.open(tvar(x)));
+    if(isErr(ctx_)) return ctx_;
+    return ok(ctx_.split(isCTVar(x)).left);
   }
-  if(a instanceof TEx)
-    return findEx(ctx, a.name)
-      .then(() => check(!b.containsEx(a.name), `occurs check failed L: ${a} in ${b}`))
-      .then(() => instL(ctx, a.name, b));
-  if(b instanceof TEx)
-    return findEx(ctx, b.name)
-      .then(() => check(!a.containsEx(b.name), `occurs check failed R: ${b} in ${a}`))
-      .then(() => instR(ctx, a, b.name));
+  if(a instanceof TEx) {
+    const r1 = findEx(ctx, a.name);
+    if(isErr(r1)) return r1;
+    const r2 = check(!b.containsEx(a.name), `occurs check failed L: ${a} in ${b}`);
+    if(isErr(r2)) return r2;
+    return instL(ctx, a.name, b); 
+  }
+  if(b instanceof TEx) {
+    const r1 = findEx(ctx, b.name);
+    if(isErr(r1)) return r1;
+    const r2 = check(!a.containsEx(b.name), `occurs check failed R: ${b} in ${a}`);
+    if(isErr(r2)) return r2;
+    return instR(ctx, a, b.name);
+  }
   return err(`subtype failed: ${a} <: ${b} in ${ctx}`);
 }
 
@@ -283,8 +320,9 @@ function solve(ctx: Context, name: string, ty: Type): IResult<Context> {
   // console.log(`solve ${name} and ${ty} in ${ctx}`);
   if(ty.isMono()) {
     const s = ctx.split(isCTEx(name));
-    return typeWF(s.left, ty)
-      .then(k => ok(s.left.add(csolved(name, k, ty)).append(s.right)));
+    const k = typeWF(s.left, ty);
+    if(isErr(k)) return k;
+    return ok(s.left.add(csolved(name, k, ty)).append(s.right));
   } else return err(`polymorphic type in solve: ${name} := ${ty} in ${ctx}`);
 }
 
@@ -552,10 +590,10 @@ export function inferProgram(ctx: Context, ds: Definition[]): IResult<Context> {
   for(let i = 0; i < ds.length; i++) {
     const d = ds[i];
     const r = inferDefinition(c, d);
-    if(isErr(r)) return new Err(r.err);
+    if(isErr(r)) return r;
     else if(isOk(r)) {
-      console.log(''+d, ''+r.val);
-      c = r.val;
+      console.log(''+d, ''+r);
+      c = r;
     } else impossible();
   }
   return ok(c);

@@ -79,6 +79,8 @@ console.log(compileProgram(p));
 
 /**
  * TODO:
+ *  implicits
+ *  operators
  *  fix positivity check
  *  check order of $ and \
  *  repl tutorial command
