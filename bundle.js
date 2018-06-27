@@ -1101,17 +1101,6 @@ const definitions_1 = require("./definitions");
 // errors
 const err = (msg) => { throw new TypeError(msg); };
 const check = (b, m) => b ? null : err(m);
-const not = (r, m) => {
-    try {
-        r();
-        return err(m);
-    }
-    catch (e) {
-        if (e instanceof TypeError)
-            return null;
-        throw e;
-    }
-};
 function noDups(d) {
     const o = {};
     for (let i = 0; i < d.length; i++) {
@@ -1244,32 +1233,45 @@ function typeWF(ctx, ty) {
 }
 function contextWF(ctx) {
     // console.log(`contextWF ${ctx}`);
-    /*
     const a = ctx.elems;
     const l = a.length;
-    for(let i = 0; i < l; i++) {
-      const e = a[i];
-      const p = new Context(a.slice(0, i));
-      if(e instanceof CKCon) {
-        not(() => findKCon(p, e.name), `duplicate kcon ^${e.name}`);
-      } else if(e instanceof CTCon) {
-        not(() => findTCon(p, e.name), `duplicate tcon ${e.name}`);
-        kindWF(p, e.kind);
-      } else if(e instanceof CTVar) {
-        not(() => findTVar(p, e.name), `duplicate tvar ${e.name}`);
-        kindWF(p, e.kind);
-      } else if(e instanceof CTEx || e instanceof CSolved) {
-        not(() => findExOrSolved(p, e.name), `duplicate tex ^${e.name}`);
-        kindWF(p, e.kind);
-      } else if(e instanceof CVar) {
-        not(() => findVar(p, e.name), `duplicate var ${e.name}`);
-        const k = typeWF(p, e.type);
-        checkKindType(k);
-      } else if(e instanceof CMarker) {
-        not(() => findMarker(p, e.name), `duplicate marker ^${e.name}`);
-        not(() => findExOrSolved(p, e.name), `duplicate marker ^${e.name}`);
-      } else return impossible();
-    }*/
+    for (let i = 0; i < l; i++) {
+        const e = a[i];
+        const p = new context_1.Context(a.slice(0, i));
+        if (e instanceof context_1.CKCon) {
+            if (p.findKCon(e.name) !== null)
+                return err(`duplicate kcon ^${e.name}`);
+        }
+        else if (e instanceof context_1.CTCon) {
+            if (p.findTCon(e.name) !== null)
+                return err(`duplicate tcon ${e.name}`);
+            kindWF(p, e.kind);
+        }
+        else if (e instanceof context_1.CTVar) {
+            if (p.findTVar(e.name) !== null)
+                return err(`duplicate tvar ${e.name}`);
+            kindWF(p, e.kind);
+        }
+        else if (e instanceof context_1.CTEx || e instanceof context_1.CSolved) {
+            if (p.findExOrSolved(e.name) !== null)
+                return err(`duplicate tex ^${e.name}`);
+            kindWF(p, e.kind);
+        }
+        else if (e instanceof context_1.CVar) {
+            if (p.findVar(e.name) !== null)
+                return err(`duplicate var ${e.name}`);
+            const k = typeWF(p, e.type);
+            checkKindType(k);
+        }
+        else if (e instanceof context_1.CMarker) {
+            if (p.findMarker(e.name) !== null)
+                return err(`duplicate marker ^${e.name}`);
+            if (p.findExOrSolved(e.name) !== null)
+                return err(`duplicate marker ^${e.name}`);
+        }
+        else
+            return util_1.impossible();
+    }
     return (null);
 }
 // subtype

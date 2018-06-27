@@ -68,15 +68,6 @@ import {
 // errors
 const err = <T>(msg: string): T => { throw new TypeError(msg) };
 const check = (b: boolean, m: string): null => b? null: err(m);
-const not = <T>(r: () => T, m: string): null => {
-  try {
-    r();
-    return err(m);
-  } catch(e) {
-    if(e instanceof TypeError) return null;
-    throw e;
-  }
-};
 
 function noDups(d: string[]): null {
   const o: { [key: string]: boolean } = {};
@@ -220,23 +211,23 @@ function contextWF(ctx: Context): null {
     const e = a[i];
     const p = new Context(a.slice(0, i));
     if(e instanceof CKCon) {
-      not(() => findKCon(p, e.name), `duplicate kcon ^${e.name}`);
+      if(p.findKCon(e.name) !== null) return err(`duplicate kcon ^${e.name}`);
     } else if(e instanceof CTCon) {
-      not(() => findTCon(p, e.name), `duplicate tcon ${e.name}`);
+      if(p.findTCon(e.name) !== null) return err(`duplicate tcon ${e.name}`);
       kindWF(p, e.kind);
     } else if(e instanceof CTVar) {
-      not(() => findTVar(p, e.name), `duplicate tvar ${e.name}`);
+      if(p.findTVar(e.name) !== null) return err(`duplicate tvar ${e.name}`);
       kindWF(p, e.kind);
     } else if(e instanceof CTEx || e instanceof CSolved) {
-      not(() => findExOrSolved(p, e.name), `duplicate tex ^${e.name}`);
+      if(p.findExOrSolved(e.name) !== null) return err(`duplicate tex ^${e.name}`);
       kindWF(p, e.kind);
     } else if(e instanceof CVar) {
-      not(() => findVar(p, e.name), `duplicate var ${e.name}`);
+      if(p.findVar(e.name) !== null) return err(`duplicate var ${e.name}`);
       const k = typeWF(p, e.type);
       checkKindType(k);
     } else if(e instanceof CMarker) {
-      not(() => findMarker(p, e.name), `duplicate marker ^${e.name}`);
-      not(() => findExOrSolved(p, e.name), `duplicate marker ^${e.name}`);
+      if(p.findMarker(e.name) !== null) return err(`duplicate marker ^${e.name}`);
+      if(p.findExOrSolved(e.name) !== null) return err(`duplicate marker ^${e.name}`);
     } else return impossible();
   }
   return (null);
