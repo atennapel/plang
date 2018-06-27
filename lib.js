@@ -26,32 +26,19 @@ function show(x) {
   return `${x}`;
 }
 
-const _prelude_backup = `
-id = \\x -> x;
-cnst = \\x y -> x;
-flip = \\f x y -> f y x;
-comp = \\f g x -> f (g x);
-comp2 = \\f g x y -> f (g x y);
+const emptyStr = "";
+const appendStr = x => y => x + y;
 
-data Void;
-data Unit = Unit;
-
-data Bool = True | False;
-data Nat = Z | S Nat;
-data Maybe t = Nothing | Just t;
-
-data Mu (f : Type -> Type) = Mu (forall t. (f t -> t) -> t);
-unMu = caseMu id;
-cata = \\a l -> unMu l a;
-
-data ListF t r = NilF | ConsF t r;
-nil = Mu (\\a -> a NilF);
-cons = \\h t -> Mu (\\a -> a (ConsF h (unMu t a)));
-
-data NatF r = ZF | SF r;
-z = Mu (\\a -> a ZF);
-s = \\n -> Mu (\\a -> a (SF (unMu n a)));
-`;
+const zeroFloat = 0;
+const oneFloat = 1;
+const negFloat = x => -x;
+const incFloat = x => x + 1;
+const decFloat = x => x - 1;
+const addFloat = x => y => x + y;
+const subFloat = x => y => x - y;
+const mulFloat = x => y => x * y;
+const divFloat = x => y => x / y;
+const modFloat = x => y => x % y;
 
 const _prelude = `
 id = \\x -> x;

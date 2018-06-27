@@ -7,6 +7,21 @@ export abstract class Expr {
   abstract substType(name: string, type: Type): Expr;
 }
 
+export class ELit extends Expr {
+  constructor(public readonly val: string | number) { super() }
+
+  toString() {
+    return typeof this.val === 'string'? JSON.stringify(this.val): `${this.val}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const elit = (val: string | number) => new ELit(val);
+
 export class EQuery extends Expr {
   toString() {
     return `?`;

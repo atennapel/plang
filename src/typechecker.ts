@@ -51,6 +51,7 @@ import {
   evar,
   eanno,
   EQuery,
+  ELit,
 } from './exprs';
 import {
   Kind,
@@ -143,8 +144,12 @@ const orderedTExs = (texs: [string, Kind][], ty: Type): [string, Kind][] => {
 
 // initial context
 export const ktype = kcon('Type');
+export const tstr = tcon('Str');
+export const tfloat = tcon('Float');
 export const initialContext = new Context([
   ckcon('Type'),
+  ctcon('Str', ktype),
+  ctcon('Float', ktype),
 ]);
 
 // wf
@@ -226,8 +231,8 @@ function contextWF(ctx: Context): null {
       const k = typeWF(p, e.type);
       checkKindType(k);
     } else if(e instanceof CMarker) {
-      if(p.findMarker(e.name) !== null) return err(`duplicate marker ^${e.name}`);
-      if(p.findExOrSolved(e.name) !== null) return err(`duplicate marker ^${e.name}`);
+      if(p.findMarker(e.name) !== null || p.findExOrSolved(e.name) !== null)
+        return err(`duplicate marker ^${e.name}`);
     } else return impossible();
   }
   return (null);
@@ -352,7 +357,10 @@ function instR(ctx: Context, a: Type, b: string): Context {
 // synth/check
 function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type } {
   // console.log(`synth ${e} in ${ctx}`);
-  const r = contextWF(ctx);
+  contextWF(ctx);
+  if(e instanceof ELit) {
+    return typeof e.val === 'string'? { ctx, ty: tstr }: { ctx, ty: tfloat };
+  }
   if(e instanceof EVar) {
     const ty = findVar(ctx, e.name);
     return { ctx, ty };
@@ -419,7 +427,7 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type } {
 
 function checkTy(ctx: Context, e: Expr, ty: Type): Context {
   // console.log(`checkTy ${e} and ${ty} in ${ctx}`);
-  const r = contextWF(ctx);
+  contextWF(ctx);
   if(e instanceof EQuery) {
     const q = fresh(ctx.texs(), 'q');
     return (ctx.add(csolved(q, ktype, ty)));
@@ -457,7 +465,7 @@ function checkTy(ctx: Context, e: Expr, ty: Type): Context {
 
 function synthapp(ctx: Context, ty: Type, e: Expr): { ctx: Context, ty: Type } {
   // console.log(`synthapp ${ty} and ${e} in ${ctx}`);
-  const r = contextWF(ctx);
+  contextWF(ctx);
   if(ty instanceof TForall) {
     const x = fresh(ctx.texs(), ty.name);
     return synthapp(ctx.add(ctex(x, ty.kind)), ty.open(tex(x)), e);

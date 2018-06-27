@@ -15,7 +15,7 @@ import {
   etabss,
 } from './exprs';
 import { compile, compileProgram, compileConstructor, compileCase, compileCata, compilePara } from './compilerJS';
-import { infer, ktype, initialContext, inferDefinition, inferProgram } from './typechecker';
+import { infer, ktype, tstr, tfloat, initialContext, inferDefinition, inferProgram } from './typechecker';
 import {
   Context,
   ctcon,
@@ -32,7 +32,22 @@ import {
   DValue,
 } from './definitions';
 
-export const context = initialContext;
+export const context = initialContext.add(
+  cvar('show', tforalls([['t', ktype]], tfuns(tvar('t'), tstr))),
+  cvar('emptyStr', tstr),
+  cvar('appendStr', tfuns(tstr, tstr, tstr)),
+
+  cvar('zeroFloat', tfloat),
+  cvar('oneFloat', tfloat),
+  cvar('negFloat', tfuns(tfloat, tfloat)),
+  cvar('incFloat', tfuns(tfloat, tfloat)),
+  cvar('decFloat', tfuns(tfloat, tfloat)),
+  cvar('addFloat', tfuns(tfloat, tfloat, tfloat)),
+  cvar('subFloat', tfuns(tfloat, tfloat, tfloat)),
+  cvar('mulFloat', tfuns(tfloat, tfloat, tfloat)),
+  cvar('divFloat', tfuns(tfloat, tfloat, tfloat)),
+  cvar('modFloat', tfuns(tfloat, tfloat, tfloat)),
+);
 
 function show(x: any): string {
   if(x._adt) {
@@ -59,6 +74,7 @@ function show(x: any): string {
     return x._args.length === 0? `${x._tag}`: `(${x._tag}${x._args.length > 0? ` ${x._args.map(show).join(' ')}`: ''})`;
   }
   if(typeof x === 'function') return `[Function]`;
+  if(typeof x === 'string') return JSON.stringify(x);
   return `${x}`;
 }
 

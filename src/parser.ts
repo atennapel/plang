@@ -1,4 +1,4 @@
-import { Expr, eapp, etapp, evar, EVar, eabss, etabss, eanno, eapps, equery } from './exprs';
+import { Expr, eapp, etapp, evar, EVar, eabss, etabss, eanno, eapps, equery, elit } from './exprs';
 import { Kind, kfuns, kcon } from './kinds';
 import { Type, tcon, tvar, tapps, tforalls, tfuns } from './types'
 import { ktype } from './typechecker';
@@ -24,14 +24,16 @@ const token = (val: string): Token => ({ tag: 'token', val });
 const paren = (val: Ret[]): Paren => ({ tag: 'paren', val });
 
 function tokenize(s: string): Ret[] {
-  const START = 0, NAME = 1;
+  const START = 0, NAME = 1, STR = 2;
   let state = START;
   let r: Ret[] = [], p: Ret[][] = [], b: string[] = [];
   let t = '';
+  let escape = false;
   for(let i = 0; i <= s.length; i++) {
     const c = s[i] || ' ';
     if(state === START) {
       if(/[a-z0-9]/i.test(c)) t += c, state = NAME;
+      else if(c === '"') state = STR;
       else if(c === '-' && s[i+1] === '>') r.push(token('->')), i++;
       else if(c === '/' && s[i+1] === '\\') r.push(token('/\\')), i++;
       else if(c === '@') r.push(token('@'));
@@ -53,7 +55,12 @@ function tokenize(s: string): Ret[] {
       } else if(/\s+/.test(c)) continue;
       else throw new SyntaxError(`invalid char: ${c}`);
     } else if(state === NAME) {
-      if(!/[a-z0-9\']/i.test(c)) r.push(token(t)), t = '', i--, state = START;
+      if(!/[a-z0-9\'\.]/i.test(c)) r.push(token(t)), t = '', i--, state = START;
+      else t += c;
+    } else if(state === STR) {
+      if(escape) t += c, escape = false;
+      else if(c === '\\') escape = true; 
+      else if(c === '"') r.push(token(`"${t}`)), t = '', state = START;
       else t += c;
     }
   }
@@ -170,8 +177,11 @@ function exprs(x: Ret[]): Expr {
 
 function expr(x: Ret): Expr {
   if(x.tag === 'token') {
+    if(x.val[0] === '"') return elit(x.val.slice(1));
     const n = +x.val;
-    if(!isNaN(n) && n >= 0) {
+    if(!isNaN(n)) {
+      if(x.val.indexOf('.') >= 0) return elit(n);
+      if(n < 0) throw new SyntaxError(`invalid nat: ${n}`);
       let t: Expr = evar('Z');
       for(let i = 0; i < n; i++) {
         t = eapp(evar('S'), t);

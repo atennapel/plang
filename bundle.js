@@ -19,6 +19,8 @@ function compile(expr) {
         return compile(expr.expr);
     if (expr instanceof exprs_1.ETAbs)
         return compile(expr.expr);
+    if (expr instanceof exprs_1.ELit)
+        return typeof expr.val === 'string' ? JSON.stringify(expr.val) : `${expr.val}`;
     return util_1.impossible();
 }
 exports.compile = compile;
@@ -343,6 +345,23 @@ Object.defineProperty(exports, "__esModule", { value: true });
 class Expr {
 }
 exports.Expr = Expr;
+class ELit extends Expr {
+    constructor(val) {
+        super();
+        this.val = val;
+    }
+    toString() {
+        return typeof this.val === 'string' ? JSON.stringify(this.val) : `${this.val}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.ELit = ELit;
+exports.elit = (val) => new ELit(val);
 class EQuery extends Expr {
     toString() {
         return `?`;
@@ -532,15 +551,18 @@ function matchingBracket(c) {
 const token = (val) => ({ tag: 'token', val });
 const paren = (val) => ({ tag: 'paren', val });
 function tokenize(s) {
-    const START = 0, NAME = 1;
+    const START = 0, NAME = 1, STR = 2;
     let state = START;
     let r = [], p = [], b = [];
     let t = '';
+    let escape = false;
     for (let i = 0; i <= s.length; i++) {
         const c = s[i] || ' ';
         if (state === START) {
             if (/[a-z0-9]/i.test(c))
                 t += c, state = NAME;
+            else if (c === '"')
+                state = STR;
             else if (c === '-' && s[i + 1] === '>')
                 r.push(token('->')), i++;
             else if (c === '/' && s[i + 1] === '\\')
@@ -579,8 +601,18 @@ function tokenize(s) {
                 throw new SyntaxError(`invalid char: ${c}`);
         }
         else if (state === NAME) {
-            if (!/[a-z0-9\']/i.test(c))
+            if (!/[a-z0-9\'\.]/i.test(c))
                 r.push(token(t)), t = '', i--, state = START;
+            else
+                t += c;
+        }
+        else if (state === STR) {
+            if (escape)
+                t += c, escape = false;
+            else if (c === '\\')
+                escape = true;
+            else if (c === '"')
+                r.push(token(`"${t}`)), t = '', state = START;
             else
                 t += c;
         }
@@ -722,8 +754,14 @@ function exprs(x) {
 }
 function expr(x) {
     if (x.tag === 'token') {
+        if (x.val[0] === '"')
+            return exprs_1.elit(x.val.slice(1));
         const n = +x.val;
-        if (!isNaN(n) && n >= 0) {
+        if (!isNaN(n)) {
+            if (x.val.indexOf('.') >= 0)
+                return exprs_1.elit(n);
+            if (n < 0)
+                throw new SyntaxError(`invalid nat: ${n}`);
             let t = exprs_1.evar('Z');
             for (let i = 0; i < n; i++) {
                 t = exprs_1.eapp(exprs_1.evar('S'), t);
@@ -989,12 +1027,14 @@ exports.ppContext = ppContext;
 },{"./context":2,"./kinds":5,"./typechecker":9,"./types":10,"./util":11}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const types_1 = require("./types");
 const compilerJS_1 = require("./compilerJS");
 const typechecker_1 = require("./typechecker");
+const context_1 = require("./context");
 const parser_1 = require("./parser");
 const prettyprinter_1 = require("./prettyprinter");
 const definitions_1 = require("./definitions");
-exports.context = typechecker_1.initialContext;
+exports.context = typechecker_1.initialContext.add(context_1.cvar('show', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('t'), typechecker_1.tstr))), context_1.cvar('emptyStr', typechecker_1.tstr), context_1.cvar('appendStr', types_1.tfuns(typechecker_1.tstr, typechecker_1.tstr, typechecker_1.tstr)), context_1.cvar('zeroFloat', typechecker_1.tfloat), context_1.cvar('oneFloat', typechecker_1.tfloat), context_1.cvar('negFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('incFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('decFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('addFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('subFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('mulFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('divFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('modFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)));
 function show(x) {
     if (x._adt) {
         if (x._tag === 'Z')
@@ -1023,6 +1063,8 @@ function show(x) {
     }
     if (typeof x === 'function')
         return `[Function]`;
+    if (typeof x === 'string')
+        return JSON.stringify(x);
     return `${x}`;
 }
 let ctx = exports.context;
@@ -1089,7 +1131,7 @@ function run(i, cb) {
 }
 exports.default = run;
 
-},{"./compilerJS":1,"./definitions":3,"./parser":6,"./prettyprinter":7,"./typechecker":9}],9:[function(require,module,exports){
+},{"./compilerJS":1,"./context":2,"./definitions":3,"./parser":6,"./prettyprinter":7,"./typechecker":9,"./types":10}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1173,8 +1215,12 @@ const orderedTExs = (texs, ty) => {
 };
 // initial context
 exports.ktype = kinds_1.kcon('Type');
+exports.tstr = types_1.tcon('Str');
+exports.tfloat = types_1.tcon('Float');
 exports.initialContext = new context_1.Context([
     context_1.ckcon('Type'),
+    context_1.ctcon('Str', exports.ktype),
+    context_1.ctcon('Float', exports.ktype),
 ]);
 // wf
 function checkKindType(kind) {
@@ -1264,9 +1310,7 @@ function contextWF(ctx) {
             checkKindType(k);
         }
         else if (e instanceof context_1.CMarker) {
-            if (p.findMarker(e.name) !== null)
-                return err(`duplicate marker ^${e.name}`);
-            if (p.findExOrSolved(e.name) !== null)
+            if (p.findMarker(e.name) !== null || p.findExOrSolved(e.name) !== null)
                 return err(`duplicate marker ^${e.name}`);
         }
         else
@@ -1399,7 +1443,10 @@ function instR(ctx, a, b) {
 // synth/check
 function synth(ctx, e) {
     // console.log(`synth ${e} in ${ctx}`);
-    const r = contextWF(ctx);
+    contextWF(ctx);
+    if (e instanceof exprs_1.ELit) {
+        return typeof e.val === 'string' ? { ctx, ty: exports.tstr } : { ctx, ty: exports.tfloat };
+    }
     if (e instanceof exprs_1.EVar) {
         const ty = findVar(ctx, e.name);
         return { ctx, ty };
@@ -1467,7 +1514,7 @@ function synth(ctx, e) {
 }
 function checkTy(ctx, e, ty) {
     // console.log(`checkTy ${e} and ${ty} in ${ctx}`);
-    const r = contextWF(ctx);
+    contextWF(ctx);
     if (e instanceof exprs_1.EQuery) {
         const q = fresh(ctx.texs(), 'q');
         return (ctx.add(context_1.csolved(q, exports.ktype, ty)));
@@ -1504,7 +1551,7 @@ function checkTy(ctx, e, ty) {
 }
 function synthapp(ctx, ty, e) {
     // console.log(`synthapp ${ty} and ${e} in ${ctx}`);
-    const r = contextWF(ctx);
+    contextWF(ctx);
     if (ty instanceof types_1.TForall) {
         const x = fresh(ctx.texs(), ty.name);
         return synthapp(ctx.add(context_1.ctex(x, ty.kind)), ty.open(types_1.tex(x)), e);

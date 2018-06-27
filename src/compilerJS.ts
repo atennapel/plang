@@ -9,6 +9,7 @@ import {
   ETApp,
   ETAbs,
   EQuery,
+  ELit,
 } from './exprs';
 import {
   Definition,
@@ -27,6 +28,8 @@ export function compile(expr: Expr): string {
   if(expr instanceof EAnno) return compile(expr.expr);
   if(expr instanceof ETApp) return compile(expr.expr);
   if(expr instanceof ETAbs) return compile(expr.expr);
+
+  if(expr instanceof ELit) return typeof expr.val === 'string'? JSON.stringify(expr.val): `${expr.val}`;
   return impossible();
 }
 
