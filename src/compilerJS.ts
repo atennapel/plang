@@ -22,13 +22,6 @@ export function compile(expr: Expr): string {
   if(expr instanceof EVar) return `${expr.name}`;
   if(expr instanceof EApp) return `${compile(expr.left)}(${compile(expr.right)})`;
   if(expr instanceof EAbs) return `(${expr.name} => ${compile(expr.expr)})`;
-
-  if(expr instanceof EQuery) return (expr as any)._impl? (expr as any)._impl: `(() => { throw new Error('? without implicit') })()`;
-
-  if(expr instanceof EAnno) return compile(expr.expr);
-  if(expr instanceof ETApp) return compile(expr.expr);
-  if(expr instanceof ETAbs) return compile(expr.expr);
-
   if(expr instanceof ELit) return typeof expr.val === 'string'? JSON.stringify(expr.val): `${expr.val}`;
   return impossible();
 }

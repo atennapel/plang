@@ -11,14 +11,6 @@ function compile(expr) {
         return `${compile(expr.left)}(${compile(expr.right)})`;
     if (expr instanceof exprs_1.EAbs)
         return `(${expr.name} => ${compile(expr.expr)})`;
-    if (expr instanceof exprs_1.EQuery)
-        return expr._impl ? expr._impl : `(() => { throw new Error('? without implicit') })()`;
-    if (expr instanceof exprs_1.EAnno)
-        return compile(expr.expr);
-    if (expr instanceof exprs_1.ETApp)
-        return compile(expr.expr);
-    if (expr instanceof exprs_1.ETAbs)
-        return compile(expr.expr);
     if (expr instanceof exprs_1.ELit)
         return typeof expr.val === 'string' ? JSON.stringify(expr.val) : `${expr.val}`;
     return util_1.impossible();
@@ -1036,7 +1028,6 @@ const prettyprinter_1 = require("./prettyprinter");
 const definitions_1 = require("./definitions");
 exports._context = typechecker_1.initialContext.add(context_1.cvar('show', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('t'), typechecker_1.tstr))), context_1.cvar('emptyStr', typechecker_1.tstr), context_1.cvar('appendStr', types_1.tfuns(typechecker_1.tstr, typechecker_1.tstr, typechecker_1.tstr)), context_1.cvar('zeroFloat', typechecker_1.tfloat), context_1.cvar('oneFloat', typechecker_1.tfloat), context_1.cvar('negFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('incFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('decFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('addFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('subFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('mulFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('divFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('modFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)));
 function _show(x) {
-    console.log(x, typeof x);
     if (x._adt) {
         if (x._tag === 'Z')
             return '0';
@@ -1078,8 +1069,10 @@ function _run(i, cb) {
         try {
             const ds = parser_1.parseProgram(eval('_prelude'));
             const t = typechecker_1.inferProgram(_ctx, ds);
-            eval(compilerJS_1.compileProgram(ds, false, '', true));
-            _ctx = t;
+            const c = compilerJS_1.compileProgram(t.defs, false, '', true);
+            console.log(c);
+            eval(c);
+            _ctx = t.ctx;
             cb('prelude loaded');
         }
         catch (err) {
@@ -1092,9 +1085,10 @@ function _run(i, cb) {
     else if (cmd.slice(0, 4) === ':def') {
         const rest = i.slice(4).trim();
         try {
-            const d = parser_1.parseDefinition(rest);
-            const t = typechecker_1.inferDefinition(_ctx, d);
-            _ctx = t;
+            const d_ = parser_1.parseDefinition(rest);
+            const t = typechecker_1.inferDefinition(_ctx, d_);
+            _ctx = t.ctx;
+            const d = t.def;
             if (d instanceof definitions_1.DValue) {
                 const c = compilerJS_1.compile(d.val);
                 console.log(c);
@@ -1120,7 +1114,8 @@ function _run(i, cb) {
             const p = parser_1.parse(i);
             console.log('' + p);
             const tr = typechecker_1.infer(_ctx, p);
-            const c = compilerJS_1.compile(p);
+            console.log('' + tr.expr);
+            const c = compilerJS_1.compile(tr.expr);
             console.log(c);
             const res = eval(c);
             cb(`${_show(res)} : ${prettyprinter_1.ppType(tr.ty)}`);
@@ -1455,11 +1450,11 @@ function synth(ctx, e) {
     // console.log(`synth ${e} in ${ctx}`);
     contextWF(ctx);
     if (e instanceof exprs_1.ELit) {
-        return typeof e.val === 'string' ? { ctx, ty: exports.tstr } : { ctx, ty: exports.tfloat };
+        return { ctx, ty: typeof e.val === 'string' ? exports.tstr : exports.tfloat, expr: e };
     }
     if (e instanceof exprs_1.EVar) {
         const ty = findVar(ctx, e.name);
-        return { ctx, ty };
+        return { ctx, ty, expr: e };
     }
     if (e instanceof exprs_1.EAbs) {
         if (e.isAnnotated()) {
@@ -1468,44 +1463,46 @@ function synth(ctx, e) {
             checkKindType(k);
             const x = fresh(ctx.vars(), e.name);
             const b = fresh(ctx.texs(), e.name);
-            const ctx_ = checkTy(ctx.add(context_1.cmarker(b), context_1.ctex(b, exports.ktype), context_1.cvar(x, ty)), e.open(exprs_1.evar(x)), types_1.tex(b));
-            return generalize(ctx_, context_1.isCMarker(b), types_1.tfun(ty, types_1.tex(b)));
+            const r = checkTy(ctx.add(context_1.cmarker(b), context_1.ctex(b, exports.ktype), context_1.cvar(x, ty)), e.open(exprs_1.evar(x)), types_1.tex(b));
+            const { ctx: ctx__, ty: ty__ } = generalize(r.ctx, context_1.isCMarker(b), types_1.tfun(ty, types_1.tex(b)));
+            return { ctx: ctx__, ty: ty__, expr: exprs_1.eabs(e.name, r.expr) };
         }
         else {
             const x = fresh(ctx.vars(), e.name);
             const texs = ctx.texs();
             const a = fresh(texs, e.name);
             const b = fresh(texs.concat([a]), e.name);
-            const ctx_ = checkTy(ctx.add(context_1.cmarker(a), context_1.ctex(a, exports.ktype), context_1.ctex(b, exports.ktype), context_1.cvar(x, types_1.tex(a))), e.open(exprs_1.evar(x)), types_1.tex(b));
-            return generalize(ctx_, context_1.isCMarker(a), types_1.tfun(types_1.tex(a), types_1.tex(b)));
+            const r = checkTy(ctx.add(context_1.cmarker(a), context_1.ctex(a, exports.ktype), context_1.ctex(b, exports.ktype), context_1.cvar(x, types_1.tex(a))), e.open(exprs_1.evar(x)), types_1.tex(b));
+            const { ctx: ctx__, ty: ty__ } = generalize(r.ctx, context_1.isCMarker(a), types_1.tfun(types_1.tex(a), types_1.tex(b)));
+            return { ctx: ctx__, ty: ty__, expr: exprs_1.eabs(e.name, r.expr) };
         }
     }
     if (e instanceof exprs_1.EApp) {
         const r = synth(ctx, e.left);
-        return synthapp(r.ctx, r.ctx.apply(r.ty), e.right);
+        const { ctx: ctx_, ty: ty_, expr: right } = synthapp(r.ctx, r.ctx.apply(r.ty), e.right);
+        return { ctx: ctx_, ty: ty_, expr: exprs_1.eapp(r.expr, right) };
     }
     if (e instanceof exprs_1.EAnno) {
         typeWF(ctx, e.type);
-        const ctx_ = checkTy(ctx, e.expr, e.type);
-        ;
-        return { ctx: ctx_, ty: e.type };
+        const r = checkTy(ctx, e.expr, e.type);
+        return { ctx: r.ctx, ty: e.type, expr: r.expr };
     }
     if (e instanceof exprs_1.ETAbs) {
         kindWF(ctx, e.kind);
         const x = fresh(ctx.vars(), e.name);
         const r = synth(ctx.add(context_1.ctvar(x, e.kind)), e.expr.substType(e.name, types_1.tvar(x)));
-        return ({ ctx: r.ctx, ty: types_1.tforall(x, e.kind, r.ctx.apply(r.ty)) });
+        return { ctx: r.ctx, ty: types_1.tforall(x, e.kind, r.ctx.apply(r.ty)), expr: e.expr };
     }
     if (e instanceof exprs_1.ETApp) {
         typeWF(ctx, e.type);
         const r = synth(ctx, e.expr);
         const ty_ = r.ctx.apply(r.ty);
-        return ty_ instanceof types_1.TForall ? ({ ctx: r.ctx, ty: ty_.open(e.type) }) :
+        return ty_ instanceof types_1.TForall ? { ctx: r.ctx, ty: ty_.open(e.type), expr: e.expr } :
             err(`type application on non-polymorphic type: ${e} with ${ty_} in ${r.ctx}`);
     }
     if (e instanceof exprs_1.EQuery) {
         const q = fresh(ctx.texs(), 'q');
-        return ({ ctx: ctx.add(context_1.ctex(q, exports.ktype)), ty: types_1.tex(q) });
+        return { ctx: ctx.add(context_1.ctex(q, exports.ktype)), ty: types_1.tex(q), expr: exprs_1.evar(`_QUERY_${q}`) };
     }
     return err(`cannot synth ${e} in ${ctx}`);
 }
@@ -1514,37 +1511,20 @@ function checkTy(ctx, e, ty) {
     contextWF(ctx);
     if (e instanceof exprs_1.EQuery) {
         const q = fresh(ctx.texs(), 'q');
-        return (ctx.add(context_1.csolved(q, exports.ktype, ty)));
+        return { ctx: ctx.add(context_1.csolved(q, exports.ktype, ty)), expr: exprs_1.evar(`_QUERY_${q}`) };
     }
     if (ty instanceof types_1.TForall) {
         const x = fresh(ctx.tvars(), ty.name);
-        const ctx_ = checkTy(ctx.add(context_1.ctvar(x, ty.kind)), e, ty.open(types_1.tvar(x)));
-        return (ctx_.split(context_1.isCTVar(x)).left);
+        const r = checkTy(ctx.add(context_1.ctvar(x, ty.kind)), e, ty.open(types_1.tvar(x)));
+        return { ctx: r.ctx.split(context_1.isCTVar(x)).left, expr: r.expr };
     }
     if (e instanceof exprs_1.EAbs && !e.isAnnotated() && ty instanceof types_1.TFun) {
         const x = fresh(ctx.vars(), e.name);
-        const ctx_ = checkTy(ctx.add(context_1.cvar(x, ty.left)), e.open(exprs_1.evar(x)), ty.right);
-        return (ctx_.split(context_1.isCVar(x)).left);
+        const r = checkTy(ctx.add(context_1.cvar(x, ty.left)), e.open(exprs_1.evar(x)), ty.right);
+        return { ctx: r.ctx.split(context_1.isCVar(x)).left, expr: r.expr };
     }
-    /*if(e instanceof EQuery) {
-      const evars = ctx.elems.filter(e => e instanceof CVar) as CVar[];
-      const res = evars.map(e => ({ name: e.name, res: subtype(ctx, e.type, ty) }));
-      const found: { name: string, res: IResult<Context> }[] = [];
-      for(let i = res.length - 1; i >= 0; i--) {
-        const c = res[i];
-        if(is(c.res)) found.push(c);
-      }
-      if(found.length === 0)
-        return err(`no implicit value found for ${ty} in ${ctx}`);
-      if(found.length === 1) {
-        (e as any)._impl = found[0].name;
-        console.log(`implicit found ${found[0].name} for ${ty}`);
-        return (ctx);
-      }
-      return err(`multiple implicit values found for ${ty}: [${found.map(x => x.name).join(', ')}] in ${ctx}`);
-    }*/
     const rr = synth(ctx, e);
-    return subtype(rr.ctx, rr.ctx.apply(rr.ty), rr.ctx.apply(ty));
+    return { ctx: subtype(rr.ctx, rr.ctx.apply(rr.ty), rr.ctx.apply(ty)), expr: rr.expr };
 }
 function synthapp(ctx, ty, e) {
     // console.log(`synthapp ${ty} and ${e} in ${ctx}`);
@@ -1558,27 +1538,25 @@ function synthapp(ctx, ty, e) {
         const texs = ctx.texs();
         const a1 = fresh(texs, ty.name);
         const a2 = fresh(texs.concat([a1]), ty.name);
-        const ctx_ = checkTy(ctx.replace(context_1.isCTEx(ty.name), new context_1.Context([context_1.ctex(a2, exports.ktype), context_1.ctex(a1, exports.ktype), context_1.csolved(ty.name, exports.ktype, types_1.tfun(types_1.tex(a1), types_1.tex(a2)))])), e, types_1.tex(a1));
-        return ({ ctx: ctx_, ty: types_1.tex(a2) });
+        const r = checkTy(ctx.replace(context_1.isCTEx(ty.name), new context_1.Context([context_1.ctex(a2, exports.ktype), context_1.ctex(a1, exports.ktype), context_1.csolved(ty.name, exports.ktype, types_1.tfun(types_1.tex(a1), types_1.tex(a2)))])), e, types_1.tex(a1));
+        return ({ ctx: r.ctx, ty: types_1.tex(a2), expr: r.expr });
     }
     if (ty instanceof types_1.TFun) {
-        const ctx_ = checkTy(ctx, e, ty.left);
-        return ({ ctx: ctx_, ty: ty.right });
+        const r = checkTy(ctx, e, ty.left);
+        return { ctx: r.ctx, ty: ty.right, expr: r.expr };
     }
     return err(`cannot synthapp ${ty} with ${e} in ${ctx}`);
 }
 function infer(ctx, e) {
     const m = fresh(ctx.texs(), 'i');
     const r = synth(ctx.add(context_1.cmarker(m)), e);
-    const ctx__ = r.ctx;
-    const ty = r.ty;
-    contextWF(ctx__);
-    const ctx_ = ctx__.applyContext(ctx__);
-    const ty_ = ctx_.apply(ty);
+    contextWF(r.ctx);
+    const ctx_ = r.ctx.applyContext(r.ctx);
+    const ty_ = ctx_.apply(r.ty);
     const k = typeWF(ctx_, ty_);
     checkKindType(k);
-    console.log('' + new context_1.Context(ctx_.elems.filter(e => (e instanceof context_1.CTEx || e instanceof context_1.CSolved) && e.name.startsWith('q'))));
-    return generalize(ctx_, context_1.isCMarker(m), ty_);
+    const { ctx: ctx__, ty: ty__ } = generalize(ctx_, context_1.isCMarker(m), ty_);
+    return { ctx: ctx__, ty: ty__, expr: r.expr };
 }
 exports.infer = infer;
 function inferDefinition(ctx, d) {
@@ -1588,7 +1566,7 @@ function inferDefinition(ctx, d) {
         const ty_ = r.ty;
         const ctx_ = r.ctx.add(context_1.cvar(d.name, ty_));
         contextWF(ctx_);
-        return ctx_;
+        return { ctx: ctx_, def: new definitions_1.DValue(d.name, r.expr) };
     }
     else if (d instanceof definitions_1.DData) {
         console.log('' + d);
@@ -1612,19 +1590,21 @@ function inferDefinition(ctx, d) {
         const r = fresh(params.map(([n, _]) => n), 'r');
         const ctx_ = (ctx.add(context_1.ctcon(name, d.getKind())).append(new context_1.Context(constrs.map(([n, ts]) => context_1.cvar(n, types_1.tforalls(params, types_1.tfuns.apply(null, ts.concat([d.getType()]))))))).add(context_1.cvar(`case${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)]))))), context_1.cvar(`cata${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.map(t => t.equals(d.getType()) ? types_1.tvar(r) : t).concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)]))))), context_1.cvar(`para${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.map(t => t.equals(d.getType()) ? [t, types_1.tvar(r)] : [t]).reduce((a, b) => a.concat(b), []).concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)])))))));
         contextWF(ctx_);
-        return ctx_;
+        return { ctx: ctx_, def: d };
     }
     return util_1.impossible();
 }
 exports.inferDefinition = inferDefinition;
 function inferProgram(ctx, ds) {
     let c = ctx;
+    const defs = [];
     for (let i = 0; i < ds.length; i++) {
         const d = ds[i];
         const r = inferDefinition(c, d);
-        c = r;
+        c = r.ctx;
+        defs.push(r.def);
     }
-    return (c);
+    return { ctx: c, defs };
 }
 exports.inferProgram = inferProgram;
 

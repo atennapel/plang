@@ -33,7 +33,6 @@ export const _context = initialContext.add(
 );
 
 function _show(x: any): string {
-  console.log(x, typeof x);
   if(x._adt) {
     if(x._tag === 'Z') return '0';
     if(x._tag === 'S') {
@@ -71,8 +70,10 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
     try {
       const ds = parseProgram(eval('_prelude'));
       const t = inferProgram(_ctx, ds);
-      eval(compileProgram(ds, false, '', true));
-      _ctx = t;
+      const c = compileProgram(t.defs, false, '', true);
+      console.log(c);
+      eval(c);
+      _ctx = t.ctx;
       cb('prelude loaded');
     } catch(err) {
       return cb(''+err, true);
@@ -82,9 +83,10 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
   } else if(cmd.slice(0, 4) === ':def') {
     const rest = i.slice(4).trim();
     try {
-      const d = parseDefinition(rest);
-      const t = inferDefinition(_ctx, d);
-      _ctx = t;
+      const d_ = parseDefinition(rest);
+      const t = inferDefinition(_ctx, d_);
+      _ctx = t.ctx;
+      const d = t.def;
       if(d instanceof DValue) {
         const c = compile(d.val);
         console.log(c);
@@ -105,7 +107,8 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
       const p = parse(i);
       console.log(''+p);
       const tr = infer(_ctx, p);
-      const c = compile(p);
+      console.log(''+tr.expr);
+      const c = compile(tr.expr);
       console.log(c);
       const res = eval(c);
       cb(`${_show(res)} : ${ppType(tr.ty)}`);
