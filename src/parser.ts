@@ -24,7 +24,7 @@ const token = (val: string): Token => ({ tag: 'token', val });
 const paren = (val: Ret[]): Paren => ({ tag: 'paren', val });
 
 function tokenize(s: string): Ret[] {
-  const START = 0, NAME = 1, STR = 2;
+  const START = 0, NAME = 1, STR = 2, NUM = 3;
   let state = START;
   let r: Ret[] = [], p: Ret[][] = [], b: string[] = [];
   let t = '';
@@ -32,7 +32,8 @@ function tokenize(s: string): Ret[] {
   for(let i = 0; i <= s.length; i++) {
     const c = s[i] || ' ';
     if(state === START) {
-      if(/[a-z0-9]/i.test(c)) t += c, state = NAME;
+      if(/[a-z]/i.test(c)) t += c, state = NAME;
+      else if(/[0-9]/.test(c)) t += c, state = NUM;
       else if(c === '"') state = STR;
       else if(c === '-' && s[i+1] === '>') r.push(token('->')), i++;
       else if(c === '/' && s[i+1] === '\\') r.push(token('/\\')), i++;
@@ -55,7 +56,10 @@ function tokenize(s: string): Ret[] {
       } else if(/\s+/.test(c)) continue;
       else throw new SyntaxError(`invalid char: ${c}`);
     } else if(state === NAME) {
-      if(!/[a-z0-9\'\.]/i.test(c)) r.push(token(t)), t = '', i--, state = START;
+      if(!/[a-z0-9]/i.test(c)) r.push(token(t)), t = '', i--, state = START;
+      else t += c;
+    } else if(state === NUM) {
+      if(!/[0-9\.]/i.test(c)) r.push(token(t)), t = '', i--, state = START;
       else t += c;
     } else if(state === STR) {
       if(escape) t += c, escape = false;

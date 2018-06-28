@@ -248,3 +248,43 @@ export class TForall extends Type {
 export const tforall = (name: string, kind: Kind, type: Type) => new TForall(name, kind, type);
 export const tforalls = (ns: [string, Kind][], type: Type) =>
   ns.reduceRight((a, b) => tforall(b[0], b[1], a), type);
+
+export class TImpl extends Type {
+  constructor(
+    public readonly left: Type,
+    public readonly right: Type
+  ) { super() }
+
+  toString() {
+    return `(${this.left} => ${this.right})`;
+  }
+  equals(other: Type): boolean {
+    return other instanceof TImpl && this.left.equals(other.left) && this.right.equals(other.right);
+  }
+  isMono() {
+    return this.left.isMono() && this.right.isMono();
+  }
+  subst(name: string, type: Type) {
+    return new TImpl(this.left.subst(name, type), this.right.subst(name, type));
+  }
+  substEx(name: string, type: Type) {
+    return new TImpl(this.left.substEx(name, type), this.right.substEx(name, type));
+  }
+  containsEx(name: string): boolean {
+    return this.left.containsEx(name) || this.right.containsEx(name);
+  }
+  containsTCon(name: string): boolean {
+    return this.left.containsTCon(name) || this.right.containsTCon(name);
+  }
+  texs(): string[] {
+    return this.left.texs().concat(this.right.texs());
+  }
+  tvars(): string[] {
+    return this.left.tvars().concat(this.right.tvars());
+  }
+  occursNegatively(name: string, negative: boolean): boolean {
+    return this.left.occursNegatively(name, !negative) || this.right.occursNegatively(name, negative);
+  }
+}
+export const timpl = (left: Type, right: Type) => new TImpl(left, right);
+export const timpls = (...ts: Type[]) => ts.reduceRight((a, b) => timpl(b, a));

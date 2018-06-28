@@ -1,10 +1,11 @@
 import { Kind, KCon, KFun } from './kinds';
-import { Type, TCon, TVar, TEx, TApp, TFun, TForall } from './types';
+import { Type, TCon, TVar, TEx, TApp, TFun, TForall, TImpl } from './types';
 import { Context, ContextElem, CKCon, CTCon, CTVar, CTEx, CVar, CSolved, CMarker } from './context';
 import { impossible } from './util';
 import { ktype } from './typechecker'; 
 
 const RARROW = ' -> ';
+const RDARROW = ' => ';
 const FORALL = '\u2200';
 
 // Kinds
@@ -31,6 +32,17 @@ function flattenTFun(f: TFun): Type[] {
   const r = [];
   let c: Type = f;
   while(c instanceof TFun) {
+    r.push(c.left);
+    c = c.right;
+  }
+  r.push(c);
+  return r;
+}
+
+function flattenTImpl(f: TImpl): Type[] {
+  const r = [];
+  let c: Type = f;
+  while(c instanceof TImpl) {
     r.push(c.left);
     c = c.right;
   }
@@ -78,6 +90,8 @@ export function ppType(t: Type): string {
   }
   if(t instanceof TFun)
     return flattenTFun(t).map(t => t instanceof TFun || t instanceof TForall? `(${ppType(t)})`: ppType(t)).join(`${RARROW}`);
+  if(t instanceof TImpl)
+    return `((${ppType(t.left)})${RDARROW}(${ppType(t.right)}))`;
   if(t instanceof TForall) {
     const f = flattenTForall(t);
     const args = f.args.map(([x, k]) => k.equals(ktype)? x: `(${x} : ${ppKind(k)})`);
@@ -91,9 +105,9 @@ export function ppContextElem(e: ContextElem): string {
   if(e instanceof CKCon) return `kind ${e.name}`;
   if(e instanceof CTCon) return `type ${e.name} : ${ppKind(e.kind)}`;
   if(e instanceof CTVar) return `tvar ${e.name} : ${ppKind(e.kind)}`;
-  if(e instanceof CTEx) return `tex ^${e.name} : ${ppKind(e.kind)}`;
+  if(e instanceof CTEx) return `tex ^${e.name}${e.implicit? '?': ''} : ${ppKind(e.kind)}`;
   if(e instanceof CVar) return `${e.name} : ${ppType(e.type)}`;
-  if(e instanceof CSolved) return `^${e.name} : ${ppKind(e.kind)} = ${ppType(e.type)}`;
+  if(e instanceof CSolved) return `^${e.name}${e.implicit? '?': ''} : ${ppKind(e.kind)} = ${ppType(e.type)}`;
   if(e instanceof CMarker) return `|>^${e.name}`;
   return impossible();
 }

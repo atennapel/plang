@@ -1,4 +1,4 @@
-(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -109,17 +109,18 @@ exports.CTVar = CTVar;
 exports.ctvar = (name, kind) => new CTVar(name, kind);
 exports.isCTVar = (name) => (e) => e instanceof CTVar && e.name === name;
 class CTEx extends ContextElem {
-    constructor(name, kind) {
+    constructor(name, kind, implicit = false) {
         super();
         this.name = name;
         this.kind = kind;
+        this.implicit = implicit;
     }
     toString() {
-        return `^${this.name} : ${this.kind}`;
+        return `^${this.name}${this.implicit ? '?' : ''} : ${this.kind}`;
     }
 }
 exports.CTEx = CTEx;
-exports.ctex = (name, kind) => new CTEx(name, kind);
+exports.ctex = (name, kind, implicit) => new CTEx(name, kind, implicit);
 exports.isCTEx = (name) => (e) => e instanceof CTEx && e.name === name;
 class CVar extends ContextElem {
     constructor(name, type) {
@@ -135,18 +136,19 @@ exports.CVar = CVar;
 exports.cvar = (name, type) => new CVar(name, type);
 exports.isCVar = (name) => (e) => e instanceof CVar && e.name === name;
 class CSolved extends ContextElem {
-    constructor(name, kind, type) {
+    constructor(name, kind, type, implicit = false) {
         super();
         this.name = name;
         this.kind = kind;
         this.type = type;
+        this.implicit = implicit;
     }
     toString() {
-        return `^${this.name} : ${this.kind} = ${this.type}`;
+        return `^${this.name}${this.implicit ? '?' : ''} : ${this.kind} = ${this.type}`;
     }
 }
 exports.CSolved = CSolved;
-exports.csolved = (name, kind, type) => new CSolved(name, kind, type);
+exports.csolved = (name, kind, type, implicit) => new CSolved(name, kind, type, implicit);
 class CMarker extends ContextElem {
     constructor(name) {
         super();
@@ -265,6 +267,12 @@ class Context {
     unsolved() {
         return this.elems.filter(e => e instanceof CTEx).map((e) => [e.name, e.kind]);
     }
+    unsolvedNonImplicits() {
+        return this.elems.filter(e => e instanceof CTEx && !e.implicit).map((e) => [e.name, e.kind]);
+    }
+    implicits() {
+        return this.elems.filter(e => e instanceof CSolved && e.implicit);
+    }
     apply(type) {
         if (type instanceof types_1.TEx) {
             const r = this.find(e => (e instanceof CTEx || e instanceof CSolved) && e.name === type.name ? e : null);
@@ -272,6 +280,8 @@ class Context {
         }
         if (type instanceof types_1.TFun)
             return types_1.tfun(this.apply(type.left), this.apply(type.right));
+        if (type instanceof types_1.TImpl)
+            return types_1.timpl(this.apply(type.left), this.apply(type.right));
         if (type instanceof types_1.TApp)
             return types_1.tapp(this.apply(type.left), this.apply(type.right));
         if (type instanceof types_1.TForall)
@@ -282,7 +292,7 @@ class Context {
         if (e instanceof CVar)
             return exports.cvar(e.name, this.apply(e.type));
         if (e instanceof CSolved)
-            return exports.csolved(e.name, e.kind, this.apply(e.type));
+            return exports.csolved(e.name, e.kind, this.apply(e.type), e.implicit);
         return e;
     }
     applyContext(context) {
@@ -543,7 +553,7 @@ function matchingBracket(c) {
 const token = (val) => ({ tag: 'token', val });
 const paren = (val) => ({ tag: 'paren', val });
 function tokenize(s) {
-    const START = 0, NAME = 1, STR = 2;
+    const START = 0, NAME = 1, STR = 2, NUM = 3;
     let state = START;
     let r = [], p = [], b = [];
     let t = '';
@@ -551,8 +561,10 @@ function tokenize(s) {
     for (let i = 0; i <= s.length; i++) {
         const c = s[i] || ' ';
         if (state === START) {
-            if (/[a-z0-9]/i.test(c))
+            if (/[a-z]/i.test(c))
                 t += c, state = NAME;
+            else if (/[0-9]/.test(c))
+                t += c, state = NUM;
             else if (c === '"')
                 state = STR;
             else if (c === '-' && s[i + 1] === '>')
@@ -593,7 +605,13 @@ function tokenize(s) {
                 throw new SyntaxError(`invalid char: ${c}`);
         }
         else if (state === NAME) {
-            if (!/[a-z0-9\'\.]/i.test(c))
+            if (!/[a-z0-9]/i.test(c))
+                r.push(token(t)), t = '', i--, state = START;
+            else
+                t += c;
+        }
+        else if (state === NUM) {
+            if (!/[0-9\.]/i.test(c))
                 r.push(token(t)), t = '', i--, state = START;
             else
                 t += c;
@@ -913,6 +931,7 @@ const context_1 = require("./context");
 const util_1 = require("./util");
 const typechecker_1 = require("./typechecker");
 const RARROW = ' -> ';
+const RDARROW = ' => ';
 const FORALL = '\u2200';
 // Kinds
 function flattenKFun(f) {
@@ -938,6 +957,16 @@ function flattenTFun(f) {
     const r = [];
     let c = f;
     while (c instanceof types_1.TFun) {
+        r.push(c.left);
+        c = c.right;
+    }
+    r.push(c);
+    return r;
+}
+function flattenTImpl(f) {
+    const r = [];
+    let c = f;
+    while (c instanceof types_1.TImpl) {
         r.push(c.left);
         c = c.right;
     }
@@ -984,6 +1013,8 @@ function ppType(t) {
     }
     if (t instanceof types_1.TFun)
         return flattenTFun(t).map(t => t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t)).join(`${RARROW}`);
+    if (t instanceof types_1.TImpl)
+        return `((${ppType(t.left)})${RDARROW}(${ppType(t.right)}))`;
     if (t instanceof types_1.TForall) {
         const f = flattenTForall(t);
         const args = f.args.map(([x, k]) => k.equals(typechecker_1.ktype) ? x : `(${x} : ${ppKind(k)})`);
@@ -1001,11 +1032,11 @@ function ppContextElem(e) {
     if (e instanceof context_1.CTVar)
         return `tvar ${e.name} : ${ppKind(e.kind)}`;
     if (e instanceof context_1.CTEx)
-        return `tex ^${e.name} : ${ppKind(e.kind)}`;
+        return `tex ^${e.name}${e.implicit ? '?' : ''} : ${ppKind(e.kind)}`;
     if (e instanceof context_1.CVar)
         return `${e.name} : ${ppType(e.type)}`;
     if (e instanceof context_1.CSolved)
-        return `^${e.name} : ${ppKind(e.kind)} = ${ppType(e.type)}`;
+        return `^${e.name}${e.implicit ? '?' : ''} : ${ppKind(e.kind)} = ${ppType(e.type)}`;
     if (e instanceof context_1.CMarker)
         return `|>^${e.name}`;
     return util_1.impossible();
@@ -1256,6 +1287,13 @@ function typeWF(ctx, ty) {
         checkKindType(k2);
         return exports.ktype;
     }
+    if (ty instanceof types_1.TImpl) {
+        const k1 = typeWF(ctx, ty.left);
+        checkKindType(k1);
+        const k2 = typeWF(ctx, ty.right);
+        checkKindType(k2);
+        return exports.ktype;
+    }
     if (ty instanceof types_1.TForall) {
         kindWF(ctx, ty.kind);
         return typeWF(ctx.add(context_1.ctvar(ty.name, ty.kind)), ty.type);
@@ -1333,6 +1371,10 @@ function subtype(ctx, a, b) {
         const ctx_ = subtype(ctx, b.left, a.left);
         return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
     }
+    if (a instanceof types_1.TImpl && b instanceof types_1.TImpl) {
+        const ctx_ = subtype(ctx, b.left, a.left);
+        return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
+    }
     if (a instanceof types_1.TForall) {
         const x = fresh(ctx.texs(), a.name);
         const ctx_ = subtype(ctx.add(context_1.cmarker(x), context_1.ctex(x, a.kind)), a.open(types_1.tex(x)), b);
@@ -1359,9 +1401,10 @@ function subtype(ctx, a, b) {
 function solve(ctx, name, ty) {
     // console.log(`solve ${name} and ${ty} in ${ctx}`);
     if (ty.isMono()) {
+        const implicit = ctx.find(e => e instanceof context_1.CTEx && e.name === name ? e.implicit : null);
         const s = ctx.split(context_1.isCTEx(name));
         const k = typeWF(s.left, ty);
-        return (s.left.add(context_1.csolved(name, k, ty)).append(s.right));
+        return s.left.add(context_1.csolved(name, k, ty, implicit)).append(s.right);
     }
     else
         return err(`polymorphic type in solve: ${name} := ${ty} in ${ctx}`);
@@ -1392,6 +1435,13 @@ function instL(ctx, a, b) {
         const a1 = fresh(texs, a);
         const a2 = fresh(texs.concat([a1]), a);
         const ctx_ = instR(ctx.replace(context_1.isCTEx(a), new context_1.Context([context_1.ctex(a2, exports.ktype), context_1.ctex(a1, exports.ktype), context_1.csolved(a, exports.ktype, types_1.tfun(types_1.tex(a1), types_1.tex(a2)))])), b.left, a1);
+        return instL(ctx_, a2, ctx_.apply(b.right));
+    }
+    if (b instanceof types_1.TImpl) {
+        const texs = ctx.texs();
+        const a1 = fresh(texs, a);
+        const a2 = fresh(texs.concat([a1]), a);
+        const ctx_ = instR(ctx.replace(context_1.isCTEx(a), new context_1.Context([context_1.ctex(a2, exports.ktype), context_1.ctex(a1, exports.ktype), context_1.csolved(a, exports.ktype, types_1.timpl(types_1.tex(a1), types_1.tex(a2)))])), b.left, a1);
         return instL(ctx_, a2, ctx_.apply(b.right));
     }
     if (b instanceof types_1.TForall) {
@@ -1429,6 +1479,13 @@ function instR(ctx, a, b) {
         const ctx_ = instL(ctx.replace(context_1.isCTEx(b), new context_1.Context([context_1.ctex(b2, exports.ktype), context_1.ctex(b1, exports.ktype), context_1.csolved(b, exports.ktype, types_1.tfun(types_1.tex(b1), types_1.tex(b2)))])), b1, a.left);
         return instR(ctx_, ctx_.apply(a.right), b2);
     }
+    if (a instanceof types_1.TImpl) {
+        const texs = ctx.texs();
+        const b1 = fresh(texs, b);
+        const b2 = fresh(texs.concat([b1]), b);
+        const ctx_ = instL(ctx.replace(context_1.isCTEx(b), new context_1.Context([context_1.ctex(b2, exports.ktype), context_1.ctex(b1, exports.ktype), context_1.csolved(b, exports.ktype, types_1.timpl(types_1.tex(b1), types_1.tex(b2)))])), b1, a.left);
+        return instR(ctx_, ctx_.apply(a.right), b2);
+    }
     if (a instanceof types_1.TForall) {
         const x = fresh(ctx.texs(), a.name);
         const ctx_ = instR(ctx.add(context_1.cmarker(x), context_1.ctex(x, a.kind)), a.open(types_1.tex(x)), b);
@@ -1439,8 +1496,16 @@ function instR(ctx, a, b) {
 // synth/check
 function generalize(ctx, marker, ty) {
     const s = ctx.split(marker);
-    const t = s.right.apply(ty);
-    const u = orderedTExs(s.right.unsolved(), t);
+    console.log('' + s.right);
+    if (s.right.find(e => e instanceof context_1.CTEx && e.implicit))
+        err(`unsolved implicit in ${s.right}`);
+    const impls = s.right.implicits();
+    console.log(impls);
+    const t = s.right.apply(types_1.timpls.apply(null, impls.map(e => e.type).concat([ty])));
+    console.log('' + t);
+    const u = orderedTExs(s.right.unsolvedNonImplicits(), t);
+    console.log(u, u.length);
+    console.log('' + s.right.apply(types_1.tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, types_1.tvar(n)), t))));
     return {
         ctx: s.left,
         ty: types_1.tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, types_1.tvar(n)), t)),
@@ -1502,7 +1567,7 @@ function synth(ctx, e) {
     }
     if (e instanceof exprs_1.EQuery) {
         const q = fresh(ctx.texs(), 'q');
-        return { ctx: ctx.add(context_1.ctex(q, exports.ktype)), ty: types_1.tex(q), expr: exprs_1.evar(`_QUERY_${q}`) };
+        return { ctx: ctx.add(context_1.ctex(q, exports.ktype, true)), ty: types_1.tex(q), expr: exprs_1.evar(`_QUERY_${q}`) };
     }
     return err(`cannot synth ${e} in ${ctx}`);
 }
@@ -1511,7 +1576,7 @@ function checkTy(ctx, e, ty) {
     contextWF(ctx);
     if (e instanceof exprs_1.EQuery) {
         const q = fresh(ctx.texs(), 'q');
-        return { ctx: ctx.add(context_1.csolved(q, exports.ktype, ty)), expr: exprs_1.evar(`_QUERY_${q}`) };
+        return { ctx: ctx.add(context_1.csolved(q, exports.ktype, ty, true)), expr: exprs_1.evar(`_QUERY_${q}`) };
     }
     if (ty instanceof types_1.TForall) {
         const x = fresh(ctx.tvars(), ty.name);
@@ -1855,6 +1920,46 @@ class TForall extends Type {
 exports.TForall = TForall;
 exports.tforall = (name, kind, type) => new TForall(name, kind, type);
 exports.tforalls = (ns, type) => ns.reduceRight((a, b) => exports.tforall(b[0], b[1], a), type);
+class TImpl extends Type {
+    constructor(left, right) {
+        super();
+        this.left = left;
+        this.right = right;
+    }
+    toString() {
+        return `(${this.left} => ${this.right})`;
+    }
+    equals(other) {
+        return other instanceof TImpl && this.left.equals(other.left) && this.right.equals(other.right);
+    }
+    isMono() {
+        return this.left.isMono() && this.right.isMono();
+    }
+    subst(name, type) {
+        return new TImpl(this.left.subst(name, type), this.right.subst(name, type));
+    }
+    substEx(name, type) {
+        return new TImpl(this.left.substEx(name, type), this.right.substEx(name, type));
+    }
+    containsEx(name) {
+        return this.left.containsEx(name) || this.right.containsEx(name);
+    }
+    containsTCon(name) {
+        return this.left.containsTCon(name) || this.right.containsTCon(name);
+    }
+    texs() {
+        return this.left.texs().concat(this.right.texs());
+    }
+    tvars() {
+        return this.left.tvars().concat(this.right.tvars());
+    }
+    occursNegatively(name, negative) {
+        return this.left.occursNegatively(name, !negative) || this.right.occursNegatively(name, negative);
+    }
+}
+exports.TImpl = TImpl;
+exports.timpl = (left, right) => new TImpl(left, right);
+exports.timpls = (...ts) => ts.reduceRight((a, b) => exports.timpl(b, a));
 
 },{}],11:[function(require,module,exports){
 "use strict";
