@@ -75,7 +75,6 @@ console.log(compileProgram(p));
 
 /**
  * TODO:
- *  fix strings (show "asd")
  *  generate new expr in typechecker
  *  operators
  *  implicits
@@ -92,4 +91,5 @@ console.log(compileProgram(p));
  *  repl: let with arguments
  *  kind inference
  *  kind polymorphism
+ *  arrays list syntax
  */

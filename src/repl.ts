@@ -1,30 +1,13 @@
 import {
   tvar,
-  tex,
   tfuns,
   tforalls,
-  tcon,
-  tapps,
 } from './types';
-import {
-  evar,
-  eapps,
-  eabss,
-  eanno,
-  etapps,
-  etabss,
-} from './exprs';
 import { compile, compileProgram, compileConstructor, compileCase, compileCata, compilePara } from './compilerJS';
 import { infer, ktype, tstr, tfloat, initialContext, inferDefinition, inferProgram } from './typechecker';
 import {
-  Context,
-  ctcon,
   cvar,
 } from './context';
-import {
-  kcon,
-  kfuns,
-} from './kinds';
 import { parse, parseDefinition, parseProgram } from './parser';
 import { ppType, ppContextElem } from './prettyprinter';
 import {
@@ -32,7 +15,7 @@ import {
   DValue,
 } from './definitions';
 
-export const context = initialContext.add(
+export const _context = initialContext.add(
   cvar('show', tforalls([['t', ktype]], tfuns(tvar('t'), tstr))),
   cvar('emptyStr', tstr),
   cvar('appendStr', tfuns(tstr, tstr, tstr)),
@@ -49,7 +32,8 @@ export const context = initialContext.add(
   cvar('modFloat', tfuns(tfloat, tfloat, tfloat)),
 );
 
-function show(x: any): string {
+function _show(x: any): string {
+  console.log(x, typeof x);
   if(x._adt) {
     if(x._tag === 'Z') return '0';
     if(x._tag === 'S') {
@@ -69,43 +53,43 @@ function show(x: any): string {
         r.push(c._args[0]);
         c = c._args[1];
       }
-      return '[' + r.map(show).join(', ') + ']';
+      return '[' + r.map(_show).join(', ') + ']';
     }
-    return x._args.length === 0? `${x._tag}`: `(${x._tag}${x._args.length > 0? ` ${x._args.map(show).join(' ')}`: ''})`;
+    return x._args.length === 0? `${x._tag}`: `(${x._tag}${x._args.length > 0? ` ${x._args.map(_show).join(' ')}`: ''})`;
   }
   if(typeof x === 'function') return `[Function]`;
   if(typeof x === 'string') return JSON.stringify(x);
   return `${x}`;
 }
 
-let ctx = context;
-export default function run(i: string, cb: (output: string, err?: boolean) => void): void {
+let _ctx = _context;
+export default function _run(i: string, cb: (output: string, err?: boolean) => void): void {
   const cmd = i.trim().toLowerCase();
   if(cmd === ':help') {
     cb('commands :help :context :def :prelude');
   } else if(cmd === ':prelude') {
     try {
       const ds = parseProgram(eval('_prelude'));
-      const t = inferProgram(ctx, ds);
+      const t = inferProgram(_ctx, ds);
       eval(compileProgram(ds, false, '', true));
-      ctx = t;
+      _ctx = t;
       cb('prelude loaded');
     } catch(err) {
       return cb(''+err, true);
     }
   } else if(cmd === ':context') {
-    cb(ctx.elems.map(ppContextElem).join('\n'));
+    cb(_ctx.elems.map(ppContextElem).join('\n'));
   } else if(cmd.slice(0, 4) === ':def') {
     const rest = i.slice(4).trim();
     try {
       const d = parseDefinition(rest);
-      const t = inferDefinition(ctx, d);
-      ctx = t;
+      const t = inferDefinition(_ctx, d);
+      _ctx = t;
       if(d instanceof DValue) {
         const c = compile(d.val);
         console.log(c);
         const res = eval(`(typeof global === 'undefined'? window: global)['${d.name}'] = ${c}`);
-        cb(`${d.name} : ${ppType(ctx.apply(ctx.findVar(d.name) as any))} = ${show(res)}`);
+        cb(`${d.name} : ${ppType(_ctx.apply(_ctx.findVar(d.name) as any))} = ${_show(res)}`);
       } else if(d instanceof DData) {
         d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = ${compileConstructor(n, ts.length)}`));
         eval(`(typeof global === 'undefined'? window: global)['case${d.name}'] = ${compileCase(d.name, d.constrs)}`);
@@ -120,11 +104,11 @@ export default function run(i: string, cb: (output: string, err?: boolean) => vo
     try {
       const p = parse(i);
       console.log(''+p);
-      const tr = infer(ctx, p);
+      const tr = infer(_ctx, p);
       const c = compile(p);
       console.log(c);
       const res = eval(c);
-      cb(`${show(res)} : ${ppType(tr.ty)}`);
+      cb(`${_show(res)} : ${ppType(tr.ty)}`);
     } catch(e) {
       cb(''+e, true);
     }

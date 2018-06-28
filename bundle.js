@@ -1034,8 +1034,9 @@ const context_1 = require("./context");
 const parser_1 = require("./parser");
 const prettyprinter_1 = require("./prettyprinter");
 const definitions_1 = require("./definitions");
-exports.context = typechecker_1.initialContext.add(context_1.cvar('show', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('t'), typechecker_1.tstr))), context_1.cvar('emptyStr', typechecker_1.tstr), context_1.cvar('appendStr', types_1.tfuns(typechecker_1.tstr, typechecker_1.tstr, typechecker_1.tstr)), context_1.cvar('zeroFloat', typechecker_1.tfloat), context_1.cvar('oneFloat', typechecker_1.tfloat), context_1.cvar('negFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('incFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('decFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('addFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('subFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('mulFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('divFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('modFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)));
-function show(x) {
+exports._context = typechecker_1.initialContext.add(context_1.cvar('show', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('t'), typechecker_1.tstr))), context_1.cvar('emptyStr', typechecker_1.tstr), context_1.cvar('appendStr', types_1.tfuns(typechecker_1.tstr, typechecker_1.tstr, typechecker_1.tstr)), context_1.cvar('zeroFloat', typechecker_1.tfloat), context_1.cvar('oneFloat', typechecker_1.tfloat), context_1.cvar('negFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('incFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('decFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('addFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('subFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('mulFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('divFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('modFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)));
+function _show(x) {
+    console.log(x, typeof x);
     if (x._adt) {
         if (x._tag === 'Z')
             return '0';
@@ -1057,9 +1058,9 @@ function show(x) {
                 r.push(c._args[0]);
                 c = c._args[1];
             }
-            return '[' + r.map(show).join(', ') + ']';
+            return '[' + r.map(_show).join(', ') + ']';
         }
-        return x._args.length === 0 ? `${x._tag}` : `(${x._tag}${x._args.length > 0 ? ` ${x._args.map(show).join(' ')}` : ''})`;
+        return x._args.length === 0 ? `${x._tag}` : `(${x._tag}${x._args.length > 0 ? ` ${x._args.map(_show).join(' ')}` : ''})`;
     }
     if (typeof x === 'function')
         return `[Function]`;
@@ -1067,8 +1068,8 @@ function show(x) {
         return JSON.stringify(x);
     return `${x}`;
 }
-let ctx = exports.context;
-function run(i, cb) {
+let _ctx = exports._context;
+function _run(i, cb) {
     const cmd = i.trim().toLowerCase();
     if (cmd === ':help') {
         cb('commands :help :context :def :prelude');
@@ -1076,9 +1077,9 @@ function run(i, cb) {
     else if (cmd === ':prelude') {
         try {
             const ds = parser_1.parseProgram(eval('_prelude'));
-            const t = typechecker_1.inferProgram(ctx, ds);
+            const t = typechecker_1.inferProgram(_ctx, ds);
             eval(compilerJS_1.compileProgram(ds, false, '', true));
-            ctx = t;
+            _ctx = t;
             cb('prelude loaded');
         }
         catch (err) {
@@ -1086,19 +1087,19 @@ function run(i, cb) {
         }
     }
     else if (cmd === ':context') {
-        cb(ctx.elems.map(prettyprinter_1.ppContextElem).join('\n'));
+        cb(_ctx.elems.map(prettyprinter_1.ppContextElem).join('\n'));
     }
     else if (cmd.slice(0, 4) === ':def') {
         const rest = i.slice(4).trim();
         try {
             const d = parser_1.parseDefinition(rest);
-            const t = typechecker_1.inferDefinition(ctx, d);
-            ctx = t;
+            const t = typechecker_1.inferDefinition(_ctx, d);
+            _ctx = t;
             if (d instanceof definitions_1.DValue) {
                 const c = compilerJS_1.compile(d.val);
                 console.log(c);
                 const res = eval(`(typeof global === 'undefined'? window: global)['${d.name}'] = ${c}`);
-                cb(`${d.name} : ${prettyprinter_1.ppType(ctx.apply(ctx.findVar(d.name)))} = ${show(res)}`);
+                cb(`${d.name} : ${prettyprinter_1.ppType(_ctx.apply(_ctx.findVar(d.name)))} = ${_show(res)}`);
             }
             else if (d instanceof definitions_1.DData) {
                 d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = ${compilerJS_1.compileConstructor(n, ts.length)}`));
@@ -1118,18 +1119,18 @@ function run(i, cb) {
         try {
             const p = parser_1.parse(i);
             console.log('' + p);
-            const tr = typechecker_1.infer(ctx, p);
+            const tr = typechecker_1.infer(_ctx, p);
             const c = compilerJS_1.compile(p);
             console.log(c);
             const res = eval(c);
-            cb(`${show(res)} : ${prettyprinter_1.ppType(tr.ty)}`);
+            cb(`${_show(res)} : ${prettyprinter_1.ppType(tr.ty)}`);
         }
         catch (e) {
             cb('' + e, true);
         }
     }
 }
-exports.default = run;
+exports.default = _run;
 
 },{"./compilerJS":1,"./context":2,"./definitions":3,"./parser":6,"./prettyprinter":7,"./typechecker":9,"./types":10}],9:[function(require,module,exports){
 "use strict";
