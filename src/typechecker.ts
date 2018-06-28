@@ -440,7 +440,7 @@ function checkTy(ctx: Context, e: Expr, ty: Type): { ctx: Context, expr: Expr } 
   if(e instanceof EAbs && !e.isAnnotated() && ty instanceof TFun) {
     const x = fresh(ctx.vars(), e.name);
     const r = checkTy(ctx.add(cvar(x, ty.left)), e.open(evar(x)), ty.right);
-    return { ctx: r.ctx.split(isCVar(x)).left, expr: r.expr };
+    return { ctx: r.ctx.split(isCVar(x)).left, expr: eabs(e.name, r.expr) };
   }
   const rr = synth(ctx, e);
   return { ctx: subtype(rr.ctx, rr.ctx.apply(rr.ty), rr.ctx.apply(ty)), expr: rr.expr };
