@@ -6,6 +6,11 @@ function show(x) {
       r.push(`${x[i][0]} = ${show(x[i][1])}`);
     return `{ ${r.join(', ')} }`;
   }
+  if(x._var) {
+    let l = '';
+    for(let i = 0; i < x.level; i++) l += '^';
+    return `(${l}${x.label} ${show(x.val)})`;
+  }
   if(x._adt) {
     if(x._tag === 'Z') return '0';
     if(x._tag === 'S') {
@@ -46,7 +51,38 @@ const _recExtend = l => v => r => {
   const r_ = r.concat([[l, v]]);
   r_._rec = true;
   return r_;
-}
+};
+const _recRestrict = l => r => {
+  const r_ = [];
+  let found = false;
+  for(let i = r.length - 1; i >= 0; i--) {
+    const c = r[i];
+    if(!found && c[0] === l) {
+      found = true;
+    } else r_.push(c);
+  }
+  r_._rec = true;
+  return r_.reverse();
+};
+const _recUpdate = l => f => r => {
+  const r_ = [];
+  let found = false;
+  for(let i = r.length - 1; i >= 0; i--) {
+    const c = r[i];
+    if(!found && c[0] === l) {
+      found = true;
+      r_.push([l, f(c[1])]);
+    } else r_.push(c);
+  }
+  r_._rec = true;
+  return r_.reverse();
+};
+
+const _varEmpty = () => { throw new Error('empty variant') };
+const _varInject = label => val => ({ _var: true, label, val, level: 0 });
+const _varEmbed = l => v => v.label === l? ({ _var: true, label: l, val: v.val, level: v.level + 1 }): v;
+const _varCase = l => r => fa => fb => r.label === l? (r.level === 0? fa(r.val): fb({ _var: true, label: l, val: r.val, level: r.level - 1 })): fb(r);
+const _varUpdate = l => f => v => v.label === l && v.level === 0? { _var: true, label: l, level: 0, val: f(v.val) }: v;
 
 const emptyStr = "";
 const appendStr = x => y => x + y;

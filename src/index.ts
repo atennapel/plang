@@ -1,17 +1,16 @@
 /**
  * TODO:
- *  variants
- *  syntax for records
- *  syntax for variants
+ *  parser: syntax for records
+ *  parser: syntax for variants
  *  constrained row polymorphism
  *  type alias
- *  operators
+ *  parser: operators
  *  implicits
  *  fix positivity check
- *  check order of $ and \
- *  repl tutorial command
+ *  parser: check order of $ and \
+ *  repl: tutorial command
  *  functor generation
- *  ADT codata check
+ *  ADT codata?
  *  tfun as a type constructor
  *  repl: save/load/clear commands
  *  parser: f \x -> x
@@ -22,4 +21,8 @@
  *  arrays list syntax
  *  typed holes ?x or _x
  *  ignored arguments _
+ * PROBLEMS:
+ *  vupdX S (injY 0)
+ *  \f r -> csX r (\n -> injX $ f n) (\r -> r)
+ *  (\f r -> csX r (\n -> injX $ f n) (\r -> r)) S (injY 10)
  */

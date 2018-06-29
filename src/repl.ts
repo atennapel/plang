@@ -40,6 +40,11 @@ function _show(x: any): string {
       r.push(`${x[i][0]} = ${_show(x[i][1])}`);
     return `{ ${r.join(', ')} }`;
   }
+  if(x._var) {
+    let l = '';
+    for(let i = 0; i < x.level; i++) l += '^';
+    return `(${l}${x.label} ${_show(x.val)})`;
+  }
   if(x._adt) {
     if(x._tag === 'Z') return '0';
     if(x._tag === 'S') {

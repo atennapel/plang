@@ -9,6 +9,13 @@ import {
   EEmpty,
   ESelect,
   EExtend,
+  ERestrict,
+  ERecUpdate,
+  EVarEmpty,
+  EInject,
+  EEmbed,
+  ECase,
+  EVarUpdate,
 } from './exprs';
 import {
   Definition,
@@ -22,9 +29,19 @@ export function compile(expr: Expr): string {
   if(expr instanceof EApp) return `${compile(expr.left)}(${compile(expr.right)})`;
   if(expr instanceof EAbs) return `(${expr.name} => ${compile(expr.expr)})`;
   if(expr instanceof ELit) return typeof expr.val === 'string'? JSON.stringify(expr.val): `${expr.val}`;
+
   if(expr instanceof EEmpty) return `_recEmpty`;
   if(expr instanceof ESelect) return `_recSelect(${JSON.stringify(expr.label)})`;
   if(expr instanceof EExtend) return `_recExtend(${JSON.stringify(expr.label)})`;
+  if(expr instanceof ERestrict) return `_recRestrict(${JSON.stringify(expr.label)})`;
+  if(expr instanceof ERecUpdate) return `_recUpdate(${JSON.stringify(expr.label)})`;
+
+  if(expr instanceof EVarEmpty) return `_varEmpty`;
+  if(expr instanceof EInject) return `_varInject(${JSON.stringify(expr.label)})`;
+  if(expr instanceof EEmbed) return `_varEmbed(${JSON.stringify(expr.label)})`;
+  if(expr instanceof ECase) return `_varCase(${JSON.stringify(expr.label)})`;
+  if(expr instanceof EVarUpdate) return `_varUpdate(${JSON.stringify(expr.label)})`;
+
   return impossible();
 }
 

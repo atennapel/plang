@@ -60,6 +60,13 @@ import {
   EEmpty,
   ESelect,
   EExtend,
+  ERestrict,
+  ERecUpdate,
+  EVarEmpty,
+  EInject,
+  EEmbed,
+  ECase,
+  EVarUpdate,
 } from './exprs';
 import {
   Kind,
@@ -156,12 +163,14 @@ export const krow = kcon('Row');
 export const tstr = tcon('Str');
 export const tfloat = tcon('Float');
 export const tsrec = tcon('SRec');
+export const tsvar = tcon('SVar');
 export const initialContext = new Context([
   ckcon('Type'),
   ckcon('Row'),
   ctcon('Str', ktype),
   ctcon('Float', ktype),
   ctcon('SRec', kfuns(krow, ktype)),
+  ctcon('SVar', kfuns(krow, ktype)),
 ]);
 
 // wf
@@ -452,6 +461,13 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
   if(e instanceof EEmpty) {
     return { ctx, ty: tapp(tsrec, tempty), expr: e };
   }
+  if(e instanceof EVarEmpty) {
+    return {
+      ctx,
+      ty: tforalls([['t', ktype]], tfuns(tapp(tsvar, tempty), tvar('t'))),
+      expr: e
+    };
+  }
   if(e instanceof ESelect) {
     return {
       ctx,
@@ -463,6 +479,64 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
     return {
       ctx,
       ty: tforalls([['t', ktype], ['r', krow]], tfuns(tvar('t'), tapp(tsrec, tvar('r')), tapp(tsrec, textend(e.label, tvar('t'), tvar('r'))))),
+      expr: e
+    };
+  }
+  if(e instanceof ERestrict) {
+    return {
+      ctx,
+      ty: tforalls([['t', ktype], ['r', krow]], tfuns(tapp(tsrec, textend(e.label, tvar('t'), tvar('r'))), tapp(tsrec, tvar('r')))),
+      expr: e
+    };
+  }
+  if(e instanceof ERecUpdate) {
+    return {
+      ctx,
+      ty: tforalls([['a', ktype], ['b', ktype], ['r', krow]],
+        tfuns(
+          tfuns(tvar('a'), tvar('b')),
+          tapp(tsrec, textend(e.label, tvar('a'), tvar('r'))),
+          tapp(tsrec, textend(e.label, tvar('b'), tvar('r')))
+        )),
+      expr: e
+    };
+  }
+  if(e instanceof EInject) {
+    return {
+      ctx,
+      ty: tforalls([['t', ktype], ['r', krow]], tfuns(tvar('t'), tapp(tsvar, textend(e.label, tvar('t'), tvar('r'))))),
+      expr: e
+    };
+  }
+  if(e instanceof EEmbed) {
+    return {
+      ctx,
+      ty: tforalls([['t', ktype], ['r', krow]], tfuns(tapp(tsvar, tvar('r')), tapp(tsvar, textend(e.label, tvar('t'), tvar('r'))))),
+      expr: e
+    };
+  }
+  if(e instanceof ECase) {
+    return {
+      ctx,
+      ty: tforalls([['a', ktype], ['b', ktype], ['r', krow]],
+        tfuns(
+          tapp(tsvar, textend(e.label, tvar('a'), tvar('r'))),
+          tfuns(tvar('a'), tvar('b')),
+          tfuns(tapp(tsvar, tvar('r')), tvar('b')),
+          tvar('b'),
+        )),
+      expr: e
+    };
+  }
+  if(e instanceof EVarUpdate) {
+    return {
+      ctx,
+      ty: tforalls([['a', ktype], ['b', ktype], ['r', krow]],
+        tfuns(
+          tfuns(tvar('a'), tvar('b')),
+          tapp(tsvar, textend(e.label, tvar('a'), tvar('r'))),
+          tapp(tsvar, textend(e.label, tvar('b'), tvar('r')))
+        )),
       expr: e
     };
   }

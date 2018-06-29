@@ -1,4 +1,4 @@
-(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -19,6 +19,20 @@ function compile(expr) {
         return `_recSelect(${JSON.stringify(expr.label)})`;
     if (expr instanceof exprs_1.EExtend)
         return `_recExtend(${JSON.stringify(expr.label)})`;
+    if (expr instanceof exprs_1.ERestrict)
+        return `_recRestrict(${JSON.stringify(expr.label)})`;
+    if (expr instanceof exprs_1.ERecUpdate)
+        return `_recUpdate(${JSON.stringify(expr.label)})`;
+    if (expr instanceof exprs_1.EVarEmpty)
+        return `_varEmpty`;
+    if (expr instanceof exprs_1.EInject)
+        return `_varInject(${JSON.stringify(expr.label)})`;
+    if (expr instanceof exprs_1.EEmbed)
+        return `_varEmbed(${JSON.stringify(expr.label)})`;
+    if (expr instanceof exprs_1.ECase)
+        return `_varCase(${JSON.stringify(expr.label)})`;
+    if (expr instanceof exprs_1.EVarUpdate)
+        return `_varUpdate(${JSON.stringify(expr.label)})`;
     return util_1.impossible();
 }
 exports.compile = compile;
@@ -529,6 +543,121 @@ class ESelect extends Expr {
 }
 exports.ESelect = ESelect;
 exports.eselect = (label) => new ESelect(label);
+class ERestrict extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `.-${this.label}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.ERestrict = ERestrict;
+exports.erestrict = (label) => new ERestrict(label);
+class ERecUpdate extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `.:${this.label}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.ERecUpdate = ERecUpdate;
+exports.erecupdate = (label) => new ERecUpdate(label);
+class EVarEmpty extends Expr {
+    toString() {
+        return `varEmpty`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EVarEmpty = EVarEmpty;
+exports.evarempty = new EVarEmpty;
+class EInject extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `!${this.label}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EInject = EInject;
+exports.einject = (label) => new EInject(label);
+class EEmbed extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `!+${this.label}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EEmbed = EEmbed;
+exports.eembed = (label) => new EEmbed(label);
+class ECase extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `?${this.label}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.ECase = ECase;
+exports.ecase = (label) => new ECase(label);
+class EVarUpdate extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `!:${this.label}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EVarUpdate = EVarUpdate;
+exports.evarupdate = (label) => new EVarUpdate(label);
 
 },{}],5:[function(require,module,exports){
 "use strict";
@@ -796,10 +925,24 @@ function expr(x) {
     if (x.tag === 'token') {
         if (x.val === 'empty')
             return exprs_1.eempty;
-        if (x.val.startsWith('ext'))
+        if (x.val === 'varempty')
+            return exprs_1.evarempty;
+        if (x.val.startsWith('ext') && x.val.length > 3)
             return exprs_1.eextend(x.val.slice(3));
-        if (x.val.startsWith('sel'))
+        if (x.val.startsWith('sel') && x.val.length > 3)
             return exprs_1.eselect(x.val.slice(3));
+        if (x.val.startsWith('res') && x.val.length > 3)
+            return exprs_1.erestrict(x.val.slice(3));
+        if (x.val.startsWith('rupd') && x.val.length > 4)
+            return exprs_1.erecupdate(x.val.slice(4));
+        if (x.val.startsWith('inj') && x.val.length > 3)
+            return exprs_1.einject(x.val.slice(3));
+        if (x.val.startsWith('emb') && x.val.length > 3)
+            return exprs_1.eembed(x.val.slice(3));
+        if (x.val.startsWith('cs') && x.val.length > 2)
+            return exprs_1.ecase(x.val.slice(2));
+        if (x.val.startsWith('vupd') && x.val.length > 4)
+            return exprs_1.evarupdate(x.val.slice(4));
         if (x.val[0] === '"')
             return exprs_1.elit(x.val.slice(1));
         const n = +x.val;
@@ -1103,6 +1246,12 @@ function _show(x) {
             r.push(`${x[i][0]} = ${_show(x[i][1])}`);
         return `{ ${r.join(', ')} }`;
     }
+    if (x._var) {
+        let l = '';
+        for (let i = 0; i < x.level; i++)
+            l += '^';
+        return `(${l}${x.label} ${_show(x.val)})`;
+    }
     if (x._adt) {
         if (x._tag === 'Z')
             return '0';
@@ -1291,12 +1440,14 @@ exports.krow = kinds_1.kcon('Row');
 exports.tstr = types_1.tcon('Str');
 exports.tfloat = types_1.tcon('Float');
 exports.tsrec = types_1.tcon('SRec');
+exports.tsvar = types_1.tcon('SVar');
 exports.initialContext = new context_1.Context([
     context_1.ckcon('Type'),
     context_1.ckcon('Row'),
     context_1.ctcon('Str', exports.ktype),
     context_1.ctcon('Float', exports.ktype),
     context_1.ctcon('SRec', kinds_1.kfuns(exports.krow, exports.ktype)),
+    context_1.ctcon('SVar', kinds_1.kfuns(exports.krow, exports.ktype)),
 ]);
 // wf
 function checkKindType(kind) {
@@ -1605,6 +1756,13 @@ function synth(ctx, e) {
     if (e instanceof exprs_1.EEmpty) {
         return { ctx, ty: types_1.tapp(exports.tsrec, types_1.tempty), expr: e };
     }
+    if (e instanceof exprs_1.EVarEmpty) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['t', exports.ktype]], types_1.tfuns(types_1.tapp(exports.tsvar, types_1.tempty), types_1.tvar('t'))),
+            expr: e
+        };
+    }
     if (e instanceof exprs_1.ESelect) {
         return {
             ctx,
@@ -1616,6 +1774,48 @@ function synth(ctx, e) {
         return {
             ctx,
             ty: types_1.tforalls([['t', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tvar('t'), types_1.tapp(exports.tsrec, types_1.tvar('r')), types_1.tapp(exports.tsrec, types_1.textend(e.label, types_1.tvar('t'), types_1.tvar('r'))))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.ERestrict) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['t', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tapp(exports.tsrec, types_1.textend(e.label, types_1.tvar('t'), types_1.tvar('r'))), types_1.tapp(exports.tsrec, types_1.tvar('r')))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.ERecUpdate) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('b')), types_1.tapp(exports.tsrec, types_1.textend(e.label, types_1.tvar('a'), types_1.tvar('r'))), types_1.tapp(exports.tsrec, types_1.textend(e.label, types_1.tvar('b'), types_1.tvar('r'))))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.EInject) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['t', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tvar('t'), types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('t'), types_1.tvar('r'))))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.EEmbed) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['t', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tapp(exports.tsvar, types_1.tvar('r')), types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('t'), types_1.tvar('r'))))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.ECase) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('a'), types_1.tvar('r'))), types_1.tfuns(types_1.tvar('a'), types_1.tvar('b')), types_1.tfuns(types_1.tapp(exports.tsvar, types_1.tvar('r')), types_1.tvar('b')), types_1.tvar('b'))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.EVarUpdate) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('b')), types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('a'), types_1.tvar('r'))), types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('b'), types_1.tvar('r'))))),
             expr: e
         };
     }

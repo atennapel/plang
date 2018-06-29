@@ -1,4 +1,23 @@
-import { Expr, eapp, etapp, evar, EVar, eabss, etabss, eanno, elit, eempty, eselect, eextend } from './exprs';
+import {
+  Expr,
+  eapp,
+  etapp,
+  evar,
+  eabss,
+  etabss,
+  eanno,
+  elit,
+  eempty,
+  eselect,
+  eextend,
+  erestrict,
+  erecupdate,
+  evarempty,
+  einject,
+  eembed,
+  ecase,
+  evarupdate,
+} from './exprs';
 import { Kind, kfuns, kcon } from './kinds';
 import { Type, tcon, tvar, tapps, tforalls, tfuns } from './types'
 import { ktype } from './typechecker';
@@ -181,8 +200,15 @@ function exprs(x: Ret[]): Expr {
 function expr(x: Ret): Expr {
   if(x.tag === 'token') {
     if(x.val === 'empty') return eempty;
-    if(x.val.startsWith('ext')) return eextend(x.val.slice(3));
-    if(x.val.startsWith('sel')) return eselect(x.val.slice(3));
+    if(x.val === 'varempty') return evarempty;
+    if(x.val.startsWith('ext') && x.val.length > 3) return eextend(x.val.slice(3));
+    if(x.val.startsWith('sel') && x.val.length > 3) return eselect(x.val.slice(3));
+    if(x.val.startsWith('res') && x.val.length > 3) return erestrict(x.val.slice(3));
+    if(x.val.startsWith('rupd') && x.val.length > 4) return erecupdate(x.val.slice(4));
+    if(x.val.startsWith('inj') && x.val.length > 3) return einject(x.val.slice(3));
+    if(x.val.startsWith('emb') && x.val.length > 3) return eembed(x.val.slice(3));
+    if(x.val.startsWith('cs') && x.val.length > 2) return ecase(x.val.slice(2));
+    if(x.val.startsWith('vupd') && x.val.length > 4) return evarupdate(x.val.slice(4));
     if(x.val[0] === '"') return elit(x.val.slice(1));
     const n = +x.val;
     if(!isNaN(n)) {

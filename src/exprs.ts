@@ -189,3 +189,118 @@ export class ESelect extends Expr {
   }
 }
 export const eselect = (label: string) => new ESelect(label);
+
+export class ERestrict extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `.-${this.label}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const erestrict = (label: string) => new ERestrict(label);
+
+export class ERecUpdate extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `.:${this.label}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const erecupdate = (label: string) => new ERecUpdate(label);
+
+export class EVarEmpty extends Expr {
+  toString() {
+    return `varEmpty`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const evarempty = new EVarEmpty;
+
+export class EInject extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `!${this.label}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const einject = (label: string) => new EInject(label);
+
+export class EEmbed extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `!+${this.label}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const eembed = (label: string) => new EEmbed(label);
+
+export class ECase extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `?${this.label}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const ecase = (label: string) => new ECase(label);
+
+export class EVarUpdate extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `!:${this.label}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const evarupdate = (label: string) => new EVarUpdate(label);
