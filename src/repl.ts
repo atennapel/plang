@@ -107,6 +107,7 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
       const p = parse(i);
       console.log(''+p);
       const tr = infer(_ctx, p);
+      console.log(ppType(tr.ty));
       console.log(''+tr.expr);
       const c = compile(tr.expr);
       console.log(c);

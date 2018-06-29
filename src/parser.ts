@@ -1,4 +1,4 @@
-import { Expr, eapp, etapp, evar, EVar, eabss, etabss, eanno, eapps, elit } from './exprs';
+import { Expr, eapp, etapp, evar, EVar, eabss, etabss, eanno, elit, eempty, eselect, eextend } from './exprs';
 import { Kind, kfuns, kcon } from './kinds';
 import { Type, tcon, tvar, tapps, tforalls, tfuns } from './types'
 import { ktype } from './typechecker';
@@ -180,6 +180,9 @@ function exprs(x: Ret[]): Expr {
 
 function expr(x: Ret): Expr {
   if(x.tag === 'token') {
+    if(x.val === 'empty') return eempty;
+    if(x.val[0] === 'ext') return eextend(x.val.slice(3));
+    if(x.val[0] === 'sel') return eselect(x.val.slice(3));
     if(x.val[0] === '"') return elit(x.val.slice(1));
     const n = +x.val;
     if(!isNaN(n)) {

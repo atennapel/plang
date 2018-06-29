@@ -142,3 +142,50 @@ export class ETApp extends Expr {
 }
 export const etapp = (expr: Expr, type: Type) => new ETApp(expr, type);
 export const etapps = (expr: Expr, ...ts: Type[]) => ts.reduce(etapp, expr);
+
+export class EEmpty extends Expr {
+  toString() {
+    return `{}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const eempty = new EEmpty;
+
+export class EExtend extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `.+${this.label}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const eextend = (label: string) => new EExtend(label);
+
+export class ESelect extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `.${this.label}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const eselect = (label: string) => new ESelect(label);

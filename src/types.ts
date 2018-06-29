@@ -248,3 +248,80 @@ export class TForall extends Type {
 export const tforall = (name: string, kind: Kind, type: Type) => new TForall(name, kind, type);
 export const tforalls = (ns: [string, Kind][], type: Type) =>
   ns.reduceRight((a, b) => tforall(b[0], b[1], a), type);
+
+export class TEmpty extends Type {
+  toString() {
+    return `{}`;
+  }
+  equals(other: Type): boolean {
+    return other instanceof TEmpty;
+  }
+  isMono() {
+    return true;
+  }
+  subst(name: string, type: Type) {
+    return this;
+  }
+  substEx(name: string, type: Type) {
+    return this;
+  }
+  containsEx(name: string): boolean {
+    return false;
+  }
+  containsTCon(name: string): boolean {
+    return false;
+  }
+  texs(): string[] {
+    return [];
+  }
+  tvars(): string[] {
+    return [];
+  }
+  occursNegatively(name: string, negative: boolean): boolean {
+    return false;
+  }
+}
+export const tempty = new TEmpty();
+
+export class TExtend extends Type {
+  constructor(
+    public readonly label: string,
+    public readonly type: Type,
+    public readonly rest: Type,
+  ) { super() }
+
+  toString() {
+    return `{ ${this.label} : ${this.type} | ${this.rest} }`;
+  }
+  equals(other: Type): boolean {
+    return other instanceof TExtend && this.label === other.label &&
+      this.type.equals(other.type) && this.rest.equals(other.rest);
+  }
+  isMono() {
+    return this.type.isMono() && this.rest.isMono();
+  }
+  subst(name: string, type: Type) {
+    return new TExtend(this.label, this.type.subst(name, type), this.rest.subst(name, type));
+  }
+  substEx(name: string, type: Type) {
+    return new TExtend(this.label, this.type.substEx(name, type), this.rest.substEx(name, type));
+  }
+  containsEx(name: string): boolean {
+    return this.type.containsEx(name) || this.rest.containsEx(name);
+  }
+  containsTCon(name: string): boolean {
+    return this.type.containsTCon(name) || this.rest.containsTCon(name);
+  }
+  texs(): string[] {
+    return this.type.texs().concat(this.rest.texs());
+  }
+  tvars(): string[] {
+    return this.type.tvars().concat(this.rest.tvars());
+  }
+  occursNegatively(name: string, negative: boolean): boolean {
+    return this.type.occursNegatively(name, !negative) || this.rest.occursNegatively(name, negative);
+  }
+}
+export const textend = (label: string, type: Type, rest: Type) => new TExtend(label, type, rest);
+export const trow = (props: [string, Type][], rest?: Type) =>
+  props.reduceRight((r, [l, t]) => textend(l, t, r), rest || tempty);

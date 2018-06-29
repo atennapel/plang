@@ -6,6 +6,7 @@ import {
   EApp,
   EAbs,
   ELit,
+  EEmpty,
 } from './exprs';
 import {
   Definition,
@@ -19,6 +20,7 @@ export function compile(expr: Expr): string {
   if(expr instanceof EApp) return `${compile(expr.left)}(${compile(expr.right)})`;
   if(expr instanceof EAbs) return `(${expr.name} => ${compile(expr.expr)})`;
   if(expr instanceof ELit) return typeof expr.val === 'string'? JSON.stringify(expr.val): `${expr.val}`;
+  if(expr instanceof EEmpty) return `({})`;
   return impossible();
 }
 

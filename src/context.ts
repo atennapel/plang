@@ -1,4 +1,4 @@
-import { Type, TEx, TFun, tfun, TForall, tforall, TApp, tapp } from './types';
+import { Type, TEx, TFun, tfun, TForall, tforall, TApp, tapp, textend, TExtend } from './types';
 import { Kind } from './kinds';
 
 export abstract class ContextElem {
@@ -205,6 +205,7 @@ export class Context {
       return r === null? type: r instanceof CSolved? this.apply(r.type): type; 
     }
     if(type instanceof TFun) return tfun(this.apply(type.left), this.apply(type.right));
+    if(type instanceof TExtend) return textend(type.label, this.apply(type.type), this.apply(type.rest));
     if(type instanceof TApp) return tapp(this.apply(type.left), this.apply(type.right));
     if(type instanceof TForall) return tforall(type.name, type.kind, this.apply(type.type));
     return type;

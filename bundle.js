@@ -13,6 +13,8 @@ function compile(expr) {
         return `(${expr.name} => ${compile(expr.expr)})`;
     if (expr instanceof exprs_1.ELit)
         return typeof expr.val === 'string' ? JSON.stringify(expr.val) : `${expr.val}`;
+    if (expr instanceof exprs_1.EEmpty)
+        return `({})`;
     return util_1.impossible();
 }
 exports.compile = compile;
@@ -272,6 +274,8 @@ class Context {
         }
         if (type instanceof types_1.TFun)
             return types_1.tfun(this.apply(type.left), this.apply(type.right));
+        if (type instanceof types_1.TExtend)
+            return types_1.textend(type.label, this.apply(type.type), this.apply(type.rest));
         if (type instanceof types_1.TApp)
             return types_1.tapp(this.apply(type.left), this.apply(type.right));
         if (type instanceof types_1.TForall)
@@ -474,6 +478,53 @@ class ETApp extends Expr {
 exports.ETApp = ETApp;
 exports.etapp = (expr, type) => new ETApp(expr, type);
 exports.etapps = (expr, ...ts) => ts.reduce(exports.etapp, expr);
+class EEmpty extends Expr {
+    toString() {
+        return `{}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EEmpty = EEmpty;
+exports.eempty = new EEmpty;
+class EExtend extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `.+${this.label}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EExtend = EExtend;
+exports.eextend = (label) => new EExtend(label);
+class ESelect extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `.${this.label}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.ESelect = ESelect;
+exports.eselect = (label) => new ESelect(label);
 
 },{}],5:[function(require,module,exports){
 "use strict";
@@ -739,6 +790,12 @@ function exprs(x) {
 }
 function expr(x) {
     if (x.tag === 'token') {
+        if (x.val === 'empty')
+            return exprs_1.eempty;
+        if (x.val[0] === 'ext')
+            return exprs_1.eextend(x.val.slice(3));
+        if (x.val[0] === 'sel')
+            return exprs_1.eselect(x.val.slice(3));
         if (x.val[0] === '"')
             return exprs_1.elit(x.val.slice(1));
         const n = +x.val;
@@ -954,10 +1011,21 @@ function flattenTApp(a) {
     r.push(c);
     return r.reverse();
 }
+function flattenTExtend(e) {
+    const props = [];
+    let c = e;
+    while (c instanceof types_1.TExtend) {
+        props.push([c.label, c.type]);
+        c = c.rest;
+    }
+    return { props, rest: c instanceof types_1.TEmpty ? null : c };
+}
 function isSymbol(n) {
     return !/[a-z]/i.test(n[0]);
 }
 function ppType(t) {
+    if (t instanceof types_1.TEmpty)
+        return `{}`;
     if (t instanceof types_1.TCon)
         return `${t.name}`;
     if (t instanceof types_1.TVar)
@@ -979,6 +1047,10 @@ function ppType(t) {
         const f = flattenTForall(t);
         const args = f.args.map(([x, k]) => k.equals(typechecker_1.ktype) ? x : `(${x} : ${ppKind(k)})`);
         return `${FORALL}${args.join(' ')}. ${ppType(f.ty)}`;
+    }
+    if (t instanceof types_1.TExtend) {
+        const f = flattenTExtend(t);
+        return `{ ${f.props.map(([l, t]) => `${l} : ${ppType(t)}`).join(', ')} ${f.rest ? `| ${ppType(f.rest)} ` : ''}}`;
     }
     return util_1.impossible();
 }
@@ -1105,6 +1177,7 @@ function _run(i, cb) {
             const p = parser_1.parse(i);
             console.log('' + p);
             const tr = typechecker_1.infer(_ctx, p);
+            console.log(prettyprinter_1.ppType(tr.ty));
             console.log('' + tr.expr);
             const c = compilerJS_1.compile(tr.expr);
             console.log(c);
@@ -1202,16 +1275,23 @@ const orderedTExs = (texs, ty) => {
 };
 // initial context
 exports.ktype = kinds_1.kcon('Type');
+exports.krow = kinds_1.kcon('Row');
 exports.tstr = types_1.tcon('Str');
 exports.tfloat = types_1.tcon('Float');
+exports.tsrec = types_1.tcon('SRec');
 exports.initialContext = new context_1.Context([
     context_1.ckcon('Type'),
+    context_1.ckcon('Row'),
     context_1.ctcon('Str', exports.ktype),
     context_1.ctcon('Float', exports.ktype),
+    context_1.ctcon('SRec', kinds_1.kfuns(exports.krow, exports.ktype)),
 ]);
 // wf
 function checkKindType(kind) {
     return exports.ktype.equals(kind) ? (null) : err(`kind is not ${exports.ktype}: ${kind}`);
+}
+function checkKindRow(kind) {
+    return exports.krow.equals(kind) ? (null) : err(`kind is not ${exports.krow}: ${kind}`);
 }
 function kindWF(ctx, kind) {
     // console.log(`kindWF ${kind} in ${ctx}`);
@@ -1225,6 +1305,9 @@ function kindWF(ctx, kind) {
 }
 function typeWF(ctx, ty) {
     //console.log(`typeWF ${ty} in ${ctx}`);
+    if (ty instanceof types_1.TEmpty) {
+        return exports.krow;
+    }
     if (ty instanceof types_1.TCon) {
         const k = findTCon(ctx, ty.name);
         kindWF(ctx, k);
@@ -1246,6 +1329,13 @@ function typeWF(ctx, ty) {
         const k2 = typeWF(ctx, ty.right);
         checkKindType(k2);
         return exports.ktype;
+    }
+    if (ty instanceof types_1.TExtend) {
+        const k1 = typeWF(ctx, ty.type);
+        checkKindType(k1);
+        const k2 = typeWF(ctx, ty.rest);
+        checkKindRow(k2);
+        return exports.krow;
     }
     if (ty instanceof types_1.TForall) {
         kindWF(ctx, ty.kind);
@@ -1289,6 +1379,11 @@ function contextWF(ctx) {
             if (p.findExOrSolved(e.name) !== null)
                 return err(`duplicate tex ^${e.name}`);
             kindWF(p, e.kind);
+            if (e instanceof context_1.CSolved) {
+                const k = typeWF(p, e.type);
+                if (!k.equals(e.kind))
+                    err(`solved with invalid kind: ${e} in ${p}`);
+            }
         }
         else if (e instanceof context_1.CVar) {
             if (p.findVar(e.name) !== null)
@@ -1303,19 +1398,47 @@ function contextWF(ctx) {
         else
             return util_1.impossible();
     }
-    return (null);
+    return null;
 }
 // subtype
+function rewriteRow(ctx, l, ty) {
+    if (ty instanceof types_1.TEmpty)
+        err(`${l} cannot be inserted in ${ctx}`);
+    if (ty instanceof types_1.TExtend) {
+        const rest = ty.rest;
+        if (l === ty.label)
+            return { ctx, ty: ty.type, rest };
+        if (rest instanceof types_1.TEx) {
+            const texs = ctx.texs();
+            const tt = fresh(texs, 't');
+            const tr = fresh(texs.concat([tt]), 'r');
+            return {
+                ctx: ctx.replace(context_1.isCTEx(rest.name), new context_1.Context([
+                    context_1.ctex(tt, exports.ktype),
+                    context_1.ctex(tr, exports.krow),
+                    context_1.csolved(rest.name, exports.krow, types_1.textend(l, types_1.tex(tt), types_1.tex(tr))),
+                ])),
+                ty: types_1.tex(tt),
+                rest: types_1.textend(ty.label, ty.type, types_1.tex(tr)),
+            };
+        }
+        const r = rewriteRow(ctx, l, rest);
+        return { ctx: r.ctx, ty: r.ty, rest: types_1.textend(ty.label, ty.type, r.rest) };
+    }
+    return util_1.impossible();
+}
 function subtype(ctx, a, b) {
     // console.log(`subtype ${a} and ${b} in ${ctx}`);
     const k = typeWF(ctx, a);
     const k2 = typeWF(ctx, b);
     if (!k.equals(k2))
         return err(`kind mismatch ${a} and ${b}, ${k} and ${k2} in ${ctx}`);
+    if (a instanceof types_1.TEmpty && b instanceof types_1.TEmpty)
+        return ctx;
     if (((a instanceof types_1.TVar && b instanceof types_1.TVar) ||
         (a instanceof types_1.TEx && b instanceof types_1.TEx) ||
         (a instanceof types_1.TCon && b instanceof types_1.TCon)) && a.name === b.name)
-        return (ctx);
+        return ctx;
     if (a instanceof types_1.TApp && b instanceof types_1.TApp) {
         const ctx_ = subtype(ctx, a.left, b.left);
         return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
@@ -1343,6 +1466,11 @@ function subtype(ctx, a, b) {
         const r1 = findEx(ctx, b.name);
         const r2 = check(!a.containsEx(b.name), `occurs check failed R: ${b} in ${a}`);
         return instR(ctx, a, b.name);
+    }
+    if (a instanceof types_1.TExtend && b instanceof types_1.TExtend) {
+        const r = rewriteRow(ctx, a.label, b);
+        const ctx_ = subtype(r.ctx, r.ctx.apply(a.type), r.ctx.apply(r.ty));
+        return subtype(ctx_, ctx_.apply(a.rest), ctx_.apply(r.rest));
     }
     return err(`subtype failed: ${a} <: ${b} in ${ctx}`);
 }
@@ -1390,6 +1518,17 @@ function instL(ctx, a, b) {
         const ctx_ = instL(ctx.add(context_1.ctvar(x, b.kind)), a, b.open(types_1.tvar(x)));
         return (ctx_.split(context_1.isCTVar(x)).left);
     }
+    if (b instanceof types_1.TExtend) {
+        const texs = ctx.texs();
+        const at = fresh(texs, 't');
+        const ar = fresh(texs.concat([at]), 'r');
+        const ctx_ = instL(ctx.replace(context_1.isCTEx(a), new context_1.Context([
+            context_1.ctex(at, exports.ktype),
+            context_1.ctex(ar, exports.krow),
+            context_1.csolved(a, exports.krow, types_1.textend(b.label, types_1.tex(at), types_1.tex(ar))),
+        ])), at, b.type);
+        return instL(ctx_, ar, ctx_.apply(b.rest));
+    }
     return err(`instL failed: ${a} and ${b} in ${ctx}`);
 }
 function instR(ctx, a, b) {
@@ -1425,6 +1564,17 @@ function instR(ctx, a, b) {
         const ctx_ = instR(ctx.add(context_1.cmarker(x), context_1.ctex(x, a.kind)), a.open(types_1.tex(x)), b);
         return (ctx_.split(context_1.isCMarker(x)).left);
     }
+    if (a instanceof types_1.TExtend) {
+        const texs = ctx.texs();
+        const at = fresh(texs, 't');
+        const ar = fresh(texs.concat([at]), 'r');
+        const ctx_ = instR(ctx.replace(context_1.isCTEx(b), new context_1.Context([
+            context_1.ctex(at, exports.ktype),
+            context_1.ctex(ar, exports.krow),
+            context_1.csolved(b, exports.krow, types_1.textend(a.label, types_1.tex(at), types_1.tex(ar))),
+        ])), a.type, at);
+        return instR(ctx_, ctx_.apply(a.rest), ar);
+    }
     return err(`instR failed: ${a} and ${b} in ${ctx}`);
 }
 // synth/check
@@ -1440,6 +1590,23 @@ function generalize(ctx, marker, ty) {
 function synth(ctx, e) {
     // console.log(`synth ${e} in ${ctx}`);
     contextWF(ctx);
+    if (e instanceof exprs_1.EEmpty) {
+        return { ctx, ty: types_1.tapp(exports.tsrec, types_1.tempty), expr: e };
+    }
+    if (e instanceof exprs_1.ESelect) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['t', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tapp(exports.tsrec, types_1.textend(e.label, types_1.tvar('t'), types_1.tvar('r'))), types_1.tvar('t'))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.EExtend) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['t', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tvar('t'), types_1.tapp(exports.tsrec, types_1.tvar('r')), types_1.tapp(exports.tsrec, types_1.textend(e.label, types_1.tvar('t'), types_1.tvar('r'))))),
+            expr: e
+        };
+    }
     if (e instanceof exprs_1.ELit) {
         return { ctx, ty: typeof e.val === 'string' ? exports.tstr : exports.tfloat, expr: e };
     }
@@ -1838,6 +2005,82 @@ class TForall extends Type {
 exports.TForall = TForall;
 exports.tforall = (name, kind, type) => new TForall(name, kind, type);
 exports.tforalls = (ns, type) => ns.reduceRight((a, b) => exports.tforall(b[0], b[1], a), type);
+class TEmpty extends Type {
+    toString() {
+        return `{}`;
+    }
+    equals(other) {
+        return other instanceof TEmpty;
+    }
+    isMono() {
+        return true;
+    }
+    subst(name, type) {
+        return this;
+    }
+    substEx(name, type) {
+        return this;
+    }
+    containsEx(name) {
+        return false;
+    }
+    containsTCon(name) {
+        return false;
+    }
+    texs() {
+        return [];
+    }
+    tvars() {
+        return [];
+    }
+    occursNegatively(name, negative) {
+        return false;
+    }
+}
+exports.TEmpty = TEmpty;
+exports.tempty = new TEmpty();
+class TExtend extends Type {
+    constructor(label, type, rest) {
+        super();
+        this.label = label;
+        this.type = type;
+        this.rest = rest;
+    }
+    toString() {
+        return `{ ${this.label} : ${this.type} | ${this.rest} }`;
+    }
+    equals(other) {
+        return other instanceof TExtend && this.label === other.label &&
+            this.type.equals(other.type) && this.rest.equals(other.rest);
+    }
+    isMono() {
+        return this.type.isMono() && this.rest.isMono();
+    }
+    subst(name, type) {
+        return new TExtend(this.label, this.type.subst(name, type), this.rest.subst(name, type));
+    }
+    substEx(name, type) {
+        return new TExtend(this.label, this.type.substEx(name, type), this.rest.substEx(name, type));
+    }
+    containsEx(name) {
+        return this.type.containsEx(name) || this.rest.containsEx(name);
+    }
+    containsTCon(name) {
+        return this.type.containsTCon(name) || this.rest.containsTCon(name);
+    }
+    texs() {
+        return this.type.texs().concat(this.rest.texs());
+    }
+    tvars() {
+        return this.type.tvars().concat(this.rest.tvars());
+    }
+    occursNegatively(name, negative) {
+        return this.type.occursNegatively(name, !negative) || this.rest.occursNegatively(name, negative);
+    }
+}
+exports.TExtend = TExtend;
+exports.textend = (label, type, rest) => new TExtend(label, type, rest);
+exports.trow = (props, rest) => props.reduceRight((r, [l, t]) => exports.textend(l, t, r), rest || exports.tempty);
 
 },{}],11:[function(require,module,exports){
 "use strict";

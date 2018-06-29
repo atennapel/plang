@@ -16,6 +16,11 @@ import {
   tapp,
   tforall,
   tfuns,
+  TEmpty,
+  tempty,
+  TExtend,
+  textend,
+  trow,
 } from './types';
 import {
   Context,
@@ -52,12 +57,16 @@ import {
   ELit,
   eabs,
   eapp,
+  EEmpty,
+  ESelect,
+  EExtend,
 } from './exprs';
 import {
   Kind,
   KCon,
   KFun,
   kcon,
+  kfuns,
 } from './kinds';
 import {
   Definition,
@@ -143,17 +152,24 @@ const orderedTExs = (texs: [string, Kind][], ty: Type): [string, Kind][] => {
 
 // initial context
 export const ktype = kcon('Type');
+export const krow = kcon('Row');
 export const tstr = tcon('Str');
 export const tfloat = tcon('Float');
+export const tsrec = tcon('SRec');
 export const initialContext = new Context([
   ckcon('Type'),
+  ckcon('Row'),
   ctcon('Str', ktype),
   ctcon('Float', ktype),
+  ctcon('SRec', kfuns(krow, ktype)),
 ]);
 
 // wf
 function checkKindType(kind: Kind): null {
   return ktype.equals(kind)? (null): err(`kind is not ${ktype}: ${kind}`);
+}
+function checkKindRow(kind: Kind): null {
+  return krow.equals(kind)? (null): err(`kind is not ${krow}: ${kind}`);
 }
 
 function kindWF(ctx: Context, kind: Kind): null {
@@ -168,6 +184,9 @@ function kindWF(ctx: Context, kind: Kind): null {
 
 function typeWF(ctx: Context, ty: Type): Kind {
   //console.log(`typeWF ${ty} in ${ctx}`);
+  if(ty instanceof TEmpty) {
+    return krow;
+  }
   if(ty instanceof TCon) {
     const k = findTCon(ctx, ty.name);
     kindWF(ctx, k);
@@ -190,6 +209,13 @@ function typeWF(ctx: Context, ty: Type): Kind {
     checkKindType(k2);
     return ktype;
   }
+  if(ty instanceof TExtend) {
+    const k1 = typeWF(ctx, ty.type);
+    checkKindType(k1);
+    const k2 = typeWF(ctx, ty.rest);
+    checkKindRow(k2);
+    return krow;
+  }
   if(ty instanceof TForall) {
     kindWF(ctx, ty.kind);
     return typeWF(ctx.add(ctvar(ty.name, ty.kind)), ty.type);
@@ -201,8 +227,7 @@ function typeWF(ctx: Context, ty: Type): Kind {
       if(!kright.equals(kleft.left))
         return err(`kind mismatch in type constructor: ${ty} in ${ctx}`);
       return (kleft.right);
-    }
-    else return err(`not a type constructor: ${ty} in ${ctx}`);
+    } else return err(`not a type constructor: ${ty} in ${ctx}`);
   }
   return impossible();
 }
@@ -225,6 +250,10 @@ function contextWF(ctx: Context): null {
     } else if(e instanceof CTEx || e instanceof CSolved) {
       if(p.findExOrSolved(e.name) !== null) return err(`duplicate tex ^${e.name}`);
       kindWF(p, e.kind);
+      if(e instanceof CSolved) {
+        const k = typeWF(p, e.type);
+        if(!k.equals(e.kind)) err(`solved with invalid kind: ${e} in ${p}`);
+      }
     } else if(e instanceof CVar) {
       if(p.findVar(e.name) !== null) return err(`duplicate var ${e.name}`);
       const k = typeWF(p, e.type);
@@ -234,20 +263,46 @@ function contextWF(ctx: Context): null {
         return err(`duplicate marker ^${e.name}`);
     } else return impossible();
   }
-  return (null);
+  return null;
 }
 
 // subtype
+function rewriteRow(ctx: Context, l: string, ty: Type): { ctx: Context, ty: Type, rest: Type } {
+  if(ty instanceof TEmpty) err(`${l} cannot be inserted in ${ctx}`);
+  if(ty instanceof TExtend) {
+    const rest = ty.rest;
+    if(l === ty.label) return { ctx, ty: ty.type, rest };
+    if(rest instanceof TEx) {
+      const texs = ctx.texs();
+      const tt = fresh(texs, 't');
+      const tr = fresh(texs.concat([tt]), 'r');
+      return {
+        ctx: ctx.replace(isCTEx(rest.name), new Context([
+          ctex(tt, ktype),
+          ctex(tr, krow),
+          csolved(rest.name, krow, textend(l, tex(tt), tex(tr))),
+        ])),
+        ty: tex(tt),
+        rest: textend(ty.label, ty.type, tex(tr)),
+      };
+    }
+    const r = rewriteRow(ctx, l, rest);
+    return { ctx: r.ctx, ty: r.ty, rest: textend(ty.label, ty.type, r.rest) };
+  }
+  return impossible();
+}
+
 function subtype(ctx: Context, a: Type, b: Type): Context {
   // console.log(`subtype ${a} and ${b} in ${ctx}`);
   const k = typeWF(ctx, a)
   const k2 = typeWF(ctx, b);
   if(!k.equals(k2))
     return err(`kind mismatch ${a} and ${b}, ${k} and ${k2} in ${ctx}`);
+  if(a instanceof TEmpty && b instanceof TEmpty) return ctx;
   if(((a instanceof TVar && b instanceof TVar) ||
     (a instanceof TEx && b instanceof TEx) ||
     (a instanceof TCon && b instanceof TCon)) && a.name === b.name)
-    return (ctx);
+    return ctx;
   if(a instanceof TApp && b instanceof TApp) {
     const ctx_ = subtype(ctx, a.left, b.left);
     return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
@@ -275,6 +330,11 @@ function subtype(ctx: Context, a: Type, b: Type): Context {
     const r1 = findEx(ctx, b.name);
     const r2 = check(!a.containsEx(b.name), `occurs check failed R: ${b} in ${a}`);
     return instR(ctx, a, b.name);
+  }
+  if(a instanceof TExtend && b instanceof TExtend) {
+    const r = rewriteRow(ctx, a.label, b);
+    const ctx_ = subtype(r.ctx, r.ctx.apply(a.type), r.ctx.apply(r.ty));
+    return subtype(ctx_, ctx_.apply(a.rest), ctx_.apply(r.rest));
   }
   return err(`subtype failed: ${a} <: ${b} in ${ctx}`);
 }
@@ -318,6 +378,17 @@ function instL(ctx: Context, a: string, b: Type): Context {
     const ctx_ = instL(ctx.add(ctvar(x, b.kind)), a, b.open(tvar(x)));
     return (ctx_.split(isCTVar(x)).left);
   }
+  if(b instanceof TExtend) {
+    const texs = ctx.texs();
+    const at = fresh(texs, 't');
+    const ar = fresh(texs.concat([at]), 'r');
+    const ctx_ = instL(ctx.replace(isCTEx(a), new Context([
+      ctex(at, ktype),
+      ctex(ar, krow),
+      csolved(a, krow, textend(b.label, tex(at), tex(ar))),
+    ])), at, b.type);
+    return instL(ctx_, ar, ctx_.apply(b.rest));
+  }
   return err(`instL failed: ${a} and ${b} in ${ctx}`);
 }
 
@@ -350,6 +421,17 @@ function instR(ctx: Context, a: Type, b: string): Context {
     const ctx_ = instR(ctx.add(cmarker(x), ctex(x, a.kind)), a.open(tex(x)), b);
     return (ctx_.split(isCMarker(x)).left);
   }
+  if(a instanceof TExtend) {
+    const texs = ctx.texs();
+    const at = fresh(texs, 't');
+    const ar = fresh(texs.concat([at]), 'r');
+    const ctx_ = instR(ctx.replace(isCTEx(b), new Context([
+      ctex(at, ktype),
+      ctex(ar, krow),
+      csolved(b, krow, textend(a.label, tex(at), tex(ar))),
+    ])), a.type, at);
+    return instR(ctx_, ctx_.apply(a.rest), ar);
+  }
   return err(`instR failed: ${a} and ${b} in ${ctx}`);
 }
 
@@ -367,6 +449,23 @@ function generalize(ctx: Context, marker: (e: ContextElem) => boolean, ty: Type)
 function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
   // console.log(`synth ${e} in ${ctx}`);
   contextWF(ctx);
+  if(e instanceof EEmpty) {
+    return { ctx, ty: tapp(tsrec, tempty), expr: e };
+  }
+  if(e instanceof ESelect) {
+    return {
+      ctx,
+      ty: tforalls([['t', ktype], ['r', krow]], tfuns(tapp(tsrec, textend(e.label, tvar('t'), tvar('r'))), tvar('t'))),
+      expr: e
+    };
+  }
+  if(e instanceof EExtend) {
+    return {
+      ctx,
+      ty: tforalls([['t', ktype], ['r', krow]], tfuns(tvar('t'), tapp(tsrec, tvar('r')), tapp(tsrec, textend(e.label, tvar('t'), tvar('r'))))),
+      expr: e
+    };
+  }
   if(e instanceof ELit) {
     return { ctx, ty: typeof e.val === 'string'? tstr: tfloat, expr: e };
   }

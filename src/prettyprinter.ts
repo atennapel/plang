@@ -1,5 +1,5 @@
 import { Kind, KCon, KFun } from './kinds';
-import { Type, TCon, TVar, TEx, TApp, TFun, TForall } from './types';
+import { Type, TCon, TVar, TEx, TApp, TFun, TForall, TEmpty, TExtend } from './types';
 import { Context, ContextElem, CKCon, CTCon, CTVar, CTEx, CVar, CSolved, CMarker } from './context';
 import { impossible } from './util';
 import { ktype } from './typechecker'; 
@@ -59,11 +59,22 @@ function flattenTApp(a: TApp): Type[] {
   return r.reverse();
 }
 
+function flattenTExtend(e: TExtend): { props: [string, Type][], rest: Type | null } {
+  const props: [string, Type][] = [];
+  let c: Type = e;
+  while(c instanceof TExtend) {
+    props.push([c.label, c.type]);
+    c = c.rest;
+  }
+  return { props, rest: c instanceof TEmpty? null: c };
+}
+
 function isSymbol(n: string): boolean {
   return !/[a-z]/i.test(n[0]);
 }
 
 export function ppType(t: Type): string {
+  if(t instanceof TEmpty) return `{}`;
   if(t instanceof TCon) return `${t.name}`;
   if(t instanceof TVar) return `${t.name}`;
   if(t instanceof TEx) return `^${t.name}`;
@@ -82,6 +93,10 @@ export function ppType(t: Type): string {
     const f = flattenTForall(t);
     const args = f.args.map(([x, k]) => k.equals(ktype)? x: `(${x} : ${ppKind(k)})`);
     return `${FORALL}${args.join(' ')}. ${ppType(f.ty)}`;
+  }
+  if(t instanceof TExtend) {
+    const f = flattenTExtend(t);
+    return `{ ${f.props.map(([l, t]) => `${l} : ${ppType(t)}`).join(', ')} ${f.rest? `| ${ppType(f.rest)} `: ''}}`;
   }
   return impossible();
 }
