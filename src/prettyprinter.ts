@@ -5,7 +5,7 @@ import { impossible } from './util';
 import { ktype } from './typechecker'; 
 
 const RARROW = ' -> ';
-const FORALL = '\u2200';
+export const FORALL = '\u2200';
 
 // Kinds
 function flattenKFun(f: KFun): Kind[] {

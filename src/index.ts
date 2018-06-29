@@ -1,5 +1,6 @@
 /**
  * TODO:
+ *  un-
  *  parser: syntax for records
  *  parser: syntax for variants
  *  constrained row polymorphism
@@ -10,7 +11,7 @@
  *  parser: check order of $ and \
  *  repl: tutorial command
  *  functor generation
- *  ADT codata?
+ *  ADT codata? generate apa
  *  tfun as a type constructor
  *  repl: save/load/clear commands
  *  parser: f \x -> x

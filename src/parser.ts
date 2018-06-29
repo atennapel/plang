@@ -23,6 +23,7 @@ import { Type, tcon, tvar, tapps, tforalls, tfuns } from './types'
 import { ktype } from './typechecker';
 import { Definition, DValue, DData } from './definitions'; 
 import { impossible } from './util';
+import { FORALL } from './prettyprinter';
 
 function matchingBracket(c: string) {
   if(c === '(') return ')';
@@ -59,6 +60,7 @@ function tokenize(s: string): Ret[] {
       else if(c === '@') r.push(token('@'));
       else if(c === '$') r.push(token('$'));
       else if(c === ':') r.push(token(':'));
+      else if(c === FORALL) r.push(token('forall'));
       else if(c === '.') r.push(token('.'));
       else if(c === '=') r.push(token('='));
       else if(c === '|') r.push(token('|'));

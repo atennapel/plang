@@ -704,6 +704,7 @@ const kinds_1 = require("./kinds");
 const types_1 = require("./types");
 const typechecker_1 = require("./typechecker");
 const definitions_1 = require("./definitions");
+const prettyprinter_1 = require("./prettyprinter");
 function matchingBracket(c) {
     if (c === '(')
         return ')';
@@ -738,6 +739,8 @@ function tokenize(s) {
                 r.push(token('$'));
             else if (c === ':')
                 r.push(token(':'));
+            else if (c === prettyprinter_1.FORALL)
+                r.push(token('forall'));
             else if (c === '.')
                 r.push(token('.'));
             else if (c === '=')
@@ -1099,7 +1102,7 @@ function parseProgram(s) {
 }
 exports.parseProgram = parseProgram;
 
-},{"./definitions":3,"./exprs":4,"./kinds":5,"./typechecker":9,"./types":10}],7:[function(require,module,exports){
+},{"./definitions":3,"./exprs":4,"./kinds":5,"./prettyprinter":7,"./typechecker":9,"./types":10}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -1108,7 +1111,7 @@ const context_1 = require("./context");
 const util_1 = require("./util");
 const typechecker_1 = require("./typechecker");
 const RARROW = ' -> ';
-const FORALL = '\u2200';
+exports.FORALL = '\u2200';
 // Kinds
 function flattenKFun(f) {
     const r = [];
@@ -1193,7 +1196,7 @@ function ppType(t) {
     if (t instanceof types_1.TForall) {
         const f = flattenTForall(t);
         const args = f.args.map(([x, k]) => k.equals(typechecker_1.ktype) ? x : `(${x} : ${ppKind(k)})`);
-        return `${FORALL}${args.join(' ')}. ${ppType(f.ty)}`;
+        return `${exports.FORALL}${args.join(' ')}. ${ppType(f.ty)}`;
     }
     if (t instanceof types_1.TExtend) {
         const f = flattenTExtend(t);
