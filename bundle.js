@@ -1,4 +1,4 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -14,7 +14,11 @@ function compile(expr) {
     if (expr instanceof exprs_1.ELit)
         return typeof expr.val === 'string' ? JSON.stringify(expr.val) : `${expr.val}`;
     if (expr instanceof exprs_1.EEmpty)
-        return `({})`;
+        return `_recEmpty`;
+    if (expr instanceof exprs_1.ESelect)
+        return `_recSelect(${JSON.stringify(expr.label)})`;
+    if (expr instanceof exprs_1.EExtend)
+        return `_recExtend(${JSON.stringify(expr.label)})`;
     return util_1.impossible();
 }
 exports.compile = compile;
@@ -792,9 +796,9 @@ function expr(x) {
     if (x.tag === 'token') {
         if (x.val === 'empty')
             return exprs_1.eempty;
-        if (x.val[0] === 'ext')
+        if (x.val.startsWith('ext'))
             return exprs_1.eextend(x.val.slice(3));
-        if (x.val[0] === 'sel')
+        if (x.val.startsWith('sel'))
             return exprs_1.eselect(x.val.slice(3));
         if (x.val[0] === '"')
             return exprs_1.elit(x.val.slice(1));
@@ -1091,6 +1095,14 @@ const prettyprinter_1 = require("./prettyprinter");
 const definitions_1 = require("./definitions");
 exports._context = typechecker_1.initialContext.add(context_1.cvar('show', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('t'), typechecker_1.tstr))), context_1.cvar('emptyStr', typechecker_1.tstr), context_1.cvar('appendStr', types_1.tfuns(typechecker_1.tstr, typechecker_1.tstr, typechecker_1.tstr)), context_1.cvar('zeroFloat', typechecker_1.tfloat), context_1.cvar('oneFloat', typechecker_1.tfloat), context_1.cvar('negFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('incFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('decFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('addFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('subFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('mulFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('divFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('modFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)));
 function _show(x) {
+    if (x._rec) {
+        if (x.length === 0)
+            return '{}';
+        const r = [];
+        for (let i = x.length - 1; i >= 0; i--)
+            r.push(`${x[i][0]} = ${_show(x[i][1])}`);
+        return `{ ${r.join(', ')} }`;
+    }
     if (x._adt) {
         if (x._tag === 'Z')
             return '0';

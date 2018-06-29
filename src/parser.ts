@@ -181,8 +181,8 @@ function exprs(x: Ret[]): Expr {
 function expr(x: Ret): Expr {
   if(x.tag === 'token') {
     if(x.val === 'empty') return eempty;
-    if(x.val[0] === 'ext') return eextend(x.val.slice(3));
-    if(x.val[0] === 'sel') return eselect(x.val.slice(3));
+    if(x.val.startsWith('ext')) return eextend(x.val.slice(3));
+    if(x.val.startsWith('sel')) return eselect(x.val.slice(3));
     if(x.val[0] === '"') return elit(x.val.slice(1));
     const n = +x.val;
     if(!isNaN(n)) {

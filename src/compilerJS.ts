@@ -7,6 +7,8 @@ import {
   EAbs,
   ELit,
   EEmpty,
+  ESelect,
+  EExtend,
 } from './exprs';
 import {
   Definition,
@@ -20,7 +22,9 @@ export function compile(expr: Expr): string {
   if(expr instanceof EApp) return `${compile(expr.left)}(${compile(expr.right)})`;
   if(expr instanceof EAbs) return `(${expr.name} => ${compile(expr.expr)})`;
   if(expr instanceof ELit) return typeof expr.val === 'string'? JSON.stringify(expr.val): `${expr.val}`;
-  if(expr instanceof EEmpty) return `({})`;
+  if(expr instanceof EEmpty) return `_recEmpty`;
+  if(expr instanceof ESelect) return `_recSelect(${JSON.stringify(expr.label)})`;
+  if(expr instanceof EExtend) return `_recExtend(${JSON.stringify(expr.label)})`;
   return impossible();
 }
 

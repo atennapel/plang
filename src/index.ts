@@ -1,5 +1,9 @@
 /**
  * TODO:
+ *  variants
+ *  syntax for records
+ *  syntax for variants
+ *  constrained row polymorphism
  *  type alias
  *  operators
  *  implicits
@@ -8,7 +12,6 @@
  *  repl tutorial command
  *  functor generation
  *  ADT codata check
- *  row polymorphism
  *  tfun as a type constructor
  *  repl: save/load/clear commands
  *  parser: f \x -> x

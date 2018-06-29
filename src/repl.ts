@@ -33,6 +33,13 @@ export const _context = initialContext.add(
 );
 
 function _show(x: any): string {
+  if(x._rec) {
+    if(x.length === 0) return '{}';
+    const r = [];
+    for(let i = x.length - 1; i >= 0; i--)
+      r.push(`${x[i][0]} = ${_show(x[i][1])}`);
+    return `{ ${r.join(', ')} }`;
+  }
   if(x._adt) {
     if(x._tag === 'Z') return '0';
     if(x._tag === 'S') {

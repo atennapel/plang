@@ -1,4 +1,11 @@
 function show(x) {
+  if(x._rec) {
+    if(x.length === 0) return '{}';
+    const r = [];
+    for(let i = x.length - 1; i >= 0; i--)
+      r.push(`${x[i][0]} = ${show(x[i][1])}`);
+    return `{ ${r.join(', ')} }`;
+  }
   if(x._adt) {
     if(x._tag === 'Z') return '0';
     if(x._tag === 'S') {
@@ -24,6 +31,21 @@ function show(x) {
   }
   if(typeof x === 'function') return `[Function]`;
   return `${x}`;
+}
+
+const _recEmpty = [];
+_recEmpty._rec = true;
+const _recSelect = l => r => {
+  for(let i = r.length - 1; i >= 0; i--) {
+    const c = r[i];
+    if(c[0] === l) return c[1];
+  }
+  throw new Error(`${l} not found in record`);
+};
+const _recExtend = l => v => r => {
+  const r_ = r.concat([[l, v]]);
+  r_._rec = true;
+  return r_;
 }
 
 const emptyStr = "";
