@@ -16,9 +16,6 @@ import {
   tapp,
   tforall,
   tfuns,
-  TImpl,
-  timpl,
-  timpls,
 } from './types';
 import {
   Context,
@@ -52,7 +49,6 @@ import {
   EAnno,
   evar,
   eanno,
-  EQuery,
   ELit,
   eabs,
   eapp,
@@ -194,13 +190,6 @@ function typeWF(ctx: Context, ty: Type): Kind {
     checkKindType(k2);
     return ktype;
   }
-  if(ty instanceof TImpl) {
-    const k1 = typeWF(ctx, ty.left);
-    checkKindType(k1);
-    const k2 = typeWF(ctx, ty.right);
-    checkKindType(k2);
-    return ktype;
-  }
   if(ty instanceof TForall) {
     kindWF(ctx, ty.kind);
     return typeWF(ctx.add(ctvar(ty.name, ty.kind)), ty.type);
@@ -267,10 +256,6 @@ function subtype(ctx: Context, a: Type, b: Type): Context {
     const ctx_ = subtype(ctx, b.left, a.left);
     return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
   }
-  if(a instanceof TImpl && b instanceof TImpl) {
-    const ctx_ = subtype(ctx, b.left, a.left);
-    return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
-  }
   if(a instanceof TForall) {
     const x = fresh(ctx.texs(), a.name);
     const ctx_ = subtype(ctx.add(cmarker(x), ctex(x, a.kind)), a.open(tex(x)), b);
@@ -298,10 +283,9 @@ function subtype(ctx: Context, a: Type, b: Type): Context {
 function solve(ctx: Context, name: string, ty: Type): Context {
   // console.log(`solve ${name} and ${ty} in ${ctx}`);
   if(ty.isMono()) {
-    const implicit = ctx.find(e => e instanceof CTEx && e.name === name? e.implicit: null) as boolean;
     const s = ctx.split(isCTEx(name));
     const k = typeWF(s.left, ty);
-    return s.left.add(csolved(name, k, ty, implicit)).append(s.right);
+    return s.left.add(csolved(name, k, ty)).append(s.right);
   } else return err(`polymorphic type in solve: ${name} := ${ty} in ${ctx}`);
 }
 
@@ -327,13 +311,6 @@ function instL(ctx: Context, a: string, b: Type): Context {
     const a1 = fresh(texs, a);
     const a2 = fresh(texs.concat([a1]), a);
     const ctx_ = instR(ctx.replace(isCTEx(a), new Context([ctex(a2, ktype), ctex(a1, ktype), csolved(a, ktype, tfun(tex(a1), tex(a2)))])), b.left, a1);
-    return instL(ctx_, a2, ctx_.apply(b.right));
-  }
-  if(b instanceof TImpl) {
-    const texs = ctx.texs();
-    const a1 = fresh(texs, a);
-    const a2 = fresh(texs.concat([a1]), a);
-    const ctx_ = instR(ctx.replace(isCTEx(a), new Context([ctex(a2, ktype), ctex(a1, ktype), csolved(a, ktype, timpl(tex(a1), tex(a2)))])), b.left, a1);
     return instL(ctx_, a2, ctx_.apply(b.right));
   }
   if(b instanceof TForall) {
@@ -368,13 +345,6 @@ function instR(ctx: Context, a: Type, b: string): Context {
     const ctx_ = instL(ctx.replace(isCTEx(b), new Context([ctex(b2, ktype), ctex(b1, ktype), csolved(b, ktype, tfun(tex(b1), tex(b2)))])), b1, a.left);
     return instR(ctx_, ctx_.apply(a.right), b2);
   }
-  if(a instanceof TImpl) {
-    const texs = ctx.texs();
-    const b1 = fresh(texs, b);
-    const b2 = fresh(texs.concat([b1]), b);
-    const ctx_ = instL(ctx.replace(isCTEx(b), new Context([ctex(b2, ktype), ctex(b1, ktype), csolved(b, ktype, timpl(tex(b1), tex(b2)))])), b1, a.left);
-    return instR(ctx_, ctx_.apply(a.right), b2);
-  }
   if(a instanceof TForall) {
     const x = fresh(ctx.texs(), a.name);
     const ctx_ = instR(ctx.add(cmarker(x), ctex(x, a.kind)), a.open(tex(x)), b);
@@ -386,15 +356,8 @@ function instR(ctx: Context, a: Type, b: string): Context {
 // synth/check
 function generalize(ctx: Context, marker: (e: ContextElem) => boolean, ty: Type): { ctx: Context, ty: Type } {
   const s = ctx.split(marker);
-  console.log(''+s.right);
-  if(s.right.find(e => e instanceof CTEx && e.implicit)) err(`unsolved implicit in ${s.right}`);
-  const impls = s.right.implicits();
-  console.log(impls);
-  const t = s.right.apply(timpls.apply(null, impls.map(e => e.type).concat([ty])));
-  console.log(''+t);
-  const u = orderedTExs(s.right.unsolvedNonImplicits(), t);
-  console.log(u, u.length);
-  console.log(''+s.right.apply(tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), t))));
+  const t = s.right.apply(ty);
+  const u = orderedTExs(s.right.unsolved(), t);
   return {
     ctx: s.left,
     ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), t)),
@@ -454,20 +417,12 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
     return ty_ instanceof TForall? { ctx: r.ctx, ty: ty_.open(e.type), expr: e.expr }:
       err(`type application on non-polymorphic type: ${e} with ${ty_} in ${r.ctx}`);
   }
-  if(e instanceof EQuery) {
-    const q = fresh(ctx.texs(), 'q');
-    return { ctx: ctx.add(ctex(q, ktype, true)), ty: tex(q), expr: evar(`_QUERY_${q}`) };
-  }
   return err(`cannot synth ${e} in ${ctx}`);
 }
 
 function checkTy(ctx: Context, e: Expr, ty: Type): { ctx: Context, expr: Expr } {
   // console.log(`checkTy ${e} and ${ty} in ${ctx}`);
   contextWF(ctx);
-  if(e instanceof EQuery) {
-    const q = fresh(ctx.texs(), 'q');
-    return { ctx: ctx.add(csolved(q, ktype, ty, true)), expr: evar(`_QUERY_${q}`) };
-  }
   if(ty instanceof TForall) {
     const x = fresh(ctx.tvars(), ty.name);
     const r = checkTy(ctx.add(ctvar(x, ty.kind)), e, ty.open(tvar(x)));

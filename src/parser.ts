@@ -1,4 +1,4 @@
-import { Expr, eapp, etapp, evar, EVar, eabss, etabss, eanno, eapps, equery, elit } from './exprs';
+import { Expr, eapp, etapp, evar, EVar, eabss, etabss, eanno, eapps, elit } from './exprs';
 import { Kind, kfuns, kcon } from './kinds';
 import { Type, tcon, tvar, tapps, tforalls, tfuns } from './types'
 import { ktype } from './typechecker';
@@ -41,7 +41,6 @@ function tokenize(s: string): Ret[] {
       else if(c === '$') r.push(token('$'));
       else if(c === ':') r.push(token(':'));
       else if(c === '.') r.push(token('.'));
-      else if(c === '?') r.push(token('?'));
       else if(c === '=') r.push(token('='));
       else if(c === '|') r.push(token('|'));
       else if(c === '\\') r.push(token('\\'));
@@ -191,8 +190,7 @@ function expr(x: Ret): Expr {
         t = eapp(evar('S'), t);
       }
       return t;
-    } else if(x.val === '?') return equery;
-    else return evar(x.val);
+    } else return evar(x.val);
   }
   return exprs(x.val as any);
 }

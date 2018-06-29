@@ -1,4 +1,4 @@
-import { Type, TEx, TFun, tfun, TForall, tforall, TApp, tapp, TImpl, timpl } from './types';
+import { Type, TEx, TFun, tfun, TForall, tforall, TApp, tapp } from './types';
 import { Kind } from './kinds';
 
 export abstract class ContextElem {
@@ -39,13 +39,13 @@ export const isCTVar =
   (name: string) => (e: ContextElem): e is CTVar => e instanceof CTVar && e.name === name;
 
 export class CTEx extends ContextElem {
-  constructor(public readonly name: string, public readonly kind: Kind, public readonly implicit: boolean = false) { super() }
+  constructor(public readonly name: string, public readonly kind: Kind) { super() }
   
   toString() {
-    return `^${this.name}${this.implicit? '?': ''} : ${this.kind}`;
+    return `^${this.name} : ${this.kind}`;
   }
 }
-export const ctex = (name: string, kind: Kind, implicit?: boolean) => new CTEx(name, kind, implicit);
+export const ctex = (name: string, kind: Kind) => new CTEx(name, kind);
 export const isCTEx =
   (name: string) => (e: ContextElem): e is CTEx => e instanceof CTEx && e.name === name;
 
@@ -65,15 +65,14 @@ export class CSolved extends ContextElem {
     public readonly name: string,
     public readonly kind: Kind,
     public readonly type: Type,
-    public readonly implicit: boolean = false
   ) { super() }
   
   toString() {
-    return `^${this.name}${this.implicit? '?': ''} : ${this.kind} = ${this.type}`;
+    return `^${this.name} : ${this.kind} = ${this.type}`;
   }
 }
-export const csolved = (name: string, kind: Kind, type: Type, implicit?: boolean) =>
-  new CSolved(name, kind, type, implicit);
+export const csolved = (name: string, kind: Kind, type: Type) =>
+  new CSolved(name, kind, type);
 
 export class CMarker extends ContextElem {
   constructor(public readonly name: string) { super() }
@@ -198,12 +197,6 @@ export class Context {
   unsolved(): [string, Kind][] {
     return this.elems.filter(e => e instanceof CTEx).map((e: CTEx) => [e.name, e.kind] as [string, Kind]);
   }
-  unsolvedNonImplicits(): [string, Kind][] {
-    return this.elems.filter(e => e instanceof CTEx && !e.implicit).map((e: CTEx) => [e.name, e.kind] as [string, Kind]);
-  }
-  implicits(): CSolved[] {
-    return this.elems.filter(e => e instanceof CSolved && e.implicit) as CSolved[];
-  }
 
   apply(type: Type): Type {
     if(type instanceof TEx) {
@@ -212,7 +205,6 @@ export class Context {
       return r === null? type: r instanceof CSolved? this.apply(r.type): type; 
     }
     if(type instanceof TFun) return tfun(this.apply(type.left), this.apply(type.right));
-    if(type instanceof TImpl) return timpl(this.apply(type.left), this.apply(type.right));
     if(type instanceof TApp) return tapp(this.apply(type.left), this.apply(type.right));
     if(type instanceof TForall) return tforall(type.name, type.kind, this.apply(type.type));
     return type;
@@ -220,7 +212,7 @@ export class Context {
 
   applyContextElem(e: ContextElem): ContextElem {
     if(e instanceof CVar) return cvar(e.name, this.apply(e.type));
-    if(e instanceof CSolved) return csolved(e.name, e.kind, this.apply(e.type), e.implicit);
+    if(e instanceof CSolved) return csolved(e.name, e.kind, this.apply(e.type));
     return e;
   }
 

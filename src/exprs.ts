@@ -22,19 +22,6 @@ export class ELit extends Expr {
 }
 export const elit = (val: string | number) => new ELit(val);
 
-export class EQuery extends Expr {
-  toString() {
-    return `?`;
-  }
-  subst(name: string, expr: Expr): Expr {
-    return this;
-  }
-  substType(name: string, type: Type): Expr {
-    return this;
-  }
-}
-export const equery = new EQuery();
-
 export class EVar extends Expr {
   constructor(public readonly name: string) { super() }
 

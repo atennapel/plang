@@ -5,10 +5,6 @@ import {
   EVar,
   EApp,
   EAbs,
-  EAnno,
-  ETApp,
-  ETAbs,
-  EQuery,
   ELit,
 } from './exprs';
 import {
