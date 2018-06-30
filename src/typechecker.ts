@@ -664,7 +664,7 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
       const b = fresh(ctx.texs(), e.name);
       const r = checkTy(ctx.add(cmarker(b), ctex(b, ktype), cvar(x, ty)), e.open(evar(x)), tex(b));
       const { ctx: ctx__, ty: ty__ } = generalize(r.ctx, isCMarker(b), tfun(ty, tex(b)));
-      return { ctx: ctx__, ty: ty__, expr: eabs(e.name, r.expr) };
+      return { ctx: ctx__, ty: ty__, expr: eabs(x, r.expr) };
     } else {
       const x = fresh(ctx.vars(), e.name);
       const texs = ctx.texs();
@@ -672,7 +672,7 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
       const b = fresh(texs.concat([a]), e.name);
       const r = checkTy(ctx.add(cmarker(a), ctex(a, ktype), ctex(b, ktype), cvar(x, tex(a))), e.open(evar(x)), tex(b));
       const { ctx: ctx__, ty: ty__ } = generalize(r.ctx, isCMarker(a), tfun(tex(a), tex(b)));
-      return { ctx: ctx__, ty: ty__, expr: eabs(e.name, r.expr) };
+      return { ctx: ctx__, ty: ty__, expr: eabs(x, r.expr) };
     }
   }
   if(e instanceof EApp) {
@@ -687,7 +687,7 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
   }
   if(e instanceof ETAbs) {
     kindWF(ctx, e.kind);
-    const x = fresh(ctx.vars(), e.name);
+    const x = fresh(ctx.tvars(), e.name);
     const r = synth(ctx.add(ctvar(x, e.kind)), e.expr.substType(e.name, tvar(x)));
     return { ctx: r.ctx, ty: tforall(x, e.kind, r.ctx.apply(r.ty)), expr: e.expr };
   }
@@ -712,7 +712,7 @@ function checkTy(ctx: Context, e: Expr, ty: Type): { ctx: Context, expr: Expr } 
   if(e instanceof EAbs && !e.isAnnotated() && ty instanceof TFun) {
     const x = fresh(ctx.vars(), e.name);
     const r = checkTy(ctx.add(cvar(x, ty.left)), e.open(evar(x)), ty.right);
-    return { ctx: r.ctx.split(isCVar(x)).left, expr: eabs(e.name, r.expr) };
+    return { ctx: r.ctx.split(isCVar(x)).left, expr: eabs(x, r.expr) };
   }
   const rr = synth(ctx, e);
   return { ctx: subtype(rr.ctx, rr.ctx.apply(rr.ty), rr.ctx.apply(ty)), expr: rr.expr };

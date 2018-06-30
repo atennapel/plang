@@ -2024,7 +2024,7 @@ function synth(ctx, e) {
             const b = fresh(ctx.texs(), e.name);
             const r = checkTy(ctx.add(context_1.cmarker(b), context_1.ctex(b, exports.ktype), context_1.cvar(x, ty)), e.open(exprs_1.evar(x)), types_1.tex(b));
             const { ctx: ctx__, ty: ty__ } = generalize(r.ctx, context_1.isCMarker(b), types_1.tfun(ty, types_1.tex(b)));
-            return { ctx: ctx__, ty: ty__, expr: exprs_1.eabs(e.name, r.expr) };
+            return { ctx: ctx__, ty: ty__, expr: exprs_1.eabs(x, r.expr) };
         }
         else {
             const x = fresh(ctx.vars(), e.name);
@@ -2033,7 +2033,7 @@ function synth(ctx, e) {
             const b = fresh(texs.concat([a]), e.name);
             const r = checkTy(ctx.add(context_1.cmarker(a), context_1.ctex(a, exports.ktype), context_1.ctex(b, exports.ktype), context_1.cvar(x, types_1.tex(a))), e.open(exprs_1.evar(x)), types_1.tex(b));
             const { ctx: ctx__, ty: ty__ } = generalize(r.ctx, context_1.isCMarker(a), types_1.tfun(types_1.tex(a), types_1.tex(b)));
-            return { ctx: ctx__, ty: ty__, expr: exprs_1.eabs(e.name, r.expr) };
+            return { ctx: ctx__, ty: ty__, expr: exprs_1.eabs(x, r.expr) };
         }
     }
     if (e instanceof exprs_1.EApp) {
@@ -2048,7 +2048,7 @@ function synth(ctx, e) {
     }
     if (e instanceof exprs_1.ETAbs) {
         kindWF(ctx, e.kind);
-        const x = fresh(ctx.vars(), e.name);
+        const x = fresh(ctx.tvars(), e.name);
         const r = synth(ctx.add(context_1.ctvar(x, e.kind)), e.expr.substType(e.name, types_1.tvar(x)));
         return { ctx: r.ctx, ty: types_1.tforall(x, e.kind, r.ctx.apply(r.ty)), expr: e.expr };
     }
@@ -2072,7 +2072,7 @@ function checkTy(ctx, e, ty) {
     if (e instanceof exprs_1.EAbs && !e.isAnnotated() && ty instanceof types_1.TFun) {
         const x = fresh(ctx.vars(), e.name);
         const r = checkTy(ctx.add(context_1.cvar(x, ty.left)), e.open(exprs_1.evar(x)), ty.right);
-        return { ctx: r.ctx.split(context_1.isCVar(x)).left, expr: exprs_1.eabs(e.name, r.expr) };
+        return { ctx: r.ctx.split(context_1.isCVar(x)).left, expr: exprs_1.eabs(x, r.expr) };
     }
     const rr = synth(ctx, e);
     return { ctx: subtype(rr.ctx, rr.ctx.apply(rr.ty), rr.ctx.apply(ty)), expr: rr.expr };
