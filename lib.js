@@ -68,6 +68,19 @@ const _recRestrict = l => r => {
   r_._rec = true;
   return r_.reverse();
 };
+const _recSet = l => v => r => {
+  const r_ = [];
+  let found = false;
+  for(let i = r.length - 1; i >= 0; i--) {
+    const c = r[i];
+    if(!found && c[0] === l) {
+      found = true;
+      r_.push([l, v]);
+    } else r_.push(c);
+  }
+  r_._rec = true;
+  return r_.reverse();
+};
 const _recUpdate = l => f => r => {
   const r_ = [];
   let found = false;

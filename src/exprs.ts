@@ -210,6 +210,23 @@ export class ERestrict extends Expr {
 }
 export const erestrict = (label: string) => new ERestrict(label);
 
+export class ERecSet extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `.:=${this.label}`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const erecset = (label: string) => new ERecSet(label);
+
 export class ERecUpdate extends Expr {
   constructor(
     public readonly label: string,

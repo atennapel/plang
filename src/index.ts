@@ -2,7 +2,6 @@
  * TODO:
  *  parser:
  *    syntax for algebraic effects
- *    syntax for restriction and update
  *    syntax for variants
  *    syntax for lists and arrays
  *    records as tuples

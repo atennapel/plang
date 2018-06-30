@@ -10,6 +10,7 @@ import {
   ESelect,
   EExtend,
   ERestrict,
+  ERecSet,
   ERecUpdate,
   EVarEmpty,
   EInject,
@@ -39,6 +40,7 @@ export function compile(expr: Expr): string {
   if(expr instanceof ESelect) return `_recSelect(${JSON.stringify(expr.label)})`;
   if(expr instanceof EExtend) return `_recExtend(${JSON.stringify(expr.label)})`;
   if(expr instanceof ERestrict) return `_recRestrict(${JSON.stringify(expr.label)})`;
+  if(expr instanceof ERecSet) return `_recSet(${JSON.stringify(expr.label)})`;
   if(expr instanceof ERecUpdate) return `_recUpdate(${JSON.stringify(expr.label)})`;
 
   if(expr instanceof EVarEmpty) return `_varEmpty`;

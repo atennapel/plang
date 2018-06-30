@@ -62,6 +62,7 @@ import {
   ESelect,
   EExtend,
   ERestrict,
+  ERecSet,
   ERecUpdate,
   EVarEmpty,
   EInject,
@@ -505,6 +506,18 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
     return {
       ctx,
       ty: tforalls([['t', ktype], ['r', krow]], tfuns(tapp(tsrec, textend(e.label, tvar('t'), tvar('r'))), tapp(tsrec, tvar('r')))),
+      expr: e
+    };
+  }
+  if(e instanceof ERecSet) {
+    return {
+      ctx,
+      ty: tforalls([['a', ktype], ['b', ktype], ['r', krow]],
+        tfuns(
+          tvar('b'),
+          tapp(tsrec, textend(e.label, tvar('a'), tvar('r'))),
+          tapp(tsrec, textend(e.label, tvar('b'), tvar('r')))
+        )),
       expr: e
     };
   }

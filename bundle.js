@@ -21,6 +21,8 @@ function compile(expr) {
         return `_recExtend(${JSON.stringify(expr.label)})`;
     if (expr instanceof exprs_1.ERestrict)
         return `_recRestrict(${JSON.stringify(expr.label)})`;
+    if (expr instanceof exprs_1.ERecSet)
+        return `_recSet(${JSON.stringify(expr.label)})`;
     if (expr instanceof exprs_1.ERecUpdate)
         return `_recUpdate(${JSON.stringify(expr.label)})`;
     if (expr instanceof exprs_1.EVarEmpty)
@@ -574,6 +576,23 @@ class ERestrict extends Expr {
 }
 exports.ERestrict = ERestrict;
 exports.erestrict = (label) => new ERestrict(label);
+class ERecSet extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `.:=${this.label}`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.ERecSet = ERecSet;
+exports.erecset = (label) => new ERecSet(label);
 class ERecUpdate extends Expr {
     constructor(label) {
         super();
@@ -834,6 +853,10 @@ function tokenize(s) {
                 r.push(token('->')), i++;
             else if (c === '/' && s[i + 1] === '\\')
                 r.push(token('/\\')), i++;
+            else if (c === ':' && s[i + 1] === ':' && s[i + 2] === '=')
+                r.push(token('::=')), i += 2;
+            else if (c === ':' && s[i + 1] === '=')
+                r.push(token(':=')), i++;
             else if (c === '@')
                 r.push(token('@'));
             else if (c === '$')
@@ -844,6 +867,10 @@ function tokenize(s) {
                 r.push(token('forall'));
             else if (c === '.')
                 r.push(token('.'));
+            else if (c === '-')
+                r.push(token('-'));
+            else if (c === '_')
+                r.push(token('_'));
             else if (c === '=')
                 r.push(token('='));
             else if (c === '|')
@@ -1113,26 +1140,43 @@ function expr(x) {
         const spl1 = splitOn(v, x => isToken(x, '|'));
         if (spl1.length > 2 || spl1.length === 0)
             throw new SyntaxError(`invalid use of | in record`);
-        const rest = spl1.length === 1 ? undefined : exprs(spl1[1]);
+        const isPlaceholder = spl1.length === 2 && (spl1[1].length === 0 || (spl1[1].length === 1 && isToken(spl1[1][0], '_')));
+        const rest = isPlaceholder ? exprs_1.evar('_') : spl1.length === 1 ? exprs_1.eempty : exprs(spl1[1]);
         const contents = spl1[0];
         if (contents.length === 0)
             throw new SyntaxError(`invalid record`);
         const spl2 = splitOn(contents, x => isToken(x, ','));
         if (spl2.length === 0)
             throw new SyntaxError(`invalid record`);
-        const row = spl2.map(prop => {
-            const splprop = splitOn(prop, x => isToken(x, '='));
-            if (splprop.length !== 2)
+        const ret = spl2.reduceRight((e, prop) => {
+            if (prop.length === 0)
                 throw new SyntaxError(`invalid record property`);
-            const name = splprop[0];
-            if (name.length !== 1)
-                throw new SyntaxError(`invalid record property name`);
-            const nameIn = name[0];
-            if (nameIn.tag !== 'token')
-                throw new SyntaxError(`invalid record property name`);
-            return [nameIn.val, exprs(splprop[1])];
-        });
-        return exprs_1.erecord(row, rest);
+            const head = prop[0];
+            if (head.tag !== 'token')
+                throw new SyntaxError(`invalid record property`);
+            if (head.val === '-') {
+                if (prop.length !== 2 || prop[1].tag !== 'token')
+                    throw new SyntaxError(`invalid record property`);
+                return exprs_1.eapp(exprs_1.erestrict(prop[1].val), e);
+            }
+            if (prop.length < 3)
+                throw new SyntaxError(`invalid record property`);
+            const operator = prop[1];
+            if (operator.tag !== 'token')
+                throw new SyntaxError(`invalid record property`);
+            if (operator.val === '=') {
+                return exprs_1.eapps(exprs_1.eextend(head.val), exprs(prop.slice(2)), e);
+            }
+            else if (operator.val === ':=') {
+                return exprs_1.eapps(exprs_1.erecset(head.val), exprs(prop.slice(2)), e);
+            }
+            else if (operator.val === '::=') {
+                return exprs_1.eapps(exprs_1.erecupdate(head.val), exprs(prop.slice(2)), e);
+            }
+            else
+                throw new SyntaxError(`invalid record property operator ${operator.val}`);
+        }, rest);
+        return isPlaceholder ? exprs_1.eabs('_', ret) : ret;
     }
     if (x.type !== '(')
         throw new SyntaxError(`invalid bracket ${x.type}`);
@@ -2006,6 +2050,13 @@ function synth(ctx, e) {
         return {
             ctx,
             ty: types_1.tforalls([['t', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tapp(exports.tsrec, types_1.textend(e.label, types_1.tvar('t'), types_1.tvar('r'))), types_1.tapp(exports.tsrec, types_1.tvar('r')))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.ERecSet) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tvar('b'), types_1.tapp(exports.tsrec, types_1.textend(e.label, types_1.tvar('a'), types_1.tvar('r'))), types_1.tapp(exports.tsrec, types_1.textend(e.label, types_1.tvar('b'), types_1.tvar('r'))))),
             expr: e
         };
     }

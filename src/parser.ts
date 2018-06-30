@@ -1,6 +1,7 @@
 import {
   Expr,
   eapp,
+  eabs,
   eapps,
   etapp,
   evar,
@@ -11,6 +12,7 @@ import {
   eempty,
   eselect,
   eextend,
+  erecset,
   erestrict,
   erecupdate,
   evarempty,
@@ -24,6 +26,7 @@ import {
   edo,
   ehandler,
   erecord,
+  EVar,
 } from './exprs';
 import { Kind, kfuns, kcon } from './kinds';
 import { Type, tcon, tvar, tapps, tforalls, tfuns, trow, tempty } from './types'
@@ -75,11 +78,15 @@ function tokenize(s: string): Ret[] {
       else if(c === '"') state = STR;
       else if(c === '-' && s[i+1] === '>') r.push(token('->')), i++;
       else if(c === '/' && s[i+1] === '\\') r.push(token('/\\')), i++;
+      else if(c === ':' && s[i+1] === ':' && s[i+2] === '=') r.push(token('::=')), i += 2;
+      else if(c === ':' && s[i+1] === '=') r.push(token(':=')), i++;
       else if(c === '@') r.push(token('@'));
       else if(c === '$') r.push(token('$'));
       else if(c === ':') r.push(token(':'));
       else if(c === FORALL) r.push(token('forall'));
       else if(c === '.') r.push(token('.'));
+      else if(c === '-') r.push(token('-'));
+      else if(c === '_') r.push(token('_'));
       else if(c === '=') r.push(token('='));
       else if(c === '|') r.push(token('|'));
       else if(c === ',') r.push(token(','));
@@ -276,21 +283,32 @@ function expr(x: Ret): Expr {
     if(v.length === 1) throw new SyntaxError(`invalid record`);
     const spl1 = splitOn(v, x => isToken(x, '|'));
     if(spl1.length > 2 || spl1.length === 0) throw new SyntaxError(`invalid use of | in record`);
-    const rest = spl1.length === 1? undefined: exprs(spl1[1]);
+    const isPlaceholder = spl1.length === 2 && (spl1[1].length === 0 || (spl1[1].length === 1 && isToken(spl1[1][0], '_')));
+    const rest = isPlaceholder? evar('_'): spl1.length === 1? eempty: exprs(spl1[1]);
     const contents = spl1[0];
     if(contents.length === 0) throw new SyntaxError(`invalid record`);
     const spl2 = splitOn(contents, x => isToken(x, ','));
     if(spl2.length === 0) throw new SyntaxError(`invalid record`);
-    const row: [string, Expr][] = spl2.map(prop => {
-      const splprop = splitOn(prop, x => isToken(x, '='));
-      if(splprop.length !== 2) throw new SyntaxError(`invalid record property`);
-      const name = splprop[0];
-      if(name.length !== 1) throw new SyntaxError(`invalid record property name`);
-      const nameIn = name[0];
-      if(nameIn.tag !== 'token') throw new SyntaxError(`invalid record property name`);
-      return [nameIn.val, exprs(splprop[1])] as [string, Expr];
-    });
-    return erecord(row, rest);
+    const ret = spl2.reduceRight((e, prop) => {
+      if(prop.length === 0) throw new SyntaxError(`invalid record property`);
+      const head = prop[0];
+      if(head.tag !== 'token') throw new SyntaxError(`invalid record property`);
+      if(head.val === '-') {
+        if(prop.length !== 2 || prop[1].tag !== 'token') throw new SyntaxError(`invalid record property`);
+        return eapp(erestrict(prop[1].val as string), e);
+      }
+      if(prop.length < 3) throw new SyntaxError(`invalid record property`);
+      const operator = prop[1];
+      if(operator.tag !== 'token') throw new SyntaxError(`invalid record property`);
+      if(operator.val === '=') {
+        return eapps(eextend(head.val), exprs(prop.slice(2)), e);
+      } else if(operator.val === ':=') {
+        return eapps(erecset(head.val), exprs(prop.slice(2)), e);
+      } else if(operator.val === '::=') {
+        return eapps(erecupdate(head.val), exprs(prop.slice(2)), e);
+      } else throw new SyntaxError(`invalid record property operator ${operator.val}`);
+    }, rest);
+    return isPlaceholder? eabs('_', ret): ret;
   }
   if(x.type !== '(') throw new SyntaxError(`invalid bracket ${x.type}`);
   return exprs(x.val);
