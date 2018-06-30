@@ -80,9 +80,9 @@ function _show(x: any): string {
 let _ctx = _context;
 export default function _run(i: string, cb: (output: string, err?: boolean) => void): void {
   const cmd = i.trim().toLowerCase();
-  if(cmd === ':help') {
+  if(cmd === ':help' || cmd === ':h') {
     cb('commands :help :context :def :prelude');
-  } else if(cmd === ':prelude') {
+  } else if(cmd === ':prelude' || cmd === ':p') {
     try {
       const ds = parseProgram(eval('_prelude'));
       const t = inferProgram(_ctx, ds);
@@ -94,7 +94,7 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
     } catch(err) {
       return cb(''+err, true);
     }
-  } else if(cmd === ':context') {
+  } else if(cmd === ':context' || cmd === ':c') {
     cb(_ctx.elems.map(ppContextElem).join('\n'));
   } else if(cmd.slice(0, 4) === ':def') {
     const rest = i.slice(4).trim();

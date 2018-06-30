@@ -1402,10 +1402,10 @@ function _show(x) {
 let _ctx = exports._context;
 function _run(i, cb) {
     const cmd = i.trim().toLowerCase();
-    if (cmd === ':help') {
+    if (cmd === ':help' || cmd === ':h') {
         cb('commands :help :context :def :prelude');
     }
-    else if (cmd === ':prelude') {
+    else if (cmd === ':prelude' || cmd === ':p') {
         try {
             const ds = parser_1.parseProgram(eval('_prelude'));
             const t = typechecker_1.inferProgram(_ctx, ds);
@@ -1419,7 +1419,7 @@ function _run(i, cb) {
             return cb('' + err, true);
         }
     }
-    else if (cmd === ':context') {
+    else if (cmd === ':context' || cmd === ':c') {
         cb(_ctx.elems.map(prettyprinter_1.ppContextElem).join('\n'));
     }
     else if (cmd.slice(0, 4) === ':def') {
