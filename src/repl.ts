@@ -3,7 +3,7 @@ import {
   tfuns,
   tforalls,
 } from './types';
-import { compile, compileProgram, compileConstructor, compileCase, compileCata, compilePara } from './compilerJS';
+import { compile, compileProgram, compileDefinition, compileConstructor, compileCase, compileCata, compilePara } from './compilerJS';
 import { infer, ktype, tstr, tfloat, initialContext, inferDefinition, inferProgram } from './typechecker';
 import {
   cvar,
@@ -103,18 +103,12 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
       const t = inferDefinition(_ctx, d_);
       _ctx = t.ctx;
       const d = t.def;
-      if(d instanceof DValue) {
-        const c = compile(d.val);
-        console.log(c);
-        const res = eval(`(typeof global === 'undefined'? window: global)['${d.name}'] = ${c}`);
+      const res = eval(compileDefinition(d, true));
+      if(d instanceof DValue)
         cb(`${d.name} : ${ppType(_ctx.apply(_ctx.findVar(d.name) as any))} = ${_show(res)}`);
-      } else if(d instanceof DData) {
-        d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = ${compileConstructor(n, ts.length)}`));
-        eval(`(typeof global === 'undefined'? window: global)['case${d.name}'] = ${compileCase(d.name, d.constrs)}`);
-        eval(`(typeof global === 'undefined'? window: global)['cata${d.name}'] = ${compileCata(d.name, d.constrs, d.getType())}`);
-        eval(`(typeof global === 'undefined'? window: global)['para${d.name}'] = ${compilePara(d.name, d.constrs, d.getType())}`);
+      else if(d instanceof DData)
         cb(`defined ${d.name}`);
-      } else return cb('unknown definition', true);
+      else return cb('unknown definition', true);
     } catch(err) {
       return cb(''+err, true);
     }

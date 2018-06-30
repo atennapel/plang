@@ -1,7 +1,6 @@
 /**
  * TODO:
  *  fix names (\x x -> x)
- *  un-
  *  parser: syntax for algebraic effects
  *  parser: syntax for records
  *  parser: syntax for variants

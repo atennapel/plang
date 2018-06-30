@@ -84,10 +84,13 @@ function compileDefinition(d, attachVars) {
     if (d instanceof definitions_1.DData)
         return d.constrs.map(([n, ts]) => `${varPrefix(n, attachVars)} = ${compileConstructor(n, ts.length)}`).join(';') + ';' +
             `${varPrefix(`case${d.name}`, attachVars)} = ${compileCase(d.name, d.constrs)};` +
+            (d.constrs.length === 1 && d.constrs[0][1].length === 1 ?
+                `${varPrefix(`un${d.name}`, attachVars)} = case${d.name}(x => x);` : '') +
             `${varPrefix(`cata${d.name}`, attachVars)} = ${compileCata(d.name, d.constrs, d.getType())};` +
             `${varPrefix(`para${d.name}`, attachVars)} = ${compilePara(d.name, d.constrs, d.getType())};`;
     return util_1.impossible();
 }
+exports.compileDefinition = compileDefinition;
 function compileProgram(p, withMain, lib = '', attachVars) {
     return `;${lib.trim()};${p.map(d => compileDefinition(d, attachVars)).join(';')}${withMain ? `;console.log(show(main))` : ''};`;
 }
@@ -246,7 +249,7 @@ class Context {
         return this.findEx(name) || this.find(e => e instanceof CSolved && e.name === name ? e.kind : null);
     }
     add(...es) {
-        return new Context(this.elems.concat(es));
+        return new Context(this.elems.concat(es.filter(x => x !== null)));
     }
     append(other) {
         return new Context(this.elems.concat(other.elems));
@@ -1426,19 +1429,11 @@ function _run(i, cb) {
             const t = typechecker_1.inferDefinition(_ctx, d_);
             _ctx = t.ctx;
             const d = t.def;
-            if (d instanceof definitions_1.DValue) {
-                const c = compilerJS_1.compile(d.val);
-                console.log(c);
-                const res = eval(`(typeof global === 'undefined'? window: global)['${d.name}'] = ${c}`);
+            const res = eval(compilerJS_1.compileDefinition(d, true));
+            if (d instanceof definitions_1.DValue)
                 cb(`${d.name} : ${prettyprinter_1.ppType(_ctx.apply(_ctx.findVar(d.name)))} = ${_show(res)}`);
-            }
-            else if (d instanceof definitions_1.DData) {
-                d.constrs.forEach(([n, ts]) => eval(`(typeof global === 'undefined'? window: global)['${n}'] = ${compilerJS_1.compileConstructor(n, ts.length)}`));
-                eval(`(typeof global === 'undefined'? window: global)['case${d.name}'] = ${compilerJS_1.compileCase(d.name, d.constrs)}`);
-                eval(`(typeof global === 'undefined'? window: global)['cata${d.name}'] = ${compilerJS_1.compileCata(d.name, d.constrs, d.getType())}`);
-                eval(`(typeof global === 'undefined'? window: global)['para${d.name}'] = ${compilerJS_1.compilePara(d.name, d.constrs, d.getType())}`);
+            else if (d instanceof definitions_1.DData)
                 cb(`defined ${d.name}`);
-            }
             else
                 return cb('unknown definition', true);
         }
@@ -2131,7 +2126,8 @@ function inferDefinition(ctx, d) {
             }
         }
         const r = fresh(params.map(([n, _]) => n), 'r');
-        const ctx_ = (ctx.add(context_1.ctcon(name, d.getKind())).append(new context_1.Context(constrs.map(([n, ts]) => context_1.cvar(n, types_1.tforalls(params, types_1.tfuns.apply(null, ts.concat([d.getType()]))))))).add(context_1.cvar(`case${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)]))))), context_1.cvar(`cata${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.map(t => t.equals(d.getType()) ? types_1.tvar(r) : t).concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)]))))), context_1.cvar(`para${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.map(t => t.equals(d.getType()) ? [t, types_1.tvar(r)] : [t]).reduce((a, b) => a.concat(b), []).concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)])))))));
+        const ctx_ = (ctx.add(context_1.ctcon(name, d.getKind())).append(new context_1.Context(constrs.map(([n, ts]) => context_1.cvar(n, types_1.tforalls(params, types_1.tfuns.apply(null, ts.concat([d.getType()]))))))).add(context_1.cvar(`case${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)]))))), constrs.length === 1 && constrs[0][1].length === 1 ?
+            context_1.cvar(`un${d.name}`, types_1.tforalls(params, types_1.tfuns(d.getType(), constrs[0][1][0]))) : null, context_1.cvar(`cata${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.map(t => t.equals(d.getType()) ? types_1.tvar(r) : t).concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)]))))), context_1.cvar(`para${d.name}`, types_1.tforalls(params, types_1.tforalls([[r, exports.ktype]], types_1.tfuns.apply(null, constrs.map(([n, ts]) => types_1.tfuns.apply(null, ts.map(t => t.equals(d.getType()) ? [t, types_1.tvar(r)] : [t]).reduce((a, b) => a.concat(b), []).concat([types_1.tvar(r)]))).concat([d.getType(), types_1.tvar(r)])))))));
         contextWF(ctx_);
         return { ctx: ctx_, def: d };
     }

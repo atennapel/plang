@@ -145,8 +145,8 @@ export class Context {
     return this.findEx(name) || this.find(e => e instanceof CSolved && e.name === name? e.kind: null);
   }
 
-  add(...es: ContextElem[]): Context {
-    return new Context(this.elems.concat(es));
+  add(...es: (ContextElem | null)[]): Context {
+    return new Context(this.elems.concat(es.filter(x => x !== null)));
   }
   append(other: Context): Context {
     return new Context(this.elems.concat(other.elems));

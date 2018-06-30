@@ -779,6 +779,8 @@ export function inferDefinition(ctx: Context, d: Definition): { ctx: Context, de
       ).add(
         cvar(`case${d.name}`, tforalls(params, tforalls([[r, ktype]],
           tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.concat([tvar(r)]))).concat([d.getType(), tvar(r)]))))),
+        constrs.length === 1 && constrs[0][1].length === 1?
+          cvar(`un${d.name}`, tforalls(params, tfuns(d.getType(), constrs[0][1][0]))): null,
         cvar(`cata${d.name}`, tforalls(params, tforalls([[r, ktype]],
           tfuns.apply(null, constrs.map(([n, ts]) => tfuns.apply(null, ts.map(t => t.equals(d.getType())? tvar(r): t).concat([tvar(r)]))).concat([d.getType(), tvar(r)]))))),
         cvar(`para${d.name}`, tforalls(params, tforalls([[r, ktype]],

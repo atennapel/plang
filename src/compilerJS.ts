@@ -87,12 +87,14 @@ export function compilePara(n: string, c: [string, any[]][], rtype: Type) {
         ts.map((t, i) => t.equals(rtype)? `(x${i})(para${n}${a.map(x => `(${x})`).join('')}(x${i}))`: `(x${i})`).join('')})`).join('')}`;
 }
 
-function compileDefinition(d: Definition, attachVars?: boolean): string {
+export function compileDefinition(d: Definition, attachVars?: boolean): string {
   if(d instanceof DValue)
     return `${varPrefix(d.name, attachVars)} = ${compile(d.val)}`;
   if(d instanceof DData)
     return d.constrs.map(([n, ts]) => `${varPrefix(n, attachVars)} = ${compileConstructor(n, ts.length)}`).join(';') + ';' +
       `${varPrefix(`case${d.name}`, attachVars)} = ${compileCase(d.name, d.constrs)};` +
+      (d.constrs.length === 1 && d.constrs[0][1].length === 1?
+        `${varPrefix(`un${d.name}`, attachVars)} = case${d.name}(x => x);`: '') +
       `${varPrefix(`cata${d.name}`, attachVars)} = ${compileCata(d.name, d.constrs, d.getType())};` +
       `${varPrefix(`para${d.name}`, attachVars)} = ${compilePara(d.name, d.constrs, d.getType())};`;
   return impossible();
