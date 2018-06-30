@@ -40,6 +40,10 @@ function _show(x: any): string {
       r.push(`${x[i][0]} = ${_show(x[i][1])}`);
     return `{ ${r.join(', ')} }`;
   }
+  if(x._eff) {
+    if(x.tag === 'ret') return `!(${_show(x.val)})`;
+    if(x.tag === 'cont') return `!(${x.op} ${_show(x.val)})`;
+  }
   if(x._var) {
     let l = '';
     for(let i = 0; i < x.level; i++) l += '^';

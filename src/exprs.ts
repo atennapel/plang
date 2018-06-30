@@ -304,3 +304,76 @@ export class EVarUpdate extends Expr {
   }
 }
 export const evarupdate = (label: string) => new EVarUpdate(label);
+
+export class EReturn extends Expr {
+  toString() {
+    return `return`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const ereturn = new EReturn();
+
+export class EPure extends Expr {
+  toString() {
+    return `pure`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const epure = new EPure();
+
+export class EOp extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `(perform ${this.label})`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const eop = (label: string) => new EOp(label);
+
+export class EDo extends Expr {
+  toString() {
+    return `do`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const edo = new EDo();
+
+export class EHandler extends Expr {
+  constructor(
+    public readonly map: [string, Expr][],
+  ) { super() }
+
+  toString() {
+    return `(handler { ${this.map.map(([op, h]) => `${op} -> ${h}`).join(', ')} })`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return new EHandler(this.map.map(([op, e]) => [op, e.subst(name, expr)] as [string, Expr]));
+  }
+  substType(name: string, type: Type): Expr {
+    return new EHandler(this.map.map(([op, e]) => [op, e.substType(name, type)] as [string, Expr]));
+  }
+}
+export const ehandler = (map: [string, Expr][]) => new EHandler(map);

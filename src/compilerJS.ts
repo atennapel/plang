@@ -16,6 +16,11 @@ import {
   EEmbed,
   ECase,
   EVarUpdate,
+  EReturn,
+  EPure,
+  EOp,
+  EDo,
+  EHandler,
 } from './exprs';
 import {
   Definition,
@@ -41,6 +46,12 @@ export function compile(expr: Expr): string {
   if(expr instanceof EEmbed) return `_varEmbed(${JSON.stringify(expr.label)})`;
   if(expr instanceof ECase) return `_varCase(${JSON.stringify(expr.label)})`;
   if(expr instanceof EVarUpdate) return `_varUpdate(${JSON.stringify(expr.label)})`;
+
+  if(expr instanceof EReturn) return `_return`;
+  if(expr instanceof EPure) return `_pure`;
+  if(expr instanceof EOp) return `_op(${JSON.stringify(expr.label)})`;
+  if(expr instanceof EDo) return `_do`;
+  if(expr instanceof EHandler) return `_handler({${expr.map.map(([op, e]) => `${op}:${compile(e)}`).join(',')}})`;
 
   return impossible();
 }

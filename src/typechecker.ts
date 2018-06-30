@@ -21,6 +21,7 @@ import {
   TExtend,
   textend,
   trow,
+  tapps,
 } from './types';
 import {
   Context,
@@ -67,6 +68,12 @@ import {
   EEmbed,
   ECase,
   EVarUpdate,
+  EReturn,
+  EPure,
+  EOp,
+  EDo,
+  EHandler,
+  ehandler,
 } from './exprs';
 import {
   Kind,
@@ -164,6 +171,7 @@ export const tstr = tcon('Str');
 export const tfloat = tcon('Float');
 export const tsrec = tcon('SRec');
 export const tsvar = tcon('SVar');
+export const tseff = tcon('SEff');
 export const initialContext = new Context([
   ckcon('Type'),
   ckcon('Row'),
@@ -171,6 +179,7 @@ export const initialContext = new Context([
   ctcon('Float', ktype),
   ctcon('SRec', kfuns(krow, ktype)),
   ctcon('SVar', kfuns(krow, ktype)),
+  ctcon('SEff', kfuns(krow, ktype, ktype)),
 ]);
 
 // wf
@@ -538,6 +547,95 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
           tapp(tsvar, textend(e.label, tvar('b'), tvar('r')))
         )),
       expr: e
+    };
+  }
+  if(e instanceof EReturn) {
+    return {
+      ctx,
+      ty: tforalls([['t', ktype], ['r', krow]],
+        tfuns(
+          tvar('t'),
+          tapps(tseff, tvar('r'), tvar('t'))
+        )),
+      expr: e
+    };
+  }
+  if(e instanceof EPure) {
+    return {
+      ctx,
+      ty: tforalls([['t', ktype]],
+        tfuns(
+          tapps(tseff, tempty, tvar('t')),
+          tvar('t')
+        )),
+      expr: e
+    };
+  }
+  if(e instanceof EOp) {
+    return {
+      ctx,
+      ty: tforalls([['a', ktype], ['b', ktype], ['r', krow]], tfuns(tvar('a'), tapps(tseff, textend(e.label, tfuns(tvar('a'), tvar('b')), tvar('r')), tvar('b')))),
+      expr: e
+    };
+  }
+  if(e instanceof EDo) {
+    return {
+      ctx,
+      ty: tforalls([['a', ktype], ['b', ktype], ['r', krow]],
+        tfuns(
+          tapps(tseff, tvar('r'), tvar('a')),
+          tfuns(tvar('a'), tapps(tseff, tvar('r'), tvar('b'))),
+          tapps(tseff, tvar('r'), tvar('b')),
+        )),
+      expr: e
+    };
+  }
+  if(e instanceof EHandler) {
+    const map = e.map;
+    const l = map.length;
+    const texs = ctx.texs();
+    const tm = fresh(texs, 'm');
+    const tc = fresh(texs, 'c');
+    const td = fresh(texs, 'd');
+    const tr = fresh(texs, 'r');
+    let ctx_ = ctx.add(cmarker(tm), ctex(tc, ktype), ctex(td, ktype), ctex(tr, krow));
+    const row: [string, Type][] = [];
+    const rexpr: [string, Expr][] = [];
+    for(let i = 0; i < l; i++) {
+      const c = map[i];
+      const op = c[0];
+      const ex = c[1];
+      if(op === 'return') {
+        // c -> SEff r d
+        const rr = checkTy(
+          ctx_,
+          ex,
+          tfuns(tex(tc), tapps(tseff, tex(tr), tex(td)))
+        );
+        rexpr.push([op, rr.expr]);
+        ctx_ = rr.ctx;
+      } else {
+        const ta = fresh(texs, 'a');
+        const tb = fresh(texs, 'b');
+        // a -> (b -> SEff r d) -> SEff r d
+        const rr = checkTy(
+          ctx_.add(ctex(ta, ktype), ctex(tb, ktype)),
+          ex,
+          tfuns(tex(ta), tfuns(tex(tb), tapps(tseff, tex(tr), tex(td))), tapps(tseff, tex(tr), tex(td)))
+        );
+        row.push([op, tfuns(tex(ta), tex(tb))]);
+        rexpr.push([op, rr.expr]);
+        ctx_ = rr.ctx;
+      }
+    }
+    const rg = generalize(ctx_, isCMarker(tm), tfuns(
+      tapps(tseff, trow(row, tex(tr)), tex(tc)),
+      tapps(tseff, tex(tr), tex(td)),
+    ));
+    return {
+      ctx: rg.ctx,
+      ty: rg.ty,
+      expr: ehandler(rexpr),
     };
   }
   if(e instanceof ELit) {

@@ -33,6 +33,16 @@ function compile(expr) {
         return `_varCase(${JSON.stringify(expr.label)})`;
     if (expr instanceof exprs_1.EVarUpdate)
         return `_varUpdate(${JSON.stringify(expr.label)})`;
+    if (expr instanceof exprs_1.EReturn)
+        return `_return`;
+    if (expr instanceof exprs_1.EPure)
+        return `_pure`;
+    if (expr instanceof exprs_1.EOp)
+        return `_op(${JSON.stringify(expr.label)})`;
+    if (expr instanceof exprs_1.EDo)
+        return `_do`;
+    if (expr instanceof exprs_1.EHandler)
+        return `_handler({${expr.map.map(([op, e]) => `${op}:${compile(e)}`).join(',')}})`;
     return util_1.impossible();
 }
 exports.compile = compile;
@@ -658,6 +668,79 @@ class EVarUpdate extends Expr {
 }
 exports.EVarUpdate = EVarUpdate;
 exports.evarupdate = (label) => new EVarUpdate(label);
+class EReturn extends Expr {
+    toString() {
+        return `return`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EReturn = EReturn;
+exports.ereturn = new EReturn();
+class EPure extends Expr {
+    toString() {
+        return `pure`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EPure = EPure;
+exports.epure = new EPure();
+class EOp extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `(perform ${this.label})`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EOp = EOp;
+exports.eop = (label) => new EOp(label);
+class EDo extends Expr {
+    toString() {
+        return `do`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EDo = EDo;
+exports.edo = new EDo();
+class EHandler extends Expr {
+    constructor(map) {
+        super();
+        this.map = map;
+    }
+    toString() {
+        return `(handler { ${this.map.map(([op, h]) => `${op} -> ${h}`).join(', ')} })`;
+    }
+    subst(name, expr) {
+        return new EHandler(this.map.map(([op, e]) => [op, e.subst(name, expr)]));
+    }
+    substType(name, type) {
+        return new EHandler(this.map.map(([op, e]) => [op, e.substType(name, type)]));
+    }
+}
+exports.EHandler = EHandler;
+exports.ehandler = (map) => new EHandler(map);
 
 },{}],5:[function(require,module,exports){
 "use strict";
@@ -831,6 +914,17 @@ function exprs(x) {
         const r = types(s[1]);
         return exprs_1.eanno(l, r);
     }
+    if (isToken(x[0], 'handler')) {
+        const args = [];
+        for (let i = 1; i < x.length; i += 2) {
+            const op = x[i];
+            if (op.tag !== 'token')
+                throw new SyntaxError(`invalid op in handler`);
+            const e = expr(x[i + 1]);
+            args.push([op.val, e]);
+        }
+        return exprs_1.ehandler(args);
+    }
     if (isToken(x[0], '\\')) {
         const args = [];
         let found = -1;
@@ -842,6 +936,8 @@ function exprs(x) {
             }
             else if (c.tag === 'token')
                 args.push(c.val);
+            else if (c.tag === 'paren' && c.val.length === 0)
+                args.push(['_', type(c)]);
             else if (c.tag === 'paren' && containsToken(c.val, ':')) {
                 const s = splitOn(c.val, x => isToken(x, ':'));
                 if (s.length !== 2)
@@ -930,6 +1026,12 @@ function expr(x) {
             return exprs_1.eempty;
         if (x.val === 'varempty')
             return exprs_1.evarempty;
+        if (x.val === 'return')
+            return exprs_1.ereturn;
+        if (x.val === 'pure')
+            return exprs_1.epure;
+        if (x.val === 'do')
+            return exprs_1.edo;
         if (x.val.startsWith('ext') && x.val.length > 3)
             return exprs_1.eextend(x.val.slice(3));
         if (x.val.startsWith('sel') && x.val.length > 3)
@@ -946,6 +1048,8 @@ function expr(x) {
             return exprs_1.ecase(x.val.slice(2));
         if (x.val.startsWith('vupd') && x.val.length > 4)
             return exprs_1.evarupdate(x.val.slice(4));
+        if (x.val.startsWith('op') && x.val.length > 2)
+            return exprs_1.eop(x.val.slice(2));
         if (x.val[0] === '"')
             return exprs_1.elit(x.val.slice(1));
         const n = +x.val;
@@ -1249,6 +1353,12 @@ function _show(x) {
             r.push(`${x[i][0]} = ${_show(x[i][1])}`);
         return `{ ${r.join(', ')} }`;
     }
+    if (x._eff) {
+        if (x.tag === 'ret')
+            return `!(${_show(x.val)})`;
+        if (x.tag === 'cont')
+            return `!(${x.op} ${_show(x.val)})`;
+    }
     if (x._var) {
         let l = '';
         for (let i = 0; i < x.level; i++)
@@ -1444,6 +1554,7 @@ exports.tstr = types_1.tcon('Str');
 exports.tfloat = types_1.tcon('Float');
 exports.tsrec = types_1.tcon('SRec');
 exports.tsvar = types_1.tcon('SVar');
+exports.tseff = types_1.tcon('SEff');
 exports.initialContext = new context_1.Context([
     context_1.ckcon('Type'),
     context_1.ckcon('Row'),
@@ -1451,6 +1562,7 @@ exports.initialContext = new context_1.Context([
     context_1.ctcon('Float', exports.ktype),
     context_1.ctcon('SRec', kinds_1.kfuns(exports.krow, exports.ktype)),
     context_1.ctcon('SVar', kinds_1.kfuns(exports.krow, exports.ktype)),
+    context_1.ctcon('SEff', kinds_1.kfuns(exports.krow, exports.ktype, exports.ktype)),
 ]);
 // wf
 function checkKindType(kind) {
@@ -1820,6 +1932,72 @@ function synth(ctx, e) {
             ctx,
             ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('b')), types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('a'), types_1.tvar('r'))), types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('b'), types_1.tvar('r'))))),
             expr: e
+        };
+    }
+    if (e instanceof exprs_1.EReturn) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['t', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tvar('t'), types_1.tapps(exports.tseff, types_1.tvar('r'), types_1.tvar('t')))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.EPure) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['t', exports.ktype]], types_1.tfuns(types_1.tapps(exports.tseff, types_1.tempty, types_1.tvar('t')), types_1.tvar('t'))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.EOp) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(exports.tseff, types_1.textend(e.label, types_1.tfuns(types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('r')), types_1.tvar('b')))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.EDo) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tapps(exports.tseff, types_1.tvar('r'), types_1.tvar('a')), types_1.tfuns(types_1.tvar('a'), types_1.tapps(exports.tseff, types_1.tvar('r'), types_1.tvar('b'))), types_1.tapps(exports.tseff, types_1.tvar('r'), types_1.tvar('b')))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.EHandler) {
+        const map = e.map;
+        const l = map.length;
+        const texs = ctx.texs();
+        const tm = fresh(texs, 'm');
+        const tc = fresh(texs, 'c');
+        const td = fresh(texs, 'd');
+        const tr = fresh(texs, 'r');
+        let ctx_ = ctx.add(context_1.cmarker(tm), context_1.ctex(tc, exports.ktype), context_1.ctex(td, exports.ktype), context_1.ctex(tr, exports.krow));
+        const row = [];
+        const rexpr = [];
+        for (let i = 0; i < l; i++) {
+            const c = map[i];
+            const op = c[0];
+            const ex = c[1];
+            if (op === 'return') {
+                // c -> SEff r d
+                const rr = checkTy(ctx_, ex, types_1.tfuns(types_1.tex(tc), types_1.tapps(exports.tseff, types_1.tex(tr), types_1.tex(td))));
+                rexpr.push([op, rr.expr]);
+                ctx_ = rr.ctx;
+            }
+            else {
+                const ta = fresh(texs, 'a');
+                const tb = fresh(texs, 'b');
+                // a -> (b -> SEff r d) -> SEff r d
+                const rr = checkTy(ctx_.add(context_1.ctex(ta, exports.ktype), context_1.ctex(tb, exports.ktype)), ex, types_1.tfuns(types_1.tex(ta), types_1.tfuns(types_1.tex(tb), types_1.tapps(exports.tseff, types_1.tex(tr), types_1.tex(td))), types_1.tapps(exports.tseff, types_1.tex(tr), types_1.tex(td))));
+                row.push([op, types_1.tfuns(types_1.tex(ta), types_1.tex(tb))]);
+                rexpr.push([op, rr.expr]);
+                ctx_ = rr.ctx;
+            }
+        }
+        const rg = generalize(ctx_, context_1.isCMarker(tm), types_1.tfuns(types_1.tapps(exports.tseff, types_1.trow(row, types_1.tex(tr)), types_1.tex(tc)), types_1.tapps(exports.tseff, types_1.tex(tr), types_1.tex(td))));
+        return {
+            ctx: rg.ctx,
+            ty: rg.ty,
+            expr: exprs_1.ehandler(rexpr),
         };
     }
     if (e instanceof exprs_1.ELit) {

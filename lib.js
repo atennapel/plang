@@ -6,6 +6,10 @@ function show(x) {
       r.push(`${x[i][0]} = ${show(x[i][1])}`);
     return `{ ${r.join(', ')} }`;
   }
+  if(x._eff) {
+    if(x.tag === 'ret') return `!(${show(x.val)})`;
+    if(x.tag === 'cont') return `!(${x.op} ${show(x.val)})`;
+  }
   if(x._var) {
     let l = '';
     for(let i = 0; i < x.level; i++) l += '^';
@@ -83,6 +87,25 @@ const _varInject = label => val => ({ _var: true, label, val, level: 0 });
 const _varEmbed = l => v => v.label === l? ({ _var: true, label: l, val: v.val, level: v.level + 1 }): v;
 const _varCase = l => r => fa => fb => r.label === l? (r.level === 0? fa(r.val): fb({ _var: true, label: l, val: r.val, level: r.level - 1 })): fb(r);
 const _varUpdate = l => f => v => v.label === l && v.level === 0? { _var: true, label: l, level: 0, val: f(v.val) }: v;
+
+const _return = val => ({ _eff: true, tag: 'ret', val });
+const _cont = (op, val, cont) => ({ _eff: true, tag: 'cont', op, val, cont });
+const _pure = x => x.val;
+const _op = op => val => _cont(op, val, _return);
+
+const _do = c => f =>
+  c.tag === 'ret'? f(c.val):
+  c.tag === 'cont'? _cont(c.op, c.val, v => _do(c.cont(v))(f)):
+  null;
+
+const _handler = m => c => 
+  c.tag === 'ret'? (m['return']? m['return'](c.val): c):
+  c.tag === 'cont'? (m[c.op]? m[c.op](c.val)(v => _handler(m)(c.cont(v))): _cont(c.op, c.val, v => _handler(m)(c.cont(v)))):
+  null;
+const _phandler = m => iv => c => 
+  c.tag === RET? (m['return']? m['return'](iv)(c.val): c):
+  c.tag === CONT? (m[c.op]? m[c.op](iv)(c.val)((iv, v) => _phandler(m)(iv)(c.cont(v))): _cont(c.op, c.val, v => _phandler(m)(iv)(c.cont(v)))):
+  null;
 
 const emptyStr = "";
 const appendStr = x => y => x + y;

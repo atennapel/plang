@@ -1,6 +1,8 @@
 /**
  * TODO:
+ *  fix names (\x x -> x)
  *  un-
+ *  parser: syntax for algebraic effects
  *  parser: syntax for records
  *  parser: syntax for variants
  *  constrained row polymorphism
@@ -25,5 +27,5 @@
  * PROBLEMS:
  *  vupdX S (injY 0)
  *  \f r -> csX r (\n -> injX $ f n) (\r -> r)
- *  (\f r -> csX r (\n -> injX $ f n) (\r -> r)) S (injY 10)
+ *  handler Read (\() k -> opSet ())
  */

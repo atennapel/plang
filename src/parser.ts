@@ -17,6 +17,11 @@ import {
   eembed,
   ecase,
   evarupdate,
+  ereturn,
+  epure,
+  eop,
+  edo,
+  ehandler,
 } from './exprs';
 import { Kind, kfuns, kcon } from './kinds';
 import { Type, tcon, tvar, tapps, tforalls, tfuns } from './types'
@@ -126,6 +131,16 @@ function exprs(x: Ret[]): Expr {
     const r = types(s[1]);
     return eanno(l, r);
   }
+  if(isToken(x[0], 'handler')) {
+    const args: any[] = [];
+    for(let i = 1; i < x.length; i += 2) {
+      const op = x[i];
+      if(op.tag !== 'token') throw new SyntaxError(`invalid op in handler`);
+      const e = expr(x[i+1]);
+      args.push([op.val, e]);
+    }
+    return ehandler(args);
+  }
   if(isToken(x[0], '\\')) {
     const args: any[] = [];
     let found = -1;
@@ -135,6 +150,7 @@ function exprs(x: Ret[]): Expr {
         found = i;
         break;
       } else if(c.tag === 'token') args.push(c.val);
+      else if(c.tag === 'paren' && c.val.length === 0) args.push(['_', type(c)]);
       else if(c.tag === 'paren' && containsToken(c.val, ':')) {
         const s = splitOn(c.val, x => isToken(x, ':'));
         if(s.length !== 2) throw new SyntaxError('nested anno arg :');
@@ -203,6 +219,9 @@ function expr(x: Ret): Expr {
   if(x.tag === 'token') {
     if(x.val === 'empty') return eempty;
     if(x.val === 'varempty') return evarempty;
+    if(x.val === 'return') return ereturn;
+    if(x.val === 'pure') return epure;
+    if(x.val === 'do') return edo;
     if(x.val.startsWith('ext') && x.val.length > 3) return eextend(x.val.slice(3));
     if(x.val.startsWith('sel') && x.val.length > 3) return eselect(x.val.slice(3));
     if(x.val.startsWith('res') && x.val.length > 3) return erestrict(x.val.slice(3));
@@ -211,6 +230,7 @@ function expr(x: Ret): Expr {
     if(x.val.startsWith('emb') && x.val.length > 3) return eembed(x.val.slice(3));
     if(x.val.startsWith('cs') && x.val.length > 2) return ecase(x.val.slice(2));
     if(x.val.startsWith('vupd') && x.val.length > 4) return evarupdate(x.val.slice(4));
+    if(x.val.startsWith('op') && x.val.length > 2) return eop(x.val.slice(2));
     if(x.val[0] === '"') return elit(x.val.slice(1));
     const n = +x.val;
     if(!isNaN(n)) {
