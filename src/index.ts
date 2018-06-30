@@ -23,8 +23,10 @@
  *  arrays list syntax
  *  typed holes ?x or _x
  *  ignored arguments _
- * PROBLEMS:
+ * 
+ * MAYBE PROBLEMS:
  *  vupdX S (injY 0)
  *  \f r -> csX r (\n -> injX $ f n) (\r -> r)
  *  handler Read (\() k -> opSet ())
+ *  \v -> csX v (\(v:Nat) -> injX v) id
  */

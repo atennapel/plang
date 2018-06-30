@@ -285,11 +285,18 @@ function contextWF(ctx: Context): null {
 }
 
 // subtype
-function rewriteRow(ctx: Context, l: string, ty: Type): { ctx: Context, ty: Type, rest: Type } {
+function rowTail(t: Type): string | null {
+  if(t instanceof TEx) return t.name;
+  if(t instanceof TEmpty) return null;
+  if(t instanceof TExtend) return rowTail(t.rest);
+  return err(`not a row type in rowTail: ${t}`);
+}
+
+function rewriteRow(ctx: Context, l: string, ty: Type): { ctx: Context, ty: Type, rest: Type, ex: string | null } {
   if(ty instanceof TEmpty) err(`${l} cannot be inserted in ${ctx}`);
   if(ty instanceof TExtend) {
     const rest = ty.rest;
-    if(l === ty.label) return { ctx, ty: ty.type, rest };
+    if(l === ty.label) return { ctx, ty: ty.type, rest, ex: null };
     if(rest instanceof TEx) {
       const texs = ctx.texs();
       const tt = fresh(texs, 't');
@@ -302,10 +309,11 @@ function rewriteRow(ctx: Context, l: string, ty: Type): { ctx: Context, ty: Type
         ])),
         ty: tex(tt),
         rest: textend(ty.label, ty.type, tex(tr)),
+        ex: rest.name
       };
     }
     const r = rewriteRow(ctx, l, rest);
-    return { ctx: r.ctx, ty: r.ty, rest: textend(ty.label, ty.type, r.rest) };
+    return { ctx: r.ctx, ty: r.ty, rest: textend(ty.label, ty.type, r.rest), ex: r.ex };
   }
   return impossible();
 }
@@ -351,6 +359,8 @@ function subtype(ctx: Context, a: Type, b: Type): Context {
   }
   if(a instanceof TExtend && b instanceof TExtend) {
     const r = rewriteRow(ctx, a.label, b);
+    const tail = rowTail(a.rest);
+    if(tail && r.ex && tail === r.ex) return err(`recursive row type: ${a} <: ${b}`);
     const ctx_ = subtype(r.ctx, r.ctx.apply(a.type), r.ctx.apply(r.ty));
     return subtype(ctx_, ctx_.apply(a.rest), ctx_.apply(r.rest));
   }
