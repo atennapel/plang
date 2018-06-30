@@ -127,6 +127,7 @@ cnst = \\x y -> x;
 flip = \\f x y -> f y x;
 comp = \\f g x -> f (g x);
 comp2 = \\f g x y -> f (g x y);
+app = \\f x -> f x;
 
 data Void;
 data Unit = Unit;

@@ -2,9 +2,10 @@
  * TODO:
  *  parser:
  *    syntax for algebraic effects
- *    syntax for record selection, restriction and update
+ *    syntax for restriction and update
  *    syntax for variants
  *    syntax for lists and arrays
+ *    records as tuples
  *    operators
  *  typechecker:
  *    higher ranked types in records

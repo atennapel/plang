@@ -1,6 +1,7 @@
 import {
   Expr,
   eapp,
+  eapps,
   etapp,
   evar,
   eabss,
@@ -134,7 +135,11 @@ function splitOn(x: Ret[], f: (x:Ret) => boolean) {
 }
 
 function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null): Expr {
-  if(x.length === 0) return stack || evar('Unit');
+  // console.log(`exprs ${showRets(x)} ${stack} ${mode}`);
+  if(x.length === 0) {
+    if(mode) throw new SyntaxError(`invalid use of ${mode}`);
+    return stack || evar('Unit');
+  }
   if(containsToken(x, ':')) {
     const xs = splitOn(x, t => isToken(t, ':'));
     if(stack || mode || xs.length !== 2) throw new SyntaxError('invalid use of :');
@@ -146,9 +151,15 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     if(mode || !stack) throw new SyntaxError('invalid use of @');
     return exprs(x.slice(1), stack, '@');
   }
+  if(isToken(head, '.')) {
+    if(mode) throw new SyntaxError('invalid use of $');
+    return exprs(x.slice(1), stack, '.');
+  }
   if(isToken(head, '$')) {
-    if(mode || !stack) throw new SyntaxError('invalid use of $');
-    return eapp(stack, exprs(x.slice(1)));
+    if(mode) throw new SyntaxError('invalid use of $');
+    if(!stack) return x.length < 2? evar('app'): eapps(evar('flip'), evar('app'), exprs(x.slice(1)));
+    if(x.length < 2) throw new SyntaxError('invalid use of $');
+    return eapp(stack as Expr, exprs(x.slice(1)));
   }
   if(isToken(head, '\\')) {
     if(mode) throw new SyntaxError('\\ after @');
@@ -217,6 +228,11 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     const handler = ehandler(args);
     return stack? eapp(stack, handler): handler;
   }
+  if(mode === '.') {
+    if(head.tag === 'paren') throw new SyntaxError(`invalid rhs to .`);
+    const sel = stack? eapp(eselect(head.val), stack): eselect(head.val);
+    return exprs(x.slice(1), sel, null);
+  }
   if(stack) {
     if(mode === '@') {
       return exprs(x.slice(1), etapp(stack, type(head)), null);
@@ -230,11 +246,11 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
 
 function expr(x: Ret): Expr {
   if(x.tag === 'token') {
+    if(x.val === '$') return evar('app');
     if(x.val === 'varempty') return evarempty;
     if(x.val === 'return') return ereturn;
     if(x.val === 'pure') return epure;
     if(x.val === 'do') return edo;
-    if(x.val.startsWith('sel') && x.val.length > 3) return eselect(x.val.slice(3));
     if(x.val.startsWith('res') && x.val.length > 3) return erestrict(x.val.slice(3));
     if(x.val.startsWith('rupd') && x.val.length > 4) return erecupdate(x.val.slice(4));
     if(x.val.startsWith('inj') && x.val.length > 3) return einject(x.val.slice(3));

@@ -921,8 +921,12 @@ function splitOn(x, f) {
     return r;
 }
 function exprs(x, stack = null, mode = null) {
-    if (x.length === 0)
+    // console.log(`exprs ${showRets(x)} ${stack} ${mode}`);
+    if (x.length === 0) {
+        if (mode)
+            throw new SyntaxError(`invalid use of ${mode}`);
         return stack || exprs_1.evar('Unit');
+    }
     if (containsToken(x, ':')) {
         const xs = splitOn(x, t => isToken(t, ':'));
         if (stack || mode || xs.length !== 2)
@@ -937,8 +941,17 @@ function exprs(x, stack = null, mode = null) {
             throw new SyntaxError('invalid use of @');
         return exprs(x.slice(1), stack, '@');
     }
+    if (isToken(head, '.')) {
+        if (mode)
+            throw new SyntaxError('invalid use of $');
+        return exprs(x.slice(1), stack, '.');
+    }
     if (isToken(head, '$')) {
-        if (mode || !stack)
+        if (mode)
+            throw new SyntaxError('invalid use of $');
+        if (!stack)
+            return x.length < 2 ? exprs_1.evar('app') : exprs_1.eapps(exprs_1.evar('flip'), exprs_1.evar('app'), exprs(x.slice(1)));
+        if (x.length < 2)
             throw new SyntaxError('invalid use of $');
         return exprs_1.eapp(stack, exprs(x.slice(1)));
     }
@@ -1030,6 +1043,12 @@ function exprs(x, stack = null, mode = null) {
         const handler = exprs_1.ehandler(args);
         return stack ? exprs_1.eapp(stack, handler) : handler;
     }
+    if (mode === '.') {
+        if (head.tag === 'paren')
+            throw new SyntaxError(`invalid rhs to .`);
+        const sel = stack ? exprs_1.eapp(exprs_1.eselect(head.val), stack) : exprs_1.eselect(head.val);
+        return exprs(x.slice(1), sel, null);
+    }
     if (stack) {
         if (mode === '@') {
             return exprs(x.slice(1), exprs_1.etapp(stack, type(head)), null);
@@ -1044,6 +1063,8 @@ function exprs(x, stack = null, mode = null) {
 }
 function expr(x) {
     if (x.tag === 'token') {
+        if (x.val === '$')
+            return exprs_1.evar('app');
         if (x.val === 'varempty')
             return exprs_1.evarempty;
         if (x.val === 'return')
@@ -1052,8 +1073,6 @@ function expr(x) {
             return exprs_1.epure;
         if (x.val === 'do')
             return exprs_1.edo;
-        if (x.val.startsWith('sel') && x.val.length > 3)
-            return exprs_1.eselect(x.val.slice(3));
         if (x.val.startsWith('res') && x.val.length > 3)
             return exprs_1.erestrict(x.val.slice(3));
         if (x.val.startsWith('rupd') && x.val.length > 4)
