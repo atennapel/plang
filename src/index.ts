@@ -1,8 +1,6 @@
 /**
  * TODO:
  *  parser:
- *    check order of $ and \
- *    f \x -> x
  *    syntax for algebraic effects
  *    syntax for rows
  *    syntax for records

@@ -48,6 +48,13 @@ interface Paren {
 const token = (val: string): Token => ({ tag: 'token', val });
 const paren = (val: Ret[]): Paren => ({ tag: 'paren', val });
 
+function showRet(x: Ret): string {
+  return x.tag === 'token'? x.val: x.tag === 'paren'? `(${x.val.map(showRet).join(' ')})`: '';
+}
+function showRets(x: Ret[]): string {
+  return `[${x.map(showRet).join(' ')}]`;
+}
+
 function tokenize(s: string): Ret[] {
   const START = 0, NAME = 1, STR = 2, NUM = 3;
   let state = START;
@@ -120,29 +127,26 @@ function splitOn(x: Ret[], f: (x:Ret) => boolean) {
   return r;
 }
 
-function exprs(x: Ret[]): Expr {
-  if(x.length === 0) return evar('Unit');
-  if(x.length === 1) return expr(x[0]);
+function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null): Expr {
+  if(x.length === 0) return stack || evar('Unit');
   if(containsToken(x, ':')) {
-    const s = splitOn(x, x => isToken(x, ':'));
-    if(s.length !== 2) throw new SyntaxError('nested anno :');
-    s.forEach(x => x.length === 0? (() => {throw new SyntaxError('invalid anno :')})(): null);
-    const l = exprs(s[0]);
-    const r = types(s[1]);
-    return eanno(l, r);
+    const xs = splitOn(x, t => isToken(t, ':'));
+    if(stack || mode || xs.length !== 2) throw new SyntaxError('invalid use of :');
+    return eanno(exprs(xs[0]), types(xs[1]));
   }
-  if(isToken(x[0], 'handler')) {
-    const args: any[] = [];
-    for(let i = 1; i < x.length; i += 2) {
-      const op = x[i];
-      if(op.tag !== 'token') throw new SyntaxError(`invalid op in handler`);
-      const e = expr(x[i+1]);
-      args.push([op.val, e]);
-    }
-    return ehandler(args);
+  const head = x[0];
+  if(isToken(head, ':')) throw new SyntaxError('invalid use of :');
+  if(isToken(head, '@')) {
+    if(mode || !stack) throw new SyntaxError('invalid use of @');
+    return exprs(x.slice(1), stack, '@');
   }
-  if(isToken(x[0], '\\')) {
-    const args: any[] = [];
+  if(isToken(head, '$')) {
+    if(mode || !stack) throw new SyntaxError('invalid use of $');
+    return eapp(stack, exprs(x.slice(1)));
+  }
+  if(isToken(head, '\\')) {
+    if(mode) throw new SyntaxError('\\ after @');
+    const args: (string | [string, Type])[] = [];
     let found = -1;
     for(let i = 1; i < x.length; i++) {
       const c = x[i];
@@ -165,17 +169,18 @@ function exprs(x: Ret[]): Expr {
     if(found < 0) throw new SyntaxError(`missing -> after \\`);
     const rest = x.slice(found + 1);
     if(rest.length === 0) throw new SyntaxError(`missing body in function`);
-    return eabss(args, exprs(rest));
+    const abs = eabss(args, exprs(rest));
+    return stack? eapp(stack, abs): abs;
   }
   if(isToken(x[0], '/\\')) {
-    const args: any[] = [];
+    const args: [string, Kind][] = [];
     let found = -1;
     for(let i = 1; i < x.length; i++) {
       const c = x[i];
       if(isToken(c, '->')) {
         found = i;
         break;
-      } else if(c.tag === 'token') args.push(c.val);
+      } else if(c.tag === 'token') args.push([c.val, ktype]);
       else if(c.tag === 'paren' && containsToken(c.val, ':')) {
         const s = splitOn(c.val, x => isToken(x, ':'));
         if(s.length !== 2) throw new SyntaxError('nested anno arg :');
@@ -190,29 +195,29 @@ function exprs(x: Ret[]): Expr {
     if(found < 0) throw new SyntaxError(`missing -> after /\\`);
     const rest = x.slice(found + 1);
     if(rest.length === 0) throw new SyntaxError(`missing body in tabs`);
-    return etabss(args.map(x => typeof x === 'string'? [x, ktype] as [string, Kind]: x), exprs(rest));
+    const abs = etabss(args, exprs(rest));
+    return stack? eapp(stack, abs): abs;
   }
-  if(containsToken(x, '$')) {
-    const s = splitOn(x, x => isToken(x, '$'));
-    s.forEach(x => x.length === 0? (() => {throw new SyntaxError('invalid application with $')})(): null);
-    if(s.length < 2) throw new SyntaxError('$ is missing an argument');
-    return s.map(exprs).reduceRight((a, b) => eapp(b, a));
-  }
-  if(isToken(x[0], '@')) throw new SyntaxError('beginning @');
-  let r = expr(x[0]);
-  let next = false;
-  for(let i = 1; i < x.length; i++) {
-    const c = x[i];
-    if(isToken(c, '@')) next = true;
-    else if(next) {
-      next = false;
-      r = etapp(r, type(c));
-    } else {
-      r = eapp(r, expr(c));
+  if(isToken(x[0], 'handler')) {
+    const args: [string, Expr][] = [];
+    for(let i = 1; i < x.length; i += 2) {
+      const op = x[i];
+      if(op.tag !== 'token') throw new SyntaxError(`invalid op in handler`);
+      const e = expr(x[i+1]);
+      args.push([op.val, e]);
     }
+    const handler = ehandler(args);
+    return stack? eapp(stack, handler): handler;
   }
-  if(next) throw new SyntaxError('trailing @');
-  return r;
+  if(stack) {
+    if(mode === '@') {
+      return exprs(x.slice(1), etapp(stack, type(head)), null);
+    } else {
+      return exprs(x.slice(1), eapp(stack, expr(head)), mode);
+    }
+  } else {
+    return exprs(x.slice(1), expr(head), mode);
+  }
 }
 
 function expr(x: Ret): Expr {
