@@ -173,6 +173,9 @@ export class EExtend extends Expr {
 }
 export const eextend = (label: string) => new EExtend(label);
 
+export const erecord = (props: [string, Expr][], rest?: Expr) =>
+  props.reduceRight((r, [l, t]) => eapps(eextend(l), t, r), rest || eempty);
+
 export class ESelect extends Expr {
   constructor(
     public readonly label: string,

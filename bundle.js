@@ -539,6 +539,7 @@ class EExtend extends Expr {
 }
 exports.EExtend = EExtend;
 exports.eextend = (label) => new EExtend(label);
+exports.erecord = (props, rest) => props.reduceRight((r, [l, t]) => exports.eapps(exports.eextend(l), t, r), rest || exports.eempty);
 class ESelect extends Expr {
     constructor(label) {
         super();
@@ -796,12 +797,20 @@ function matchingBracket(c) {
         return ')';
     if (c === ')')
         return '(';
+    if (c === '{')
+        return '}';
+    if (c === '}')
+        return '{';
+    if (c === '[')
+        return ']';
+    if (c === ']')
+        return '[';
     return '';
 }
 const token = (val) => ({ tag: 'token', val });
-const paren = (val) => ({ tag: 'paren', val });
+const paren = (val, type) => ({ tag: 'paren', type, val });
 function showRet(x) {
-    return x.tag === 'token' ? x.val : x.tag === 'paren' ? `(${x.val.map(showRet).join(' ')})` : '';
+    return x.tag === 'token' ? x.val : x.tag === 'paren' ? `${x.type}${x.val.map(showRet).join(' ')}${matchingBracket(x.type)}` : '';
 }
 function showRets(x) {
     return `[${x.map(showRet).join(' ')}]`;
@@ -839,18 +848,20 @@ function tokenize(s) {
                 r.push(token('='));
             else if (c === '|')
                 r.push(token('|'));
+            else if (c === ',')
+                r.push(token(','));
             else if (c === '\\')
                 r.push(token('\\'));
-            else if (c === '(')
+            else if (c === '(' || c === '{' || c === '[')
                 b.push(c), p.push(r), r = [];
-            else if (c === ')') {
+            else if (c === ')' || c === '}' || c === ']') {
                 if (b.length === 0)
                     throw new SyntaxError(`unmatched bracket: ${c}`);
                 const br = b.pop();
                 if (matchingBracket(br) !== c)
                     throw new SyntaxError(`unmatched bracket: ${br} and ${c}`);
                 const a = p.pop();
-                a.push(paren(r));
+                a.push(paren(r, br));
                 r = a;
             }
             else if (/\s+/.test(c))
@@ -944,6 +955,8 @@ function exprs(x, stack = null, mode = null) {
             }
             else if (c.tag === 'token')
                 args.push(c.val);
+            else if (c.tag === 'paren' && c.type !== '(')
+                throw new SyntaxError(`unexpected bracket in \\ ${c.type}`);
             else if (c.tag === 'paren' && c.val.length === 0)
                 args.push(['_', type(c)]);
             else if (c.tag === 'paren' && containsToken(c.val, ':')) {
@@ -980,6 +993,8 @@ function exprs(x, stack = null, mode = null) {
             }
             else if (c.tag === 'token')
                 args.push([c.val, typechecker_1.ktype]);
+            else if (c.tag === 'paren' && c.type !== '(')
+                throw new SyntaxError(`unexpected bracket in /\\ ${c.type}`);
             else if (c.tag === 'paren' && containsToken(c.val, ':')) {
                 const s = splitOn(c.val, x => isToken(x, ':'));
                 if (s.length !== 2)
@@ -1029,8 +1044,6 @@ function exprs(x, stack = null, mode = null) {
 }
 function expr(x) {
     if (x.tag === 'token') {
-        if (x.val === 'empty')
-            return exprs_1.eempty;
         if (x.val === 'varempty')
             return exprs_1.evarempty;
         if (x.val === 'return')
@@ -1039,8 +1052,6 @@ function expr(x) {
             return exprs_1.epure;
         if (x.val === 'do')
             return exprs_1.edo;
-        if (x.val.startsWith('ext') && x.val.length > 3)
-            return exprs_1.eextend(x.val.slice(3));
         if (x.val.startsWith('sel') && x.val.length > 3)
             return exprs_1.eselect(x.val.slice(3));
         if (x.val.startsWith('res') && x.val.length > 3)
@@ -1074,6 +1085,38 @@ function expr(x) {
         else
             return exprs_1.evar(x.val);
     }
+    if (x.type === '{') {
+        const v = x.val;
+        if (v.length === 0)
+            return exprs_1.eempty;
+        if (v.length === 1)
+            throw new SyntaxError(`invalid record`);
+        const spl1 = splitOn(v, x => isToken(x, '|'));
+        if (spl1.length > 2 || spl1.length === 0)
+            throw new SyntaxError(`invalid use of | in record`);
+        const rest = spl1.length === 1 ? undefined : exprs(spl1[1]);
+        const contents = spl1[0];
+        if (contents.length === 0)
+            throw new SyntaxError(`invalid record`);
+        const spl2 = splitOn(contents, x => isToken(x, ','));
+        if (spl2.length === 0)
+            throw new SyntaxError(`invalid record`);
+        const row = spl2.map(prop => {
+            const splprop = splitOn(prop, x => isToken(x, '='));
+            if (splprop.length !== 2)
+                throw new SyntaxError(`invalid record property`);
+            const name = splprop[0];
+            if (name.length !== 1)
+                throw new SyntaxError(`invalid record property name`);
+            const nameIn = name[0];
+            if (nameIn.tag !== 'token')
+                throw new SyntaxError(`invalid record property name`);
+            return [nameIn.val, exprs(splprop[1])];
+        });
+        return exprs_1.erecord(row, rest);
+    }
+    if (x.type !== '(')
+        throw new SyntaxError(`invalid bracket ${x.type}`);
     return exprs(x.val);
 }
 function types(x) {
@@ -1092,6 +1135,8 @@ function types(x) {
             }
             else if (c.tag === 'token')
                 args.push(c.val);
+            else if (c.tag === 'paren' && c.type !== '(')
+                throw new SyntaxError(`unexpected bracket in forall ${c.type}`);
             else if (c.tag === 'paren' && containsToken(c.val, ':')) {
                 const s = splitOn(c.val, x => isToken(x, ':'));
                 if (s.length !== 2)
@@ -1121,6 +1166,38 @@ function types(x) {
 function type(x) {
     if (x.tag === 'token')
         return /[a-z]/.test(x.val[0]) ? types_1.tvar(x.val) : types_1.tcon(x.val);
+    if (x.type === '{') {
+        const v = x.val;
+        if (v.length === 0)
+            return types_1.tempty;
+        if (v.length === 1)
+            throw new SyntaxError(`invalid row type`);
+        const spl1 = splitOn(v, x => isToken(x, '|'));
+        if (spl1.length > 2 || spl1.length === 0)
+            throw new SyntaxError(`invalid use of | in row type`);
+        const rest = spl1.length === 1 ? undefined : types(spl1[1]);
+        const contents = spl1[0];
+        if (contents.length === 0)
+            throw new SyntaxError(`invalid row type`);
+        const spl2 = splitOn(contents, x => isToken(x, ','));
+        if (spl2.length === 0)
+            throw new SyntaxError(`invalid row type`);
+        const row = spl2.map(prop => {
+            const splprop = splitOn(prop, x => isToken(x, ':'));
+            if (splprop.length !== 2)
+                throw new SyntaxError(`invalid row type property`);
+            const name = splprop[0];
+            if (name.length !== 1)
+                throw new SyntaxError(`invalid row type property name`);
+            const nameIn = name[0];
+            if (nameIn.tag !== 'token')
+                throw new SyntaxError(`invalid row type property name`);
+            return [nameIn.val, types(splprop[1])];
+        });
+        return types_1.trow(row, rest);
+    }
+    if (x.type !== '(')
+        throw new SyntaxError(`invalid bracket in type ${x.type}`);
     return types(x.val);
 }
 function kinds(x) {
@@ -1150,6 +1227,8 @@ function parseDataName(s) {
         const c = s[i];
         if (c.tag === 'token')
             args.push([c.val, typechecker_1.ktype]);
+        else if (c.tag === 'paren' && c.type !== '(')
+            throw new SyntaxError(`unexpected bracket in data ${c.type}`);
         else if (c.tag === 'paren' && containsToken(c.val, ':')) {
             const s = splitOn(c.val, x => isToken(x, ':'));
             if (s.length !== 2)
