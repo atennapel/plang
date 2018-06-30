@@ -869,6 +869,8 @@ function tokenize(s) {
                 r.push(token('.'));
             else if (c === '-')
                 r.push(token('-'));
+            else if (c === '#')
+                r.push(token('#'));
             else if (c === '_')
                 r.push(token('_'));
             else if (c === '=')
@@ -973,6 +975,11 @@ function exprs(x, stack = null, mode = null) {
             throw new SyntaxError('invalid use of $');
         return exprs(x.slice(1), stack, '.');
     }
+    if (isToken(head, '#')) {
+        if (mode || stack)
+            throw new SyntaxError('invalid use of #');
+        return exprs(x.slice(1), stack, '#');
+    }
     if (isToken(head, '$')) {
         if (mode)
             throw new SyntaxError('invalid use of $');
@@ -984,7 +991,7 @@ function exprs(x, stack = null, mode = null) {
     }
     if (isToken(head, '\\')) {
         if (mode)
-            throw new SyntaxError('\\ after @');
+            throw new SyntaxError(`\\ after ${mode}`);
         const args = [];
         let found = -1;
         for (let i = 1; i < x.length; i++) {
@@ -1023,6 +1030,8 @@ function exprs(x, stack = null, mode = null) {
         return stack ? exprs_1.eapp(stack, abs) : abs;
     }
     if (isToken(x[0], '/\\')) {
+        if (mode)
+            throw new SyntaxError(`/\\ after ${mode}`);
         const args = [];
         let found = -1;
         for (let i = 1; i < x.length; i++) {
@@ -1059,6 +1068,8 @@ function exprs(x, stack = null, mode = null) {
         return stack ? exprs_1.eapp(stack, abs) : abs;
     }
     if (isToken(x[0], 'handler')) {
+        if (mode)
+            throw new SyntaxError(`handler after ${mode}`);
         const args = [];
         for (let i = 1; i < x.length; i += 2) {
             const op = x[i];
@@ -1071,10 +1082,15 @@ function exprs(x, stack = null, mode = null) {
         return stack ? exprs_1.eapp(stack, handler) : handler;
     }
     if (mode === '.') {
-        if (head.tag === 'paren')
+        if (head.tag !== 'token')
             throw new SyntaxError(`invalid rhs to .`);
         const sel = stack ? exprs_1.eapp(exprs_1.eselect(head.val), stack) : exprs_1.eselect(head.val);
         return exprs(x.slice(1), sel, null);
+    }
+    if (mode === '#') {
+        if (head.tag !== 'token')
+            throw new SyntaxError(`invalid rhs to #`);
+        return exprs(x.slice(1), exprs_1.einject(head.val), null);
     }
     if (stack) {
         if (mode === '@') {
@@ -1100,12 +1116,6 @@ function expr(x) {
             return exprs_1.epure;
         if (x.val === 'do')
             return exprs_1.edo;
-        if (x.val.startsWith('res') && x.val.length > 3)
-            return exprs_1.erestrict(x.val.slice(3));
-        if (x.val.startsWith('rupd') && x.val.length > 4)
-            return exprs_1.erecupdate(x.val.slice(4));
-        if (x.val.startsWith('inj') && x.val.length > 3)
-            return exprs_1.einject(x.val.slice(3));
         if (x.val.startsWith('emb') && x.val.length > 3)
             return exprs_1.eembed(x.val.slice(3));
         if (x.val.startsWith('cs') && x.val.length > 2)

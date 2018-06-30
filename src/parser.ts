@@ -86,6 +86,7 @@ function tokenize(s: string): Ret[] {
       else if(c === FORALL) r.push(token('forall'));
       else if(c === '.') r.push(token('.'));
       else if(c === '-') r.push(token('-'));
+      else if(c === '#') r.push(token('#'));
       else if(c === '_') r.push(token('_'));
       else if(c === '=') r.push(token('='));
       else if(c === '|') r.push(token('|'));
@@ -162,6 +163,10 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     if(mode) throw new SyntaxError('invalid use of $');
     return exprs(x.slice(1), stack, '.');
   }
+  if(isToken(head, '#')) {
+    if(mode || stack) throw new SyntaxError('invalid use of #');
+    return exprs(x.slice(1), stack, '#');
+  }
   if(isToken(head, '$')) {
     if(mode) throw new SyntaxError('invalid use of $');
     if(!stack) return x.length < 2? evar('app'): eapps(evar('flip'), evar('app'), exprs(x.slice(1)));
@@ -169,7 +174,7 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     return eapp(stack as Expr, exprs(x.slice(1)));
   }
   if(isToken(head, '\\')) {
-    if(mode) throw new SyntaxError('\\ after @');
+    if(mode) throw new SyntaxError(`\\ after ${mode}`);
     const args: (string | [string, Type])[] = [];
     let found = -1;
     for(let i = 1; i < x.length; i++) {
@@ -198,6 +203,7 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     return stack? eapp(stack, abs): abs;
   }
   if(isToken(x[0], '/\\')) {
+    if(mode) throw new SyntaxError(`/\\ after ${mode}`);
     const args: [string, Kind][] = [];
     let found = -1;
     for(let i = 1; i < x.length; i++) {
@@ -225,6 +231,7 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     return stack? eapp(stack, abs): abs;
   }
   if(isToken(x[0], 'handler')) {
+    if(mode) throw new SyntaxError(`handler after ${mode}`);
     const args: [string, Expr][] = [];
     for(let i = 1; i < x.length; i += 2) {
       const op = x[i];
@@ -236,9 +243,13 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     return stack? eapp(stack, handler): handler;
   }
   if(mode === '.') {
-    if(head.tag === 'paren') throw new SyntaxError(`invalid rhs to .`);
+    if(head.tag !== 'token') throw new SyntaxError(`invalid rhs to .`);
     const sel = stack? eapp(eselect(head.val), stack): eselect(head.val);
     return exprs(x.slice(1), sel, null);
+  }
+  if(mode === '#') {
+    if(head.tag !== 'token') throw new SyntaxError(`invalid rhs to #`);
+    return exprs(x.slice(1), einject(head.val), null);
   }
   if(stack) {
     if(mode === '@') {
@@ -258,9 +269,6 @@ function expr(x: Ret): Expr {
     if(x.val === 'return') return ereturn;
     if(x.val === 'pure') return epure;
     if(x.val === 'do') return edo;
-    if(x.val.startsWith('res') && x.val.length > 3) return erestrict(x.val.slice(3));
-    if(x.val.startsWith('rupd') && x.val.length > 4) return erecupdate(x.val.slice(4));
-    if(x.val.startsWith('inj') && x.val.length > 3) return einject(x.val.slice(3));
     if(x.val.startsWith('emb') && x.val.length > 3) return eembed(x.val.slice(3));
     if(x.val.startsWith('cs') && x.val.length > 2) return ecase(x.val.slice(2));
     if(x.val.startsWith('vupd') && x.val.length > 4) return evarupdate(x.val.slice(4));
