@@ -135,36 +135,36 @@ const divFloat = x => y => x / y;
 const modFloat = x => y => x % y;
 
 const _prelude = `
-id = \\x -> x;
-cnst = \\x y -> x;
-flip = \\f x y -> f y x;
-comp = \\f g x -> f (g x);
-comp2 = \\f g x y -> f (g x y);
-app = \\f x -> f x;
+id = \\x -> x;;
+cnst = \\x y -> x;;
+flip = \\f x y -> f y x;;
+comp = \\f g x -> f (g x);;
+comp2 = \\f g x y -> f (g x y);;
+app = \\f x -> f x;;
 
-data Void;
-data Unit = Unit;
+data Void;;
+data Unit = Unit;;
 
-data Pair a b = Pair a b;
-fst = casePair (\\a b -> a);
-snd = casePair (\\a b -> b);
+data Pair a b = Pair a b;;
+fst = casePair (\\a b -> a);;
+snd = casePair (\\a b -> b);;
 
-data Either a b = Left a | Right b;
+data Either a b = Left a | Right b;;
 
-data Bool = True | False;
-data Nat = Z | S Nat;
-data Maybe t = Nothing | Just t;
-data List t = Nil | Cons t (List t);
+data Bool = True | False;;
+data Nat = Z | S Nat;;
+data Maybe t = Nothing | Just t;;
+data List t = Nil | Cons t (List t);;
 
-not = caseBool False True;
-and = caseBool id (\\x -> False);
-or = caseBool (\\x -> True) id;
+not = caseBool False True;;
+and = caseBool id (\\x -> False);;
+or = caseBool (\\x -> True) id;;
 
-inc = S;
-add = \\x y -> cataNat x inc y;
-pred = caseNat Z id;
+inc = S;;
+add = \\x y -> cataNat x inc y;;
+pred = caseNat Z id;;
 
-length = cataList 0 (\\h a -> S a);
-map = \\f -> cataList Nil (\\h a -> Cons (f h) a);
-sum = cataList 0 add;
+length = cataList 0 (\\h a -> S a);;
+map = \\f -> cataList Nil (\\h a -> Cons (f h) a);;
+sum = cataList 0 add;;
 `;

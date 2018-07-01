@@ -77,16 +77,19 @@ function tokenize(s: string): Ret[] {
       else if(/[0-9]/.test(c)) t += c, state = NUM;
       else if(c === '"') state = STR;
       else if(c === '-' && s[i+1] === '>') r.push(token('->')), i++;
+      else if(c === '<' && s[i+1] === '-') r.push(token('<-')), i++;
       else if(c === '/' && s[i+1] === '\\') r.push(token('/\\')), i++;
       else if(c === ':' && s[i+1] === ':' && s[i+2] === '=') r.push(token('::=')), i += 2;
       else if(c === ':' && s[i+1] === '=') r.push(token(':=')), i++;
       else if(c === '@') r.push(token('@'));
       else if(c === '$') r.push(token('$'));
       else if(c === ':') r.push(token(':'));
+      else if(c === ';') r.push(token(';'));
       else if(c === FORALL) r.push(token('forall'));
       else if(c === '.') r.push(token('.'));
       else if(c === '-') r.push(token('-'));
       else if(c === '#') r.push(token('#'));
+      else if(c === '!') r.push(token('!'));
       else if(c === '_') r.push(token('_'));
       else if(c === '=') r.push(token('='));
       else if(c === '|') r.push(token('|'));
@@ -153,6 +156,22 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     if(stack || mode || xs.length !== 2) throw new SyntaxError('invalid use of :');
     return eanno(exprs(xs[0]), types(xs[1]));
   }
+  if(containsToken(x, ';')) {
+    const xs = splitOn(x, t => isToken(t, ';'));
+    if(stack || mode || xs.length < 2) throw new SyntaxError('invalid use of ;');
+    const parts = xs.map((part, i, a) => {
+      if(part.length === 0) throw new SyntaxError('empty ;');
+      const fst = part[0];
+      const snd = part[1];
+      const last = i === a.length - 1;
+      if(fst && snd && fst.tag === 'token' && snd.tag === 'token' && snd.val === '<-') {
+        if(last) throw new SyntaxError('last part of ; cannot contain <-');
+        return [fst.val, exprs(part.slice(2))] as [string, Expr];
+      }
+      return ['_', exprs(part)] as [string, Expr];
+    });
+    return parts.slice(0, -1).reduceRight((x, [n, e]) => eapps(edo, e, eabs(n, x)), parts[parts.length - 1][1] as Expr);
+  }
   const head = x[0];
   if(isToken(head, ':')) throw new SyntaxError('invalid use of :');
   if(isToken(head, '@')) {
@@ -166,6 +185,10 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
   if(isToken(head, '#')) {
     if(mode || stack) throw new SyntaxError('invalid use of #');
     return exprs(x.slice(1), stack, '#');
+  }
+  if(isToken(head, '!')) {
+    if(mode || stack) throw new SyntaxError('invalid use of !');
+    return exprs(x.slice(1), stack, '!');
   }
   if(isToken(head, '$')) {
     if(mode) throw new SyntaxError('invalid use of $');
@@ -251,6 +274,10 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     if(head.tag !== 'token') throw new SyntaxError(`invalid rhs to #`);
     return exprs(x.slice(1), einject(head.val), null);
   }
+  if(mode === '!') {
+    if(head.tag !== 'token') throw new SyntaxError(`invalid rhs to !`);
+    return exprs(x.slice(1), eop(head.val), null);
+  }
   if(stack) {
     if(mode === '@') {
       return exprs(x.slice(1), etapp(stack, type(head)), null);
@@ -265,14 +292,12 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
 function expr(x: Ret): Expr {
   if(x.tag === 'token') {
     if(x.val === '$') return evar('app');
-    if(x.val === 'varempty') return evarempty;
     if(x.val === 'return') return ereturn;
     if(x.val === 'pure') return epure;
-    if(x.val === 'do') return edo;
+    if(x.val === 'varempty') return evarempty;
     if(x.val.startsWith('emb') && x.val.length > 3) return eembed(x.val.slice(3));
     if(x.val.startsWith('cs') && x.val.length > 2) return ecase(x.val.slice(2));
     if(x.val.startsWith('vupd') && x.val.length > 4) return evarupdate(x.val.slice(4));
-    if(x.val.startsWith('op') && x.val.length > 2) return eop(x.val.slice(2));
     if(x.val[0] === '"') return elit(x.val.slice(1));
     const n = +x.val;
     if(!isNaN(n)) {
@@ -452,5 +477,5 @@ export function parseDefinition(s: string): Definition {
 }
 
 export function parseProgram(s: string): Definition[] {
-  return s.split(';').filter(x => x.trim().length > 0).map(x => parseDefinition(x.trim()));
+  return s.split(';;').filter(x => x.trim().length > 0).map(x => parseDefinition(x.trim()));
 }

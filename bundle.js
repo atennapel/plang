@@ -851,6 +851,8 @@ function tokenize(s) {
                 state = STR;
             else if (c === '-' && s[i + 1] === '>')
                 r.push(token('->')), i++;
+            else if (c === '<' && s[i + 1] === '-')
+                r.push(token('<-')), i++;
             else if (c === '/' && s[i + 1] === '\\')
                 r.push(token('/\\')), i++;
             else if (c === ':' && s[i + 1] === ':' && s[i + 2] === '=')
@@ -863,6 +865,8 @@ function tokenize(s) {
                 r.push(token('$'));
             else if (c === ':')
                 r.push(token(':'));
+            else if (c === ';')
+                r.push(token(';'));
             else if (c === prettyprinter_1.FORALL)
                 r.push(token('forall'));
             else if (c === '.')
@@ -871,6 +875,8 @@ function tokenize(s) {
                 r.push(token('-'));
             else if (c === '#')
                 r.push(token('#'));
+            else if (c === '!')
+                r.push(token('!'));
             else if (c === '_')
                 r.push(token('_'));
             else if (c === '=')
@@ -962,6 +968,25 @@ function exprs(x, stack = null, mode = null) {
             throw new SyntaxError('invalid use of :');
         return exprs_1.eanno(exprs(xs[0]), types(xs[1]));
     }
+    if (containsToken(x, ';')) {
+        const xs = splitOn(x, t => isToken(t, ';'));
+        if (stack || mode || xs.length < 2)
+            throw new SyntaxError('invalid use of ;');
+        const parts = xs.map((part, i, a) => {
+            if (part.length === 0)
+                throw new SyntaxError('empty ;');
+            const fst = part[0];
+            const snd = part[1];
+            const last = i === a.length - 1;
+            if (fst && snd && fst.tag === 'token' && snd.tag === 'token' && snd.val === '<-') {
+                if (last)
+                    throw new SyntaxError('last part of ; cannot contain <-');
+                return [fst.val, exprs(part.slice(2))];
+            }
+            return ['_', exprs(part)];
+        });
+        return parts.slice(0, -1).reduceRight((x, [n, e]) => exprs_1.eapps(exprs_1.edo, e, exprs_1.eabs(n, x)), parts[parts.length - 1][1]);
+    }
     const head = x[0];
     if (isToken(head, ':'))
         throw new SyntaxError('invalid use of :');
@@ -979,6 +1004,11 @@ function exprs(x, stack = null, mode = null) {
         if (mode || stack)
             throw new SyntaxError('invalid use of #');
         return exprs(x.slice(1), stack, '#');
+    }
+    if (isToken(head, '!')) {
+        if (mode || stack)
+            throw new SyntaxError('invalid use of !');
+        return exprs(x.slice(1), stack, '!');
     }
     if (isToken(head, '$')) {
         if (mode)
@@ -1092,6 +1122,11 @@ function exprs(x, stack = null, mode = null) {
             throw new SyntaxError(`invalid rhs to #`);
         return exprs(x.slice(1), exprs_1.einject(head.val), null);
     }
+    if (mode === '!') {
+        if (head.tag !== 'token')
+            throw new SyntaxError(`invalid rhs to !`);
+        return exprs(x.slice(1), exprs_1.eop(head.val), null);
+    }
     if (stack) {
         if (mode === '@') {
             return exprs(x.slice(1), exprs_1.etapp(stack, type(head)), null);
@@ -1108,22 +1143,18 @@ function expr(x) {
     if (x.tag === 'token') {
         if (x.val === '$')
             return exprs_1.evar('app');
-        if (x.val === 'varempty')
-            return exprs_1.evarempty;
         if (x.val === 'return')
             return exprs_1.ereturn;
         if (x.val === 'pure')
             return exprs_1.epure;
-        if (x.val === 'do')
-            return exprs_1.edo;
+        if (x.val === 'varempty')
+            return exprs_1.evarempty;
         if (x.val.startsWith('emb') && x.val.length > 3)
             return exprs_1.eembed(x.val.slice(3));
         if (x.val.startsWith('cs') && x.val.length > 2)
             return exprs_1.ecase(x.val.slice(2));
         if (x.val.startsWith('vupd') && x.val.length > 4)
             return exprs_1.evarupdate(x.val.slice(4));
-        if (x.val.startsWith('op') && x.val.length > 2)
-            return exprs_1.eop(x.val.slice(2));
         if (x.val[0] === '"')
             return exprs_1.elit(x.val.slice(1));
         const n = +x.val;
@@ -1361,7 +1392,7 @@ function parseDefinition(s) {
 }
 exports.parseDefinition = parseDefinition;
 function parseProgram(s) {
-    return s.split(';').filter(x => x.trim().length > 0).map(x => parseDefinition(x.trim()));
+    return s.split(';;').filter(x => x.trim().length > 0).map(x => parseDefinition(x.trim()));
 }
 exports.parseProgram = parseProgram;
 
