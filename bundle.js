@@ -33,8 +33,6 @@ function compile(expr) {
         return `_varEmbed(${JSON.stringify(expr.label)})`;
     if (expr instanceof exprs_1.ECase)
         return `_varCase(${JSON.stringify(expr.label)})`;
-    if (expr instanceof exprs_1.EVarUpdate)
-        return `_varUpdate(${JSON.stringify(expr.label)})`;
     if (expr instanceof exprs_1.EReturn)
         return `_return`;
     if (expr instanceof exprs_1.EPure)
@@ -45,6 +43,8 @@ function compile(expr) {
         return `_do`;
     if (expr instanceof exprs_1.EHandler)
         return `_handler({${expr.map.map(([op, e]) => `${op}:${compile(e)}`).join(',')}})`;
+    if (expr instanceof exprs_1.EEffEmbed)
+        return `_effEmbed(${JSON.stringify(expr.label)})`;
     return util_1.impossible();
 }
 exports.compile = compile;
@@ -674,23 +674,6 @@ class ECase extends Expr {
 }
 exports.ECase = ECase;
 exports.ecase = (label) => new ECase(label);
-class EVarUpdate extends Expr {
-    constructor(label) {
-        super();
-        this.label = label;
-    }
-    toString() {
-        return `!:${this.label}`;
-    }
-    subst(name, expr) {
-        return this;
-    }
-    substType(name, type) {
-        return this;
-    }
-}
-exports.EVarUpdate = EVarUpdate;
-exports.evarupdate = (label) => new EVarUpdate(label);
 class EReturn extends Expr {
     toString() {
         return `return`;
@@ -734,6 +717,23 @@ class EOp extends Expr {
 }
 exports.EOp = EOp;
 exports.eop = (label) => new EOp(label);
+class EEffEmbed extends Expr {
+    constructor(label) {
+        super();
+        this.label = label;
+    }
+    toString() {
+        return `(effembed ${this.label})`;
+    }
+    subst(name, expr) {
+        return this;
+    }
+    substType(name, type) {
+        return this;
+    }
+}
+exports.EEffEmbed = EEffEmbed;
+exports.eeffembed = (label) => new EEffEmbed(label);
 class EDo extends Expr {
     toString() {
         return `do`;
@@ -859,6 +859,10 @@ function tokenize(s) {
                 r.push(token('::=')), i += 2;
             else if (c === ':' && s[i + 1] === '=')
                 r.push(token(':=')), i++;
+            else if (c === '!' && s[i + 1] === '+')
+                r.push(token('!+')), i++;
+            else if (c === '#' && s[i + 1] === '+')
+                r.push(token('#+')), i++;
             else if (c === '@')
                 r.push(token('@'));
             else if (c === '$')
@@ -1019,10 +1023,25 @@ function exprs(x, stack = null, mode = null) {
             throw new SyntaxError('invalid use of !');
         return exprs(x.slice(1), stack, '!');
     }
-    if (isToken(head, 'handler')) {
+    if (isToken(head, '!+')) {
         if (mode || stack)
-            throw new SyntaxError('invalid use of handler');
-        return exprs(x.slice(1), stack, 'handler');
+            throw new SyntaxError('invalid use of !+');
+        return exprs(x.slice(1), stack, '!+');
+    }
+    if (isToken(head, '#+')) {
+        if (mode || stack)
+            throw new SyntaxError('invalid use of #+');
+        return exprs(x.slice(1), stack, '#+');
+    }
+    if (isToken(head, 'handle')) {
+        if (mode || stack)
+            throw new SyntaxError('invalid use of handle');
+        return exprs(x.slice(1), stack, 'handle');
+    }
+    if (isToken(head, 'case')) {
+        if (mode || stack)
+            throw new SyntaxError('invalid use of case');
+        return exprs(x.slice(1), stack, 'case');
     }
     if (isToken(head, '$')) {
         if (mode)
@@ -1119,20 +1138,28 @@ function exprs(x, stack = null, mode = null) {
         const abs = exprs_1.etabss(args, exprs(rest));
         return stack ? exprs_1.eapp(stack, abs) : abs;
     }
-    if (mode === 'handler') {
-        if (!(head.tag === 'paren' && head.type === '{'))
-            throw new SyntaxError(`invalid arg to handler`);
-        const y = head.val;
+    if (mode === 'handle') {
+        const snd = x[1];
+        let y;
+        let subject = null;
+        if (head.tag === 'paren' && head.type === '{')
+            y = head.val;
+        else if (!(snd.tag === 'paren' && snd.type === '{'))
+            throw new SyntaxError(`invalid arg to handle`);
+        else {
+            subject = expr(head);
+            y = snd.val;
+        }
         if (y.length === 0)
-            throw new SyntaxError(`empty handler`);
+            throw new SyntaxError(`empty handle`);
         const spl2 = splitOn(y, x => isToken(x, ','));
         if (spl2.length === 0)
-            throw new SyntaxError(`invalid handler`);
+            throw new SyntaxError(`invalid handle`);
         const ret = spl2.map(x => {
             if (x.length < 3 || x[0].tag !== 'token')
-                throw new SyntaxError('invalid handler part');
+                throw new SyntaxError('invalid handle part');
             const name = x[0].val;
-            if (!/[a-z][A-Z0-9a-z]*/.test(name))
+            if (!/[a-zA-Z][A-Z0-9a-z]*/.test(name))
                 throw new SyntaxError(`invalid op name: ${name}`);
             const args = [];
             let found = -1;
@@ -1164,13 +1191,84 @@ function exprs(x, stack = null, mode = null) {
                     throw new SyntaxError(`invalid arg: ${c}`);
             }
             if (found < 0)
-                throw new SyntaxError(`missing -> after handler operation`);
+                throw new SyntaxError(`missing -> after handle operation`);
             const rest = x.slice(found + 1);
             if (rest.length === 0)
-                throw new SyntaxError(`missing body in handler operation`);
+                throw new SyntaxError(`missing body in handle operation`);
             return [name, exprs_1.eabss(args, exprs(rest))];
         });
-        return exprs(x.slice(1), exprs_1.ehandler(ret));
+        const body = exprs_1.ehandler(ret);
+        return exprs(x.slice(subject ? 2 : 1), subject ? exprs_1.eapp(body, subject) : body);
+    }
+    if (mode === 'case') {
+        const snd = x[1];
+        let y;
+        let subject = null;
+        if (head.tag === 'paren' && head.type === '{')
+            y = head.val;
+        else if (!(snd.tag === 'paren' && snd.type === '{'))
+            throw new SyntaxError(`invalid arg to case`);
+        else {
+            subject = expr(head);
+            y = snd.val;
+        }
+        if (y.length === 0)
+            return exprs(x.slice(subject ? 2 : 1), subject ? exprs_1.eapp(exprs_1.evarempty, subject) : exprs_1.evarempty);
+        const spl2 = splitOn(y, x => isToken(x, ','));
+        if (spl2.length === 0)
+            throw new SyntaxError(`invalid case`);
+        let found2 = null;
+        const ret = spl2.map((x, i, a) => {
+            if (x.length < 3 || x[0].tag !== 'token')
+                throw new SyntaxError('invalid case part');
+            const name = x[0].val;
+            if (name !== '_' && !/[a-zA-Z][A-Z0-9a-z]*/.test(name))
+                throw new SyntaxError(`invalid variant label name: ${name}`);
+            if (name === '_' && i !== a.length - 1)
+                throw new Error('_ must be last in case');
+            const args = [];
+            let found = -1;
+            for (let i = 1; i < x.length; i++) {
+                const c = x[i];
+                if (isToken(c, '->')) {
+                    found = i;
+                    break;
+                }
+                else if (c.tag === 'token')
+                    args.push(c.val);
+                else if (c.tag === 'paren' && c.type !== '(')
+                    throw new SyntaxError(`unexpected bracket in \\ ${c.type}`);
+                else if (c.tag === 'paren' && c.val.length === 0)
+                    args.push(['_', type(c)]);
+                else if (c.tag === 'paren' && containsToken(c.val, ':')) {
+                    const s = splitOn(c.val, x => isToken(x, ':'));
+                    if (s.length !== 2)
+                        throw new SyntaxError('nested anno arg :');
+                    const l = s[0].map(x => {
+                        if (x.tag === 'token')
+                            return x.val;
+                        throw new SyntaxError(`invalid arg: ${x}`);
+                    });
+                    const r = types(s[1]);
+                    l.forEach(n => args.push([n, r]));
+                }
+                else
+                    throw new SyntaxError(`invalid arg: ${c}`);
+            }
+            if (found < 0)
+                throw new SyntaxError(`missing -> after case operation`);
+            const rest = x.slice(found + 1);
+            if (rest.length === 0)
+                throw new SyntaxError(`missing body in case operation`);
+            if (name === '_')
+                found2 = exprs_1.eabss(args, exprs(rest));
+            return found2 ? null : [name, exprs_1.eabss(args, exprs(rest))];
+        });
+        const retf = ret.filter(x => x !== null);
+        if (retf.length === 0)
+            throw new SyntaxError('case lacks labels');
+        const body = retf.reduceRight((x, [n, b]) => exprs_1.eapps(exprs_1.ecase(n), b, x), found2 || exprs_1.evarempty);
+        return exprs(x.slice(subject ? 2 : 1), subject ? exprs_1.eapp(body, subject) : body);
     }
     if (mode === '.') {
         if (head.tag !== 'token')
@@ -1187,6 +1285,16 @@ function exprs(x, stack = null, mode = null) {
         if (head.tag !== 'token')
             throw new SyntaxError(`invalid rhs to !`);
         return exprs(x.slice(1), exprs_1.eop(head.val), null);
+    }
+    if (mode === '!+') {
+        if (head.tag !== 'token')
+            throw new SyntaxError(`invalid rhs to !+`);
+        return exprs(x.slice(1), exprs_1.eeffembed(head.val), null);
+    }
+    if (mode === '#+') {
+        if (head.tag !== 'token')
+            throw new SyntaxError(`invalid rhs to #+`);
+        return exprs(x.slice(1), exprs_1.eembed(head.val), null);
     }
     if (stack) {
         if (mode === '@') {
@@ -1208,14 +1316,8 @@ function expr(x) {
             return exprs_1.ereturn;
         if (x.val === 'pure')
             return exprs_1.epure;
-        if (x.val === 'varempty')
-            return exprs_1.evarempty;
         if (x.val.startsWith('emb') && x.val.length > 3)
             return exprs_1.eembed(x.val.slice(3));
-        if (x.val.startsWith('cs') && x.val.length > 2)
-            return exprs_1.ecase(x.val.slice(2));
-        if (x.val.startsWith('vupd') && x.val.length > 4)
-            return exprs_1.evarupdate(x.val.slice(4));
         if (x.val[0] === '"')
             return exprs_1.elit(x.val.slice(1));
         const n = +x.val;
@@ -2224,14 +2326,7 @@ function synth(ctx, e) {
     if (e instanceof exprs_1.ECase) {
         return {
             ctx,
-            ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('a'), types_1.tvar('r'))), types_1.tfuns(types_1.tvar('a'), types_1.tvar('b')), types_1.tfuns(types_1.tapp(exports.tsvar, types_1.tvar('r')), types_1.tvar('b')), types_1.tvar('b'))),
-            expr: e
-        };
-    }
-    if (e instanceof exprs_1.EVarUpdate) {
-        return {
-            ctx,
-            ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('b')), types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('a'), types_1.tvar('r'))), types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('b'), types_1.tvar('r'))))),
+            ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tfuns(types_1.tvar('a'), types_1.tvar('b')), types_1.tfuns(types_1.tapp(exports.tsvar, types_1.tvar('r')), types_1.tvar('b')), types_1.tapp(exports.tsvar, types_1.textend(e.label, types_1.tvar('a'), types_1.tvar('r'))), types_1.tvar('b'))),
             expr: e
         };
     }
@@ -2253,6 +2348,13 @@ function synth(ctx, e) {
         return {
             ctx,
             ty: types_1.tforalls([['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tvar('a'), types_1.tapps(exports.tseff, types_1.textend(e.label, types_1.tfuns(types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('r')), types_1.tvar('b')))),
+            expr: e
+        };
+    }
+    if (e instanceof exprs_1.EEffEmbed) {
+        return {
+            ctx,
+            ty: types_1.tforalls([['t', exports.ktype], ['a', exports.ktype], ['b', exports.ktype], ['r', exports.krow]], types_1.tfuns(types_1.tapps(exports.tseff, types_1.tvar('r'), types_1.tvar('t')), types_1.tapps(exports.tseff, types_1.textend(e.label, types_1.tfuns(types_1.tvar('a'), types_1.tvar('b')), types_1.tvar('r')), types_1.tvar('t')))),
             expr: e
         };
     }

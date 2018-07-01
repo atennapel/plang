@@ -67,8 +67,8 @@ import {
   EVarEmpty,
   EInject,
   EEmbed,
+  EEffEmbed,
   ECase,
-  EVarUpdate,
   EReturn,
   EPure,
   EOp,
@@ -552,22 +552,10 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
       ctx,
       ty: tforalls([['a', ktype], ['b', ktype], ['r', krow]],
         tfuns(
-          tapp(tsvar, textend(e.label, tvar('a'), tvar('r'))),
           tfuns(tvar('a'), tvar('b')),
           tfuns(tapp(tsvar, tvar('r')), tvar('b')),
-          tvar('b'),
-        )),
-      expr: e
-    };
-  }
-  if(e instanceof EVarUpdate) {
-    return {
-      ctx,
-      ty: tforalls([['a', ktype], ['b', ktype], ['r', krow]],
-        tfuns(
-          tfuns(tvar('a'), tvar('b')),
           tapp(tsvar, textend(e.label, tvar('a'), tvar('r'))),
-          tapp(tsvar, textend(e.label, tvar('b'), tvar('r')))
+          tvar('b'),
         )),
       expr: e
     };
@@ -597,7 +585,16 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
   if(e instanceof EOp) {
     return {
       ctx,
-      ty: tforalls([['a', ktype], ['b', ktype], ['r', krow]], tfuns(tvar('a'), tapps(tseff, textend(e.label, tfuns(tvar('a'), tvar('b')), tvar('r')), tvar('b')))),
+      ty: tforalls([['a', ktype], ['b', ktype], ['r', krow]],
+        tfuns(tvar('a'), tapps(tseff, textend(e.label, tfuns(tvar('a'), tvar('b')), tvar('r')), tvar('b')))),
+      expr: e
+    };
+  }
+  if(e instanceof EEffEmbed) {
+    return {
+      ctx,
+      ty: tforalls([['t', ktype],['a', ktype], ['b', ktype], ['r', krow]],
+        tfuns(tapps(tseff, tvar('r'), tvar('t')), tapps(tseff, textend(e.label, tfuns(tvar('a'), tvar('b')), tvar('r')), tvar('t')))),
       expr: e
     };
   }

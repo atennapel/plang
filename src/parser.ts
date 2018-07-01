@@ -18,15 +18,13 @@ import {
   evarempty,
   einject,
   eembed,
+  eeffembed,
   ecase,
-  evarupdate,
   ereturn,
   epure,
   eop,
   edo,
   ehandler,
-  erecord,
-  EVar,
 } from './exprs';
 import { Kind, kfuns, kcon } from './kinds';
 import { Type, tcon, tvar, tapps, tforalls, tfuns, trow, tempty } from './types'
@@ -81,6 +79,8 @@ function tokenize(s: string): Ret[] {
       else if(c === '/' && s[i+1] === '\\') r.push(token('/\\')), i++;
       else if(c === ':' && s[i+1] === ':' && s[i+2] === '=') r.push(token('::=')), i += 2;
       else if(c === ':' && s[i+1] === '=') r.push(token(':=')), i++;
+      else if(c === '!' && s[i+1] === '+') r.push(token('!+')), i++;
+      else if(c === '#' && s[i+1] === '+') r.push(token('#+')), i++;
       else if(c === '@') r.push(token('@'));
       else if(c === '$') r.push(token('$'));
       else if(c === ':') r.push(token(':'));
@@ -200,9 +200,21 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     if(mode || stack) throw new SyntaxError('invalid use of !');
     return exprs(x.slice(1), stack, '!');
   }
-  if(isToken(head, 'handler')) {
-    if(mode || stack) throw new SyntaxError('invalid use of handler');
-    return exprs(x.slice(1), stack, 'handler');
+  if(isToken(head, '!+')) {
+    if(mode || stack) throw new SyntaxError('invalid use of !+');
+    return exprs(x.slice(1), stack, '!+');
+  }
+  if(isToken(head, '#+')) {
+    if(mode || stack) throw new SyntaxError('invalid use of #+');
+    return exprs(x.slice(1), stack, '#+');
+  }
+  if(isToken(head, 'handle')) {
+    if(mode || stack) throw new SyntaxError('invalid use of handle');
+    return exprs(x.slice(1), stack, 'handle');
+  }
+  if(isToken(head, 'case')) {
+    if(mode || stack) throw new SyntaxError('invalid use of case');
+    return exprs(x.slice(1), stack, 'case');
   }
   if(isToken(head, '$')) {
     if(mode) throw new SyntaxError('invalid use of $');
@@ -271,16 +283,24 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     const abs = etabss(args, exprs(rest));
     return stack? eapp(stack, abs): abs;
   }
-  if(mode === 'handler') {
-    if(!(head.tag === 'paren' && head.type === '{')) throw new SyntaxError(`invalid arg to handler`);
-    const y = head.val;
-    if(y.length === 0) throw new SyntaxError(`empty handler`);
+  if(mode === 'handle') {
+    const snd = x[1];
+    let y: Ret[];
+    let subject: Expr | null = null;
+    if(head.tag === 'paren' && head.type === '{') y = head.val;
+    else if(!(snd.tag === 'paren' && snd.type === '{'))
+      throw new SyntaxError(`invalid arg to handle`);
+    else {
+      subject = expr(head);
+      y = snd.val;
+    }
+    if(y.length === 0) throw new SyntaxError(`empty handle`);
     const spl2 = splitOn(y, x => isToken(x, ','));
-    if(spl2.length === 0) throw new SyntaxError(`invalid handler`);
+    if(spl2.length === 0) throw new SyntaxError(`invalid handle`);
     const ret: [string, Expr][] = spl2.map(x => {
-      if(x.length < 3 || x[0].tag !== 'token') throw new SyntaxError('invalid handler part'); 
+      if(x.length < 3 || x[0].tag !== 'token') throw new SyntaxError('invalid handle part'); 
       const name = x[0].val as string;
-      if(!/[a-z][A-Z0-9a-z]*/.test(name)) throw new SyntaxError(`invalid op name: ${name}`);
+      if(!/[a-zA-Z][A-Z0-9a-z]*/.test(name)) throw new SyntaxError(`invalid op name: ${name}`);
       const args: (string | [string, Type])[] = [];
       let found = -1;
       for(let i = 1; i < x.length; i++) {
@@ -302,12 +322,65 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
           l.forEach(n => args.push([n, r]));
         } else throw new SyntaxError(`invalid arg: ${c}`);
       }
-      if(found < 0) throw new SyntaxError(`missing -> after handler operation`);
+      if(found < 0) throw new SyntaxError(`missing -> after handle operation`);
       const rest = x.slice(found + 1);
-      if(rest.length === 0) throw new SyntaxError(`missing body in handler operation`);
+      if(rest.length === 0) throw new SyntaxError(`missing body in handle operation`);
       return [name, eabss(args, exprs(rest))] as [string, Expr];
     });
-    return exprs(x.slice(1), ehandler(ret));
+    const body = ehandler(ret);
+    return exprs(x.slice(subject? 2: 1), subject? eapp(body, subject): body);
+  }
+  if(mode === 'case') {
+    const snd = x[1];
+    let y: Ret[];
+    let subject: Expr | null = null;
+    if(head.tag === 'paren' && head.type === '{') y = head.val;
+    else if(!(snd.tag === 'paren' && snd.type === '{'))
+      throw new SyntaxError(`invalid arg to case`);
+    else {
+      subject = expr(head);
+      y = snd.val;
+    }
+    if(y.length === 0) return exprs(x.slice(subject? 2: 1), subject? eapp(evarempty, subject): evarempty);
+    const spl2 = splitOn(y, x => isToken(x, ','));
+    if(spl2.length === 0) throw new SyntaxError(`invalid case`);
+    let found2: Expr | null = null;
+    const ret: ([string, Expr] | null)[] = spl2.map((x, i, a) => {
+      if(x.length < 3 || x[0].tag !== 'token') throw new SyntaxError('invalid case part'); 
+      const name = x[0].val as string;
+      if(name !== '_' && !/[a-zA-Z][A-Z0-9a-z]*/.test(name)) throw new SyntaxError(`invalid variant label name: ${name}`);
+      if(name === '_' && i !== a.length - 1) throw new Error('_ must be last in case');
+      const args: (string | [string, Type])[] = [];
+      let found = -1;
+      for(let i = 1; i < x.length; i++) {
+        const c = x[i];
+        if(isToken(c, '->')) {
+          found = i;
+          break;
+        } else if(c.tag === 'token') args.push(c.val);
+        else if(c.tag === 'paren' && c.type !== '(') throw new SyntaxError(`unexpected bracket in \\ ${c.type}`);
+        else if(c.tag === 'paren' && c.val.length === 0) args.push(['_', type(c)]);
+        else if(c.tag === 'paren' && containsToken(c.val, ':')) {
+          const s = splitOn(c.val, x => isToken(x, ':'));
+          if(s.length !== 2) throw new SyntaxError('nested anno arg :');
+          const l = s[0].map(x => {
+            if(x.tag === 'token') return x.val;
+            throw new SyntaxError(`invalid arg: ${x}`);
+          });
+          const r = types(s[1]);
+          l.forEach(n => args.push([n, r]));
+        } else throw new SyntaxError(`invalid arg: ${c}`);
+      }
+      if(found < 0) throw new SyntaxError(`missing -> after case operation`);
+      const rest = x.slice(found + 1);
+      if(rest.length === 0) throw new SyntaxError(`missing body in case operation`);
+      if(name === '_') found2 = eabss(args, exprs(rest));
+      return found2? null: [name, eabss(args, exprs(rest))] as [string, Expr];
+    });
+    const retf: [string, Expr][] = ret.filter(x => x !== null) as [string, Expr][];
+    if(retf.length === 0) throw new SyntaxError('case lacks labels');
+    const body: Expr = retf.reduceRight((x, [n, b]) => eapps(ecase(n), b, x), found2 || evarempty);
+    return exprs(x.slice(subject? 2: 1), subject? eapp(body, subject): body);
   }
   if(mode === '.') {
     if(head.tag !== 'token') throw new SyntaxError(`invalid rhs to .`);
@@ -321,6 +394,14 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
   if(mode === '!') {
     if(head.tag !== 'token') throw new SyntaxError(`invalid rhs to !`);
     return exprs(x.slice(1), eop(head.val), null);
+  }
+  if(mode === '!+') {
+    if(head.tag !== 'token') throw new SyntaxError(`invalid rhs to !+`);
+    return exprs(x.slice(1), eeffembed(head.val), null);
+  }
+  if(mode === '#+') {
+    if(head.tag !== 'token') throw new SyntaxError(`invalid rhs to #+`);
+    return exprs(x.slice(1), eembed(head.val), null);
   }
   if(stack) {
     if(mode === '@') {
@@ -338,10 +419,7 @@ function expr(x: Ret): Expr {
     if(x.val === '$') return evar('app');
     if(x.val === 'return') return ereturn;
     if(x.val === 'pure') return epure;
-    if(x.val === 'varempty') return evarempty;
     if(x.val.startsWith('emb') && x.val.length > 3) return eembed(x.val.slice(3));
-    if(x.val.startsWith('cs') && x.val.length > 2) return ecase(x.val.slice(2));
-    if(x.val.startsWith('vupd') && x.val.length > 4) return evarupdate(x.val.slice(4));
     if(x.val[0] === '"') return elit(x.val.slice(1));
     const n = +x.val;
     if(!isNaN(n)) {

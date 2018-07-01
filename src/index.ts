@@ -1,14 +1,13 @@
 /**
  * TODO:
  *  parser:
- *    syntax for varempty, embedding, case, variant update
- *    syntax for adt match
- *    syntax for lists and arrays
  *    records as tuples
+ *    syntax for lists and arrays
+ *    syntax for adt match
  *    operators
  *  typechecker:
  *    improve type errors (pretty print)
- *    higher ranked types in records
+ *    higher ranked types in records and variants
  *    constrained row polymorphism
  *    tfun as a type constructor
  *    type alias

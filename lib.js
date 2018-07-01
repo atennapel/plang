@@ -98,13 +98,13 @@ const _recUpdate = l => f => r => {
 const _varEmpty = () => { throw new Error('empty variant') };
 const _varInject = label => val => ({ _var: true, label, val, level: 0 });
 const _varEmbed = l => v => v.label === l? ({ _var: true, label: l, val: v.val, level: v.level + 1 }): v;
-const _varCase = l => r => fa => fb => r.label === l? (r.level === 0? fa(r.val): fb({ _var: true, label: l, val: r.val, level: r.level - 1 })): fb(r);
-const _varUpdate = l => f => v => v.label === l && v.level === 0? { _var: true, label: l, level: 0, val: f(v.val) }: v;
+const _varCase = l => fa => fb => r => r.label === l? (r.level === 0? fa(r.val): fb({ _var: true, label: l, val: r.val, level: r.level - 1 })): fb(r);
 
 const _return = val => ({ _eff: true, tag: 'ret', val });
 const _cont = (op, val, cont) => ({ _eff: true, tag: 'cont', op, val, cont });
 const _pure = x => x.val;
 const _op = op => val => _cont(op, val, _return);
+const _effEmbed = op => x => x;
 
 const _do = c => f =>
   c.tag === 'ret'? f(c.val):
@@ -168,9 +168,9 @@ length = cataList 0 (\\h a -> S a);;
 map f = cataList Nil (\\h a -> Cons (f h) a);;
 sum = cataList 0 add;;
 
-state s p = f <- handler {
+state s p = f <- handle p {
   return x -> return (\\s -> return { val = x, state = s }),
   get () k -> return (\\s -> f <- k s; f s),
   set s k -> return (\\_ -> f <- k (); f s)
-} p; f s;;
+}; f s;;
 `;

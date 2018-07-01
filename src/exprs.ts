@@ -308,23 +308,6 @@ export class ECase extends Expr {
 }
 export const ecase = (label: string) => new ECase(label);
 
-export class EVarUpdate extends Expr {
-  constructor(
-    public readonly label: string,
-  ) { super() }
-
-  toString() {
-    return `!:${this.label}`;
-  }
-  subst(name: string, expr: Expr): Expr {
-    return this;
-  }
-  substType(name: string, type: Type): Expr {
-    return this;
-  }
-}
-export const evarupdate = (label: string) => new EVarUpdate(label);
-
 export class EReturn extends Expr {
   toString() {
     return `return`;
@@ -367,6 +350,23 @@ export class EOp extends Expr {
   }
 }
 export const eop = (label: string) => new EOp(label);
+
+export class EEffEmbed extends Expr {
+  constructor(
+    public readonly label: string,
+  ) { super() }
+
+  toString() {
+    return `(effembed ${this.label})`;
+  }
+  subst(name: string, expr: Expr): Expr {
+    return this;
+  }
+  substType(name: string, type: Type): Expr {
+    return this;
+  }
+}
+export const eeffembed = (label: string) => new EEffEmbed(label);
 
 export class EDo extends Expr {
   toString() {
