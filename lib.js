@@ -168,5 +168,9 @@ length = cataList 0 (\\h a -> S a);;
 map f = cataList Nil (\\h a -> Cons (f h) a);;
 sum = cataList 0 add;;
 
-state s p = (f <- (handler return (\\x -> return (\\s -> return { val = x, state = s })) get (\\() k -> return (\\s -> (f <- k s; f s))) set (\\s k -> return (\\_ -> (f <- k (); f s)))) p; f s);;
+state s p = f <- handler {
+  return x -> return (\\s -> return { val = x, state = s }),
+  get () k -> return (\\s -> f <- k s; f s),
+  set s k -> return (\\_ -> f <- k (); f s)
+} p; f s;;
 `;

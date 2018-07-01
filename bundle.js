@@ -973,7 +973,7 @@ function exprs(x, stack = null, mode = null) {
     }
     if (containsToken(x, ':')) {
         const xs = splitOn(x, t => isToken(t, ':'));
-        if (stack || mode || xs.length !== 2)
+        if (stack || mode || xs.length !== 2 || xs[0].length === 0 || xs[1].length === 0)
             throw new SyntaxError('invalid use of :');
         return exprs_1.eanno(exprs(xs[0]), types(xs[1]));
     }
@@ -1019,6 +1019,11 @@ function exprs(x, stack = null, mode = null) {
             throw new SyntaxError('invalid use of !');
         return exprs(x.slice(1), stack, '!');
     }
+    if (isToken(head, 'handler')) {
+        if (mode || stack)
+            throw new SyntaxError('invalid use of handler');
+        return exprs(x.slice(1), stack, 'handler');
+    }
     if (isToken(head, '$')) {
         if (mode)
             throw new SyntaxError('invalid use of $');
@@ -1035,7 +1040,9 @@ function exprs(x, stack = null, mode = null) {
         let found = -1;
         for (let i = 1; i < x.length; i++) {
             const c = x[i];
-            if (isToken(c, '->')) {
+            if (isToken(c, '\\'))
+                throw new SyntaxError('invalid use of \\');
+            else if (isToken(c, '->')) {
                 found = i;
                 break;
             }
@@ -1077,7 +1084,9 @@ function exprs(x, stack = null, mode = null) {
         let found = -1;
         for (let i = 1; i < x.length; i++) {
             const c = x[i];
-            if (isToken(c, '->')) {
+            if (isToken(c, '\\'))
+                throw new SyntaxError('invalid use of /\\');
+            else if (isToken(c, '->')) {
                 found = i;
                 break;
             }
@@ -1110,21 +1119,58 @@ function exprs(x, stack = null, mode = null) {
         const abs = exprs_1.etabss(args, exprs(rest));
         return stack ? exprs_1.eapp(stack, abs) : abs;
     }
-    if (isToken(x[0], 'handler')) {
-        if (mode)
-            throw new SyntaxError(`handler after ${mode}`);
-        const args = [];
-        for (let i = 1; i < x.length; i += 2) {
-            const op = x[i];
-            if (op.tag !== 'token')
-                throw new SyntaxError(`invalid op in handler`);
-            const e = expr(x[i + 1]);
-            args.push([op.val, e]);
-        }
-        if (args.length === 0)
-            throw new SyntaxError('empty handler');
-        const handler = exprs_1.ehandler(args);
-        return stack ? exprs_1.eapp(stack, handler) : handler;
+    if (mode === 'handler') {
+        if (!(head.tag === 'paren' && head.type === '{'))
+            throw new SyntaxError(`invalid arg to handler`);
+        const y = head.val;
+        if (y.length === 0)
+            throw new SyntaxError(`empty handler`);
+        const spl2 = splitOn(y, x => isToken(x, ','));
+        if (spl2.length === 0)
+            throw new SyntaxError(`invalid handler`);
+        const ret = spl2.map(x => {
+            if (x.length < 3 || x[0].tag !== 'token')
+                throw new SyntaxError('invalid handler part');
+            const name = x[0].val;
+            if (!/[a-z][A-Z0-9a-z]*/.test(name))
+                throw new SyntaxError(`invalid op name: ${name}`);
+            const args = [];
+            let found = -1;
+            for (let i = 1; i < x.length; i++) {
+                const c = x[i];
+                if (isToken(c, '->')) {
+                    found = i;
+                    break;
+                }
+                else if (c.tag === 'token')
+                    args.push(c.val);
+                else if (c.tag === 'paren' && c.type !== '(')
+                    throw new SyntaxError(`unexpected bracket in \\ ${c.type}`);
+                else if (c.tag === 'paren' && c.val.length === 0)
+                    args.push(['_', type(c)]);
+                else if (c.tag === 'paren' && containsToken(c.val, ':')) {
+                    const s = splitOn(c.val, x => isToken(x, ':'));
+                    if (s.length !== 2)
+                        throw new SyntaxError('nested anno arg :');
+                    const l = s[0].map(x => {
+                        if (x.tag === 'token')
+                            return x.val;
+                        throw new SyntaxError(`invalid arg: ${x}`);
+                    });
+                    const r = types(s[1]);
+                    l.forEach(n => args.push([n, r]));
+                }
+                else
+                    throw new SyntaxError(`invalid arg: ${c}`);
+            }
+            if (found < 0)
+                throw new SyntaxError(`missing -> after handler operation`);
+            const rest = x.slice(found + 1);
+            if (rest.length === 0)
+                throw new SyntaxError(`missing body in handler operation`);
+            return [name, exprs_1.eabss(args, exprs(rest))];
+        });
+        return exprs(x.slice(1), exprs_1.ehandler(ret));
     }
     if (mode === '.') {
         if (head.tag !== 'token')
@@ -1248,7 +1294,9 @@ function types(x) {
         let found = -1;
         for (let i = 1; i < x.length; i++) {
             const c = x[i];
-            if (isToken(c, '.')) {
+            if (isToken(c, 'forall'))
+                throw new SyntaxError('invalid use of forall');
+            else if (isToken(c, '.')) {
                 found = i;
                 break;
             }

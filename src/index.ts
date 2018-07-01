@@ -1,8 +1,8 @@
 /**
  * TODO:
  *  parser:
- *    syntax for handlers
  *    syntax for varempty, embedding, case, variant update
+ *    syntax for adt match
  *    syntax for lists and arrays
  *    records as tuples
  *    operators
@@ -29,6 +29,8 @@
  *    simplify names in pp of types
  * 
  * PROBLEMS:
+ *  pure $ (handler inc (\n k -> return n)) $ mapE (\x -> !inc x) (Nil)
+ *  (handler inc (\n k -> k $ S n)) $ mapE (\x -> !inc x) (Cons 1 $ Cons 2 $ Cons 3 Nil)
  *  { x = \x -> x } : SRec { x : forall t. t -> t }
  *  caseBool (#Just @(forall t. t -> t) (\x -> x)) (#Nothing ()) True : forall (r : Row). SVar { Just : forall t. t -> t, Nothing : Unit | r }
  * 
