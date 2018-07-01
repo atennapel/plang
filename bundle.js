@@ -1054,6 +1054,8 @@ function exprs(x, stack = null, mode = null) {
         if (found < 0)
             throw new SyntaxError(`missing -> after \\`);
         const rest = x.slice(found + 1);
+        if (args.length === 0)
+            throw new SyntaxError('\\ without args');
         if (rest.length === 0)
             throw new SyntaxError(`missing body in function`);
         const abs = exprs_1.eabss(args, exprs(rest));
@@ -1092,6 +1094,8 @@ function exprs(x, stack = null, mode = null) {
         if (found < 0)
             throw new SyntaxError(`missing -> after /\\`);
         const rest = x.slice(found + 1);
+        if (args.length === 0)
+            throw new SyntaxError('/\\ without args');
         if (rest.length === 0)
             throw new SyntaxError(`missing body in tabs`);
         const abs = exprs_1.etabss(args, exprs(rest));
@@ -1108,6 +1112,8 @@ function exprs(x, stack = null, mode = null) {
             const e = expr(x[i + 1]);
             args.push([op.val, e]);
         }
+        if (args.length === 0)
+            throw new SyntaxError('empty handler');
         const handler = exprs_1.ehandler(args);
         return stack ? exprs_1.eapp(stack, handler) : handler;
     }
@@ -1259,6 +1265,8 @@ function types(x) {
         if (found < 0)
             throw new SyntaxError(`missing . after forall`);
         const rest = x.slice(found + 1);
+        if (args.length === 0)
+            throw new SyntaxError('forall without args');
         if (rest.length === 0)
             throw new SyntaxError(`missing body in forall`);
         return types_1.tforalls(args.map(x => typeof x === 'string' ? [x, typechecker_1.ktype] : x), types(rest));
@@ -1380,14 +1388,48 @@ function parseDefinition(s) {
             throw new SyntaxError('= is missing in data');
     }
     else {
-        const spl = s.split('=');
-        if (!spl || spl.length !== 2)
-            throw new SyntaxError('error on =');
-        const name = spl[0].trim();
+        const x = tokenize(s);
+        if (x.length < 3 || x[0].tag !== 'token')
+            throw new SyntaxError('invalid def');
+        const name = x[0].val;
         if (!/[a-z][A-Z0-9a-z]*/.test(name))
             throw new SyntaxError(`invalid name: ${name}`);
-        const rest = spl[1].trim();
-        return new definitions_1.DValue(name, parse(rest));
+        const args = [];
+        let found = -1;
+        for (let i = 1; i < x.length; i++) {
+            const c = x[i];
+            if (isToken(c, '=')) {
+                found = i;
+                break;
+            }
+            else if (c.tag === 'token')
+                args.push(c.val);
+            else if (c.tag === 'paren' && c.type !== '(')
+                throw new SyntaxError(`unexpected bracket in def ${c.type}`);
+            else if (c.tag === 'paren' && c.val.length === 0)
+                args.push(['_', type(c)]);
+            else if (c.tag === 'paren' && containsToken(c.val, ':')) {
+                const s = splitOn(c.val, x => isToken(x, ':'));
+                if (s.length !== 2)
+                    throw new SyntaxError('nested anno arg :');
+                const l = s[0].map(x => {
+                    if (x.tag === 'token')
+                        return x.val;
+                    throw new SyntaxError(`invalid arg: ${x}`);
+                });
+                const r = types(s[1]);
+                l.forEach(n => args.push([n, r]));
+            }
+            else
+                throw new SyntaxError(`invalid arg: ${c}`);
+        }
+        if (found < 0)
+            throw new SyntaxError(`missing = after def`);
+        const rest = x.slice(found + 1);
+        if (rest.length === 0)
+            throw new SyntaxError(`missing body in function`);
+        const body = exprs(rest);
+        return new definitions_1.DValue(name, args.length === 0 ? body : exprs_1.eabss(args, body));
     }
 }
 exports.parseDefinition = parseDefinition;
@@ -2186,8 +2228,8 @@ function synth(ctx, e) {
                 ctx_ = rr.ctx;
             }
             else {
-                const ta = fresh(texs, 'a');
-                const tb = fresh(texs, 'b');
+                const ta = fresh(ctx_.texs(), 'a');
+                const tb = fresh(ctx_.texs(), 'b');
                 // a -> (b -> SEff r d) -> SEff r d
                 const rr = checkTy(ctx_.add(context_1.ctex(ta, exports.ktype), context_1.ctex(tb, exports.ktype)), ex, types_1.tfuns(types_1.tex(ta), types_1.tfuns(types_1.tex(tb), types_1.tapps(exports.tseff, types_1.tex(tr), types_1.tex(td))), types_1.tapps(exports.tseff, types_1.tex(tr), types_1.tex(td))));
                 row.push([op, types_1.tfuns(types_1.tex(ta), types_1.tex(tb))]);

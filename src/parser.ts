@@ -221,6 +221,7 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     }
     if(found < 0) throw new SyntaxError(`missing -> after \\`);
     const rest = x.slice(found + 1);
+    if(args.length === 0) throw new SyntaxError('\\ without args');
     if(rest.length === 0) throw new SyntaxError(`missing body in function`);
     const abs = eabss(args, exprs(rest));
     return stack? eapp(stack, abs): abs;
@@ -249,6 +250,7 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     }
     if(found < 0) throw new SyntaxError(`missing -> after /\\`);
     const rest = x.slice(found + 1);
+    if(args.length === 0) throw new SyntaxError('/\\ without args');
     if(rest.length === 0) throw new SyntaxError(`missing body in tabs`);
     const abs = etabss(args, exprs(rest));
     return stack? eapp(stack, abs): abs;
@@ -262,6 +264,7 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
       const e = expr(x[i+1]);
       args.push([op.val, e]);
     }
+    if(args.length === 0) throw new SyntaxError('empty handler');
     const handler = ehandler(args);
     return stack? eapp(stack, handler): handler;
   }
@@ -373,6 +376,7 @@ function types(x: Ret[]): Type {
     }
     if(found < 0) throw new SyntaxError(`missing . after forall`);
     const rest = x.slice(found + 1);
+    if(args.length === 0) throw new SyntaxError('forall without args');
     if(rest.length === 0) throw new SyntaxError(`missing body in forall`);
     return tforalls(args.map(x => typeof x === 'string'? [x, ktype] as [string, Kind]: x), types(rest));
   }
@@ -467,12 +471,36 @@ export function parseDefinition(s: string): Definition {
       return new DData(dataName[0], dataName[1], constr);
     } else throw new SyntaxError('= is missing in data');
   } else {
-    const spl = s.split('=');
-    if(!spl || spl.length !== 2) throw new SyntaxError('error on =');
-    const name = spl[0].trim();
+    const x = tokenize(s);
+    if(x.length < 3 || x[0].tag !== 'token') throw new SyntaxError('invalid def'); 
+    const name = x[0].val as string;
     if(!/[a-z][A-Z0-9a-z]*/.test(name)) throw new SyntaxError(`invalid name: ${name}`);
-    const rest = spl[1].trim();
-    return new DValue(name, parse(rest));
+    const args: (string | [string, Type])[] = [];
+    let found = -1;
+    for(let i = 1; i < x.length; i++) {
+      const c = x[i];
+      if(isToken(c, '=')) {
+        found = i;
+        break;
+      } else if(c.tag === 'token') args.push(c.val);
+      else if(c.tag === 'paren' && c.type !== '(') throw new SyntaxError(`unexpected bracket in def ${c.type}`);
+      else if(c.tag === 'paren' && c.val.length === 0) args.push(['_', type(c)]);
+      else if(c.tag === 'paren' && containsToken(c.val, ':')) {
+        const s = splitOn(c.val, x => isToken(x, ':'));
+        if(s.length !== 2) throw new SyntaxError('nested anno arg :');
+        const l = s[0].map(x => {
+          if(x.tag === 'token') return x.val;
+          throw new SyntaxError(`invalid arg: ${x}`);
+        });
+        const r = types(s[1]);
+        l.forEach(n => args.push([n, r]));
+      } else throw new SyntaxError(`invalid arg: ${c}`);
+    }
+    if(found < 0) throw new SyntaxError(`missing = after def`);
+    const rest = x.slice(found + 1);
+    if(rest.length === 0) throw new SyntaxError(`missing body in function`);
+    const body = exprs(rest);
+    return new DValue(name, args.length === 0? body: eabss(args, body));
   }
 }
 

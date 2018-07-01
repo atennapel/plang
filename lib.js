@@ -135,12 +135,12 @@ const divFloat = x => y => x / y;
 const modFloat = x => y => x % y;
 
 const _prelude = `
-id = \\x -> x;;
-cnst = \\x y -> x;;
-flip = \\f x y -> f y x;;
-comp = \\f g x -> f (g x);;
-comp2 = \\f g x y -> f (g x y);;
-app = \\f x -> f x;;
+id x = x;;
+cnst x y = x;;
+flip f x y = f y x;;
+comp f g x = f (g x);;
+comp2 f g x y = f (g x y);;
+app f x = f x;;
 
 data Void;;
 data Unit = Unit;;
@@ -161,10 +161,12 @@ and = caseBool id (\\x -> False);;
 or = caseBool (\\x -> True) id;;
 
 inc = S;;
-add = \\x y -> cataNat x inc y;;
+add x y = cataNat x inc y;;
 pred = caseNat Z id;;
 
 length = cataList 0 (\\h a -> S a);;
-map = \\f -> cataList Nil (\\h a -> Cons (f h) a);;
+map f = cataList Nil (\\h a -> Cons (f h) a);;
 sum = cataList 0 add;;
+
+state s p = (f <- (handler return (\\x -> return (\\s -> return { val = x, state = s })) get (\\() k -> return (\\s -> (f <- k s; f s))) set (\\s k -> return (\\_ -> (f <- k (); f s)))) p; f s);;
 `;

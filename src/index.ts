@@ -1,12 +1,14 @@
 /**
  * TODO:
  *  parser:
- *    syntax for algebraic effects
- *    syntax for variants
+ *    fix \, /\ and ; order
+ *    syntax for handlers
+ *    syntax for varempty, embedding, case, variant update
  *    syntax for lists and arrays
  *    records as tuples
  *    operators
  *  typechecker:
+ *    improve type errors (pretty print)
  *    higher ranked types in records
  *    constrained row polymorphism
  *    tfun as a type constructor
@@ -23,12 +25,13 @@
  *  repl:
  *    tutorial command
  *    save/load/clear commands
- *    let with arguments
  *  other:
  *    pretty printer expr
+ *    simplify names in pp of types
  * 
  * PROBLEMS:
  *  { x = \x -> x } : SRec { x : forall t. t -> t }
+ *  caseBool (#Just @(forall t. t -> t) (\x -> x)) (#Nothing ()) True : forall (r : Row). SVar { Just : forall t. t -> t, Nothing : Unit | r }
  * 
  * MAYBE PROBLEMS:
  *  vupdX S (injY 0)

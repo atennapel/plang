@@ -638,8 +638,8 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
         rexpr.push([op, rr.expr]);
         ctx_ = rr.ctx;
       } else {
-        const ta = fresh(texs, 'a');
-        const tb = fresh(texs, 'b');
+        const ta = fresh(ctx_.texs(), 'a');
+        const tb = fresh(ctx_.texs(), 'b');
         // a -> (b -> SEff r d) -> SEff r d
         const rr = checkTy(
           ctx_.add(ctex(ta, ktype), ctex(tb, ktype)),
