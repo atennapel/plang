@@ -144,6 +144,15 @@ function splitOn(x: Ret[], f: (x:Ret) => boolean) {
   r.push(c);
   return r;
 }
+function comesBefore(x: Ret[], a: string, b: string) {
+  for(let i = 0; i < x.length; i++) {
+    if(isToken(x[i], a))
+      return true;
+    else if(isToken(x[i], b))
+      return false;
+  }
+  return false;
+}
 
 function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null): Expr {
   // console.log(`exprs ${showRets(x)} ${stack} ${mode}`);
@@ -156,7 +165,7 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     if(stack || mode || xs.length !== 2) throw new SyntaxError('invalid use of :');
     return eanno(exprs(xs[0]), types(xs[1]));
   }
-  if(containsToken(x, ';')) {
+  if(containsToken(x, ';') && !comesBefore(x, '\\', ';') && !comesBefore(x, '/\\', ';')) {
     const xs = splitOn(x, t => isToken(t, ';'));
     if(stack || mode || xs.length < 2) throw new SyntaxError('invalid use of ;');
     const parts = xs.map((part, i, a) => {

@@ -1,7 +1,6 @@
 /**
  * TODO:
  *  parser:
- *    fix \, /\ and ; order
  *    syntax for handlers
  *    syntax for varempty, embedding, case, variant update
  *    syntax for lists and arrays

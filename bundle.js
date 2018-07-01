@@ -955,6 +955,15 @@ function splitOn(x, f) {
     r.push(c);
     return r;
 }
+function comesBefore(x, a, b) {
+    for (let i = 0; i < x.length; i++) {
+        if (isToken(x[i], a))
+            return true;
+        else if (isToken(x[i], b))
+            return false;
+    }
+    return false;
+}
 function exprs(x, stack = null, mode = null) {
     // console.log(`exprs ${showRets(x)} ${stack} ${mode}`);
     if (x.length === 0) {
@@ -968,7 +977,7 @@ function exprs(x, stack = null, mode = null) {
             throw new SyntaxError('invalid use of :');
         return exprs_1.eanno(exprs(xs[0]), types(xs[1]));
     }
-    if (containsToken(x, ';')) {
+    if (containsToken(x, ';') && !comesBefore(x, '\\', ';') && !comesBefore(x, '/\\', ';')) {
         const xs = splitOn(x, t => isToken(t, ';'));
         if (stack || mode || xs.length < 2)
             throw new SyntaxError('invalid use of ;');
