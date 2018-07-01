@@ -624,6 +624,7 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
     let ctx_ = ctx.add(cmarker(tm), ctex(tc, ktype), ctex(td, ktype), ctex(tr, krow));
     const row: [string, Type][] = [];
     const rexpr: [string, Expr][] = [];
+    let found = false;
     for(let i = 0; i < l; i++) {
       const c = map[i];
       const op = c[0];
@@ -637,6 +638,7 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
         );
         rexpr.push([op, rr.expr]);
         ctx_ = rr.ctx;
+        found = true;
       } else {
         const ta = fresh(ctx_.texs(), 'a');
         const tb = fresh(ctx_.texs(), 'b');
@@ -651,6 +653,8 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
         ctx_ = rr.ctx;
       }
     }
+    if(!found)
+      ctx_ = subtype(ctx_, tex(tc), tex(td));
     const rg = generalize(ctx_, isCMarker(tm), tfuns(
       tapps(tseff, trow(row, tex(tr)), tex(tc)),
       tapps(tseff, tex(tr), tex(td)),

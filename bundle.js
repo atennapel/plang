@@ -2274,6 +2274,7 @@ function synth(ctx, e) {
         let ctx_ = ctx.add(context_1.cmarker(tm), context_1.ctex(tc, exports.ktype), context_1.ctex(td, exports.ktype), context_1.ctex(tr, exports.krow));
         const row = [];
         const rexpr = [];
+        let found = false;
         for (let i = 0; i < l; i++) {
             const c = map[i];
             const op = c[0];
@@ -2283,6 +2284,7 @@ function synth(ctx, e) {
                 const rr = checkTy(ctx_, ex, types_1.tfuns(types_1.tex(tc), types_1.tapps(exports.tseff, types_1.tex(tr), types_1.tex(td))));
                 rexpr.push([op, rr.expr]);
                 ctx_ = rr.ctx;
+                found = true;
             }
             else {
                 const ta = fresh(ctx_.texs(), 'a');
@@ -2294,6 +2296,8 @@ function synth(ctx, e) {
                 ctx_ = rr.ctx;
             }
         }
+        if (!found)
+            ctx_ = subtype(ctx_, types_1.tex(tc), types_1.tex(td));
         const rg = generalize(ctx_, context_1.isCMarker(tm), types_1.tfuns(types_1.tapps(exports.tseff, types_1.trow(row, types_1.tex(tr)), types_1.tex(tc)), types_1.tapps(exports.tseff, types_1.tex(tr), types_1.tex(td))));
         return {
             ctx: rg.ctx,
