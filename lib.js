@@ -174,3 +174,5 @@ state s p = f <- handle p {
   set s k -> return (\\_ -> f <- k (); f s)
 }; f s;;
 `;
+
+const numTest = x => x;

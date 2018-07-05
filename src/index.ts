@@ -28,6 +28,8 @@
  *    simplify names in pp of types
  * 
  * PROBLEMS:
+ *  :def f = /\(x x:Type) -> \x -> x
+ *  fresh vars in WF
  *  { x = \x -> x } : SRec { x : forall t. t -> t }
  *  caseBool (#Just @(forall t. t -> t) (\x -> x)) (#Nothing ()) True : forall (r : Row). SVar { Just : forall t. t -> t, Nothing : Unit | r }
  * 

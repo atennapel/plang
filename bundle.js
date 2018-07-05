@@ -194,6 +194,18 @@ class CMarker extends ContextElem {
 exports.CMarker = CMarker;
 exports.cmarker = (name) => new CMarker(name);
 exports.isCMarker = (name) => (e) => e instanceof CMarker && e.name === name;
+class CConstraint extends ContextElem {
+    constructor(type) {
+        super();
+        this.type = type;
+    }
+    toString() {
+        return `constraint ${this.type}`;
+    }
+}
+exports.CConstraint = CConstraint;
+exports.cconstraint = (type) => new CConstraint(type);
+exports.isCConstraint = (e) => e instanceof CConstraint;
 class Context {
     constructor(elems) {
         this.elems = elems;
@@ -253,6 +265,9 @@ class Context {
     add(...es) {
         return new Context(this.elems.concat(es.filter(x => x !== null)));
     }
+    addAll(es) {
+        return new Context(this.elems.concat(es.filter(x => x !== null)));
+    }
     append(other) {
         return new Context(this.elems.concat(other.elems));
     }
@@ -300,6 +315,9 @@ class Context {
     unsolved() {
         return this.elems.filter(e => e instanceof CTEx).map((e) => [e.name, e.kind]);
     }
+    constraints() {
+        return this.elems.filter(exports.isCConstraint).map(x => x.type);
+    }
     apply(type) {
         if (type instanceof types_1.TEx) {
             const r = this.find(e => (e instanceof CTEx || e instanceof CSolved) && e.name === type.name ? e : null);
@@ -312,7 +330,7 @@ class Context {
         if (type instanceof types_1.TApp)
             return types_1.tapp(this.apply(type.left), this.apply(type.right));
         if (type instanceof types_1.TForall)
-            return types_1.tforall(type.name, type.kind, this.apply(type.type));
+            return types_1.tforallc(type.name, type.kind, type.constraints.map(t => this.apply(t)), this.apply(type.type));
         return type;
     }
     applyContextElem(e) {
@@ -320,6 +338,8 @@ class Context {
             return exports.cvar(e.name, this.apply(e.type));
         if (e instanceof CSolved)
             return exports.csolved(e.name, e.kind, this.apply(e.type));
+        if (e instanceof CConstraint)
+            return exports.cconstraint(this.apply(e.type));
         return e;
     }
     applyContext(context) {
@@ -970,7 +990,7 @@ function comesBefore(x, a, b) {
     return false;
 }
 function exprs(x, stack = null, mode = null) {
-    console.log(`exprs ${showRets(x)} ${stack} ${mode}`);
+    // console.log(`exprs ${showRets(x)} ${stack} ${mode}`);
     if (x.length === 0) {
         if (mode)
             throw new SyntaxError(`invalid use of ${mode}`);
@@ -1671,22 +1691,14 @@ function flattenTFun(f) {
 }
 function flattenTForall(f) {
     const r = [];
+    const rr = [];
     let c = f;
     while (c instanceof types_1.TForall) {
         r.push([c.name, c.kind]);
+        rr.push.apply(rr, c.constraints);
         c = c.type;
     }
-    return { args: r, ty: c };
-}
-function flattenTApp(a) {
-    const r = [];
-    let c = a;
-    while (c instanceof types_1.TApp) {
-        r.push(c.right);
-        c = c.left;
-    }
-    r.push(c);
-    return r.reverse();
+    return { args: r, constraints: rr, ty: c };
 }
 function flattenTExtend(e) {
     const props = [];
@@ -1710,7 +1722,7 @@ function ppType(t) {
     if (t instanceof types_1.TEx)
         return `^${t.name}`;
     if (t instanceof types_1.TApp) {
-        const f = flattenTApp(t);
+        const f = types_1.flattenTApp(t);
         const first = f[0];
         if (first instanceof types_1.TCon && isSymbol(first.name) && f.length === 3) {
             const args = f.slice(1).map(t => t instanceof types_1.TApp || t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t));
@@ -1723,7 +1735,7 @@ function ppType(t) {
     if (t instanceof types_1.TForall) {
         const f = flattenTForall(t);
         const args = f.args.map(([x, k]) => k.equals(typechecker_1.ktype) ? x : `(${x} : ${ppKind(k)})`);
-        return `${exports.FORALL}${args.join(' ')}. ${ppType(f.ty)}`;
+        return `${exports.FORALL}${args.join(' ')}. ${f.constraints.map(ppType).join(', ')}${f.constraints.length === 0 ? '' : ' => '}${ppType(f.ty)}`;
     }
     if (t instanceof types_1.TExtend) {
         const f = flattenTExtend(t);
@@ -1748,6 +1760,8 @@ function ppContextElem(e) {
         return `^${e.name} : ${ppKind(e.kind)} = ${ppType(e.type)}`;
     if (e instanceof context_1.CMarker)
         return `|>^${e.name}`;
+    if (e instanceof context_1.CConstraint)
+        return `constraint ${ppType(e.type)}`;
     return util_1.impossible();
 }
 exports.ppContextElem = ppContextElem;
@@ -1766,7 +1780,7 @@ const context_1 = require("./context");
 const parser_1 = require("./parser");
 const prettyprinter_1 = require("./prettyprinter");
 const definitions_1 = require("./definitions");
-exports._context = typechecker_1.initialContext.add(context_1.cvar('show', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('t'), typechecker_1.tstr))), context_1.cvar('emptyStr', typechecker_1.tstr), context_1.cvar('appendStr', types_1.tfuns(typechecker_1.tstr, typechecker_1.tstr, typechecker_1.tstr)), context_1.cvar('zeroFloat', typechecker_1.tfloat), context_1.cvar('oneFloat', typechecker_1.tfloat), context_1.cvar('negFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('incFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('decFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('addFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('subFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('mulFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('divFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('modFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)));
+exports._context = typechecker_1.initialContext.add(context_1.cvar('show', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('t'), typechecker_1.tstr))), context_1.cvar('emptyStr', typechecker_1.tstr), context_1.cvar('appendStr', types_1.tfuns(typechecker_1.tstr, typechecker_1.tstr, typechecker_1.tstr)), context_1.cvar('zeroFloat', typechecker_1.tfloat), context_1.cvar('oneFloat', typechecker_1.tfloat), context_1.cvar('negFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('incFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('decFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('addFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('subFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('mulFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('divFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('modFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('numTest', types_1.tforallc('t', typechecker_1.ktype, [types_1.tapps(types_1.tcon('Num'), types_1.tvar('t'))], types_1.tfuns(types_1.tvar('t'), types_1.tvar('t')))));
 function _show(x) {
     if (x._rec) {
         if (x.length === 0)
@@ -1874,6 +1888,7 @@ function _run(i, cb) {
             cb(`${_show(res)} : ${prettyprinter_1.ppType(tr.ty)}`);
         }
         catch (e) {
+            console.log(e);
             cb('' + e, true);
         }
     }
@@ -1965,6 +1980,7 @@ const orderedTExs = (texs, ty) => {
 // initial context
 exports.ktype = kinds_1.kcon('Type');
 exports.krow = kinds_1.kcon('Row');
+exports.kconstraint = kinds_1.kcon('Constraint');
 exports.tstr = types_1.tcon('Str');
 exports.tfloat = types_1.tcon('Float');
 exports.tsrec = types_1.tcon('SRec');
@@ -1973,18 +1989,26 @@ exports.tseff = types_1.tcon('SEff');
 exports.initialContext = new context_1.Context([
     context_1.ckcon('Type'),
     context_1.ckcon('Row'),
+    context_1.ckcon('Constraint'),
     context_1.ctcon('Str', exports.ktype),
     context_1.ctcon('Float', exports.ktype),
     context_1.ctcon('SRec', kinds_1.kfuns(exports.krow, exports.ktype)),
     context_1.ctcon('SVar', kinds_1.kfuns(exports.krow, exports.ktype)),
     context_1.ctcon('SEff', kinds_1.kfuns(exports.krow, exports.ktype, exports.ktype)),
+    context_1.ctcon('Num', kinds_1.kfuns(exports.ktype, exports.kconstraint)),
 ]);
 // wf
+function checkKind(kind, kk) {
+    return kk.equals(kind) ? (null) : err(`kind is not ${kk}: ${kind}`);
+}
 function checkKindType(kind) {
-    return exports.ktype.equals(kind) ? (null) : err(`kind is not ${exports.ktype}: ${kind}`);
+    return checkKind(kind, exports.ktype);
 }
 function checkKindRow(kind) {
-    return exports.krow.equals(kind) ? (null) : err(`kind is not ${exports.krow}: ${kind}`);
+    return checkKind(kind, exports.krow);
+}
+function checkKindConstraint(kind) {
+    return checkKind(kind, exports.kconstraint);
 }
 function kindWF(ctx, kind) {
     // console.log(`kindWF ${kind} in ${ctx}`);
@@ -2032,7 +2056,11 @@ function typeWF(ctx, ty) {
     }
     if (ty instanceof types_1.TForall) {
         kindWF(ctx, ty.kind);
-        return typeWF(ctx.add(context_1.ctvar(ty.name, ty.kind)), ty.type);
+        ty.constraints.forEach(t => {
+            const k = typeWF(ctx.add(context_1.ctvar(ty.name, ty.kind)), t);
+            checkKindConstraint(k);
+        });
+        return typeWF(ctx.add(context_1.ctvar(ty.name, ty.kind)).addAll(ty.constraints.map(t => context_1.cconstraint(t))), ty.type);
     }
     if (ty instanceof types_1.TApp) {
         const kleft = typeWF(ctx, ty.left);
@@ -2087,6 +2115,10 @@ function contextWF(ctx) {
         else if (e instanceof context_1.CMarker) {
             if (p.findMarker(e.name) !== null || p.findExOrSolved(e.name) !== null)
                 return err(`duplicate marker ^${e.name}`);
+        }
+        else if (e instanceof context_1.CConstraint) {
+            const k = typeWF(p, e.type);
+            checkKindConstraint(k);
         }
         else
             return util_1.impossible();
@@ -2152,12 +2184,12 @@ function subtype(ctx, a, b) {
     }
     if (a instanceof types_1.TForall) {
         const x = fresh(ctx.texs(), a.name);
-        const ctx_ = subtype(ctx.add(context_1.cmarker(x), context_1.ctex(x, a.kind)), a.open(types_1.tex(x)), b);
+        const ctx_ = subtype(ctx.add(context_1.cmarker(x), context_1.ctex(x, a.kind)).addAll(a.constraints.map(t => context_1.cconstraint(t.subst(a.name, types_1.tex(x))))), a.open(types_1.tex(x)), b);
         return (ctx_.split(context_1.isCMarker(x)).left);
     }
     if (b instanceof types_1.TForall) {
         const x = fresh(ctx.tvars(), b.name);
-        const ctx_ = subtype(ctx.add(context_1.ctvar(x, b.kind)), a, b.open(types_1.tvar(x)));
+        const ctx_ = subtype(ctx.add(context_1.ctvar(x, b.kind)).addAll(b.constraints.map(t => context_1.cconstraint(t.subst(b.name, types_1.tvar(x))))), a, b.open(types_1.tvar(x)));
         return (ctx_.split(context_1.isCTVar(x)).left);
     }
     if (a instanceof types_1.TEx) {
@@ -2221,7 +2253,7 @@ function instL(ctx, a, b) {
     }
     if (b instanceof types_1.TForall) {
         const x = fresh(ctx.tvars(), b.name);
-        const ctx_ = instL(ctx.add(context_1.ctvar(x, b.kind)), a, b.open(types_1.tvar(x)));
+        const ctx_ = instL(ctx.add(context_1.ctvar(x, b.kind)).addAll(b.constraints.map(t => context_1.cconstraint(t.subst(b.name, types_1.tvar(x))))), a, b.open(types_1.tvar(x)));
         return (ctx_.split(context_1.isCTVar(x)).left);
     }
     if (b instanceof types_1.TExtend) {
@@ -2267,7 +2299,7 @@ function instR(ctx, a, b) {
     }
     if (a instanceof types_1.TForall) {
         const x = fresh(ctx.texs(), a.name);
-        const ctx_ = instR(ctx.add(context_1.cmarker(x), context_1.ctex(x, a.kind)), a.open(types_1.tex(x)), b);
+        const ctx_ = instR(ctx.add(context_1.cmarker(x), context_1.ctex(x, a.kind)).addAll(a.constraints.map(t => context_1.cconstraint(t.subst(a.name, types_1.tex(x))))), a.open(types_1.tex(x)), b);
         return (ctx_.split(context_1.isCMarker(x)).left);
     }
     if (a instanceof types_1.TExtend) {
@@ -2284,13 +2316,53 @@ function instR(ctx, a, b) {
     return err(`instR failed: ${a} and ${b} in ${ctx}`);
 }
 // synth/check
+function solveConstraint(c) {
+    if (c instanceof types_1.TApp) {
+        const f = types_1.flattenTApp(c);
+        const head = f[0];
+        if (head instanceof types_1.TCon && head.name === 'Num') {
+            const args = f.slice(1);
+            if (args.length === 1) {
+                const arg = args[0];
+                if (arg instanceof types_1.TEx)
+                    return true;
+                if (arg instanceof types_1.TCon && (arg.name === 'Float' || arg.name === 'Nat'))
+                    return false;
+                return err(`cannot solve constraint ${c}`);
+            }
+        }
+    }
+    return err(`invalid constraint ${c}`);
+}
+function solveConstraints(a) {
+    const l = a.length;
+    const r = [];
+    for (let i = 0; i < l; i++) {
+        const c = a[i];
+        const res = solveConstraint(c);
+        if (res)
+            r.push(c);
+    }
+    return r;
+}
 function generalize(ctx, marker, ty) {
     const s = ctx.split(marker);
+    const cs = s.right.constraints().map(t => s.right.apply(t));
+    console.log(`cs ${cs.join(', ')}`);
+    const csres = solveConstraints(cs);
+    console.log(`csres ${csres.join(', ')}`);
     const t = s.right.apply(ty);
     const u = orderedTExs(s.right.unsolved(), t);
+    if (u.length === 0 && csres.length > 0)
+        return err(`invalid texs in constraints: ${csres.join(', ')}`);
+    if (u.length === 0)
+        return { ctx: s.left, ty: t };
+    const base = types_1.tforallc(u[0][0], u[0][1], csres.map(t => t.substEx(u[0][0], types_1.tvar(u[0][0]))), t.substEx(u[0][0], types_1.tvar(u[0][0])));
+    if (u.length === 1)
+        return { ctx: s.left, ty: base };
     return {
         ctx: s.left,
-        ty: types_1.tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, types_1.tvar(n)), t)),
+        ty: types_1.tforalls(u.slice(1), u.slice(1).reduce((t, [n, _]) => t.substEx(n, types_1.tvar(n)), base)),
     };
 }
 function synth(ctx, e) {
@@ -2497,7 +2569,7 @@ function checkTy(ctx, e, ty) {
     contextWF(ctx);
     if (ty instanceof types_1.TForall) {
         const x = fresh(ctx.tvars(), ty.name);
-        const r = checkTy(ctx.add(context_1.ctvar(x, ty.kind)), e, ty.open(types_1.tvar(x)));
+        const r = checkTy(ctx.add(context_1.ctvar(x, ty.kind)).addAll(ty.constraints.map(t => context_1.cconstraint(t.subst(ty.name, types_1.tvar(x))))), e, ty.open(types_1.tvar(x)));
         return { ctx: r.ctx.split(context_1.isCTVar(x)).left, expr: r.expr };
     }
     if (e instanceof exprs_1.EAbs && !e.isAnnotated() && ty instanceof types_1.TFun) {
@@ -2513,7 +2585,7 @@ function synthapp(ctx, ty, e) {
     contextWF(ctx);
     if (ty instanceof types_1.TForall) {
         const x = fresh(ctx.texs(), ty.name);
-        return synthapp(ctx.add(context_1.ctex(x, ty.kind)), ty.open(types_1.tex(x)), e);
+        return synthapp(ctx.add(context_1.ctex(x, ty.kind)).addAll(ty.constraints.map(t => context_1.cconstraint(t.subst(ty.name, types_1.tex(x))))), ty.open(types_1.tex(x)), e);
     }
     if (ty instanceof types_1.TEx) {
         findEx(ctx, ty.name);
@@ -2594,6 +2666,7 @@ exports.inferProgram = inferProgram;
 },{"./context":2,"./definitions":3,"./exprs":4,"./kinds":5,"./types":10,"./util":11}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const util_1 = require("./util");
 class Type {
 }
 exports.Type = Type;
@@ -2751,6 +2824,17 @@ class TApp extends Type {
 exports.TApp = TApp;
 exports.tapp = (left, right) => new TApp(left, right);
 exports.tapps = (...ts) => ts.reduce(exports.tapp);
+function flattenTApp(a) {
+    const r = [];
+    let c = a;
+    while (c instanceof TApp) {
+        r.push(c.right);
+        c = c.left;
+    }
+    r.push(c);
+    return r.reverse();
+}
+exports.flattenTApp = flattenTApp;
 class TFun extends Type {
     constructor(left, right) {
         super();
@@ -2792,52 +2876,56 @@ exports.TFun = TFun;
 exports.tfun = (left, right) => new TFun(left, right);
 exports.tfuns = (...ts) => ts.reduceRight((a, b) => exports.tfun(b, a));
 class TForall extends Type {
-    constructor(name, kind, type) {
+    constructor(name, kind, constraints, type) {
         super();
         this.name = name;
         this.kind = kind;
+        this.constraints = constraints;
         this.type = type;
     }
     toString() {
-        return `(forall(${this.name} : ${this.kind}). ${this.type})`;
+        return `(forall(${this.name} : ${this.kind}). ${this.constraints.join(', ')} => ${this.type})`;
     }
     equals(other) {
         return other instanceof TForall &&
             this.name === other.name &&
             this.kind.equals(other.kind) &&
+            util_1.arrEquals(this.constraints, other.constraints) &&
             this.type.equals(other.type);
     }
     isMono() {
         return false;
     }
     subst(name, type) {
-        return this.name === name ? this : new TForall(this.name, this.kind, this.type.subst(name, type));
+        return this.name === name ? this : new TForall(this.name, this.kind, this.constraints.map(t => t.subst(name, type)), this.type.subst(name, type));
     }
     substEx(name, type) {
-        return new TForall(this.name, this.kind, this.type.substEx(name, type));
+        return new TForall(this.name, this.kind, this.constraints.map(t => t.substEx(name, type)), this.type.substEx(name, type));
     }
     open(type) {
         return this.type.subst(this.name, type);
     }
     containsEx(name) {
-        return this.type.containsEx(name);
+        return util_1.any(this.constraints.map(t => t.containsEx(name))) || this.type.containsEx(name);
     }
     containsTCon(name) {
-        return this.type.containsTCon(name);
+        return util_1.any(this.constraints.map(t => t.containsTCon(name))) || this.type.containsTCon(name);
     }
     texs() {
-        return this.type.texs();
+        return util_1.concatAll(this.constraints.map(t => t.texs())).concat(this.type.texs());
     }
     tvars() {
-        return [this.name].concat(this.type.tvars());
+        return [this.name].concat(util_1.concatAll(this.constraints.map(t => t.tvars()))).concat(this.type.tvars());
     }
     occursNegatively(name, negative) {
-        return this.type.occursNegatively(name, negative);
+        return util_1.any(this.constraints.map(t => t.occursNegatively(name, negative))) || this.type.occursNegatively(name, negative);
     }
 }
 exports.TForall = TForall;
-exports.tforall = (name, kind, type) => new TForall(name, kind, type);
+exports.tforall = (name, kind, type) => new TForall(name, kind, [], type);
+exports.tforallc = (name, kind, constraints, type) => new TForall(name, kind, constraints, type);
 exports.tforalls = (ns, type) => ns.reduceRight((a, b) => exports.tforall(b[0], b[1], a), type);
+exports.tforallsc = (ns, type) => ns.reduceRight((a, b) => exports.tforallc(b[0], b[1], b[2], a), type);
 class TEmpty extends Type {
     toString() {
         return `{}`;
@@ -2915,12 +3003,54 @@ exports.TExtend = TExtend;
 exports.textend = (label, type, rest) => new TExtend(label, type, rest);
 exports.trow = (props, rest) => props.reduceRight((r, [l, t]) => exports.textend(l, t, r), rest || exports.tempty);
 
-},{}],11:[function(require,module,exports){
+},{"./util":11}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function err(msg) { throw new Error(msg); }
 exports.err = err;
 exports.impossible = () => err('impossible');
+function arrEquals(a, b) {
+    const l = a.length;
+    if (b.length !== l)
+        return false;
+    for (let i = 0; i < l; i++) {
+        if (!a[i].equals(b[i]))
+            return false;
+    }
+    return true;
+}
+exports.arrEquals = arrEquals;
+function all(a) {
+    const l = a.length;
+    for (let i = 0; i < l; i++) {
+        if (!a[i])
+            return false;
+    }
+    return true;
+}
+exports.all = all;
+function any(a) {
+    const l = a.length;
+    for (let i = 0; i < l; i++) {
+        if (a[i])
+            return true;
+    }
+    return false;
+}
+exports.any = any;
+function concatAll(a) {
+    const r = [];
+    const l = a.length;
+    for (let i = 0; i < l; i++) {
+        const b = a[i];
+        const k = b.length;
+        for (let j = k; j < k; j++) {
+            r.push(b[j]);
+        }
+    }
+    return r;
+}
+exports.concatAll = concatAll;
 
 },{}],12:[function(require,module,exports){
 "use strict";

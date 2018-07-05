@@ -2,11 +2,14 @@ import {
   tvar,
   tfuns,
   tforalls,
+  tforallc,
+  tapps,
+  tcon,
 } from './types';
 import { compile, compileProgram, compileDefinition, compileConstructor, compileCase, compileCata, compilePara } from './compilerJS';
 import { infer, ktype, tstr, tfloat, initialContext, inferDefinition, inferProgram } from './typechecker';
 import {
-  cvar,
+  cvar, cconstraint,
 } from './context';
 import { parse, parseDefinition, parseProgram } from './parser';
 import { ppType, ppContextElem } from './prettyprinter';
@@ -30,6 +33,8 @@ export const _context = initialContext.add(
   cvar('mulFloat', tfuns(tfloat, tfloat, tfloat)),
   cvar('divFloat', tfuns(tfloat, tfloat, tfloat)),
   cvar('modFloat', tfuns(tfloat, tfloat, tfloat)),
+
+  cvar('numTest', tforallc('t', ktype, [tapps(tcon('Num'), tvar('t'))], tfuns(tvar('t'), tvar('t')))),
 );
 
 function _show(x: any): string {
@@ -124,6 +129,7 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
       const res = eval(c);
       cb(`${_show(res)} : ${ppType(tr.ty)}`);
     } catch(e) {
+      console.log(e);
       cb(''+e, true);
     }
   }

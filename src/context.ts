@@ -1,4 +1,4 @@
-import { Type, TEx, TFun, tfun, TForall, tforall, TApp, tapp, textend, TExtend } from './types';
+import { Type, TEx, TFun, tfun, TForall, tforall, TApp, tapp, textend, TExtend, tforallc } from './types';
 import { Kind } from './kinds';
 
 export abstract class ContextElem {
@@ -85,6 +85,16 @@ export const cmarker = (name: string) => new CMarker(name);
 export const isCMarker =
   (name: string) => (e: ContextElem): e is CMarker => e instanceof CMarker && e.name === name;
 
+export class CConstraint extends ContextElem {
+  constructor(public readonly type: Type) { super() }
+  
+  toString() {
+    return `constraint ${this.type}`;
+  }
+}
+export const cconstraint = (type: Type) => new CConstraint(type);
+export const isCConstraint = (e: ContextElem): e is CConstraint => e instanceof CConstraint;
+
 export class Context {
   constructor(public readonly elems: ContextElem[]) {}
 
@@ -148,6 +158,9 @@ export class Context {
   add(...es: (ContextElem | null)[]): Context {
     return new Context(this.elems.concat(es.filter(x => x !== null)));
   }
+  addAll(es: (ContextElem | null)[]): Context {
+    return new Context(this.elems.concat(es.filter(x => x !== null)));
+  }
   append(other: Context): Context {
     return new Context(this.elems.concat(other.elems));
   }
@@ -197,6 +210,9 @@ export class Context {
   unsolved(): [string, Kind][] {
     return this.elems.filter(e => e instanceof CTEx).map((e: CTEx) => [e.name, e.kind] as [string, Kind]);
   }
+  constraints(): Type[] {
+    return this.elems.filter(isCConstraint).map(x => x.type);
+  }
 
   apply(type: Type): Type {
     if(type instanceof TEx) {
@@ -207,13 +223,14 @@ export class Context {
     if(type instanceof TFun) return tfun(this.apply(type.left), this.apply(type.right));
     if(type instanceof TExtend) return textend(type.label, this.apply(type.type), this.apply(type.rest));
     if(type instanceof TApp) return tapp(this.apply(type.left), this.apply(type.right));
-    if(type instanceof TForall) return tforall(type.name, type.kind, this.apply(type.type));
+    if(type instanceof TForall) return tforallc(type.name, type.kind, type.constraints.map(t => this.apply(t)), this.apply(type.type));
     return type;
   }
 
   applyContextElem(e: ContextElem): ContextElem {
     if(e instanceof CVar) return cvar(e.name, this.apply(e.type));
     if(e instanceof CSolved) return csolved(e.name, e.kind, this.apply(e.type));
+    if(e instanceof CConstraint) return cconstraint(this.apply(e.type));
     return e;
   }
 

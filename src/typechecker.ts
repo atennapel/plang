@@ -22,6 +22,8 @@ import {
   textend,
   trow,
   tapps,
+  flattenTApp,
+  tforallc,
 } from './types';
 import {
   Context,
@@ -44,6 +46,8 @@ import {
   ctcon,
   ckcon,
   ContextElem,
+  cconstraint,
+  CConstraint,
 } from './context';
 import {
   Expr,
@@ -168,6 +172,7 @@ const orderedTExs = (texs: [string, Kind][], ty: Type): [string, Kind][] => {
 // initial context
 export const ktype = kcon('Type');
 export const krow = kcon('Row');
+export const kconstraint = kcon('Constraint');
 export const tstr = tcon('Str');
 export const tfloat = tcon('Float');
 export const tsrec = tcon('SRec');
@@ -176,19 +181,27 @@ export const tseff = tcon('SEff');
 export const initialContext = new Context([
   ckcon('Type'),
   ckcon('Row'),
+  ckcon('Constraint'),
   ctcon('Str', ktype),
   ctcon('Float', ktype),
   ctcon('SRec', kfuns(krow, ktype)),
   ctcon('SVar', kfuns(krow, ktype)),
   ctcon('SEff', kfuns(krow, ktype, ktype)),
+  ctcon('Num', kfuns(ktype, kconstraint)),
 ]);
 
 // wf
+function checkKind(kind: Kind, kk: Kind): null {
+  return kk.equals(kind)? (null): err(`kind is not ${kk}: ${kind}`);
+}
 function checkKindType(kind: Kind): null {
-  return ktype.equals(kind)? (null): err(`kind is not ${ktype}: ${kind}`);
+  return checkKind(kind, ktype);
 }
 function checkKindRow(kind: Kind): null {
-  return krow.equals(kind)? (null): err(`kind is not ${krow}: ${kind}`);
+  return checkKind(kind, krow);
+}
+function checkKindConstraint(kind: Kind): null {
+  return checkKind(kind, kconstraint);
 }
 
 function kindWF(ctx: Context, kind: Kind): null {
@@ -237,7 +250,11 @@ function typeWF(ctx: Context, ty: Type): Kind {
   }
   if(ty instanceof TForall) {
     kindWF(ctx, ty.kind);
-    return typeWF(ctx.add(ctvar(ty.name, ty.kind)), ty.type);
+    ty.constraints.forEach(t => {
+      const k = typeWF(ctx.add(ctvar(ty.name, ty.kind)), t);
+      checkKindConstraint(k);
+    });
+    return typeWF(ctx.add(ctvar(ty.name, ty.kind)).addAll(ty.constraints.map(t => cconstraint(t))), ty.type);
   }
   if(ty instanceof TApp) {
     const kleft = typeWF(ctx, ty.left);
@@ -280,6 +297,9 @@ function contextWF(ctx: Context): null {
     } else if(e instanceof CMarker) {
       if(p.findMarker(e.name) !== null || p.findExOrSolved(e.name) !== null)
         return err(`duplicate marker ^${e.name}`);
+    } else if(e instanceof CConstraint) {
+      const k = typeWF(p, e.type);
+      checkKindConstraint(k);
     } else return impossible();
   }
   return null;
@@ -340,12 +360,12 @@ function subtype(ctx: Context, a: Type, b: Type): Context {
   }
   if(a instanceof TForall) {
     const x = fresh(ctx.texs(), a.name);
-    const ctx_ = subtype(ctx.add(cmarker(x), ctex(x, a.kind)), a.open(tex(x)), b);
+    const ctx_ = subtype(ctx.add(cmarker(x), ctex(x, a.kind)).addAll(a.constraints.map(t => cconstraint(t.subst(a.name, tex(x))))), a.open(tex(x)), b);
     return (ctx_.split(isCMarker(x)).left);
   }
   if(b instanceof TForall) {
     const x = fresh(ctx.tvars(), b.name);
-    const ctx_ = subtype(ctx.add(ctvar(x, b.kind)), a, b.open(tvar(x)));
+    const ctx_ = subtype(ctx.add(ctvar(x, b.kind)).addAll(b.constraints.map(t => cconstraint(t.subst(b.name, tvar(x))))), a, b.open(tvar(x)));
     return (ctx_.split(isCTVar(x)).left);
   }
   if(a instanceof TEx) {
@@ -404,7 +424,7 @@ function instL(ctx: Context, a: string, b: Type): Context {
   }
   if(b instanceof TForall) {
     const x = fresh(ctx.tvars(), b.name);
-    const ctx_ = instL(ctx.add(ctvar(x, b.kind)), a, b.open(tvar(x)));
+    const ctx_ = instL(ctx.add(ctvar(x, b.kind)).addAll(b.constraints.map(t => cconstraint(t.subst(b.name, tvar(x))))), a, b.open(tvar(x)));
     return (ctx_.split(isCTVar(x)).left);
   }
   if(b instanceof TExtend) {
@@ -447,7 +467,7 @@ function instR(ctx: Context, a: Type, b: string): Context {
   }
   if(a instanceof TForall) {
     const x = fresh(ctx.texs(), a.name);
-    const ctx_ = instR(ctx.add(cmarker(x), ctex(x, a.kind)), a.open(tex(x)), b);
+    const ctx_ = instR(ctx.add(cmarker(x), ctex(x, a.kind)).addAll(a.constraints.map(t => cconstraint(t.subst(a.name, tex(x))))), a.open(tex(x)), b);
     return (ctx_.split(isCMarker(x)).left);
   }
   if(a instanceof TExtend) {
@@ -465,13 +485,49 @@ function instR(ctx: Context, a: Type, b: string): Context {
 }
 
 // synth/check
+function solveConstraint(c: Type): boolean {
+  if(c instanceof TApp) {
+    const f = flattenTApp(c);
+    const head = f[0];
+    if(head instanceof TCon && head.name === 'Num') {
+      const args = f.slice(1);
+      if(args.length === 1) {
+        const arg = args[0];
+        if(arg instanceof TEx) return true;
+        if(arg instanceof TCon && (arg.name === 'Float' || arg.name === 'Nat')) return false; 
+        return err(`cannot solve constraint ${c}`);
+      }
+    }
+  }
+  return err(`invalid constraint ${c}`)
+}
+function solveConstraints(a: Type[]): Type[] {
+  const l = a.length;
+  const r = [];
+  for(let i = 0; i < l; i++) {
+    const c = a[i];
+    const res = solveConstraint(c);
+    if(res) r.push(c);
+  }
+  return r;
+}
+
 function generalize(ctx: Context, marker: (e: ContextElem) => boolean, ty: Type): { ctx: Context, ty: Type } {
   const s = ctx.split(marker);
+  const cs = s.right.constraints().map(t => s.right.apply(t));
+  console.log(`cs ${cs.join(', ')}`);
+  const csres = solveConstraints(cs);
+  console.log(`csres ${csres.join(', ')}`);
   const t = s.right.apply(ty);
   const u = orderedTExs(s.right.unsolved(), t);
+  if(u.length === 0 && csres.length > 0)
+    return err(`invalid texs in constraints: ${csres.join(', ')}`);
+  if(u.length === 0) return { ctx: s.left, ty: t };
+  const base = tforallc(u[0][0], u[0][1], csres.map(t => t.substEx(u[0][0], tvar(u[0][0]))), t.substEx(u[0][0], tvar(u[0][0])));
+  if(u.length === 1) return { ctx: s.left, ty: base };
   return {
     ctx: s.left,
-    ty: tforalls(u, u.reduce((t, [n, _]) => t.substEx(n, tvar(n)), t)),
+    ty: tforalls(u.slice(1), u.slice(1).reduce((t, [n, _]) => t.substEx(n, tvar(n)), base)),
   };
 }
 
@@ -720,7 +776,7 @@ function checkTy(ctx: Context, e: Expr, ty: Type): { ctx: Context, expr: Expr } 
   contextWF(ctx);
   if(ty instanceof TForall) {
     const x = fresh(ctx.tvars(), ty.name);
-    const r = checkTy(ctx.add(ctvar(x, ty.kind)), e, ty.open(tvar(x)));
+    const r = checkTy(ctx.add(ctvar(x, ty.kind)).addAll(ty.constraints.map(t => cconstraint(t.subst(ty.name, tvar(x))))), e, ty.open(tvar(x)));
     return { ctx: r.ctx.split(isCTVar(x)).left, expr: r.expr };
   }
   if(e instanceof EAbs && !e.isAnnotated() && ty instanceof TFun) {
@@ -737,7 +793,7 @@ function synthapp(ctx: Context, ty: Type, e: Expr): { ctx: Context, ty: Type, ex
   contextWF(ctx);
   if(ty instanceof TForall) {
     const x = fresh(ctx.texs(), ty.name);
-    return synthapp(ctx.add(ctex(x, ty.kind)), ty.open(tex(x)), e);
+    return synthapp(ctx.add(ctex(x, ty.kind)).addAll(ty.constraints.map(t => cconstraint(t.subst(ty.name, tex(x))))), ty.open(tex(x)), e);
   }
   if(ty instanceof TEx) {
     findEx(ctx, ty.name);

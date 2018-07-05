@@ -1,4 +1,5 @@
 import { Kind } from './kinds';
+import { arrEquals, any, all, concatAll } from './util';
 
 export abstract class Type {
   abstract toString(): string;
@@ -161,6 +162,17 @@ export class TApp extends Type {
 export const tapp = (left: Type, right: Type) => new TApp(left, right);
 export const tapps = (...ts: Type[]) => ts.reduce(tapp);
 
+export function flattenTApp(a: TApp): Type[] {
+  const r = [];
+  let c: Type = a;
+  while(c instanceof TApp) {
+    r.push(c.right);
+    c = c.left;
+  }
+  r.push(c);
+  return r.reverse();
+}
+
 export class TFun extends Type {
   constructor(
     public readonly left: Type,
@@ -205,49 +217,54 @@ export class TForall extends Type {
   constructor(
     public readonly name: string,
     public readonly kind: Kind,
+    public readonly constraints: Type[],
     public readonly type: Type
   ) { super() }
 
   toString() {
-    return `(forall(${this.name} : ${this.kind}). ${this.type})`;
+    return `(forall(${this.name} : ${this.kind}). ${this.constraints.join(', ')} => ${this.type})`;
   }
   equals(other: Type): boolean {
     return other instanceof TForall &&
       this.name === other.name &&
       this.kind.equals(other.kind) &&
+      arrEquals(this.constraints, other.constraints) &&
       this.type.equals(other.type);
   }
   isMono() {
     return false;
   }
   subst(name: string, type: Type) {
-    return this.name === name? this: new TForall(this.name, this.kind, this.type.subst(name, type));
+    return this.name === name? this: new TForall(this.name, this.kind, this.constraints.map(t => t.subst(name, type)), this.type.subst(name, type));
   }
   substEx(name: string, type: Type) {
-    return new TForall(this.name, this.kind, this.type.substEx(name, type));
+    return new TForall(this.name, this.kind, this.constraints.map(t => t.substEx(name, type)), this.type.substEx(name, type));
   }
   open(type: Type) {
     return this.type.subst(this.name, type);
   }
   containsEx(name: string): boolean {
-    return this.type.containsEx(name);
+    return any(this.constraints.map(t => t.containsEx(name))) || this.type.containsEx(name);
   }
   containsTCon(name: string): boolean {
-    return this.type.containsTCon(name);
+    return any(this.constraints.map(t => t.containsTCon(name))) || this.type.containsTCon(name);
   }
   texs(): string[] {
-    return this.type.texs();
+    return concatAll(this.constraints.map(t => t.texs())).concat(this.type.texs());
   }
   tvars(): string[] {
-    return [this.name].concat(this.type.tvars());
+    return [this.name].concat(concatAll(this.constraints.map(t => t.tvars()))).concat(this.type.tvars());
   }
   occursNegatively(name: string, negative: boolean): boolean {
-    return this.type.occursNegatively(name, negative);
+    return any(this.constraints.map(t => t.occursNegatively(name, negative))) || this.type.occursNegatively(name, negative);
   }
 }
-export const tforall = (name: string, kind: Kind, type: Type) => new TForall(name, kind, type);
+export const tforall = (name: string, kind: Kind, type: Type) => new TForall(name, kind, [], type);
+export const tforallc = (name: string, kind: Kind, constraints: Type[], type: Type) => new TForall(name, kind, constraints, type);
 export const tforalls = (ns: [string, Kind][], type: Type) =>
   ns.reduceRight((a, b) => tforall(b[0], b[1], a), type);
+export const tforallsc = (ns: [string, Kind, Type[]][], type: Type) =>
+  ns.reduceRight((a, b) => tforallc(b[0], b[1], b[2], a), type);
 
 export class TEmpty extends Type {
   toString() {

@@ -1,6 +1,6 @@
 import { Kind, KCon, KFun } from './kinds';
-import { Type, TCon, TVar, TEx, TApp, TFun, TForall, TEmpty, TExtend } from './types';
-import { Context, ContextElem, CKCon, CTCon, CTVar, CTEx, CVar, CSolved, CMarker } from './context';
+import { Type, TCon, TVar, TEx, TApp, TFun, TForall, TEmpty, TExtend, flattenTApp } from './types';
+import { Context, ContextElem, CKCon, CTCon, CTVar, CTEx, CVar, CSolved, CMarker, CConstraint } from './context';
 import { impossible } from './util';
 import { ktype } from './typechecker'; 
 
@@ -38,25 +38,16 @@ function flattenTFun(f: TFun): Type[] {
   return r;
 }
 
-function flattenTForall(f: TForall): { args: [string, Kind][], ty: Type } {
+function flattenTForall(f: TForall): { args: [string, Kind][], constraints: Type[], ty: Type } {
   const r: [string, Kind][] = [];
+  const rr: Type[] = [];
   let c: Type = f;
   while(c instanceof TForall) {
     r.push([c.name, c.kind]);
+    rr.push.apply(rr, c.constraints);
     c = c.type;
   }
-  return { args: r, ty: c };
-}
-
-function flattenTApp(a: TApp): Type[] {
-  const r = [];
-  let c: Type = a;
-  while(c instanceof TApp) {
-    r.push(c.right);
-    c = c.left;
-  }
-  r.push(c);
-  return r.reverse();
+  return { args: r, constraints: rr, ty: c };
 }
 
 function flattenTExtend(e: TExtend): { props: [string, Type][], rest: Type | null } {
@@ -92,7 +83,7 @@ export function ppType(t: Type): string {
   if(t instanceof TForall) {
     const f = flattenTForall(t);
     const args = f.args.map(([x, k]) => k.equals(ktype)? x: `(${x} : ${ppKind(k)})`);
-    return `${FORALL}${args.join(' ')}. ${ppType(f.ty)}`;
+    return `${FORALL}${args.join(' ')}. ${f.constraints.map(ppType).join(', ')}${f.constraints.length === 0? '': ' => '}${ppType(f.ty)}`;
   }
   if(t instanceof TExtend) {
     const f = flattenTExtend(t);
@@ -110,6 +101,7 @@ export function ppContextElem(e: ContextElem): string {
   if(e instanceof CVar) return `${e.name} : ${ppType(e.type)}`;
   if(e instanceof CSolved) return `^${e.name} : ${ppKind(e.kind)} = ${ppType(e.type)}`;
   if(e instanceof CMarker) return `|>^${e.name}`;
+  if(e instanceof CConstraint) return `constraint ${ppType(e.type)}`;
   return impossible();
 }
 
