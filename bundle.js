@@ -811,6 +811,7 @@ const types_1 = require("./types");
 const typechecker_1 = require("./typechecker");
 const definitions_1 = require("./definitions");
 const prettyprinter_1 = require("./prettyprinter");
+const util_1 = require("./util");
 function matchingBracket(c) {
     if (c === '(')
         return ')';
@@ -969,7 +970,7 @@ function comesBefore(x, a, b) {
     return false;
 }
 function exprs(x, stack = null, mode = null) {
-    // console.log(`exprs ${showRets(x)} ${stack} ${mode}`);
+    console.log(`exprs ${showRets(x)} ${stack} ${mode}`);
     if (x.length === 0) {
         if (mode)
             throw new SyntaxError(`invalid use of ${mode}`);
@@ -1000,6 +1001,48 @@ function exprs(x, stack = null, mode = null) {
         });
         return parts.slice(0, -1).reduceRight((x, [n, e]) => exprs_1.eapps(exprs_1.edo, e, exprs_1.eabs(n, x)), parts[parts.length - 1][1]);
     }
+    if (containsToken(x, '.')) {
+        if (x.length <= 1)
+            return util_1.err('invalid use of .');
+        if (x.length === 2) {
+            if (isToken(x[1], '.') || x[1].tag !== 'token')
+                return util_1.err('invalid use of .');
+            return exprs_1.eselect(x[1].val);
+        }
+        if (x.length === 3) {
+            if (isToken(x[0], '.') || isToken(x[2], '.') || x[2].tag !== 'token')
+                return util_1.err('invalid use of .');
+            return exprs_1.eapp(exprs_1.eselect(x[2].val), expr(x[0]));
+        }
+        const l = x.length;
+        const r = [];
+        for (let i = 0; i < l; i++) {
+            if (isToken(x[i], '.')) {
+                if (x[i + 1]) {
+                    if (x[i + 1].tag !== 'token')
+                        return util_1.err('invalid label');
+                    const label = x[i + 1].val;
+                    if (label === '.')
+                        return util_1.err('invalid label');
+                    if (x[i - 1]) {
+                        if (isToken(x[i - 1], '.'))
+                            return util_1.err('invalid use of .');
+                        r.pop();
+                        r.push(paren([x[i - 1], token('.'), x[i + 1]], '(')), i++;
+                    }
+                    else {
+                        r.push(paren([token('.'), x[i + 1]], '(')), i++;
+                    }
+                }
+                else
+                    return util_1.err('. lacks rhs');
+            }
+            else {
+                r.push(x[i]);
+            }
+        }
+        return exprs(r);
+    }
     const head = x[0];
     if (isToken(head, ':'))
         throw new SyntaxError('invalid use of :');
@@ -1007,11 +1050,6 @@ function exprs(x, stack = null, mode = null) {
         if (mode || !stack)
             throw new SyntaxError('invalid use of @');
         return exprs(x.slice(1), stack, '@');
-    }
-    if (isToken(head, '.')) {
-        if (mode)
-            throw new SyntaxError('invalid use of $');
-        return exprs(x.slice(1), stack, '.');
     }
     if (isToken(head, '#')) {
         if (mode || stack)
@@ -1269,12 +1307,6 @@ function exprs(x, stack = null, mode = null) {
             throw new SyntaxError('case lacks labels');
         const body = retf.reduceRight((x, [n, b]) => exprs_1.eapps(exprs_1.ecase(n), b, x), found2 || exprs_1.evarempty);
         return exprs(x.slice(subject ? 2 : 1), subject ? exprs_1.eapp(body, subject) : body);
-    }
-    if (mode === '.') {
-        if (head.tag !== 'token')
-            throw new SyntaxError(`invalid rhs to .`);
-        const sel = stack ? exprs_1.eapp(exprs_1.eselect(head.val), stack) : exprs_1.eselect(head.val);
-        return exprs(x.slice(1), sel, null);
     }
     if (mode === '#') {
         if (head.tag !== 'token')
@@ -1597,7 +1629,7 @@ function parseProgram(s) {
 }
 exports.parseProgram = parseProgram;
 
-},{"./definitions":3,"./exprs":4,"./kinds":5,"./prettyprinter":7,"./typechecker":9,"./types":10}],7:[function(require,module,exports){
+},{"./definitions":3,"./exprs":4,"./kinds":5,"./prettyprinter":7,"./typechecker":9,"./types":10,"./util":11}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");

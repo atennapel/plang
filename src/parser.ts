@@ -31,6 +31,7 @@ import { Type, tcon, tvar, tapps, tforalls, tfuns, trow, tempty } from './types'
 import { ktype } from './typechecker';
 import { Definition, DValue, DData } from './definitions';
 import { FORALL } from './prettyprinter';
+import { err } from './util';
 
 function matchingBracket(c: string) {
   if(c === '(') return ')';
@@ -182,15 +183,43 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     });
     return parts.slice(0, -1).reduceRight((x, [n, e]) => eapps(edo, e, eabs(n, x)), parts[parts.length - 1][1] as Expr);
   }
+  if(containsToken(x, '.')) {
+    if(x.length <= 1) return err('invalid use of .');
+    if(x.length === 2) {
+      if(isToken(x[1], '.') || x[1].tag !== 'token') return err('invalid use of .');
+      return eselect(x[1].val as string);
+    }
+    if(x.length === 3) {
+      if(isToken(x[0], '.') || isToken(x[2], '.') || x[2].tag !== 'token') return err('invalid use of .');
+      return eapp(eselect(x[2].val as string), expr(x[0]));
+    }
+    const l = x.length;
+    const r = [];
+    for(let i = 0; i < l; i++) {
+      if(isToken(x[i], '.')) {
+        if(x[i+1]) {
+          if(x[i+1].tag !== 'token') return err('invalid label');
+          const label = x[i+1].val as string;
+          if(label === '.') return err('invalid label');
+          if(x[i-1]) {
+            if(isToken(x[i-1], '.')) return err('invalid use of .');
+            r.pop();
+            r.push(paren([x[i-1], token('.'), x[i+1]], '(')), i++;
+          } else {
+            r.push(paren([token('.'), x[i+1]], '(')), i++;
+          }
+        } else return err('. lacks rhs');
+      } else {
+        r.push(x[i]);
+      }
+    }
+    return exprs(r);
+  }
   const head = x[0];
   if(isToken(head, ':')) throw new SyntaxError('invalid use of :');
   if(isToken(head, '@')) {
     if(mode || !stack) throw new SyntaxError('invalid use of @');
     return exprs(x.slice(1), stack, '@');
-  }
-  if(isToken(head, '.')) {
-    if(mode) throw new SyntaxError('invalid use of $');
-    return exprs(x.slice(1), stack, '.');
   }
   if(isToken(head, '#')) {
     if(mode || stack) throw new SyntaxError('invalid use of #');
@@ -381,11 +410,6 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
     if(retf.length === 0) throw new SyntaxError('case lacks labels');
     const body: Expr = retf.reduceRight((x, [n, b]) => eapps(ecase(n), b, x), found2 || evarempty);
     return exprs(x.slice(subject? 2: 1), subject? eapp(body, subject): body);
-  }
-  if(mode === '.') {
-    if(head.tag !== 'token') throw new SyntaxError(`invalid rhs to .`);
-    const sel = stack? eapp(eselect(head.val), stack): eselect(head.val);
-    return exprs(x.slice(1), sel, null);
   }
   if(mode === '#') {
     if(head.tag !== 'token') throw new SyntaxError(`invalid rhs to #`);
