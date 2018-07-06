@@ -1,4 +1,4 @@
-import { impossible } from './util'; 
+import { impossible, isSubsetOf } from './util'; 
 
 import {
   Type,
@@ -340,7 +340,7 @@ function rewriteRow(ctx: Context, l: string, ty: Type): { ctx: Context, ty: Type
 }
 
 function subtype(ctx: Context, a: Type, b: Type): Context {
-  // console.log(`subtype ${a} and ${b} in ${ctx}`);
+  console.log(`subtype ${a} and ${b} in ${ctx}`);
   const k = typeWF(ctx, a)
   const k2 = typeWF(ctx, b);
   if(!k.equals(k2))
@@ -399,7 +399,7 @@ function solve(ctx: Context, name: string, ty: Type): Context {
 }
 
 function instL(ctx: Context, a: string, b: Type): Context {
-  // console.log(`instL ${a} and ${b} in ${ctx}`);
+  console.log(`instL ${a} and ${b} in ${ctx}`);
   if(b instanceof TEx && ctx.isOrdered(a, b.name)) return solve(ctx, b.name, tex(a));
   if(b instanceof TEx && ctx.isOrdered(b.name, a)) return solve(ctx, a, b);
   try {
@@ -442,7 +442,7 @@ function instL(ctx: Context, a: string, b: Type): Context {
 }
 
 function instR(ctx: Context, a: Type, b: string): Context {
-  // console.log(`instR ${a} and ${b} in ${ctx}`);
+  console.log(`instR ${a} and ${b} in ${ctx}`);
   if(a instanceof TEx && ctx.isOrdered(b, a.name)) return solve(ctx, a.name, tex(b));
   if(a instanceof TEx && ctx.isOrdered(a.name, b)) return solve(ctx, b, a);
   try {
@@ -515,20 +515,17 @@ function solveConstraints(a: Type[]): Type[] {
 function generalize(ctx: Context, marker: (e: ContextElem) => boolean, ty: Type): { ctx: Context, ty: Type } {
   console.log(`generalize ${ty}`);
   const s = ctx.split(marker);
-  console.log(`${s.right}`);
+  console.log(`${s.left} <> ${s.right}`);
   const cs = s.right.constraints().map(t => s.right.apply(t));
   const keep: Type[] = [];
   const gen: Type[] = [];
+  const texs = s.right.texs();
   for(let i = 0; i < cs.length; i++) {
     const c = cs[i];
-    console.log(''+c);
-    try {
-      typeWF(s.right, c);
+    if(isSubsetOf(c.texs(), texs))
       gen.push(c);
-    } catch(e) {
-      if(!(e instanceof TypeError)) throw e;
+    else
       keep.push(c);
-    }
   }
   console.log(`cs ${cs.join(', ')}`);
   const csres = solveConstraints(gen);
@@ -764,7 +761,7 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
       const r = checkTy(ctx.add(cmarker(a), ctex(a, ktype), ctex(b, ktype), cvar(x, tex(a))), e.open(evar(x)), tex(b));
       console.log(`typechecked ${e.open(evar(x))} : ${r.ctx.apply((tex(b)))} in ${r.ctx}`);
       const { ctx: ctx__, ty: ty__ } = generalize(r.ctx, isCMarker(a), tfun(tex(a), tex(b)));
-      console.log(`b ${e} : ${ty__}`);
+      console.log(`b ${e} : ${ty__} in ${ctx__}`);
       return { ctx: ctx__, ty: ty__, expr: eabs(x, r.expr) };
     }
   }

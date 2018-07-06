@@ -1,4 +1,4 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -2178,7 +2178,7 @@ function rewriteRow(ctx, l, ty) {
     return util_1.impossible();
 }
 function subtype(ctx, a, b) {
-    // console.log(`subtype ${a} and ${b} in ${ctx}`);
+    console.log(`subtype ${a} and ${b} in ${ctx}`);
     const k = typeWF(ctx, a);
     const k2 = typeWF(ctx, b);
     if (!k.equals(k2))
@@ -2239,7 +2239,7 @@ function solve(ctx, name, ty) {
         return err(`polymorphic type in solve: ${name} := ${ty} in ${ctx}`);
 }
 function instL(ctx, a, b) {
-    // console.log(`instL ${a} and ${b} in ${ctx}`);
+    console.log(`instL ${a} and ${b} in ${ctx}`);
     if (b instanceof types_1.TEx && ctx.isOrdered(a, b.name))
         return solve(ctx, b.name, types_1.tex(a));
     if (b instanceof types_1.TEx && ctx.isOrdered(b.name, a))
@@ -2285,7 +2285,7 @@ function instL(ctx, a, b) {
     return err(`instL failed: ${a} and ${b} in ${ctx}`);
 }
 function instR(ctx, a, b) {
-    // console.log(`instR ${a} and ${b} in ${ctx}`);
+    console.log(`instR ${a} and ${b} in ${ctx}`);
     if (a instanceof types_1.TEx && ctx.isOrdered(b, a.name))
         return solve(ctx, a.name, types_1.tex(b));
     if (a instanceof types_1.TEx && ctx.isOrdered(a.name, b))
@@ -2363,21 +2363,17 @@ function solveConstraints(a) {
 function generalize(ctx, marker, ty) {
     console.log(`generalize ${ty}`);
     const s = ctx.split(marker);
-    console.log(`${s.right}`);
+    console.log(`${s.left} <> ${s.right}`);
     const cs = s.right.constraints().map(t => s.right.apply(t));
     const keep = [];
     const gen = [];
+    const texs = s.right.texs();
     for (let i = 0; i < cs.length; i++) {
         const c = cs[i];
-        try {
-            typeWF(s.right, c);
+        if (util_1.isSubsetOf(c.texs(), texs))
             gen.push(c);
-        }
-        catch (e) {
-            if (!(e instanceof TypeError))
-                throw e;
+        else
             keep.push(c);
-        }
     }
     console.log(`cs ${cs.join(', ')}`);
     const csres = solveConstraints(gen);
@@ -2574,7 +2570,7 @@ function synth(ctx, e) {
             const r = checkTy(ctx.add(context_1.cmarker(a), context_1.ctex(a, exports.ktype), context_1.ctex(b, exports.ktype), context_1.cvar(x, types_1.tex(a))), e.open(exprs_1.evar(x)), types_1.tex(b));
             console.log(`typechecked ${e.open(exprs_1.evar(x))} : ${r.ctx.apply((types_1.tex(b)))} in ${r.ctx}`);
             const { ctx: ctx__, ty: ty__ } = generalize(r.ctx, context_1.isCMarker(a), types_1.tfun(types_1.tex(a), types_1.tex(b)));
-            console.log(`b ${e} : ${ty__}`);
+            console.log(`b ${e} : ${ty__} in ${ctx__}`);
             return { ctx: ctx__, ty: ty__, expr: exprs_1.eabs(x, r.expr) };
         }
     }
@@ -3092,6 +3088,10 @@ function concatAll(a) {
     return r;
 }
 exports.concatAll = concatAll;
+function isSubsetOf(a, b) {
+    return all(a.map(x => b.indexOf(x) >= 0));
+}
+exports.isSubsetOf = isSubsetOf;
 
 },{}],12:[function(require,module,exports){
 "use strict";

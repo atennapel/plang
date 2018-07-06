@@ -38,3 +38,7 @@ export function concatAll<T>(a: T[][]): T[] {
   }
   return r;
 }
+
+export function isSubsetOf(a: any[], b: any[]) {
+  return all(a.map(x => b.indexOf(x) >= 0));
+}
