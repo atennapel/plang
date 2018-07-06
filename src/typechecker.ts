@@ -180,13 +180,13 @@ export const tsvar = tcon('SVar');
 export const tseff = tcon('SEff');
 export const initialContext = new Context([
   ckcon('Type'),
-  ckcon('Row'),
+  //ckcon('Row'),
   ckcon('Constraint'),
-  ctcon('Str', ktype),
+  /*ctcon('Str', ktype),
   ctcon('Float', ktype),
   ctcon('SRec', kfuns(krow, ktype)),
   ctcon('SVar', kfuns(krow, ktype)),
-  ctcon('SEff', kfuns(krow, ktype, ktype)),
+  ctcon('SEff', kfuns(krow, ktype, ktype)),*/
   ctcon('Num', kfuns(ktype, kconstraint)),
 ]);
 
@@ -513,26 +513,44 @@ function solveConstraints(a: Type[]): Type[] {
 }
 
 function generalize(ctx: Context, marker: (e: ContextElem) => boolean, ty: Type): { ctx: Context, ty: Type } {
+  console.log(`generalize ${ty}`);
   const s = ctx.split(marker);
+  console.log(`${s.right}`);
   const cs = s.right.constraints().map(t => s.right.apply(t));
+  const keep: Type[] = [];
+  const gen: Type[] = [];
+  for(let i = 0; i < cs.length; i++) {
+    const c = cs[i];
+    console.log(''+c);
+    try {
+      typeWF(s.right, c);
+      gen.push(c);
+    } catch(e) {
+      if(!(e instanceof TypeError)) throw e;
+      keep.push(c);
+    }
+  }
   console.log(`cs ${cs.join(', ')}`);
-  const csres = solveConstraints(cs);
+  const csres = solveConstraints(gen);
   console.log(`csres ${csres.join(', ')}`);
   const t = s.right.apply(ty);
   const u = orderedTExs(s.right.unsolved(), t);
   if(u.length === 0 && csres.length > 0)
     return err(`invalid texs in constraints: ${csres.join(', ')}`);
-  if(u.length === 0) return { ctx: s.left, ty: t };
+  console.log('done gen');
+  console.log(gen.join(';'))
+  console.log(keep.join(';'));
+  if(u.length === 0) return { ctx: s.left.addAll(keep.map(t => cconstraint(t))), ty: t };
   const base = tforallc(u[0][0], u[0][1], csres.map(t => t.substEx(u[0][0], tvar(u[0][0]))), t.substEx(u[0][0], tvar(u[0][0])));
-  if(u.length === 1) return { ctx: s.left, ty: base };
+  if(u.length === 1) return { ctx: s.left.addAll(keep.map(t => cconstraint(t))), ty: base };
   return {
-    ctx: s.left,
+    ctx: s.left.addAll(keep.map(t => cconstraint(t))),
     ty: tforalls(u.slice(1), u.slice(1).reduce((t, [n, _]) => t.substEx(n, tvar(n)), base)),
   };
 }
 
 function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
-  // console.log(`synth ${e} in ${ctx}`);
+   console.log(`synth ${e} in ${ctx}`);
   contextWF(ctx);
   if(e instanceof EEmpty) {
     return { ctx, ty: tapp(tsrec, tempty), expr: e };
@@ -712,6 +730,7 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
       tapps(tseff, trow(row, tex(tr)), tex(tc)),
       tapps(tseff, tex(tr), tex(td)),
     ));
+    console.log(`h ${rg.ty}`);
     return {
       ctx: rg.ctx,
       ty: rg.ty,
@@ -734,14 +753,18 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
       const b = fresh(ctx.texs(), e.name);
       const r = checkTy(ctx.add(cmarker(b), ctex(b, ktype), cvar(x, ty)), e.open(evar(x)), tex(b));
       const { ctx: ctx__, ty: ty__ } = generalize(r.ctx, isCMarker(b), tfun(ty, tex(b)));
+      console.log(`a ${ty__}`);
       return { ctx: ctx__, ty: ty__, expr: eabs(x, r.expr) };
     } else {
+      console.log(`unannotated abs ${e}`);
       const x = fresh(ctx.vars(), e.name);
       const texs = ctx.texs();
       const a = fresh(texs, e.name);
       const b = fresh(texs.concat([a]), e.name);
       const r = checkTy(ctx.add(cmarker(a), ctex(a, ktype), ctex(b, ktype), cvar(x, tex(a))), e.open(evar(x)), tex(b));
+      console.log(`typechecked ${e.open(evar(x))} : ${r.ctx.apply((tex(b)))} in ${r.ctx}`);
       const { ctx: ctx__, ty: ty__ } = generalize(r.ctx, isCMarker(a), tfun(tex(a), tex(b)));
+      console.log(`b ${e} : ${ty__}`);
       return { ctx: ctx__, ty: ty__, expr: eabs(x, r.expr) };
     }
   }
@@ -772,7 +795,7 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
 }
 
 function checkTy(ctx: Context, e: Expr, ty: Type): { ctx: Context, expr: Expr } {
-  // console.log(`checkTy ${e} and ${ty} in ${ctx}`);
+   console.log(`checkTy ${e} and ${ty} in ${ctx}`);
   contextWF(ctx);
   if(ty instanceof TForall) {
     const x = fresh(ctx.tvars(), ty.name);
@@ -785,11 +808,12 @@ function checkTy(ctx: Context, e: Expr, ty: Type): { ctx: Context, expr: Expr } 
     return { ctx: r.ctx.split(isCVar(x)).left, expr: eabs(x, r.expr) };
   }
   const rr = synth(ctx, e);
+  console.log(`checkTysynth ${rr.ty} in ${rr.ctx} (${e} : ${ty})`);
   return { ctx: subtype(rr.ctx, rr.ctx.apply(rr.ty), rr.ctx.apply(ty)), expr: rr.expr };
 }
 
 function synthapp(ctx: Context, ty: Type, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
-  // console.log(`synthapp ${ty} and ${e} in ${ctx}`);
+   console.log(`synthapp ${ty} and ${e} in ${ctx}`);
   contextWF(ctx);
   if(ty instanceof TForall) {
     const x = fresh(ctx.texs(), ty.name);
@@ -823,6 +847,7 @@ export function infer(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Ex
   const k = typeWF(ctx_, ty_);
   checkKindType(k);
   const { ctx: ctx__, ty: ty__ } = generalize(ctx_, isCMarker(m), ty_);
+  console.log(`c ${ty__}`);
   return { ctx: ctx__, ty: ty__, expr: r.expr };
 }
 

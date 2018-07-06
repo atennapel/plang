@@ -222,7 +222,7 @@ export class TForall extends Type {
   ) { super() }
 
   toString() {
-    return `(forall(${this.name} : ${this.kind}). ${this.constraints.join(', ')} => ${this.type})`;
+    return `(forall(${this.name} : ${this.kind}). ${this.constraints.join(', ')}${this.constraints.length > 0? ' => ': ''}${this.type})`;
   }
   equals(other: Type): boolean {
     return other instanceof TForall &&
