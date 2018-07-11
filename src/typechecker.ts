@@ -361,11 +361,13 @@ function subtype(ctx: Context, a: Type, b: Type): Context {
   if(a instanceof TForall) {
     const x = fresh(ctx.texs(), a.name);
     const ctx_ = subtype(ctx.add(cmarker(x), ctex(x, a.kind)).addAll(a.constraints.map(t => cconstraint(t.subst(a.name, tex(x))))), a.open(tex(x)), b);
+    console.log(`subtype/TForall/split ${cmarker(x)} in ${ctx_}`);
     return (ctx_.split(isCMarker(x)).left);
   }
   if(b instanceof TForall) {
     const x = fresh(ctx.tvars(), b.name);
     const ctx_ = subtype(ctx.add(ctvar(x, b.kind)).addAll(b.constraints.map(t => cconstraint(t.subst(b.name, tvar(x))))), a, b.open(tvar(x)));
+    console.log(`subtype/TForall/split ${tvar(x)} in ${ctx_}`);
     return (ctx_.split(isCTVar(x)).left);
   }
   if(a instanceof TEx) {
@@ -392,6 +394,7 @@ function subtype(ctx: Context, a: Type, b: Type): Context {
 function solve(ctx: Context, name: string, ty: Type): Context {
   // console.log(`solve ${name} and ${ty} in ${ctx}`);
   if(ty.isMono()) {
+    console.log(`solve/split ${tex(name)} in ${ctx}`);
     const s = ctx.split(isCTEx(name));
     const k = typeWF(s.left, ty);
     return s.left.add(csolved(name, k, ty)).append(s.right);
@@ -425,6 +428,7 @@ function instL(ctx: Context, a: string, b: Type): Context {
   if(b instanceof TForall) {
     const x = fresh(ctx.tvars(), b.name);
     const ctx_ = instL(ctx.add(ctvar(x, b.kind)).addAll(b.constraints.map(t => cconstraint(t.subst(b.name, tvar(x))))), a, b.open(tvar(x)));
+    console.log(`instL/TForall/split ${tvar(x)} in ${ctx_}`);
     return (ctx_.split(isCTVar(x)).left);
   }
   if(b instanceof TExtend) {
@@ -468,6 +472,7 @@ function instR(ctx: Context, a: Type, b: string): Context {
   if(a instanceof TForall) {
     const x = fresh(ctx.texs(), a.name);
     const ctx_ = instR(ctx.add(cmarker(x), ctex(x, a.kind)).addAll(a.constraints.map(t => cconstraint(t.subst(a.name, tex(x))))), a.open(tex(x)), b);
+    console.log(`instR/TForall/split ${cmarker(x)} in ${ctx_}`);
     return (ctx_.split(isCMarker(x)).left);
   }
   if(a instanceof TExtend) {
@@ -514,6 +519,7 @@ function solveConstraints(a: Type[]): Type[] {
 
 function generalize(ctx: Context, marker: (e: ContextElem) => boolean, ty: Type): { ctx: Context, ty: Type } {
   console.log(`generalize ${ty}`);
+  console.log(`generalize/split ${ctx}`);
   const s = ctx.split(marker);
   console.log(`${s.left} <> ${s.right}`);
   const cs = s.right.constraints().map(t => s.right.apply(t));
@@ -797,11 +803,13 @@ function checkTy(ctx: Context, e: Expr, ty: Type): { ctx: Context, expr: Expr } 
   if(ty instanceof TForall) {
     const x = fresh(ctx.tvars(), ty.name);
     const r = checkTy(ctx.add(ctvar(x, ty.kind)).addAll(ty.constraints.map(t => cconstraint(t.subst(ty.name, tvar(x))))), e, ty.open(tvar(x)));
+    console.log(`checkTy/TForall/split ${tvar(x)} in ${r.ctx}`);
     return { ctx: r.ctx.split(isCTVar(x)).left, expr: r.expr };
   }
   if(e instanceof EAbs && !e.isAnnotated() && ty instanceof TFun) {
     const x = fresh(ctx.vars(), e.name);
     const r = checkTy(ctx.add(cvar(x, ty.left)), e.open(evar(x)), ty.right);
+    console.log(`checkTy/EAbs/split ${evar(x)} in ${r.ctx}`);
     return { ctx: r.ctx.split(isCVar(x)).left, expr: eabs(x, r.expr) };
   }
   const rr = synth(ctx, e);

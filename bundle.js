@@ -1,4 +1,4 @@
-(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -2200,11 +2200,13 @@ function subtype(ctx, a, b) {
     if (a instanceof types_1.TForall) {
         const x = fresh(ctx.texs(), a.name);
         const ctx_ = subtype(ctx.add(context_1.cmarker(x), context_1.ctex(x, a.kind)).addAll(a.constraints.map(t => context_1.cconstraint(t.subst(a.name, types_1.tex(x))))), a.open(types_1.tex(x)), b);
+        console.log(`subtype/TForall/split ${context_1.cmarker(x)} in ${ctx_}`);
         return (ctx_.split(context_1.isCMarker(x)).left);
     }
     if (b instanceof types_1.TForall) {
         const x = fresh(ctx.tvars(), b.name);
         const ctx_ = subtype(ctx.add(context_1.ctvar(x, b.kind)).addAll(b.constraints.map(t => context_1.cconstraint(t.subst(b.name, types_1.tvar(x))))), a, b.open(types_1.tvar(x)));
+        console.log(`subtype/TForall/split ${types_1.tvar(x)} in ${ctx_}`);
         return (ctx_.split(context_1.isCTVar(x)).left);
     }
     if (a instanceof types_1.TEx) {
@@ -2231,6 +2233,7 @@ function subtype(ctx, a, b) {
 function solve(ctx, name, ty) {
     // console.log(`solve ${name} and ${ty} in ${ctx}`);
     if (ty.isMono()) {
+        console.log(`solve/split ${types_1.tex(name)} in ${ctx}`);
         const s = ctx.split(context_1.isCTEx(name));
         const k = typeWF(s.left, ty);
         return s.left.add(context_1.csolved(name, k, ty)).append(s.right);
@@ -2269,6 +2272,7 @@ function instL(ctx, a, b) {
     if (b instanceof types_1.TForall) {
         const x = fresh(ctx.tvars(), b.name);
         const ctx_ = instL(ctx.add(context_1.ctvar(x, b.kind)).addAll(b.constraints.map(t => context_1.cconstraint(t.subst(b.name, types_1.tvar(x))))), a, b.open(types_1.tvar(x)));
+        console.log(`instL/TForall/split ${types_1.tvar(x)} in ${ctx_}`);
         return (ctx_.split(context_1.isCTVar(x)).left);
     }
     if (b instanceof types_1.TExtend) {
@@ -2315,6 +2319,7 @@ function instR(ctx, a, b) {
     if (a instanceof types_1.TForall) {
         const x = fresh(ctx.texs(), a.name);
         const ctx_ = instR(ctx.add(context_1.cmarker(x), context_1.ctex(x, a.kind)).addAll(a.constraints.map(t => context_1.cconstraint(t.subst(a.name, types_1.tex(x))))), a.open(types_1.tex(x)), b);
+        console.log(`instR/TForall/split ${context_1.cmarker(x)} in ${ctx_}`);
         return (ctx_.split(context_1.isCMarker(x)).left);
     }
     if (a instanceof types_1.TExtend) {
@@ -2362,6 +2367,7 @@ function solveConstraints(a) {
 }
 function generalize(ctx, marker, ty) {
     console.log(`generalize ${ty}`);
+    console.log(`generalize/split ${ctx}`);
     const s = ctx.split(marker);
     console.log(`${s.left} <> ${s.right}`);
     const cs = s.right.constraints().map(t => s.right.apply(t));
@@ -2605,11 +2611,13 @@ function checkTy(ctx, e, ty) {
     if (ty instanceof types_1.TForall) {
         const x = fresh(ctx.tvars(), ty.name);
         const r = checkTy(ctx.add(context_1.ctvar(x, ty.kind)).addAll(ty.constraints.map(t => context_1.cconstraint(t.subst(ty.name, types_1.tvar(x))))), e, ty.open(types_1.tvar(x)));
+        console.log(`checkTy/TForall/split ${types_1.tvar(x)} in ${r.ctx}`);
         return { ctx: r.ctx.split(context_1.isCTVar(x)).left, expr: r.expr };
     }
     if (e instanceof exprs_1.EAbs && !e.isAnnotated() && ty instanceof types_1.TFun) {
         const x = fresh(ctx.vars(), e.name);
         const r = checkTy(ctx.add(context_1.cvar(x, ty.left)), e.open(exprs_1.evar(x)), ty.right);
+        console.log(`checkTy/EAbs/split ${exprs_1.evar(x)} in ${r.ctx}`);
         return { ctx: r.ctx.split(context_1.isCVar(x)).left, expr: exprs_1.eabs(x, r.expr) };
     }
     const rr = synth(ctx, e);
