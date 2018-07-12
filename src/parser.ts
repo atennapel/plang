@@ -262,8 +262,9 @@ function exprs(x: Ret[], stack: Expr | null = null, mode: string | null = null):
         found = i;
         break;
       } else if(c.tag === 'token') args.push(c.val);
-      else if(c.tag === 'paren' && c.type !== '(') throw new SyntaxError(`unexpected bracket in \\ ${c.type}`);
-      else if(c.tag === 'paren' && c.val.length === 0) args.push(['_', type(c)]);
+      else if(c.tag === 'paren' && c.type !== '(' && c.type !== '{') throw new SyntaxError(`unexpected bracket in \\ ${c.type}`);
+      else if(c.tag === 'paren' && c.val.length === 0 && (c.type === '(' || c.type === '{'))
+        args.push(['_', type(c.type === '('? c: paren([token('SRec'), paren([], '{')], '('))]);
       else if(c.tag === 'paren' && containsToken(c.val, ':')) {
         const s = splitOn(c.val, x => isToken(x, ':'));
         if(s.length !== 2) throw new SyntaxError('nested anno arg :');

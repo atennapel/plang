@@ -1,4 +1,4 @@
-(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -821,6 +821,17 @@ class KFun extends Kind {
 exports.KFun = KFun;
 exports.kfun = (left, right) => new KFun(left, right);
 exports.kfuns = (...ts) => ts.reduceRight((a, b) => exports.kfun(b, a));
+function flattenKFun(f) {
+    const r = [];
+    let c = f;
+    while (c instanceof KFun) {
+        r.push(c.left);
+        c = c.right;
+    }
+    r.push(c);
+    return r;
+}
+exports.flattenKFun = flattenKFun;
 
 },{}],6:[function(require,module,exports){
 "use strict";
@@ -1125,10 +1136,10 @@ function exprs(x, stack = null, mode = null) {
             }
             else if (c.tag === 'token')
                 args.push(c.val);
-            else if (c.tag === 'paren' && c.type !== '(')
+            else if (c.tag === 'paren' && c.type !== '(' && c.type !== '{')
                 throw new SyntaxError(`unexpected bracket in \\ ${c.type}`);
-            else if (c.tag === 'paren' && c.val.length === 0)
-                args.push(['_', type(c)]);
+            else if (c.tag === 'paren' && c.val.length === 0 && (c.type === '(' || c.type === '{'))
+                args.push(['_', type(c.type === '(' ? c : paren([token('SRec'), paren([], '{')], '('))]);
             else if (c.tag === 'paren' && containsToken(c.val, ':')) {
                 const s = splitOn(c.val, x => isToken(x, ':'));
                 if (s.length !== 2)
@@ -1653,62 +1664,22 @@ exports.parseProgram = parseProgram;
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
-const types_1 = require("./types");
 const context_1 = require("./context");
 const util_1 = require("./util");
 const typechecker_1 = require("./typechecker");
+const types_1 = require("./types");
 const RARROW = ' -> ';
 exports.FORALL = '\u2200';
 // Kinds
-function flattenKFun(f) {
-    const r = [];
-    let c = f;
-    while (c instanceof kinds_1.KFun) {
-        r.push(c.left);
-        c = c.right;
-    }
-    r.push(c);
-    return r;
-}
 function ppKind(k) {
     if (k instanceof kinds_1.KCon)
         return `${k.name}`;
     if (k instanceof kinds_1.KFun)
-        return flattenKFun(k).map(k => k instanceof kinds_1.KFun ? `(${ppKind(k)})` : ppKind(k)).join(`${RARROW}`);
+        return kinds_1.flattenKFun(k).map(k => k instanceof kinds_1.KFun ? `(${ppKind(k)})` : ppKind(k)).join(`${RARROW}`);
     return util_1.impossible();
 }
 exports.ppKind = ppKind;
 // Types
-function flattenTFun(f) {
-    const r = [];
-    let c = f;
-    while (c instanceof types_1.TFun) {
-        r.push(c.left);
-        c = c.right;
-    }
-    r.push(c);
-    return r;
-}
-function flattenTForall(f) {
-    const r = [];
-    const rr = [];
-    let c = f;
-    while (c instanceof types_1.TForall) {
-        r.push([c.name, c.kind]);
-        rr.push.apply(rr, c.constraints);
-        c = c.type;
-    }
-    return { args: r, constraints: rr, ty: c };
-}
-function flattenTExtend(e) {
-    const props = [];
-    let c = e;
-    while (c instanceof types_1.TExtend) {
-        props.push([c.label, c.type]);
-        c = c.rest;
-    }
-    return { props, rest: c instanceof types_1.TEmpty ? null : c };
-}
 function isSymbol(n) {
     return !/[a-z]/i.test(n[0]);
 }
@@ -1731,14 +1702,14 @@ function ppType(t) {
         return f.map(t => t instanceof types_1.TApp || t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t)).join(` `);
     }
     if (t instanceof types_1.TFun)
-        return flattenTFun(t).map(t => t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t)).join(`${RARROW}`);
+        return types_1.flattenTFun(t).map(t => t instanceof types_1.TFun || t instanceof types_1.TForall ? `(${ppType(t)})` : ppType(t)).join(`${RARROW}`);
     if (t instanceof types_1.TForall) {
-        const f = flattenTForall(t);
+        const f = types_1.flattenTForall(t);
         const args = f.args.map(([x, k]) => k.equals(typechecker_1.ktype) ? x : `(${x} : ${ppKind(k)})`);
         return `${exports.FORALL}${args.join(' ')}. ${f.constraints.map(ppType).join(', ')}${f.constraints.length === 0 ? '' : ' => '}${ppType(f.ty)}`;
     }
     if (t instanceof types_1.TExtend) {
-        const f = flattenTExtend(t);
+        const f = types_1.flattenTExtend(t);
         return `{ ${f.props.map(([l, t]) => `${l} : ${ppType(t)}`).join(', ')} ${f.rest ? `| ${ppType(f.rest)} ` : ''}}`;
     }
     return util_1.impossible();
@@ -1773,30 +1744,15 @@ exports.ppContext = ppContext;
 },{"./context":2,"./kinds":5,"./typechecker":9,"./types":10,"./util":11}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const types_1 = require("./types");
 const compilerJS_1 = require("./compilerJS");
 const typechecker_1 = require("./typechecker");
-const context_1 = require("./context");
 const parser_1 = require("./parser");
 const prettyprinter_1 = require("./prettyprinter");
 const definitions_1 = require("./definitions");
-exports._context = typechecker_1.initialContext.add(
-/*cvar('show', tforalls([['t', ktype]], tfuns(tvar('t'), tstr))),
-cvar('emptyStr', tstr),
-cvar('appendStr', tfuns(tstr, tstr, tstr)),
-
-cvar('zeroFloat', tfloat),
-cvar('oneFloat', tfloat),
-cvar('negFloat', tfuns(tfloat, tfloat)),
-cvar('incFloat', tfuns(tfloat, tfloat)),
-cvar('decFloat', tfuns(tfloat, tfloat)),
-cvar('addFloat', tfuns(tfloat, tfloat, tfloat)),
-cvar('subFloat', tfuns(tfloat, tfloat, tfloat)),
-cvar('mulFloat', tfuns(tfloat, tfloat, tfloat)),
-cvar('divFloat', tfuns(tfloat, tfloat, tfloat)),
-cvar('modFloat', tfuns(tfloat, tfloat, tfloat)),*/
-context_1.cvar('numTest', types_1.tforallc('t', typechecker_1.ktype, [types_1.tapps(types_1.tcon('Num'), types_1.tvar('t'))], types_1.tfuns(types_1.tvar('t'), types_1.tvar('t')))));
+exports._context = typechecker_1.initialContext.add();
 function _show(x) {
+    if (x._lazy)
+        return 'Lazy';
     if (x._rec) {
         if (x.length === 0)
             return '{}';
@@ -1910,7 +1866,7 @@ function _run(i, cb) {
 }
 exports.default = _run;
 
-},{"./compilerJS":1,"./context":2,"./definitions":3,"./parser":6,"./prettyprinter":7,"./typechecker":9,"./types":10}],9:[function(require,module,exports){
+},{"./compilerJS":1,"./definitions":3,"./parser":6,"./prettyprinter":7,"./typechecker":9}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1996,6 +1952,7 @@ const orderedTExs = (texs, ty) => {
 exports.ktype = kinds_1.kcon('Type');
 exports.krow = kinds_1.kcon('Row');
 exports.kconstraint = kinds_1.kcon('Constraint');
+exports.tlazy = types_1.tcon('Lazy');
 exports.tstr = types_1.tcon('Str');
 exports.tfloat = types_1.tcon('Float');
 exports.tsrec = types_1.tcon('SRec');
@@ -2003,14 +1960,17 @@ exports.tsvar = types_1.tcon('SVar');
 exports.tseff = types_1.tcon('SEff');
 exports.initialContext = new context_1.Context([
     context_1.ckcon('Type'),
-    //ckcon('Row'),
-    context_1.ckcon('Constraint'),
-    /*ctcon('Str', ktype),
+    context_1.ckcon('Row'),
+    /*ckcon('Constraint'),
+    ctcon('Str', ktype),
     ctcon('Float', ktype),
-    ctcon('SRec', kfuns(krow, ktype)),
     ctcon('SVar', kfuns(krow, ktype)),
-    ctcon('SEff', kfuns(krow, ktype, ktype)),*/
-    context_1.ctcon('Num', kinds_1.kfuns(exports.ktype, exports.kconstraint)),
+    ctcon('SEff', kfuns(krow, ktype, ktype)),
+    ctcon('Num', kfuns(ktype, kconstraint)),*/
+    context_1.ctcon('SRec', kinds_1.kfuns(exports.krow, exports.ktype)),
+    context_1.ctcon('Lazy', kinds_1.kfuns(exports.ktype, exports.ktype)),
+    context_1.cvar('lazy', types_1.tforalls([['t', exports.ktype]], types_1.tfuns(types_1.tfuns(types_1.tapps(exports.tsrec, types_1.tempty), types_1.tvar('t')), types_1.tapps(exports.tlazy, types_1.tvar('t'))))),
+    context_1.cvar('force', types_1.tforalls([['t', exports.ktype]], types_1.tfuns(types_1.tapps(exports.tlazy, types_1.tvar('t')), types_1.tvar('t')))),
 ]);
 // wf
 function checkKind(kind, kk) {
@@ -2189,6 +2149,11 @@ function subtype(ctx, a, b) {
         (a instanceof types_1.TEx && b instanceof types_1.TEx) ||
         (a instanceof types_1.TCon && b instanceof types_1.TCon)) && a.name === b.name)
         return ctx;
+    if (b instanceof types_1.TApp) {
+        const fb = types_1.flattenTApp(b);
+        if (fb.length === 2 && fb[0].equals(exports.tlazy))
+            return subtype(ctx, a, fb[1]);
+    }
     if (a instanceof types_1.TApp && b instanceof types_1.TApp) {
         const ctx_ = subtype(ctx, a.left, b.left);
         return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
@@ -2912,6 +2877,17 @@ class TFun extends Type {
 exports.TFun = TFun;
 exports.tfun = (left, right) => new TFun(left, right);
 exports.tfuns = (...ts) => ts.reduceRight((a, b) => exports.tfun(b, a));
+function flattenTFun(f) {
+    const r = [];
+    let c = f;
+    while (c instanceof TFun) {
+        r.push(c.left);
+        c = c.right;
+    }
+    r.push(c);
+    return r;
+}
+exports.flattenTFun = flattenTFun;
 class TForall extends Type {
     constructor(name, kind, constraints, type) {
         super();
@@ -2963,6 +2939,18 @@ exports.tforall = (name, kind, type) => new TForall(name, kind, [], type);
 exports.tforallc = (name, kind, constraints, type) => new TForall(name, kind, constraints, type);
 exports.tforalls = (ns, type) => ns.reduceRight((a, b) => exports.tforall(b[0], b[1], a), type);
 exports.tforallsc = (ns, type) => ns.reduceRight((a, b) => exports.tforallc(b[0], b[1], b[2], a), type);
+function flattenTForall(f) {
+    const r = [];
+    const rr = [];
+    let c = f;
+    while (c instanceof TForall) {
+        r.push([c.name, c.kind]);
+        rr.push.apply(rr, c.constraints);
+        c = c.type;
+    }
+    return { args: r, constraints: rr, ty: c };
+}
+exports.flattenTForall = flattenTForall;
 class TEmpty extends Type {
     toString() {
         return `{}`;
@@ -3039,6 +3027,16 @@ class TExtend extends Type {
 exports.TExtend = TExtend;
 exports.textend = (label, type, rest) => new TExtend(label, type, rest);
 exports.trow = (props, rest) => props.reduceRight((r, [l, t]) => exports.textend(l, t, r), rest || exports.tempty);
+function flattenTExtend(e) {
+    const props = [];
+    let c = e;
+    while (c instanceof TExtend) {
+        props.push([c.label, c.type]);
+        c = c.rest;
+    }
+    return { props, rest: c instanceof TEmpty ? null : c };
+}
+exports.flattenTExtend = flattenTExtend;
 
 },{"./util":11}],11:[function(require,module,exports){
 "use strict";

@@ -173,6 +173,7 @@ const orderedTExs = (texs: [string, Kind][], ty: Type): [string, Kind][] => {
 export const ktype = kcon('Type');
 export const krow = kcon('Row');
 export const kconstraint = kcon('Constraint');
+export const tlazy = tcon('Lazy');
 export const tstr = tcon('Str');
 export const tfloat = tcon('Float');
 export const tsrec = tcon('SRec');
@@ -180,14 +181,18 @@ export const tsvar = tcon('SVar');
 export const tseff = tcon('SEff');
 export const initialContext = new Context([
   ckcon('Type'),
-  //ckcon('Row'),
-  ckcon('Constraint'),
-  /*ctcon('Str', ktype),
+  ckcon('Row'),
+  /*ckcon('Constraint'),
+  ctcon('Str', ktype),
   ctcon('Float', ktype),
-  ctcon('SRec', kfuns(krow, ktype)),
   ctcon('SVar', kfuns(krow, ktype)),
-  ctcon('SEff', kfuns(krow, ktype, ktype)),*/
-  ctcon('Num', kfuns(ktype, kconstraint)),
+  ctcon('SEff', kfuns(krow, ktype, ktype)),
+  ctcon('Num', kfuns(ktype, kconstraint)),*/
+  ctcon('SRec', kfuns(krow, ktype)),
+
+  ctcon('Lazy', kfuns(ktype, ktype)),
+  cvar('lazy', tforalls([['t', ktype]], tfuns(tfuns(tapps(tsrec, tempty), tvar('t')), tapps(tlazy, tvar('t'))))),
+  cvar('force', tforalls([['t', ktype]], tfuns(tapps(tlazy, tvar('t')), tvar('t')))),
 ]);
 
 // wf

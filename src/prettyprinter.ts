@@ -1,24 +1,27 @@
-import { Kind, KCon, KFun } from './kinds';
-import { Type, TCon, TVar, TEx, TApp, TFun, TForall, TEmpty, TExtend, flattenTApp } from './types';
+import { Kind, KCon, KFun, flattenKFun } from './kinds';
 import { Context, ContextElem, CKCon, CTCon, CTVar, CTEx, CVar, CSolved, CMarker, CConstraint } from './context';
 import { impossible } from './util';
 import { ktype } from './typechecker'; 
+import {
+  Type,
+  TCon,
+  TVar,
+  TEx,
+  TApp,
+  TFun,
+  TForall,
+  TEmpty,
+  TExtend,
+  flattenTApp,
+  flattenTFun,
+  flattenTExtend,
+  flattenTForall,
+} from './types';
 
 const RARROW = ' -> ';
 export const FORALL = '\u2200';
 
 // Kinds
-function flattenKFun(f: KFun): Kind[] {
-  const r = [];
-  let c: Kind = f;
-  while(c instanceof KFun) {
-    r.push(c.left);
-    c = c.right;
-  }
-  r.push(c);
-  return r;
-}
-
 export function ppKind(k: Kind): string {
   if(k instanceof KCon) return `${k.name}`;
   if(k instanceof KFun)
@@ -27,39 +30,6 @@ export function ppKind(k: Kind): string {
 }
 
 // Types
-function flattenTFun(f: TFun): Type[] {
-  const r = [];
-  let c: Type = f;
-  while(c instanceof TFun) {
-    r.push(c.left);
-    c = c.right;
-  }
-  r.push(c);
-  return r;
-}
-
-function flattenTForall(f: TForall): { args: [string, Kind][], constraints: Type[], ty: Type } {
-  const r: [string, Kind][] = [];
-  const rr: Type[] = [];
-  let c: Type = f;
-  while(c instanceof TForall) {
-    r.push([c.name, c.kind]);
-    rr.push.apply(rr, c.constraints);
-    c = c.type;
-  }
-  return { args: r, constraints: rr, ty: c };
-}
-
-function flattenTExtend(e: TExtend): { props: [string, Type][], rest: Type | null } {
-  const props: [string, Type][] = [];
-  let c: Type = e;
-  while(c instanceof TExtend) {
-    props.push([c.label, c.type]);
-    c = c.rest;
-  }
-  return { props, rest: c instanceof TEmpty? null: c };
-}
-
 function isSymbol(n: string): boolean {
   return !/[a-z]/i.test(n[0]);
 }

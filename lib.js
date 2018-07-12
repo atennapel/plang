@@ -1,4 +1,5 @@
 function show(x) {
+  if(x._lazy) return 'Lazy';
   if(x._rec) {
     if(x.length === 0) return '{}';
     const r = [];
@@ -93,6 +94,15 @@ const _recUpdate = l => f => r => {
   }
   r_._rec = true;
   return r_.reverse();
+};
+
+const lazy = fn => ({ _lazy: true, fn, forced: false, val: null });
+const force = l => {
+  if(!l.forced) {
+    l.forced = true;
+    return l.val = l.fn();
+  }
+  return l.val;
 };
 
 const _varEmpty = () => { throw new Error('empty variant') };

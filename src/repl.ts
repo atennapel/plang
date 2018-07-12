@@ -32,12 +32,13 @@ export const _context = initialContext.add(
   cvar('subFloat', tfuns(tfloat, tfloat, tfloat)),
   cvar('mulFloat', tfuns(tfloat, tfloat, tfloat)),
   cvar('divFloat', tfuns(tfloat, tfloat, tfloat)),
-  cvar('modFloat', tfuns(tfloat, tfloat, tfloat)),*/
+  cvar('modFloat', tfuns(tfloat, tfloat, tfloat)),
 
-  cvar('numTest', tforallc('t', ktype, [tapps(tcon('Num'), tvar('t'))], tfuns(tvar('t'), tvar('t')))),
+  cvar('numTest', tforallc('t', ktype, [tapps(tcon('Num'), tvar('t'))], tfuns(tvar('t'), tvar('t')))),*/
 );
 
 function _show(x: any): string {
+  if(x._lazy) return 'Lazy';
   if(x._rec) {
     if(x.length === 0) return '{}';
     const r = [];

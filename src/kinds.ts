@@ -30,3 +30,14 @@ export class KFun extends Kind {
 }
 export const kfun = (left: Kind, right: Kind) => new KFun(left, right);
 export const kfuns = (...ts: Kind[]) => ts.reduceRight((a, b) => kfun(b, a));
+
+export function flattenKFun(f: KFun): Kind[] {
+  const r = [];
+  let c: Kind = f;
+  while(c instanceof KFun) {
+    r.push(c.left);
+    c = c.right;
+  }
+  r.push(c);
+  return r;
+}

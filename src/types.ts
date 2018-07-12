@@ -213,6 +213,17 @@ export class TFun extends Type {
 export const tfun = (left: Type, right: Type) => new TFun(left, right);
 export const tfuns = (...ts: Type[]) => ts.reduceRight((a, b) => tfun(b, a));
 
+export function flattenTFun(f: TFun): Type[] {
+  const r = [];
+  let c: Type = f;
+  while(c instanceof TFun) {
+    r.push(c.left);
+    c = c.right;
+  }
+  r.push(c);
+  return r;
+}
+
 export class TForall extends Type {
   constructor(
     public readonly name: string,
@@ -265,6 +276,18 @@ export const tforalls = (ns: [string, Kind][], type: Type) =>
   ns.reduceRight((a, b) => tforall(b[0], b[1], a), type);
 export const tforallsc = (ns: [string, Kind, Type[]][], type: Type) =>
   ns.reduceRight((a, b) => tforallc(b[0], b[1], b[2], a), type);
+
+export function flattenTForall(f: TForall): { args: [string, Kind][], constraints: Type[], ty: Type } {
+  const r: [string, Kind][] = [];
+  const rr: Type[] = [];
+  let c: Type = f;
+  while(c instanceof TForall) {
+    r.push([c.name, c.kind]);
+    rr.push.apply(rr, c.constraints);
+    c = c.type;
+  }
+  return { args: r, constraints: rr, ty: c };
+}
 
 export class TEmpty extends Type {
   toString() {
@@ -342,3 +365,13 @@ export class TExtend extends Type {
 export const textend = (label: string, type: Type, rest: Type) => new TExtend(label, type, rest);
 export const trow = (props: [string, Type][], rest?: Type) =>
   props.reduceRight((r, [l, t]) => textend(l, t, r), rest || tempty);
+
+export function flattenTExtend(e: TExtend): { props: [string, Type][], rest: Type | null } {
+  const props: [string, Type][] = [];
+  let c: Type = e;
+  while(c instanceof TExtend) {
+    props.push([c.label, c.type]);
+    c = c.rest;
+  }
+  return { props, rest: c instanceof TEmpty? null: c };
+}
