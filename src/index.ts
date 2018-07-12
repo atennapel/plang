@@ -1,11 +1,14 @@
 /**
  * TODO:
+ *  if expressions
+ * 
  *  parser:
  *    records as tuples
  *    syntax for lists and arrays
  *    syntax for adt match
  *    operators
  *  typechecker:
+ *    lazy types
  *    improve type errors (pretty print)
  *    higher ranked types in records and variants
  *    constrained row polymorphism
@@ -28,6 +31,7 @@
  *    simplify names in pp of types
  * 
  * PROBLEMS:
+ *  force (force 4.)
  *  :def f = /\(x x:Type) -> \x -> x
  *  fresh vars in WF
  *  { x = \x -> x } : SRec { x : forall t. t -> t }

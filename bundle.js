@@ -1,4 +1,4 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1744,12 +1744,14 @@ exports.ppContext = ppContext;
 },{"./context":2,"./kinds":5,"./typechecker":9,"./types":10,"./util":11}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const types_1 = require("./types");
 const compilerJS_1 = require("./compilerJS");
 const typechecker_1 = require("./typechecker");
+const context_1 = require("./context");
 const parser_1 = require("./parser");
 const prettyprinter_1 = require("./prettyprinter");
 const definitions_1 = require("./definitions");
-exports._context = typechecker_1.initialContext.add();
+exports._context = typechecker_1.initialContext.add(context_1.cvar('show', types_1.tforalls([['t', typechecker_1.ktype]], types_1.tfuns(types_1.tvar('t'), typechecker_1.tstr))), context_1.cvar('emptyStr', typechecker_1.tstr), context_1.cvar('appendStr', types_1.tfuns(typechecker_1.tstr, typechecker_1.tstr, typechecker_1.tstr)), context_1.cvar('zeroFloat', typechecker_1.tfloat), context_1.cvar('oneFloat', typechecker_1.tfloat), context_1.cvar('negFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('incFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('decFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('addFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('subFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('mulFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('divFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('modFloat', types_1.tfuns(typechecker_1.tfloat, typechecker_1.tfloat, typechecker_1.tfloat)), context_1.cvar('numTest', types_1.tforallc('t', typechecker_1.ktype, [types_1.tapps(types_1.tcon('Num'), types_1.tvar('t'))], types_1.tfuns(types_1.tvar('t'), types_1.tvar('t')))));
 function _show(x) {
     if (x._lazy)
         return 'Lazy';
@@ -1866,7 +1868,7 @@ function _run(i, cb) {
 }
 exports.default = _run;
 
-},{"./compilerJS":1,"./definitions":3,"./parser":6,"./prettyprinter":7,"./typechecker":9}],9:[function(require,module,exports){
+},{"./compilerJS":1,"./context":2,"./definitions":3,"./parser":6,"./prettyprinter":7,"./typechecker":9,"./types":10}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1961,12 +1963,12 @@ exports.tseff = types_1.tcon('SEff');
 exports.initialContext = new context_1.Context([
     context_1.ckcon('Type'),
     context_1.ckcon('Row'),
-    /*ckcon('Constraint'),
-    ctcon('Str', ktype),
-    ctcon('Float', ktype),
-    ctcon('SVar', kfuns(krow, ktype)),
-    ctcon('SEff', kfuns(krow, ktype, ktype)),
-    ctcon('Num', kfuns(ktype, kconstraint)),*/
+    context_1.ctcon('Float', exports.ktype),
+    context_1.ckcon('Constraint'),
+    context_1.ctcon('Str', exports.ktype),
+    context_1.ctcon('SVar', kinds_1.kfuns(exports.krow, exports.ktype)),
+    context_1.ctcon('SEff', kinds_1.kfuns(exports.krow, exports.ktype, exports.ktype)),
+    context_1.ctcon('Num', kinds_1.kfuns(exports.ktype, exports.kconstraint)),
     context_1.ctcon('SRec', kinds_1.kfuns(exports.krow, exports.ktype)),
     context_1.ctcon('Lazy', kinds_1.kfuns(exports.ktype, exports.ktype)),
     context_1.cvar('lazy', types_1.tforalls([['t', exports.ktype]], types_1.tfuns(types_1.tfuns(types_1.tapps(exports.tsrec, types_1.tempty), types_1.tvar('t')), types_1.tapps(exports.tlazy, types_1.tvar('t'))))),
@@ -2149,11 +2151,6 @@ function subtype(ctx, a, b) {
         (a instanceof types_1.TEx && b instanceof types_1.TEx) ||
         (a instanceof types_1.TCon && b instanceof types_1.TCon)) && a.name === b.name)
         return ctx;
-    if (b instanceof types_1.TApp) {
-        const fb = types_1.flattenTApp(b);
-        if (fb.length === 2 && fb[0].equals(exports.tlazy))
-            return subtype(ctx, a, fb[1]);
-    }
     if (a instanceof types_1.TApp && b instanceof types_1.TApp) {
         const ctx_ = subtype(ctx, a.left, b.left);
         return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
@@ -2564,6 +2561,12 @@ function synth(ctx, e) {
     }
     return err(`cannot synth ${e} in ${ctx}`);
 }
+function isLazy(t) {
+    if (!(t instanceof types_1.TApp))
+        return false;
+    const f = types_1.flattenTApp(t);
+    return f.length == 2 && f[0].equals(exports.tlazy);
+}
 function checkTy(ctx, e, ty) {
     console.log(`checkTy ${e} and ${ty} in ${ctx}`);
     contextWF(ctx);
@@ -2578,6 +2581,15 @@ function checkTy(ctx, e, ty) {
         return { ctx: r.ctx.split(context_1.isCVar(x)).left, expr: exprs_1.eabs(x, r.expr) };
     }
     const rr = synth(ctx, e);
+    const ty_ = rr.ctx.apply(ty);
+    if (!(rr.ty instanceof types_1.TEx) && !isLazy(rr.ty) && isLazy(ty_)) {
+        console.log(`lazyR ${rr.ty} and ${ty}`);
+        return checkTy(ctx, exprs_1.eapp(exprs_1.evar('lazy'), exprs_1.eabst('_', types_1.tapps(exports.tsrec, types_1.tempty), e)), ty_);
+    }
+    if (isLazy(rr.ty) && !(ty_ instanceof types_1.TEx) && !isLazy(ty_)) {
+        console.log(`lazyL ${rr.ty} and ${ty}`);
+        return checkTy(ctx, exprs_1.eapp(exprs_1.evar('force'), e), ty_);
+    }
     console.log(`checkTysynth ${rr.ty} in ${rr.ctx} (${e} : ${ty})`);
     return { ctx: subtype(rr.ctx, rr.ctx.apply(rr.ty), rr.ctx.apply(ty)), expr: rr.expr };
 }

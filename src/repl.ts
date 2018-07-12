@@ -19,7 +19,7 @@ import {
 } from './definitions';
 
 export const _context = initialContext.add(
-  /*cvar('show', tforalls([['t', ktype]], tfuns(tvar('t'), tstr))),
+  cvar('show', tforalls([['t', ktype]], tfuns(tvar('t'), tstr))),
   cvar('emptyStr', tstr),
   cvar('appendStr', tfuns(tstr, tstr, tstr)),
 
@@ -34,7 +34,7 @@ export const _context = initialContext.add(
   cvar('divFloat', tfuns(tfloat, tfloat, tfloat)),
   cvar('modFloat', tfuns(tfloat, tfloat, tfloat)),
 
-  cvar('numTest', tforallc('t', ktype, [tapps(tcon('Num'), tvar('t'))], tfuns(tvar('t'), tvar('t')))),*/
+  cvar('numTest', tforallc('t', ktype, [tapps(tcon('Num'), tvar('t'))], tfuns(tvar('t'), tvar('t')))),
 );
 
 function _show(x: any): string {

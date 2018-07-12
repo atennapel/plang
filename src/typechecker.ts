@@ -79,6 +79,7 @@ import {
   EDo,
   EHandler,
   ehandler,
+  eabst,
 } from './exprs';
 import {
   Kind,
@@ -182,12 +183,12 @@ export const tseff = tcon('SEff');
 export const initialContext = new Context([
   ckcon('Type'),
   ckcon('Row'),
-  /*ckcon('Constraint'),
-  ctcon('Str', ktype),
   ctcon('Float', ktype),
+  ckcon('Constraint'),
+  ctcon('Str', ktype),
   ctcon('SVar', kfuns(krow, ktype)),
   ctcon('SEff', kfuns(krow, ktype, ktype)),
-  ctcon('Num', kfuns(ktype, kconstraint)),*/
+  ctcon('Num', kfuns(ktype, kconstraint)),
   ctcon('SRec', kfuns(krow, ktype)),
 
   ctcon('Lazy', kfuns(ktype, ktype)),
@@ -796,6 +797,12 @@ function synth(ctx: Context, e: Expr): { ctx: Context, ty: Type, expr: Expr } {
   return err(`cannot synth ${e} in ${ctx}`);
 }
 
+function isLazy(t: Type): boolean {
+  if(!(t instanceof TApp)) return false;
+  const f = flattenTApp(t);
+  return f.length == 2 && f[0].equals(tlazy);
+}
+
 function checkTy(ctx: Context, e: Expr, ty: Type): { ctx: Context, expr: Expr } {
    console.log(`checkTy ${e} and ${ty} in ${ctx}`);
   contextWF(ctx);
@@ -810,6 +817,15 @@ function checkTy(ctx: Context, e: Expr, ty: Type): { ctx: Context, expr: Expr } 
     return { ctx: r.ctx.split(isCVar(x)).left, expr: eabs(x, r.expr) };
   }
   const rr = synth(ctx, e);
+  const ty_ = rr.ctx.apply(ty);
+  if(!(rr.ty instanceof TEx) && !isLazy(rr.ty) && isLazy(ty_)) {
+    console.log(`lazyR ${rr.ty} and ${ty}`);
+    return checkTy(ctx, eapp(evar('lazy'), eabst('_', tapps(tsrec, tempty), e)), ty_);
+  }
+  if(isLazy(rr.ty) && !(ty_ instanceof TEx) && !isLazy(ty_)) {
+    console.log(`lazyL ${rr.ty} and ${ty}`);
+    return checkTy(ctx, eapp(evar('force'), e), ty_);
+  }
   console.log(`checkTysynth ${rr.ty} in ${rr.ctx} (${e} : ${ty})`);
   return { ctx: subtype(rr.ctx, rr.ctx.apply(rr.ty), rr.ctx.apply(ty)), expr: rr.expr };
 }
