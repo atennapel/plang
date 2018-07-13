@@ -166,6 +166,7 @@ export class Context {
   }
   split(fn: (e: ContextElem) => boolean): { left: Context, right: Context } {
     const i = this.findIndex(fn);
+    console.log(`split ${this.elems[i]} in ${this}`);
     return i < 0?
       { left: this, right: new Context([]) }:
       { left: new Context(this.elems.slice(0, i)), right: new Context(this.elems.slice(i + 1)) };

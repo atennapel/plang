@@ -1,4 +1,4 @@
-(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -273,6 +273,7 @@ class Context {
     }
     split(fn) {
         const i = this.findIndex(fn);
+        console.log(`split ${this.elems[i]} in ${this}`);
         return i < 0 ?
             { left: this, right: new Context([]) } :
             { left: new Context(this.elems.slice(0, i)), right: new Context(this.elems.slice(i + 1)) };
@@ -2139,6 +2140,66 @@ function rewriteRow(ctx, l, ty) {
     }
     return util_1.impossible();
 }
+function unify(ctx, a, b) {
+    console.log(`unify ${a} and ${b} in ${ctx}`);
+    const k = typeWF(ctx, a);
+    const k2 = typeWF(ctx, b);
+    if (!k.equals(k2))
+        return err(`kind mismatch ${a} and ${b}, ${k} and ${k2} in ${ctx}`);
+    if (a instanceof types_1.TEmpty && b instanceof types_1.TEmpty)
+        return ctx;
+    if (((a instanceof types_1.TVar && b instanceof types_1.TVar) ||
+        (a instanceof types_1.TEx && b instanceof types_1.TEx) ||
+        (a instanceof types_1.TCon && b instanceof types_1.TCon)) && a.name === b.name)
+        return ctx;
+    if (a instanceof types_1.TApp && b instanceof types_1.TApp) {
+        const ctx_ = unify(ctx, a.left, b.left);
+        return unify(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
+    }
+    if (a instanceof types_1.TFun && b instanceof types_1.TFun) {
+        const ctx_ = unify(ctx, b.left, a.left);
+        return unify(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
+    }
+    if (a instanceof types_1.TForall && b instanceof types_1.TForall) {
+        if (!a.kind.equals(b.kind))
+            return err(`kind mismatch when unifying ${a} and ${b}`);
+        const tvars = ctx.tvars().concat(a.tvars()).concat(b.tvars());
+        const x = fresh(tvars, a.name);
+        const ctx_ = unify(ctx.add(context_1.cmarker(x), context_1.ctvar(x, a.kind))
+            .addAll(a.constraints.map(t => context_1.cconstraint(t.subst(a.name, types_1.tvar(x)))))
+            .addAll(b.constraints.map(t => context_1.cconstraint(t.subst(b.name, types_1.tvar(x))))), a.open(types_1.tvar(x)), b.open(types_1.tvar(x)));
+        console.log(`before split ${ctx_}`);
+        return ctx_.split(context_1.isCMarker(x)).left;
+    }
+    if (a instanceof types_1.TExtend && b instanceof types_1.TExtend) {
+        const r = rewriteRow(ctx, a.label, b);
+        const tail = rowTail(a.rest);
+        if (tail && r.ex && tail === r.ex)
+            return err(`recursive row type: ${a} <: ${b}`);
+        const ctx_ = unify(r.ctx, r.ctx.apply(a.type), r.ctx.apply(r.ty));
+        return unify(ctx_, ctx_.apply(a.rest), ctx_.apply(r.rest));
+    }
+    if (a instanceof types_1.TEx && b instanceof types_1.TEx) {
+        if (a.name === b.name)
+            return ctx;
+        if (ctx.isOrdered(a.name, b.name))
+            return solve(ctx, b.name, a);
+        if (ctx.isOrdered(b.name, a.name))
+            return solve(ctx, a.name, b);
+        return err(`ordering failure ${a} ~ ${b}`);
+    }
+    if (a instanceof types_1.TEx) {
+        findEx(ctx, a.name);
+        check(!b.containsEx(a.name), `occurs check failed: ${a} in ${b}`);
+        return solve(ctx, a.name, b);
+    }
+    if (b instanceof types_1.TEx) {
+        findEx(ctx, b.name);
+        check(!a.containsEx(b.name), `occurs check failed: ${b} in ${a}`);
+        return solve(ctx, b.name, a);
+    }
+    return err(`unify failed: ${a} ~ ${b} in ${ctx}`);
+}
 function subtype(ctx, a, b) {
     console.log(`subtype ${a} and ${b} in ${ctx}`);
     const k = typeWF(ctx, a);
@@ -2151,9 +2212,9 @@ function subtype(ctx, a, b) {
         (a instanceof types_1.TEx && b instanceof types_1.TEx) ||
         (a instanceof types_1.TCon && b instanceof types_1.TCon)) && a.name === b.name)
         return ctx;
-    if (a instanceof types_1.TApp && b instanceof types_1.TApp) {
-        const ctx_ = subtype(ctx, a.left, b.left);
-        return subtype(ctx_, ctx_.apply(a.right), ctx_.apply(b.right));
+    if ((a instanceof types_1.TApp && b instanceof types_1.TApp) ||
+        (a instanceof types_1.TExtend && b instanceof types_1.TExtend)) {
+        return unify(ctx, a, b);
     }
     if (a instanceof types_1.TFun && b instanceof types_1.TFun) {
         const ctx_ = subtype(ctx, b.left, a.left);
@@ -2170,32 +2231,27 @@ function subtype(ctx, a, b) {
         return (ctx_.split(context_1.isCTVar(x)).left);
     }
     if (a instanceof types_1.TEx) {
-        const r1 = findEx(ctx, a.name);
-        const r2 = check(!b.containsEx(a.name), `occurs check failed L: ${a} in ${b}`);
+        findEx(ctx, a.name);
+        check(!b.containsEx(a.name), `occurs check failed L: ${a} in ${b}`);
         return instL(ctx, a.name, b);
     }
     if (b instanceof types_1.TEx) {
-        const r1 = findEx(ctx, b.name);
-        const r2 = check(!a.containsEx(b.name), `occurs check failed R: ${b} in ${a}`);
+        findEx(ctx, b.name);
+        check(!a.containsEx(b.name), `occurs check failed R: ${b} in ${a}`);
         return instR(ctx, a, b.name);
-    }
-    if (a instanceof types_1.TExtend && b instanceof types_1.TExtend) {
-        const r = rewriteRow(ctx, a.label, b);
-        const tail = rowTail(a.rest);
-        if (tail && r.ex && tail === r.ex)
-            return err(`recursive row type: ${a} <: ${b}`);
-        const ctx_ = subtype(r.ctx, r.ctx.apply(a.type), r.ctx.apply(r.ty));
-        return subtype(ctx_, ctx_.apply(a.rest), ctx_.apply(r.rest));
     }
     return err(`subtype failed: ${a} <: ${b} in ${ctx}`);
 }
 // inst
 function solve(ctx, name, ty) {
-    // console.log(`solve ${name} and ${ty} in ${ctx}`);
+    console.log(`solve ${name} and ${ty} in ${ctx}`);
     if (ty.isMono()) {
+        console.log('solve split');
         const s = ctx.split(context_1.isCTEx(name));
         const k = typeWF(s.left, ty);
-        return s.left.add(context_1.csolved(name, k, ty)).append(s.right);
+        const ctx_ = s.left.add(context_1.csolved(name, k, ty)).append(s.right);
+        console.log(`solve ret ${ctx_}`);
+        return ctx_;
     }
     else
         return err(`polymorphic type in solve: ${name} := ${ty} in ${ctx}`);
