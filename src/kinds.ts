@@ -1,4 +1,4 @@
-export abstract class Kind {
+export default abstract class Kind {
 
   abstract toString(): string;
 
