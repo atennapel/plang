@@ -20,7 +20,7 @@ export const pure = <T>(val: T): TC<T> => TCM.of(val);
 export const error = <T>(err: string): TC<T> => TCM.err(err);
 export const ok = pure(undefined);
 
-export const log = (msg: any): TC<void> => ok.map(() => { console.log(msg); return undefined });
+export const log = (msg: any): TC<void> => getCtx.map(ctx => { console.log(`${msg} in ${ctx}`); return undefined });
 
 export const iff = <T>(c: TC<boolean>, a: TC<T>, b: TC<T>): TC<T> => TCM.if(c, a, b);
 export const check = (c: boolean, msg: string): TC<void> => TCM.check(c, msg);
@@ -36,7 +36,7 @@ export const replace = (fn: (elem: Elem<NameRep>) => boolean, es: Elem<NameRep>[
 
 export const withElems = <T>(es: Elem<NameRep>[], action: TC<T>): TC<T> =>
   freshName(name('wm'))
-    .chain(name => TCM.updateCtx<Context<Elem<NameRep>>, NameRepSupply, string>(Context.add([cmarker(name) as Elem<NameRep>].concat(es)))
+    .chain(name => TCM.updateCtx<Context<Elem<NameRep>>, NameRepSupply, string>(Context.addAll([cmarker(name) as Elem<NameRep>].concat(es)))
     .then(action)
     .chain(val => pop(isCMarker(name))
     .map(() => val)));

@@ -11,12 +11,6 @@ import { ctvar, cvar, ctmeta, isCTMeta, isCMarker, cmarker, CTMeta } from './ele
 import Context from './generic/context';
 import NameRep, { name } from './generic/NameRep';
 
-const contains = <A extends { equals: (other: A) => boolean }>(arr: A[], val: A): boolean => {
-  for (let i = arr.length - 1; i >= 0; i--) {
-    if (arr[i].equals(val)) return true;
-  }
-  return false;
-}
 const assocGet = <A extends { equals: (other: A) => boolean }, B>(arr: [A, B][], val: A): B | null => {
   for (let i = arr.length - 1; i >= 0; i--) {
     if (arr[i][0].equals(val)) return arr[i][1];

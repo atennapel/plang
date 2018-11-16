@@ -36,7 +36,7 @@ export class Abs<N extends INameRep<N>> extends Expr<N> {
   ) { super() }
 
   toString() {
-    return this.type ? `(\\(${this.name} : ${this.type}). ${this.body})` : `(\\${this.name}. ${this.body})`;
+    return this.type ? `(\\(${this.name} : ${this.type}) -> ${this.body})` : `(\\${this.name} -> ${this.body})`;
   }
 
   subst(name: N, val: Expr<N>): Expr<N> {

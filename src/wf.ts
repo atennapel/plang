@@ -3,7 +3,7 @@ import { ctvar } from './elems';
 import { isKVar, isKFun } from './kinds';
 import { isTVar, isTMeta, isTFun, isTForall, tvar } from './types';
 import { kType } from './initial';
-import { TC, KindN, TypeN, error, ok, withElems, findKVar, findTVar, findTMeta, freshName } from './TC';
+import { TC, KindN, TypeN, error, ok, withElems, findKVar, findTVar, findTMeta, freshName, log } from './TC';
 
 export const checkKind = (exp: KindN, actual: KindN, msg?: string): TC<void> => {
   if (exp.equals(actual)) return ok;
