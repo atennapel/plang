@@ -1,11 +1,9 @@
-import {
-  Kind,
-  kvar,
-  kfuns,
-} from './kinds';
+import { infer } from "./inference";
+import { initialContext } from "./initial";
+import { abs, vr } from "./exprs";
+import { name } from "./generic/NameRep";
 
-
-const type = kvar('type');
+const x = name('x');
 console.log(
-  '' + kfuns(type, type, kfuns(type, type, type), type)
+  '' + infer(initialContext, abs(x, vr(x))),
 );

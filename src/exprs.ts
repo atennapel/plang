@@ -1,64 +1,94 @@
-import Type from "./types";
+import Type from './types';
+import { INameRep } from './generic/NameRep';
 
-export default abstract class Expr {
+export default abstract class Expr<N extends INameRep<N>> {
 
   abstract toString(): string;
 
+  abstract subst(name: N, val: Expr<N>): Expr<N>;
+
 }
 
-export class Var extends Expr {
+export class Var<N extends INameRep<N>> extends Expr<N> {
 
   constructor(
-    public readonly name: string,
+    public readonly name: N,
   ) { super() }
 
   toString() {
-    return this.name;
+    return this.name.toString();
+  }
+
+  subst(name: N, val: Expr<N>): Expr<N> {
+    return this.name.equals(name) ? val : this;
   }
 
 }
-export const vr = (name: string) => new Var(name);
+export const vr = <N extends INameRep<N>>(name: N) => new Var(name);
+export const isVar = <N extends INameRep<N>>(expr: Expr<N>): expr is Var<N> => expr instanceof Var;
 
-export class Abs extends Expr {
+export class Abs<N extends INameRep<N>> extends Expr<N> {
 
   constructor(
-    public readonly name: string,
-    public readonly type: Type | null,
-    public readonly body: Expr,
+    public readonly name: N,
+    public readonly type: Type<N> | null,
+    public readonly body: Expr<N>,
   ) { super() }
 
   toString() {
     return this.type ? `(\\(${this.name} : ${this.type}). ${this.body})` : `(\\${this.name}. ${this.body})`;
   }
 
-}
+  subst(name: N, val: Expr<N>): Expr<N> {
+    return this.name.equals(name) ? this : new Abs(this.name, this.type, this.body.subst(name, val));
+  }
+  open(val: Expr<N>): Expr<N> {
+    return this.body.subst(this.name, val);
+  }
 
-export class App extends Expr {
+}
+export const abs = <N extends INameRep<N>>(name: N, body: Expr<N>) => new Abs(name, null, body);
+export const absty = <N extends INameRep<N>>(name: N, type: Type<N>, body: Expr<N>) => new Abs(name, type, body);
+export const abss = <N extends INameRep<N>>(ns: N[], body: Expr<N>) => ns.reduceRight((b, n) => abs(n, b), body);
+export const abstys = <N extends INameRep<N>>(ns: [N, Type<N>][], body: Expr<N>) => ns.reduceRight((b, [n, t]) => absty(n, t, b), body);
+export const isAbs = <N extends INameRep<N>>(expr: Expr<N>): expr is Abs<N> => expr instanceof Abs;
+
+export class App<N extends INameRep<N>> extends Expr<N> {
 
   constructor(
-    public readonly left: Expr,
-    public readonly right: Expr,
+    public readonly left: Expr<N>,
+    public readonly right: Expr<N>,
   ) { super() }
 
   toString() {
     return `(${this.left} ${this.right})`;
   }
 
-}
-export const app = (left: Expr, right: Expr) => new TFun(left, right);
-export const appFrom = (es: Expr[]) => ts.reduceRight((x, y) => tfun(y, x));
-export function apps(...es: Expr[]) { return tfunFrom(ts) }
+  subst(name: N, val: Expr<N>): Expr<N> {
+    return new App(this.left.subst(name, val), this.right.subst(name, val));
+  }
 
-export class Anno extends Expr {
+}
+export const app = <N extends INameRep<N>>(left: Expr<N>, right: Expr<N>) => new App(left, right);
+export const appFrom = <N extends INameRep<N>>(es: Expr<N>[]) => es.reduce(app);
+export function apps<N extends INameRep<N>>(...es: Expr<N>[]) { return appFrom(es) }
+export const isApp = <N extends INameRep<N>>(expr: Expr<N>): expr is App<N> => expr instanceof App;
+
+export class Anno<N extends INameRep<N>> extends Expr<N> {
 
   constructor(
-    public readonly expr: Expr,
-    public readonly type: Type,
+    public readonly expr: Expr<N>,
+    public readonly type: Type<N>,
   ) { super() }
 
   toString() {
     return `(${this.expr} : ${this.type})`;
   }
 
+  subst(name: N, val: Expr<N>): Expr<N> {
+    return new Anno(this.expr.subst(name, val), this.type);
+  }
+
 }
-export const anno = (expr: Expr, type: Type) => new Anno(expr, type);
+export const anno = <N extends INameRep<N>>(expr: Expr<N>, type: Type<N>) => new Anno(expr, type);
+export const isAnno = <N extends INameRep<N>>(expr: Expr<N>): expr is Anno<N> => expr instanceof Anno;
