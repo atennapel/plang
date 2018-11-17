@@ -3,7 +3,7 @@ import Elem, { cmarker, isCMarker, isCTMeta, isCKVar, CKVar, isCTVar, isCVar, CT
 import Context from './generic/context';
 import NameRepSupply from './generic/NameSupply';
 import TCM from './generic/monad';
-import Type, { tfun, tforall, isTVar, isTFun, isTMeta, isTForall } from './types';
+import Type, { tfun, tforall, isTVar, isTFun, isTMeta, isTForall, isTApp, tapp } from './types';
 import { impossible } from './utils';
 import Expr from './exprs';
 import Kind from './kinds';
@@ -17,7 +17,7 @@ export type Ctx = Context<ElemN>;
 export type TC<T> = TCM<Context<ElemN>, NameRepSupply, string, T>;
 
 export const pure = <T>(val: T): TC<T> => TCM.of(val);
-export const error = <T>(err: string): TC<T> => TCM.err(err);
+export const error = <T>(err: string): TC<T> => TCM.error(err);
 export const ok = pure(undefined);
 
 export const log = (msg: any): TC<void> => getCtx.map(ctx => { console.log(`${msg} in ${ctx}`); return undefined });
@@ -59,6 +59,10 @@ export const apply = (type: Type<NameRep>): TC<Type<NameRep>> => {
     return apply(type.left)
       .chain(left => apply(type.right)
       .map(right => tfun(left, right)));
+  if (isTApp(type))
+    return apply(type.left)
+      .chain(left => apply(type.right)
+      .map(right => tapp(left, right)));
   if (isTForall(type))
     return apply(type.type).map(body => tforall(type.name, type.kind, body));
   return impossible();

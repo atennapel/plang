@@ -1,7 +1,7 @@
 import { impossible } from './utils';
 import { ctvar } from './elems';
-import { isKVar, isKFun } from './kinds';
-import { isTVar, isTMeta, isTFun, isTForall, tvar } from './types';
+import { isKVar, isKFun, KFun } from './kinds';
+import { isTVar, isTMeta, isTFun, isTForall, tvar, isTApp } from './types';
 import { kType } from './initial';
 import { TC, KindN, TypeN, error, ok, withElems, findKVar, findTVar, findTMeta, freshName, log } from './TC';
 
@@ -23,7 +23,15 @@ export const wfType = (type: TypeN): TC<KindN> => {
     return wfType(type.left).chain(k => checkKind(kType, k, `left side of ${type}`))
       .then(wfType(type.right).chain(k => checkKind(kType, k, `right side of ${type}`)))
       .map(() => kType);
+  if (isTApp(type))
+    return wfType(type.left)
+      .checkIs(isKFun, k => `left side of ${type} is not a higher-kinded type: ${k}`) 
+      .chain(k => wfType(type.right)
+      .chain(kr => checkKind(k.left, kr, `type application ${type}`))
+      .map(() => k.right));
   if (isTForall(type))
-    return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], wfType(type.open(tvar(x)))));
+    return wfKind(type.kind)
+      .then(freshName(type.name)
+      .chain(x => withElems([ctvar(x, type.kind)], wfType(type.open(tvar(x))))));
   return impossible();
 };

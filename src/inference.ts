@@ -1,11 +1,11 @@
-import { ExprN, TypeN, TC, Ctx, log, apply, findVar, freshName, withElems, error, updateCtx, findTMeta, freshNames, replace, ElemN, pop, KindN } from './TC';
+import { ExprN, TypeN, TC, Ctx, log, apply, findVar, freshName, withElems, error, updateCtx, findTMeta, freshNames, replace, ElemN, pop, KindN, check } from './TC';
 import Either from './generic/Either';
 import NameRepSupply from './generic/NameSupply';
-import { isVar, isAbs, isApp, isAnno, vr } from './exprs';
+import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT } from './exprs';
 import { impossible } from './utils';
-import { wfType, checkKind } from './wf';
+import { wfType, checkKind, wfKind } from './wf';
 import { kType } from './initial';
-import { isTForall, isTFun, tvar, isTMeta, tmeta, tfun, tforalls } from './types';
+import { isTForall, isTFun, tvar, isTMeta, tmeta, tfun, tforalls, tforall } from './types';
 import { subtype } from './subtype';
 import { ctvar, cvar, ctmeta, isCTMeta, isCMarker, cmarker, CTMeta } from './elems';
 import Context from './generic/context';
@@ -62,7 +62,21 @@ const synthty = (expr: ExprN): TC<TypeN> =>
           .then(checkty(expr.open(vr(x)), tmeta(b)))
           .map(() => tfun(tmeta(a), tmeta(b)))));
     }
-    if (isApp(expr)) return synthty(expr.left).chain(ty => apply(ty)).chain(ty => synthappty(ty, expr.right));
+    if (isAbsT(expr))
+      return wfKind(expr.kind)
+        .then(freshName(expr.name)
+        .chain(x => withElems([ctvar(x, expr.kind)], synthty(expr.openTVar(tvar(x))))
+        .map(ty => tforall(x, expr.kind, ty))));
+    if (isApp(expr))
+      return synthty(expr.left)
+        .chain(ty => apply(ty))
+        .chain(ty => synthappty(ty, expr.right));
+    if (isAppT(expr))
+      return wfType(expr.right)
+        .chain(ka => synthty(expr.left)
+        .checkIs(isTForall, ty => `not a forall in left side of ${expr}: got ${ty}`)
+        .chain(ty => checkKind(ty.kind, ka, `${expr}`)
+        .map(() => ty.open(expr.right))));
     if (isAnno(expr))
       return wfType(expr.type)
         .chain(k => checkKind(kType, k, `annotation ${expr}`))
@@ -74,17 +88,13 @@ const checkty = (expr: ExprN, type: TypeN): TC<void> =>
   log(`check ${expr} : ${type}`).chain(() => {
     if (isTForall(type))
       return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkty(expr, type.open(tvar(x)))));
-    if (isTFun(type))
-      return !isAbs(expr) || expr.type ? checksynthty(expr, type) :
-        freshName(expr.name).chain(x => withElems([cvar(x, type.left)], checkty(expr.open(vr(x)), type.right)));
-    return checksynthty(expr, type);
-  });
-const checksynthty = (expr: ExprN, type: TypeN): TC<void> =>
-  log(`checksynth ${expr} : ${type}`).then(
-    synthty(expr)
+    if (isTFun(type) && isAbs(expr) && !expr.type)
+      return freshName(expr.name).chain(x => withElems([cvar(x, type.left)], checkty(expr.open(vr(x)), type.right)));
+    return synthty(expr)
       .chain(te => apply(te))
       .chain(te => apply(type)
-      .chain(ta => subtype(te, ta))));
+      .chain(ta => subtype(te, ta)));
+  });
 
 const synthappty = (type: TypeN, expr: ExprN): TC<TypeN> =>
   log(`synthapp ${type} @ ${expr}`).chain(() => {

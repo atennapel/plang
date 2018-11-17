@@ -15,7 +15,7 @@ export default class TCM<C, S, E, T> {
   static void<C, S, E>(): TCM<C, S, E, void> {
     return TCM.of(undefined);
   }
-  static err<C, S, E, T>(err: E) {
+  static error<C, S, E, T>(err: E) {
     return new TCM<C, S, E, T>((ctx, supply) => ({ ctx, supply, val: Either.err(err) }));
   }
 
@@ -59,7 +59,15 @@ export default class TCM<C, S, E, T> {
   }
 
   static check<C, S, E>(c: boolean, msg: E): TCM<C, S, E, void> {
-    return c ? TCM.void() : TCM.err(msg);
+    return c ? TCM.void() : TCM.error(msg);
+  }
+
+  checkIs<R extends T>(fn: (val: T) => val is R, msg: (val: T) => E): TCM<C, S, E, R> {
+    return this.chain(x => TCM.check<C, S, E>(fn(x), msg(x)).map(() => x as R));
+  }
+
+  fail(msg: E): TCM<C, S, E, never> {
+    return this.chain(() => TCM.error<C, S, E, never>(msg));
   }
 
   // context
