@@ -82,42 +82,6 @@ export class TMeta<N extends INameRep<N>> extends Type<N> {
 export const tmeta = <N extends INameRep<N>>(name: N) => new TMeta(name);
 export const isTMeta = <N extends INameRep<N>>(type: Type<N>): type is TMeta<N> => type instanceof TMeta;
 
-export class TFun<N extends INameRep<N>> extends Type<N> {
-
-  constructor(
-    public readonly left: Type<N>,
-    public readonly right: Type<N>,
-  ) { super() }
-
-  toString() {
-    return `(${this.left} -> ${this.right})`;
-  }
-
-  isMono() {
-    return this.left.isMono() && this.right.isMono();
-  }
-
-  substTVar(name: N, type: Type<N>): Type<N> {
-    return new TFun(this.left.substTVar(name, type), this.right.substTVar(name, type));
-  }
-  substTMeta(name: N, type: Type<N>): Type<N> {
-    return new TFun(this.left.substTMeta(name, type), this.right.substTMeta(name, type));
-  }
-
-  containsTMeta(name: N): boolean {
-    return this.left.containsTMeta(name) || this.right.containsTMeta(name);
-  }
-
-  freeTMeta(): N[] {
-    return this.left.freeTMeta().concat(this.right.freeTMeta());
-  }
-
-}
-export const tfun = <N extends INameRep<N>>(left: Type<N>, right: Type<N>) => new TFun(left, right);
-export const tfunFrom = <N extends INameRep<N>>(ts: Type<N>[]) => ts.reduceRight((x, y) => tfun(y, x));
-export function tfuns<N extends INameRep<N>>(...ts: Type<N>[]) { return tfunFrom(ts) }
-export const isTFun = <N extends INameRep<N>>(type: Type<N>): type is TFun<N> => type instanceof TFun;
-
 export class TApp<N extends INameRep<N>> extends Type<N> {
 
   constructor(

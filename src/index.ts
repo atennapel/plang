@@ -1,18 +1,14 @@
 import { infer } from "./inference";
-import { initialContext, kType } from "./initial";
+import { initialContext, kType, tfun, tfuns } from "./initial";
 import { abs, vr, abss, apps, anno, absty, absT, appT } from "./exprs";
 import { name } from "./generic/NameRep";
 import { ctvar, cvar } from "./elems";
-import { tvar, tfun, tforall, tapp } from "./types";
+import { tvar, tforall, tapp } from "./types";
 import { kfun } from "./kinds";
 
 /*
 TODO:
-- unification
-- TApp in subtyping
-- switch to unification in subtyping
-- checkty, synthappty for TApp
-- tfun as a higher-kinded type
+- pretty printing
 - rows
 - records and variants
 */
@@ -47,7 +43,6 @@ const ctx = initialContext.add(
   cvar(test, tforall(t, kType, tfun(tapp(tv(List), tv(t)), tv(t)))),
 );
 
-const id = abs(x, vr(x));
-console.log(
-  '' + infer(ctx, apps(vr(test), apps(vr(singleton), vr(True)))),
-);
+const expr = abs(x, vr(x));
+console.log('' + expr);
+console.log('' + infer(ctx, expr));

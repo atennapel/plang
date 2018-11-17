@@ -4,8 +4,8 @@ import NameRepSupply from './generic/NameSupply';
 import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT } from './exprs';
 import { impossible } from './utils';
 import { wfType, checkKind, wfKind } from './wf';
-import { kType } from './initial';
-import { isTForall, isTFun, tvar, isTMeta, tmeta, tfun, tforalls, tforall } from './types';
+import { kType, matchTFun, tfun } from './initial';
+import { isTForall, tvar, isTMeta, tmeta, tforalls, tforall } from './types';
 import { subtype } from './subtype';
 import { ctvar, cvar, ctmeta, isCTMeta, isCMarker, cmarker, CTMeta } from './elems';
 import Context from './generic/context';
@@ -88,8 +88,9 @@ const checkty = (expr: ExprN, type: TypeN): TC<void> =>
   log(`check ${expr} : ${type}`).chain(() => {
     if (isTForall(type))
       return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkty(expr, type.open(tvar(x)))));
-    if (isTFun(type) && isAbs(expr) && !expr.type)
-      return freshName(expr.name).chain(x => withElems([cvar(x, type.left)], checkty(expr.open(vr(x)), type.right)));
+    const fun = matchTFun(type);
+    if (fun && isAbs(expr) && !expr.type)
+      return freshName(expr.name).chain(x => withElems([cvar(x, fun.left)], checkty(expr.open(vr(x)), fun.right)));
     return synthty(expr)
       .chain(te => apply(te))
       .chain(te => apply(type)
@@ -110,7 +111,8 @@ const synthappty = (type: TypeN, expr: ExprN): TC<TypeN> =>
         ])
         .then(checkty(expr, tmeta(a1))
         .map(() => tmeta(a2)))));
-    if (isTFun(type)) return checkty(expr, type.left).map(() => type.right);
+    const fun = matchTFun(type);
+    if (fun) return checkty(expr, fun.left).map(() => fun.right);
     return error(`cannot synthapp ${type} @ ${expr}`);
   });
 
