@@ -1,7 +1,7 @@
-import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp } from './types';
+import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTRowEmpty } from './types';
 import Context from './generic/context';
 import { wfType, checkKind } from './wf';
-import { kType, matchTFun, tfun } from './initial';
+import { kType, matchTFun, tfun, matchTRec, matchTVariant } from './initial';
 import { TypeN, TC, error, ok, pop, log, findTMeta, updateCtx, ElemN, ordered, iff, freshNames, replace, apply, freshName, withElems, check } from './TC';
 import NameRep from './generic/NameRep';
 import { isCTMeta, ctmeta, csolved, ctvar } from './elems';
@@ -53,6 +53,8 @@ export const subtype = (a: TypeN, b: TypeN): TC<void> =>
       .chain(() => {
         if (isTVar(a) && isTVar(b) && a.name.equals(b.name)) return ok;
         if (isTMeta(a) && isTMeta(b) && a.name.equals(b.name)) return ok;
+        if (isTRowEmpty(a) && isTRowEmpty(b)) return ok;
+        
         const funa = matchTFun(a);
         const funb = matchTFun(b);
         if (funa && funb)
@@ -60,6 +62,14 @@ export const subtype = (a: TypeN, b: TypeN): TC<void> =>
             .then(apply(funa.right)
             .chain(ta => apply(funb.right)
             .chain(tb => subtype(ta, tb))));
+        
+        const reca = matchTRec(a);
+        const recb = matchTRec(b);
+        if (reca && recb) return subtype(reca, recb);
+        const vara = matchTVariant(a);
+        const varb = matchTVariant(b);
+        if (vara && varb) return subtype(vara, varb);
+
         if (isTApp(a) && isTApp(b))
           return unify(a, b);
         if (isTForall(a))

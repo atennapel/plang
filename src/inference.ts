@@ -2,7 +2,7 @@ import { ExprN, TypeN, TC, Ctx, log, apply, findVar, freshName, withElems, error
 import Either from './generic/Either';
 import NameRepSupply from './generic/NameSupply';
 import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT } from './exprs';
-import { impossible } from './utils';
+import { impossible, assocGet } from './utils';
 import { wfType, checkKind, wfKind } from './wf';
 import { kType, matchTFun, tfun } from './initial';
 import { isTForall, tvar, isTMeta, tmeta, tforalls, tforall } from './types';
@@ -10,13 +10,6 @@ import { subtype } from './subtype';
 import { ctvar, cvar, ctmeta, isCTMeta, isCMarker, cmarker, CTMeta } from './elems';
 import Context from './generic/context';
 import NameRep, { name } from './generic/NameRep';
-
-const assocGet = <A extends { equals: (other: A) => boolean }, B>(arr: [A, B][], val: A): B | null => {
-  for (let i = arr.length - 1; i >= 0; i--) {
-    if (arr[i][0].equals(val)) return arr[i][1];
-  }
-  return null;
-}
 
 const orderedUnsolved = (ctx: Ctx, type: TypeN): [NameRep, KindN][] => {
   const u = ctx.findAll(e => e instanceof CTMeta && !e.type ? [e.name, e.kind] as [NameRep, KindN] : null);

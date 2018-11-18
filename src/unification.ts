@@ -1,6 +1,6 @@
 import { log, ok, TypeN, TC, error, check, freshName, withElems, apply, findTMeta, pop, updateCtx, ElemN, iff, ordered, freshNames, replace } from './TC';
 import { wfType, checkKind } from './wf';
-import { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar } from './types';
+import { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTRowEmpty } from './types';
 import { ctvar, ctmeta, isCTMeta, csolved } from './elems';
 import NameRep from './generic/NameRep';
 import Context from './generic/context';
@@ -36,6 +36,7 @@ export const unify = (a: TypeN, b: TypeN): TC<void> =>
       .chain(() => {
         if (isTVar(a) && isTVar(b) && a.name.equals(b.name)) return ok;
         if (isTMeta(a) && isTMeta(b) && a.name.equals(b.name)) return ok;
+        if (isTRowEmpty(a) && isTRowEmpty(b)) return ok;
         if (isTApp(a) && isTApp(b))
           return unify(a.left, b.left)
             .then(apply(a.right)

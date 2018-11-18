@@ -1,5 +1,6 @@
 import Kind from './kinds';
-import { INameRep } from './generic/NameRep';
+import { INameRep, name } from './generic/NameRep';
+import { containsDuplicate } from './utils';
 
 export default abstract class Type<N extends INameRep<N>> {
 
@@ -89,8 +90,11 @@ export class TApp<N extends INameRep<N>> extends Type<N> {
     public readonly right: Type<N>,
   ) { super() }
 
-  toString() {
-    return `(${this.left} ${this.right})`;
+  toString(): string{
+    const left = this.left;
+    if (isTApp(left) && isTVar(left.left) && /[^a-z]/i.test(left.left.toString()[0]))
+      return `(${left.right} ${left.left} ${this.right})`;
+    return `(${left} ${this.right})`;
   }
 
   isMono() {
@@ -159,3 +163,80 @@ export const tforall = <N extends INameRep<N>>(name: N, kind: Kind<N>, type: Typ
 export const tforalls = <N extends INameRep<N>>(ns: [N, Kind<N>][], type: Type<N>) =>
   ns.reduceRight((t, [n, k]) => tforall(n, k, t), type);
 export const isTForall = <N extends INameRep<N>>(type: Type<N>): type is TForall<N> => type instanceof TForall;
+
+export class TRowEmpty<N extends INameRep<N>> extends Type<N> {
+
+  constructor() { super() }
+
+  toString() {
+    return `{}`;
+  }
+
+  isMono() {
+    return true;
+  }
+
+  substTVar(name: N, type: Type<N>): Type<N> {
+    return this;
+  }
+
+  substTMeta(name: N, type: Type<N>): Type<N> {
+    return this;
+  }
+
+  containsTMeta(name: N): boolean {
+    return false;
+  }
+
+  freeTMeta(): N[] {
+    return [];
+  }
+
+}
+export const trowempty = <N extends INameRep<N>>() => new TRowEmpty<N>();
+export const isTRowEmpty = <N extends INameRep<N>>(type: Type<N>): type is TRowEmpty<N> => type instanceof TRowEmpty;
+
+export class TRowExtend<N extends INameRep<N>> extends Type<N> {
+
+  constructor(
+    public readonly label: N,
+    public readonly type: Type<N>,
+    public readonly rest: Type<N>,
+  ) { super() }
+
+  toString() {
+    return `{ ${this.label} : ${this.type} | ${this.rest} }`;
+  }
+
+  isMono() {
+    return this.type.isMono() && this.rest.isMono();
+  }
+
+  substTVar(name: N, type: Type<N>): Type<N> {
+    return new TRowExtend(this.label, this.type.substTVar(name, type), this.rest.substTVar(name, type));
+  }
+
+  substTMeta(name: N, type: Type<N>): Type<N> {
+    return new TRowExtend(this.label, this.type.substTMeta(name, type), this.rest.substTMeta(name, type));
+  }
+
+  containsTMeta(name: N): boolean {
+    return this.type.containsTMeta(name) || this.rest.containsTMeta(name);
+  }
+
+  freeTMeta(): N[] {
+    return this.type.freeTMeta().concat(this.rest.freeTMeta());
+  }
+
+}
+export const trowextend = <N extends INameRep<N>>(label: N, type: Type<N>, rest: Type<N>) => new TRowExtend<N>(label, type, rest);
+export const isTRowExtend = <N extends INameRep<N>>(type: Type<N>): type is TRowExtend<N> => type instanceof TRowExtend;
+export const flattenRow = <N extends INameRep<N>>(row: Type<N>): { map: [N, Type<N>][], rest: Type<N> } => {
+  if (isTRowExtend(row)) {
+    const rec = flattenRow(row.rest);
+    return { map: [[row.label, row.type] as [N, Type<N>]].concat(rec.map), rest: rec.rest };
+  }
+  return { map: [], rest: row };
+};
+export const labelsOfRow = <N extends INameRep<N>>(row: Type<N>): N[] => flattenRow(row).map.map(x => x [0]);
+export const rowContainsDuplicate = <N extends INameRep<N>>(row: Type<N>): boolean => containsDuplicate(labelsOfRow(row));

@@ -8,6 +8,9 @@ import { TypeN } from './TC';
 export const nType = name('Type');
 export const kType = kvar(nType);
 
+export const nRow = name('Row');
+export const kRow = kvar(nRow);
+
 export const nFun = name('->');
 export const tFun = tvar(nFun);
 
@@ -19,8 +22,26 @@ export const matchTFun = (type: TypeN): { left: TypeN, right: TypeN } | null =>
     { left: type.left.right, right: type.right } :
     null;
 
+export const nRec = name('Rec');
+export const tRec = tvar(nRec);
+export const matchTRec = (type: TypeN): TypeN | null =>
+  isTApp(type) && isTVar(type.left) && type.left.name.equals(nRec) ?
+    type.right :
+    null;
+
+export const nVar = name('Var');
+export const tVar = tvar(nVar);
+export const matchTVariant = (type: TypeN): TypeN | null =>
+  isTApp(type) && isTVar(type.left) && type.left.name.equals(nVar) ?
+    type.right :
+    null;
+
 export const initialContext = Context.of<Elem<NameRep>>(
   ckvar(nType),
+  ckvar(nRow),
 
   ctvar(nFun, kfuns(kType, kType, kType)),
+
+  ctvar(nRec, kfun(kRow, kType)),
+  ctvar(nVar, kfun(kRow, kType)),
 );
