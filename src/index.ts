@@ -1,5 +1,5 @@
 import { infer } from "./inference";
-import { initialContext, kType, tfun, tfuns, tRec, kRow } from "./initial";
+import { initialContext, kType, tfun, tfuns, tRec, kRow, tfunE, tfunEff } from "./initial";
 import { abs, vr, abss, apps, anno, absty, absT, appT, select, inject, restrict, extendRec, extendVar, caseVar, emptyRecord, app } from "./exprs";
 import { name } from "./generic/NameRep";
 import { ctvar, cvar } from "./elems";
@@ -8,7 +8,7 @@ import { kfun } from "./kinds";
 
 /*
 TODO:
-- arrows with effects
+- inference with effectful arrows
 */
 
 const tv = tvar;
@@ -26,6 +26,7 @@ const List = name('List');
 const singleton = name('singleton');
 const test = name('test');
 const recX = name('recX');
+const pure = name('pure');
 
 const ctx = initialContext.add(
   //ctvar(Void, kType),
@@ -43,8 +44,10 @@ const ctx = initialContext.add(
   //cvar(test, tforall(t, kType, tfun(tapp(tv(List), tv(t)), tv(t)))),
 
   //cvar(recX, tapp(tRec, trowextend(y, tvar(Unit), trowextend(x, tvar(Bool), trowempty())))),
+
+  cvar(pure, tforall(t, kType, tfun(tv(t), tforall(r, kRow, tfunEff(tv(Unit), tv(r), tv(t)))))),
 );
 
-const expr = apps(appT(extendRec(x), tforall(t, kType, tfun(tv(t), tv(t)))), abs(x, vr(x)), emptyRecord());
+const expr = app(vr(pure), vr(Unit));
 console.log('' + expr);
 console.log('' + infer(ctx, expr));
