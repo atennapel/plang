@@ -29,23 +29,23 @@ const test = name('test');
 const recX = name('recX');
 
 const ctx = initialContext.add(
-  ctvar(Void, kType),
+  //ctvar(Void, kType),
 
   ctvar(Unit, kType),
   cvar(Unit, tv(Unit)),
 
-  ctvar(Bool, kType),
-  cvar(True, tv(Bool)),
-  cvar(False, tv(Bool)),
+  //ctvar(Bool, kType),
+  //cvar(True, tv(Bool)),
+  //cvar(False, tv(Bool)),
 
-  ctvar(List, kfun(kType, kType)),
-  cvar(singleton, tforall(t, kType, tfun(tv(t), tapp(tvar(List), tv(t))))),
+  //ctvar(List, kfun(kType, kType)),
+  //cvar(singleton, tforall(t, kType, tfun(tv(t), tapp(tvar(List), tv(t))))),
 
-  cvar(test, tforall(t, kType, tfun(tapp(tv(List), tv(t)), tv(t)))),
+  //cvar(test, tforall(t, kType, tfun(tapp(tv(List), tv(t)), tv(t)))),
 
-  cvar(recX, tapp(tRec, trowextend(y, tvar(Unit), trowextend(x, tvar(Bool), trowempty())))),
+  //cvar(recX, tapp(tRec, trowextend(y, tvar(Unit), trowextend(x, tvar(Bool), trowempty())))),
 );
 
-const expr = apps(extendVar(x), apps(inject(x), vr(True)));
+const expr = apps(extendVar(y), apps(inject(x), vr(Unit)));
 console.log('' + expr);
 console.log('' + infer(ctx, expr));

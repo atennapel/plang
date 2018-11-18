@@ -1,7 +1,7 @@
-import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTRowEmpty, isTRowExtend } from './types';
+import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTRowEmpty, isTRowExtend, trowextend } from './types';
 import Context from './generic/context';
 import { wfType, checkKind } from './wf';
-import { kType, matchTFun, tfun, matchTRec, matchTVariant } from './initial';
+import { kType, matchTFun, tfun, matchTRec, matchTVariant, kRow } from './initial';
 import { TypeN, TC, error, ok, pop, log, findTMeta, updateCtx, ElemN, ordered, iff, freshNames, replace, apply, freshName, withElems, check } from './TC';
 import NameRep from './generic/NameRep';
 import { isCTMeta, ctmeta, csolved, ctvar } from './elems';
@@ -18,7 +18,7 @@ const solve = (a: NameRep, b: TypeN): TC<void> =>
 const instL = (a: NameRep, b: TypeN): TC<void> =>
   log(`instL ${a} := ${b}`).then(
     isTMeta(b) ? iff(ordered(a, b.name), solve(b.name, tmeta(a)), solve(a, b)) :
-      solve(a, b).catch(() => {
+      solve(a, b).catch(err => log(`solve failed: ${err}`).chain(() => {
         const fun = matchTFun(b);
         if (fun)
           return freshNames([a, a])
@@ -27,14 +27,20 @@ const instL = (a: NameRep, b: TypeN): TC<void> =>
             .then(apply(fun.right))
             .chain(type => instL(a2, type)));
         if (isTForall(b))
-          freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instL(a, b.open(tvar(x)))));
+          return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instL(a, b.open(tvar(x)))));
+        if (isTRowExtend(b))
+          return freshNames([a, a])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a1, kType), ctmeta(a2, kRow), csolved(a, kRow, trowextend(b.label, tmeta(a1), tmeta(a2)))])
+            .then(instL(a1, b.type)
+            .then(apply(b.rest))
+            .chain(ty => instL(a1, ty))));
         return error(`instL failed: ${a} = ${b}`); 
-      }));
+      })));
 
 const instR = (a: TypeN, b: NameRep): TC<void> =>
   log(`instR ${b} := ${a}`).then(
     isTMeta(a) ? iff(ordered(b, a.name), solve(a.name, tmeta(b)), solve(b, a)) :
-      solve(b, a).catch(() => {
+      solve(b, a).catch(err => log(`solve failed: ${err}`).chain(() => {
         const fun = matchTFun(a);
         if (fun)
           return freshNames([b, b])
@@ -43,9 +49,15 @@ const instR = (a: TypeN, b: NameRep): TC<void> =>
             .then(apply(fun.right))
             .chain(type => instR(type, b2)));
         if (isTForall(a))
-          freshName(a.name).chain(x => withElems([ctmeta(x, a.kind)], instR(a.open(tmeta(x)), b)));
+          return freshName(a.name).chain(x => withElems([ctmeta(x, a.kind)], instR(a.open(tmeta(x)), b)));
+        if (isTRowExtend(a))
+          return freshNames([b, b])
+            .chain(([b1, b2]) => replace(isCTMeta(b), [ctmeta(b1, kType), ctmeta(b2, kRow), csolved(b, kRow, trowextend(a.label, tmeta(b1), tmeta(b2)))])
+            .then(instR(a.type, b1)
+            .then(apply(a.rest))
+            .chain(ty => instR(ty, b2))));
         return error(`instR failed: ${b} = ${a}`);  
-      }));
+      })));
 
 export const subtype = (a: TypeN, b: TypeN): TC<void> =>
   log(`subtype ${a} <: ${b}`).then(

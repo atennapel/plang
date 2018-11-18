@@ -35,7 +35,7 @@ const solveUnify = (a: NameRep, b: TypeN): TC<void> =>
 const instUnify = (a: NameRep, b: TypeN): TC<void> =>
   log(`instUnify ${a} := ${b}`).then(
     isTMeta(b) ? iff(ordered(a, b.name), solveUnify(b.name, tmeta(a)), solveUnify(a, b)) :
-      solveUnify(a, b).catch(() => {
+      solveUnify(a, b).catch(err => log(`solveUnify failed: ${err}`).chain(() => {
         const fun = matchTFun(b);
         if (fun)
           return freshNames([a, a])
@@ -44,9 +44,15 @@ const instUnify = (a: NameRep, b: TypeN): TC<void> =>
             .then(apply(fun.right))
             .chain(type => instUnify(a2, type)));
         if (isTForall(b))
-          freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instUnify(a, b.open(tvar(x)))));
+          return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instUnify(a, b.open(tvar(x)))));
+        if (isTRowExtend(b))
+          return freshNames([a, a])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kType), ctmeta(a1, kType), csolved(a, kRow, trowextend(b.label, tmeta(a1), tmeta(a2)))])
+            .then(instUnify(a1, b.type))
+            .then(apply(b.rest))
+            .chain(type => instUnify(a2, type)));
         return error(`instUnify failed: ${a} = ${b}`); 
-      }));
+      })));
 
 export const unify = (a: TypeN, b: TypeN): TC<void> =>
   log(`unify ${a} ~ ${b}`).then(
