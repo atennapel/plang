@@ -1,11 +1,11 @@
 import { ExprN, TypeN, TC, Ctx, log, apply, findVar, freshName, withElems, error, updateCtx, findTMeta, freshNames, replace, ElemN, pop, KindN, check, pure } from './TC';
 import Either from './generic/Either';
 import NameRepSupply from './generic/NameSupply';
-import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT, isSelect, isInject } from './exprs';
+import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT, isSelect, isInject, isRestrict, isExtendRec, isExtendVar, isEmptyRecord, isCaseVar } from './exprs';
 import { impossible, assocGet } from './utils';
 import { wfType, checkKind, wfKind } from './wf';
-import { kType, matchTFun, tfun, kRow, tRec, tVar } from './initial';
-import { isTForall, tvar, isTMeta, tmeta, tforalls, tforall, trowextend, tapp } from './types';
+import { kType, matchTFun, tfun, kRow, tRec, tVar, tfuns } from './initial';
+import { isTForall, tvar, isTMeta, tmeta, tforalls, tforall, trowextend, tapp, trowempty } from './types';
 import { subtype } from './subtype';
 import { ctvar, cvar, ctmeta, isCTMeta, isCMarker, cmarker, CTMeta } from './elems';
 import Context from './generic/context';
@@ -74,16 +74,48 @@ const synthty = (expr: ExprN): TC<TypeN> =>
       return wfType(expr.type)
         .chain(k => checkKind(kType, k, `annotation ${expr}`))
         .then(checkty(expr.expr, expr.type)).map(() => expr.type);
+
     if (isSelect(expr)) {
       const t = name('t');
       const r = name('r');
       return pure(tforalls([[t, kType], [r, kRow]], tfun(tapp(tRec, trowextend(expr.label, tvar(t), tvar(r))), tvar(t))));
     }
+    if (isRestrict(expr)) {
+      const t = name('t');
+      const r = name('r');
+      return pure(tforalls([[t, kType], [r, kRow]], tfun(tapp(tRec, trowextend(expr.label, tvar(t), tvar(r))), tvar(r))));
+    }
+    if (isExtendRec(expr)) {
+      const t = name('t');
+      const r = name('r');
+      return pure(tforalls([[t, kType], [r, kRow]], tfuns(tvar(t), tapp(tRec, tvar(r)), tapp(tRec, trowextend(expr.label, tvar(t), tvar(r))))));
+    }
+
     if (isInject(expr)) {
       const t = name('t');
       const r = name('r');
       return pure(tforalls([[t, kType], [r, kRow]], tfun(tvar(t), tapp(tVar, trowextend(expr.label, tvar(t), tvar(r))))));
     }
+    if (isExtendVar(expr)) {
+      const t = name('t');
+      const r = name('r');
+      return pure(tforalls([[t, kType], [r, kRow]], tfuns(tapp(tVar, tvar(r)), tapp(tVar, trowextend(expr.label, tvar(t), tvar(r))))));
+    }
+    if (isCaseVar(expr)) {
+      const a = name('a');
+      const b = name('b');
+      const r = name('r');
+      return pure(tforalls([[a, kType], [b, kType], [r, kRow]], tfuns(
+        tfun(tvar(a), tvar(b)),
+        tfun(tapp(tVar, tvar(r)), tvar(b)),
+        tapp(tVar, trowextend(expr.label, tvar(a), tvar(r))),
+        tvar(b),
+      )));
+    }
+
+    if (isEmptyRecord(expr))
+      return pure(tapp(tRec, trowempty()));
+
     return impossible();
   });
 
@@ -119,7 +151,10 @@ const synthappty = (type: TypeN, expr: ExprN): TC<TypeN> =>
     return error(`cannot synthapp ${type} @ ${expr}`);
   });
 
-const synthgen = (expr: ExprN): TC<TypeN> => generalize(synthty(expr));
+const synthgen = (expr: ExprN): TC<TypeN> =>
+  generalize(synthty(expr))
+    .chain(ty => wfType(ty)
+    .map(() => ty));
 
 export const infer = (ctx: Ctx, expr: ExprN): Either<string, TypeN> =>
   synthgen(expr).run(ctx, new NameRepSupply(0)).val;

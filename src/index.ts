@@ -1,6 +1,6 @@
 import { infer } from "./inference";
 import { initialContext, kType, tfun, tfuns, tRec, kRow } from "./initial";
-import { abs, vr, abss, apps, anno, absty, absT, appT, select, inject } from "./exprs";
+import { abs, vr, abss, apps, anno, absty, absT, appT, select, inject, restrict, extendRec, extendVar, caseVar } from "./exprs";
 import { name } from "./generic/NameRep";
 import { ctvar, cvar } from "./elems";
 import { tvar, tforall, tapp, trowextend, tforalls, trowempty } from "./types";
@@ -8,12 +8,8 @@ import { kfun } from "./kinds";
 
 /*
 TODO:
-- record/variants exprs, ast+inference
-  - restrict
-  - extend
-
-  - extend
-  - case
+- problems
+  - apps(extendVar(x), apps(inject(x), vr(True)))
 */
 
 const tv = tvar;
@@ -50,6 +46,6 @@ const ctx = initialContext.add(
   cvar(recX, tapp(tRec, trowextend(y, tvar(Unit), trowextend(x, tvar(Bool), trowempty())))),
 );
 
-const expr = apps(inject(x), vr(True));
+const expr = apps(extendVar(x), apps(inject(x), vr(True)));
 console.log('' + expr);
 console.log('' + infer(ctx, expr));

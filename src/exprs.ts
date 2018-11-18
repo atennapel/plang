@@ -164,6 +164,26 @@ export class Anno<N extends INameRep<N>> extends Expr<N> {
 export const anno = <N extends INameRep<N>>(expr: Expr<N>, type: Type<N>) => new Anno(expr, type);
 export const isAnno = <N extends INameRep<N>>(expr: Expr<N>): expr is Anno<N> => expr instanceof Anno;
 
+export class EmptyRecord<N extends INameRep<N>> extends Expr<N> {
+
+  constructor() { super() }
+
+  toString() {
+    return `{}`;
+  }
+
+  subst(name: N, val: Expr<N>): Expr<N> {
+    return this;
+  }
+
+  substTVar(name: N, type: Type<N>): Expr<N> {
+    return this;
+  }
+
+}
+export const emptyRecord = <N extends INameRep<N>>() => new EmptyRecord<N>();
+export const isEmptyRecord = <N extends INameRep<N>>(expr: Expr<N>): expr is EmptyRecord<N> => expr instanceof EmptyRecord;
+
 export abstract class WithLabel<N extends INameRep<N>> extends Expr<N> {
 
   constructor(
@@ -185,10 +205,50 @@ export abstract class WithLabel<N extends INameRep<N>> extends Expr<N> {
 }
 export const isWithLabel = <N extends INameRep<N>>(expr: Expr<N>): expr is WithLabel<N> => expr instanceof WithLabel;
 
-export class Select<N extends INameRep<N>> extends WithLabel<N> {}
+export class Select<N extends INameRep<N>> extends WithLabel<N> {
+  toString() {
+    return `.${this.label}`;
+  }
+}
 export const select = <N extends INameRep<N>>(label: N) => new Select(label);
 export const isSelect = <N extends INameRep<N>>(expr: Expr<N>): expr is Select<N> => expr instanceof Select;
 
-export class Inject<N extends INameRep<N>> extends WithLabel<N> {}
+export class Inject<N extends INameRep<N>> extends WithLabel<N> {
+  toString() {
+    return `@${this.label}`;
+  }
+}
 export const inject = <N extends INameRep<N>>(label: N) => new Inject(label);
 export const isInject = <N extends INameRep<N>>(expr: Expr<N>): expr is Inject<N> => expr instanceof Inject;
+
+export class Restrict<N extends INameRep<N>> extends WithLabel<N> {
+  toString() {
+    return `.-${this.label}`;
+  }
+}
+export const restrict = <N extends INameRep<N>>(label: N) => new Restrict(label);
+export const isRestrict = <N extends INameRep<N>>(expr: Expr<N>): expr is Restrict<N> => expr instanceof Restrict;
+
+export class ExtendRec<N extends INameRep<N>> extends WithLabel<N> {
+  toString() {
+    return `.+${this.label}`;
+  }
+}
+export const extendRec = <N extends INameRep<N>>(label: N) => new ExtendRec(label);
+export const isExtendRec = <N extends INameRep<N>>(expr: Expr<N>): expr is ExtendRec<N> => expr instanceof ExtendRec;
+
+export class ExtendVar<N extends INameRep<N>> extends WithLabel<N> {
+  toString() {
+    return `@+${this.label}`;
+  }
+}
+export const extendVar = <N extends INameRep<N>>(label: N) => new ExtendVar(label);
+export const isExtendVar = <N extends INameRep<N>>(expr: Expr<N>): expr is ExtendVar<N> => expr instanceof ExtendVar;
+
+export class CaseVar<N extends INameRep<N>> extends WithLabel<N> {
+  toString() {
+    return `?${this.label}`;
+  }
+}
+export const caseVar = <N extends INameRep<N>>(label: N) => new CaseVar(label);
+export const isCaseVar = <N extends INameRep<N>>(expr: Expr<N>): expr is CaseVar<N> => expr instanceof CaseVar;

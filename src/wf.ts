@@ -25,13 +25,13 @@ export const wfType = (type: TypeN): TC<KindN> => {
     return wfType(rec)
       .chain(k => checkKind(kRow, k, `${type}`))
       .then(check(!rowContainsDuplicate(rec), `record contains duplicates ${type}`))
-      .map(() => kRow);
+      .map(() => kType);
   const variant = matchTVariant(type);
   if (variant)
     return wfType(variant)
       .chain(k => checkKind(kRow, k, `${type}`))
       .then(check(!rowContainsDuplicate(variant), `variant contains duplicates ${type}`))
-      .map(() => kRow);
+      .map(() => kType);
   
   if (isTApp(type))
     return wfType(type.left)
