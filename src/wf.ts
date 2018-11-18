@@ -16,7 +16,7 @@ export const wfKind = (kind: KindN): TC<void> => {
   return impossible();
 };
 
-export const wfType = (type: TypeN): TC<KindN> => log(`wfType ${type}`).chain(() => {
+export const wfType = (type: TypeN): TC<KindN> => {
   if (isTVar(type)) return findTVar(type.name).map(e => e.kind);
   if (isTMeta(type)) return findTMeta(type.name).map(e => e.kind);
   
@@ -51,4 +51,4 @@ export const wfType = (type: TypeN): TC<KindN> => log(`wfType ${type}`).chain(()
       .chain(x => withElems([ctvar(x, type.kind)], wfType(type.open(tvar(x))))));
   if (isTRowEmpty(type)) return pure(kRow);
   return impossible();
-});
+};

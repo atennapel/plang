@@ -21,7 +21,7 @@ export const pure = <T>(val: T): TC<T> => TCM.of(val);
 export const error = <T>(err: string): TC<T> => TCM.error(err);
 export const ok = pure(undefined);
 
-export const log = (msg: any): TC<void> => getCtx.map(ctx => { console.log(`${msg} in ${ctx}`); return undefined });
+export const log = (msg: any): TC<void> => getCtx.map(ctx => { console.log(`${msg}`); return undefined });
 
 export const iff = <T>(c: TC<boolean>, a: TC<T>, b: TC<T>): TC<T> => TCM.if(c, a, b);
 export const check = (c: boolean, msg: string): TC<void> => TCM.check(c, msg);

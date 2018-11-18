@@ -1,11 +1,11 @@
-import { ExprN, TypeN, TC, Ctx, log, apply, findVar, freshName, withElems, error, updateCtx, findTMeta, freshNames, replace, ElemN, pop, KindN, check } from './TC';
+import { ExprN, TypeN, TC, Ctx, log, apply, findVar, freshName, withElems, error, updateCtx, findTMeta, freshNames, replace, ElemN, pop, KindN, check, pure } from './TC';
 import Either from './generic/Either';
 import NameRepSupply from './generic/NameSupply';
-import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT } from './exprs';
+import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT, isSelect, isInject } from './exprs';
 import { impossible, assocGet } from './utils';
 import { wfType, checkKind, wfKind } from './wf';
-import { kType, matchTFun, tfun } from './initial';
-import { isTForall, tvar, isTMeta, tmeta, tforalls, tforall } from './types';
+import { kType, matchTFun, tfun, kRow, tRec, tVar } from './initial';
+import { isTForall, tvar, isTMeta, tmeta, tforalls, tforall, trowextend, tapp } from './types';
 import { subtype } from './subtype';
 import { ctvar, cvar, ctmeta, isCTMeta, isCMarker, cmarker, CTMeta } from './elems';
 import Context from './generic/context';
@@ -74,6 +74,16 @@ const synthty = (expr: ExprN): TC<TypeN> =>
       return wfType(expr.type)
         .chain(k => checkKind(kType, k, `annotation ${expr}`))
         .then(checkty(expr.expr, expr.type)).map(() => expr.type);
+    if (isSelect(expr)) {
+      const t = name('t');
+      const r = name('r');
+      return pure(tforalls([[t, kType], [r, kRow]], tfun(tapp(tRec, trowextend(expr.label, tvar(t), tvar(r))), tvar(t))));
+    }
+    if (isInject(expr)) {
+      const t = name('t');
+      const r = name('r');
+      return pure(tforalls([[t, kType], [r, kRow]], tfun(tvar(t), tapp(tVar, trowextend(expr.label, tvar(t), tvar(r))))));
+    }
     return impossible();
   });
 

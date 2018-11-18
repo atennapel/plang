@@ -1,6 +1,6 @@
 import { infer } from "./inference";
 import { initialContext, kType, tfun, tfuns, tRec, kRow } from "./initial";
-import { abs, vr, abss, apps, anno, absty, absT, appT } from "./exprs";
+import { abs, vr, abss, apps, anno, absty, absT, appT, select, inject } from "./exprs";
 import { name } from "./generic/NameRep";
 import { ctvar, cvar } from "./elems";
 import { tvar, tforall, tapp, trowextend, tforalls, trowempty } from "./types";
@@ -8,10 +8,12 @@ import { kfun } from "./kinds";
 
 /*
 TODO:
-- row subtyping
-- row unification
-- record/variants exprs
-- inference of record/variants exprs
+- record/variants exprs, ast+inference
+  - restrict
+  - extend
+
+  - extend
+  - case
 */
 
 const tv = tvar;
@@ -28,7 +30,6 @@ const False = name('False');
 const List = name('List');
 const singleton = name('singleton');
 const test = name('test');
-const getX = name('getX');
 const recX = name('recX');
 
 const ctx = initialContext.add(
@@ -46,10 +47,9 @@ const ctx = initialContext.add(
 
   cvar(test, tforall(t, kType, tfun(tapp(tv(List), tv(t)), tv(t)))),
 
-  cvar(getX, tforalls([[t, kType], [r, kRow]], tfun(tapp(tRec, trowextend(x, tvar(t), tvar(r))), tvar(t)))),
-  cvar(recX, tapp(tRec, trowextend(x, tvar(Bool), trowempty()))),
+  cvar(recX, tapp(tRec, trowextend(y, tvar(Unit), trowextend(x, tvar(Bool), trowempty())))),
 );
 
-const expr = apps(vr(getX), vr(recX));
+const expr = apps(inject(x), vr(True));
 console.log('' + expr);
 console.log('' + infer(ctx, expr));

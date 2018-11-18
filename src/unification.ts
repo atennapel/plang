@@ -1,10 +1,28 @@
-import { log, ok, TypeN, TC, error, check, freshName, withElems, apply, findTMeta, pop, updateCtx, ElemN, iff, ordered, freshNames, replace } from './TC';
+import { log, ok, TypeN, TC, error, check, freshName, withElems, apply, findTMeta, pop, updateCtx, ElemN, iff, ordered, freshNames, replace, pure } from './TC';
 import { wfType, checkKind } from './wf';
-import { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTRowEmpty } from './types';
+import { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTRowEmpty, TRowEmpty, isTRowExtend, trowextend, TRowExtend } from './types';
 import { ctvar, ctmeta, isCTMeta, csolved } from './elems';
-import NameRep from './generic/NameRep';
+import NameRep, { name } from './generic/NameRep';
 import Context from './generic/context';
-import { kType, matchTFun, tfun } from './initial';
+import { kType, matchTFun, tfun, kRow } from './initial';
+
+export const rewriteRow = (label: NameRep, type: TypeN, msg: string): TC<TRowExtend<NameRep>> =>
+  log(`rewriteRow ${label} in ${type}`).chain(() => {
+    if (isTRowExtend(type)) {
+      if (type.label.equals(label)) return pure(type);
+      return rewriteRow(label, type.rest, msg)
+        .map(rest => trowextend(label, rest.type, trowextend(type.label, type.type, rest.rest)));
+    }
+    if (isTMeta(type))
+      return freshNames([name('t'), name('r')])
+        .chain(([t, r]) => replace(isCTMeta(type.name), [
+          ctmeta(r, kRow),
+          ctmeta(t, kType),
+          csolved(type.name, kRow, trowextend(label, tmeta(t), tmeta(r)))
+        ])
+        .map(() => trowextend(label, tmeta(t), tmeta(r))));
+    return error(`cannot rewrite row ${label} in ${type}: ${msg}`);
+  });
 
 const solveUnify = (a: NameRep, b: TypeN): TC<void> =>
   log(`solve unify ${a} = ${b}`).then(
@@ -42,6 +60,12 @@ export const unify = (a: TypeN, b: TypeN): TC<void> =>
             .then(apply(a.right)
             .chain(ta => apply(b.right)
             .chain(tb => unify(ta, tb))));
+        if (isTRowExtend(a) && isTRowExtend(b))
+          return rewriteRow(a.label, b, `${a} <: ${b}`)
+            .chain(row => unify(a.type, row.type)
+            .then(apply(a.rest)
+            .chain(restA => apply(row.rest)
+            .chain(restB => unify(restA, restB)))));
         if (isTForall(a) && isTForall(b))
           return checkKind(a.kind, b.kind, `unification of ${a} ~ ${b}`)
             .then(freshName(a.name)

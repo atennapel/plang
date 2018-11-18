@@ -1,11 +1,11 @@
-import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTRowEmpty } from './types';
+import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTRowEmpty, isTRowExtend } from './types';
 import Context from './generic/context';
 import { wfType, checkKind } from './wf';
 import { kType, matchTFun, tfun, matchTRec, matchTVariant } from './initial';
 import { TypeN, TC, error, ok, pop, log, findTMeta, updateCtx, ElemN, ordered, iff, freshNames, replace, apply, freshName, withElems, check } from './TC';
 import NameRep from './generic/NameRep';
 import { isCTMeta, ctmeta, csolved, ctvar } from './elems';
-import { unify } from './unification';
+import { unify, rewriteRow } from './unification';
 
 const solve = (a: NameRep, b: TypeN): TC<void> =>
   log(`solve ${a} = ${b}`).then(
@@ -69,6 +69,13 @@ export const subtype = (a: TypeN, b: TypeN): TC<void> =>
         const vara = matchTVariant(a);
         const varb = matchTVariant(b);
         if (vara && varb) return subtype(vara, varb);
+
+        if (isTRowExtend(a) && isTRowExtend(b))
+          return rewriteRow(a.label, b, `${a} <: ${b}`)
+            .chain(row => subtype(a.type, row.type)
+            .then(apply(a.rest)
+            .chain(restA => apply(row.rest)
+            .chain(restB => subtype(restA, restB)))));
 
         if (isTApp(a) && isTApp(b))
           return unify(a, b);

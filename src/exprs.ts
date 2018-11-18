@@ -163,3 +163,32 @@ export class Anno<N extends INameRep<N>> extends Expr<N> {
 }
 export const anno = <N extends INameRep<N>>(expr: Expr<N>, type: Type<N>) => new Anno(expr, type);
 export const isAnno = <N extends INameRep<N>>(expr: Expr<N>): expr is Anno<N> => expr instanceof Anno;
+
+export abstract class WithLabel<N extends INameRep<N>> extends Expr<N> {
+
+  constructor(
+    public readonly label: N,
+  ) { super() }
+
+  toString() {
+    return `withLabel@${this.label}`;
+  }
+
+  subst(name: N, val: Expr<N>): Expr<N> {
+    return this;
+  }
+
+  substTVar(name: N, type: Type<N>): Expr<N> {
+    return this;
+  }
+
+}
+export const isWithLabel = <N extends INameRep<N>>(expr: Expr<N>): expr is WithLabel<N> => expr instanceof WithLabel;
+
+export class Select<N extends INameRep<N>> extends WithLabel<N> {}
+export const select = <N extends INameRep<N>>(label: N) => new Select(label);
+export const isSelect = <N extends INameRep<N>>(expr: Expr<N>): expr is Select<N> => expr instanceof Select;
+
+export class Inject<N extends INameRep<N>> extends WithLabel<N> {}
+export const inject = <N extends INameRep<N>>(label: N) => new Inject(label);
+export const isInject = <N extends INameRep<N>>(expr: Expr<N>): expr is Inject<N> => expr instanceof Inject;
