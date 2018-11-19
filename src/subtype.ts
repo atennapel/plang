@@ -2,7 +2,7 @@ import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTRowEmpty, isTRowExt
 import Context from './generic/context';
 import { wfType, checkKind } from './wf';
 import { kType, matchTFun, tfun, matchTRec, matchTVariant, kRow, matchTFunE, tfunEff } from './initial';
-import { TypeN, TC, error, ok, pop, log, findTMeta, updateCtx, ElemN, ordered, iff, freshNames, replace, apply, freshName, withElems, check } from './TC';
+import { TypeN, TC, error, ok, pop, log, findTMeta, updateCtx, ElemN, ordered, iff, freshNames, replace, apply, freshName, withElems, check, getCtx } from './TC';
 import NameRep from './generic/NameRep';
 import { isCTMeta, ctmeta, csolved, ctvar } from './elems';
 import { unify, rewriteRow } from './unification';

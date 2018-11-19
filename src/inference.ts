@@ -1,7 +1,7 @@
 import { ExprN, TypeN, TC, Ctx, log, apply, findVar, freshName, withElems, error, updateCtx, findTMeta, freshNames, replace, ElemN, pop, KindN, check, pure } from './TC';
 import Either from './generic/Either';
 import NameRepSupply from './generic/NameSupply';
-import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT, isSelect, isInject, isRestrict, isExtendRec, isExtendVar, isEmptyRecord, isCaseVar } from './exprs';
+import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT, isSelect, isInject, isRestrict, isExtendRec, isExtendVar, isEmptyRecord, isCaseVar, isLet } from './exprs';
 import { impossible, assocGet } from './utils';
 import { wfType, checkKind, wfKind } from './wf';
 import { kType, matchTFun, tfun, kRow, tRec, tVar, tfuns } from './initial';
@@ -33,7 +33,8 @@ const generalize = (action: TC<TypeN>): TC<TypeN> =>
     .map(right => {
       const u = orderedUnsolved(right, ty);
       return tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, tvar(n)), ty));
-    }))));
+    }))))
+    .chain(apply);
 
 const synthty = (expr: ExprN): TC<TypeN> =>
   log(`synth ${expr}`).chain(() => {
@@ -74,6 +75,11 @@ const synthty = (expr: ExprN): TC<TypeN> =>
       return wfType(expr.type)
         .chain(k => checkKind(kType, k, `annotation ${expr}`))
         .then(checkty(expr.expr, expr.type)).map(() => expr.type);
+
+    if (isLet(expr))
+      return synthty(expr.expr)
+        .chain(ty => freshName(expr.name)
+        .chain(x => withElems([cvar(x, ty)], synthty(expr.open(vr(x))))));
 
     if (isSelect(expr)) {
       const t = name('t');
@@ -117,7 +123,7 @@ const synthty = (expr: ExprN): TC<TypeN> =>
       return pure(tapp(tRec, trowempty()));
 
     return impossible();
-  });
+  }).chain(apply);
 
 const checkty = (expr: ExprN, type: TypeN): TC<void> =>
   log(`check ${expr} : ${type}`).chain(() => {
@@ -126,6 +132,10 @@ const checkty = (expr: ExprN, type: TypeN): TC<void> =>
     const fun = matchTFun(type);
     if (fun && isAbs(expr) && !expr.type)
       return freshName(expr.name).chain(x => withElems([cvar(x, fun.left)], checkty(expr.open(vr(x)), fun.right)));
+    if (isLet(expr))
+      return synthty(expr.expr)
+        .chain(ty => freshName(expr.name)
+        .chain(x => withElems([cvar(x, ty)], checkty(expr.open(vr(x)), type))));
     return synthty(expr)
       .chain(te => apply(te))
       .chain(te => apply(type)
@@ -149,12 +159,13 @@ const synthappty = (type: TypeN, expr: ExprN): TC<TypeN> =>
     const fun = matchTFun(type);
     if (fun) return checkty(expr, fun.left).map(() => fun.right);
     return error(`cannot synthapp ${type} @ ${expr}`);
-  });
+  }).chain(apply);
 
 const synthgen = (expr: ExprN): TC<TypeN> =>
   generalize(synthty(expr))
     .chain(ty => wfType(ty)
-    .map(() => ty));
+    .map(() => ty))
+    .chain(apply);
 
 export const infer = (ctx: Ctx, expr: ExprN): Either<string, TypeN> =>
   synthgen(expr).run(ctx, new NameRepSupply(0)).val;

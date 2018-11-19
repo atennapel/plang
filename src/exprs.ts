@@ -164,6 +164,36 @@ export class Anno<N extends INameRep<N>> extends Expr<N> {
 export const anno = <N extends INameRep<N>>(expr: Expr<N>, type: Type<N>) => new Anno(expr, type);
 export const isAnno = <N extends INameRep<N>>(expr: Expr<N>): expr is Anno<N> => expr instanceof Anno;
 
+export class Let<N extends INameRep<N>> extends Expr<N> {
+
+  constructor(
+    public readonly name: N,
+    public readonly expr: Expr<N>,
+    public readonly body: Expr<N>,
+  ) { super() }
+
+  toString() {
+    return `(let ${this.name} = ${this.expr} in ${this.body})`;
+  }
+
+  subst(name: N, val: Expr<N>): Expr<N> {
+    return this.name.equals(name) ?
+      new Let(this.name, this.expr.subst(name, val), this.body) :
+      new Let(this.name, this.expr.subst(name, val), this.body.subst(name, val)) ;
+  }
+  open(val: Expr<N>): Expr<N> {
+    return this.body.subst(this.name, val);
+  }
+
+  substTVar(name: N, type: Type<N>): Expr<N> {
+    return new Let(this.name, this.expr.substTVar(name, type), this.body.substTVar(name, type));
+  }
+
+}
+export const lt = <N extends INameRep<N>>(name: N, expr: Expr<N>, body: Expr<N>) => new Let(name, expr, body);
+export const lts = <N extends INameRep<N>>(ns: [N, Expr<N>][], body: Expr<N>) => ns.reduceRight((b, [n, e]) => lt(n, e, b), body);
+export const isLet = <N extends INameRep<N>>(expr: Expr<N>): expr is Let<N> => expr instanceof Let;
+
 export class EmptyRecord<N extends INameRep<N>> extends Expr<N> {
 
   constructor() { super() }

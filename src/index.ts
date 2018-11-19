@@ -1,6 +1,6 @@
 import { infer } from "./inference";
 import { initialContext, kType, tfun, tfuns, tRec, kRow, tfunE, tfunEff } from "./initial";
-import { abs, vr, abss, apps, anno, absty, absT, appT, select, inject, restrict, extendRec, extendVar, caseVar, emptyRecord, app } from "./exprs";
+import { abs, vr, abss, apps, anno, absty, absT, appT, select, inject, restrict, extendRec, extendVar, caseVar, emptyRecord, app, lt } from "./exprs";
 import { name } from "./generic/NameRep";
 import { ctvar, cvar } from "./elems";
 import { tvar, tforall, tapp, trowextend, tforalls, trowempty } from "./types";
@@ -48,6 +48,6 @@ const ctx = initialContext.add(
   cvar(pure, tforall(t, kType, tfun(tv(t), tforall(r, kRow, tfunEff(tv(Unit), tv(r), tv(t)))))),
 );
 
-const expr = app(vr(pure), vr(Unit));
+const expr = lt(x, abs(x, vr(x)), app(vr(x), vr(Unit)));
 console.log('' + expr);
 console.log('' + infer(ctx, expr));
