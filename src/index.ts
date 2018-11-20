@@ -1,13 +1,17 @@
 import { infer } from "./inference";
-import { initialContext, kType, tfun, tfuns, tRec, kRow, tfunE, tfunEff } from "./initial";
+import { initialContext, kType, tRec, kRow, tfun } from "./initial";
 import { abs, vr, abss, apps, anno, absty, absT, appT, select, inject, restrict, extendRec, extendVar, caseVar, emptyRecord, app, lt } from "./exprs";
 import { name } from "./generic/NameRep";
 import { ctvar, cvar } from "./elems";
-import { tvar, tforall, tapp, trowextend, tforalls, trowempty } from "./types";
+import { tvar, tforall, tapp, trowextend, tforalls, trowempty, tcomp } from "./types";
 import { kfun } from "./kinds";
 
 /*
 TODO:
+- wf of tcomp
+- wf fix of forall
+- subtyping for tcomp, arrows, forall
+- unification for tcomp, arrows, forall
 - inference with effectful arrows
 */
 
@@ -45,9 +49,9 @@ const ctx = initialContext.add(
 
   //cvar(recX, tapp(tRec, trowextend(y, tvar(Unit), trowextend(x, tvar(Bool), trowempty())))),
 
-  cvar(pure, tforall(t, kType, tfun(tv(t), tforall(r, kRow, tfunEff(tv(Unit), tv(r), tv(t)))))),
+  cvar(pure, tforall(t, kType, tfun(tv(t), tforall(r, kRow, tfun(tv(Unit), tcomp(tv(t), tv(r))))))),
 );
 
-const expr = lt(x, abs(x, vr(x)), app(vr(x), vr(Unit)));
+const expr = app(vr(pure), vr(Unit));
 console.log('' + expr);
 console.log('' + infer(ctx, expr));

@@ -3,7 +3,7 @@ import Elem, { cmarker, isCMarker, isCTMeta, isCKVar, CKVar, isCTVar, isCVar, CT
 import Context from './generic/context';
 import NameRepSupply from './generic/NameSupply';
 import TCM from './generic/monad';
-import Type, { tforall, isTVar, isTMeta, isTForall, isTApp, tapp, isTRowEmpty, isTRowExtend, trowextend } from './types';
+import Type, { tforall, isTVar, isTMeta, isTForall, isTApp, tapp, isTRowEmpty, isTRowExtend, trowextend, isTComp, tcomp } from './types';
 import { impossible } from './utils';
 import Expr from './exprs';
 import Kind from './kinds';
@@ -56,6 +56,10 @@ export const apply = (type: Type<NameRep>): TC<Type<NameRep>> => {
       e => e.type ? apply(e.type): pure<Type<NameRep>>(type),
       () => pure<Type<NameRep>>(type)
     ));
+  if (isTComp(type))
+    return apply(type.type)
+      .chain(left => apply(type.eff)
+      .map(right => tcomp(left, right)));
   if (isTApp(type))
     return apply(type.left)
       .chain(left => apply(type.right)

@@ -4,7 +4,7 @@ import NameRepSupply from './generic/NameSupply';
 import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT, isSelect, isInject, isRestrict, isExtendRec, isExtendVar, isEmptyRecord, isCaseVar, isLet } from './exprs';
 import { impossible, assocGet } from './utils';
 import { wfType, checkKind, wfKind } from './wf';
-import { kType, matchTFun, tfun, kRow, tRec, tVar, tfuns } from './initial';
+import { kType, kRow, tRec, tVar, kComp } from './initial';
 import { isTForall, tvar, isTMeta, tmeta, tforalls, tforall, trowextend, tapp, trowempty } from './types';
 import { subtype } from './subtype';
 import { ctvar, cvar, ctmeta, isCTMeta, isCMarker, cmarker, CTMeta } from './elems';
@@ -162,10 +162,11 @@ const synthappty = (type: TypeN, expr: ExprN): TC<TypeN> =>
   }).chain(apply);
 
 const synthgen = (expr: ExprN): TC<TypeN> =>
-  generalize(synthty(expr))
-    .chain(ty => wfType(ty)
-    .map(() => ty))
-    .chain(apply);
+generalize(synthty(expr))
+  .chain(ty => wfType(ty)
+  .chain(k => checkKind(kComp, k, `synthgen of ${ty}`)
+  .map(() => ty))
+  .chain(apply));
 
 export const infer = (ctx: Ctx, expr: ExprN): Either<string, TypeN> =>
   synthgen(expr).run(ctx, new NameRepSupply(0)).val;

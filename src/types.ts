@@ -164,6 +164,41 @@ export const tforalls = <N extends INameRep<N>>(ns: [N, Kind<N>][], type: Type<N
   ns.reduceRight((t, [n, k]) => tforall(n, k, t), type);
 export const isTForall = <N extends INameRep<N>>(type: Type<N>): type is TForall<N> => type instanceof TForall;
 
+export class TComp<N extends INameRep<N>> extends Type<N> {
+
+  constructor(
+    public readonly type: Type<N>,
+    public readonly eff: Type<N>,
+  ) { super() }
+
+  toString() {
+    return isTRowEmpty(this.eff) ? `${this.type}` : `${this.type}!${this.eff}`;
+  }
+
+  isMono() {
+    return this.type.isMono() && this.eff.isMono();
+  }
+
+  substTVar(name: N, type: Type<N>): Type<N> {
+    return new TComp(this.type.substTVar(name, type), this.eff.substTVar(name, type));
+  }
+
+  substTMeta(name: N, type: Type<N>): Type<N> {
+    return new TComp(this.type.substTMeta(name, type), this.eff.substTMeta(name, type));
+  }
+
+  containsTMeta(name: N): boolean {
+    return this.type.containsTMeta(name) || this.eff.containsTMeta(name);
+  }
+
+  freeTMeta(): N[] {
+    return this.type.freeTMeta().concat(this.eff.freeTMeta());
+  }
+
+}
+export const tcomp = <N extends INameRep<N>>(type: Type<N>, eff: Type<N>) => new TComp(type, eff);
+export const isTComp = <N extends INameRep<N>>(type: Type<N>): type is TComp<N> => type instanceof TComp;
+
 export class TRowEmpty<N extends INameRep<N>> extends Type<N> {
 
   constructor() { super() }

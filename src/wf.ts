@@ -1,6 +1,6 @@
 import { impossible } from './utils';
 import { ctvar } from './elems';
-import { isKVar, isKFun } from './kinds';
+import { isKVar, isKFun, isKComp } from './kinds';
 import { isTVar, isTMeta, isTForall, tvar, isTApp, isTRowEmpty, isTRowExtend, rowContainsDuplicate } from './types';
 import { TC, KindN, TypeN, error, ok, withElems, findKVar, findTVar, findTMeta, freshName, pure, check, log } from './TC';
 import { kRow, kType, matchTRec, matchTVariant } from './initial';
@@ -13,6 +13,7 @@ export const checkKind = (exp: KindN, actual: KindN, msg?: string): TC<void> => 
 export const wfKind = (kind: KindN): TC<void> => {
   if (isKVar(kind)) return findKVar(kind.name).void();
   if (isKFun(kind)) return wfKind(kind.left).then(wfKind(kind.right));
+  if (isKComp(kind)) return wfKind(kind);
   return impossible();
 };
 

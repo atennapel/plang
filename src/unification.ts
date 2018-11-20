@@ -4,13 +4,13 @@ import { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTRowEmpty, TRowEmpty
 import { ctvar, ctmeta, isCTMeta, csolved } from './elems';
 import NameRep, { name } from './generic/NameRep';
 import Context from './generic/context';
-import { kType, matchTFun, tfun, kRow } from './initial';
+import { kType, kRow, matchTFun, tfun } from './initial';
 
-export const rewriteRow = (label: NameRep, type: TypeN, msg: string): TC<TRowExtend<NameRep>> =>
+export const rewriteRow = (label: NameRep, type: TypeN, open: boolean, msg: string): TC<TRowExtend<NameRep>> =>
   log(`rewriteRow ${label} in ${type}`).chain(() => {
     if (isTRowExtend(type)) {
       if (type.label.equals(label)) return pure(type);
-      return rewriteRow(label, type.rest, msg)
+      return rewriteRow(label, type.rest, open, msg)
         .map(rest => trowextend(label, rest.type, trowextend(type.label, type.type, rest.rest)));
     }
     if (isTMeta(type))
@@ -20,6 +20,13 @@ export const rewriteRow = (label: NameRep, type: TypeN, msg: string): TC<TRowExt
           ctmeta(t, kType),
           csolved(type.name, kRow, trowextend(label, tmeta(t), tmeta(r)))
         ])
+        .map(() => trowextend(label, tmeta(t), tmeta(r))));
+    if (open && isTRowEmpty(type))
+      return freshNames([name('t'), name('r')])
+        .chain(([t, r]) => updateCtx(Context.add(
+          ctmeta(r, kRow),
+          ctmeta(t, kType),
+        ))
         .map(() => trowextend(label, tmeta(t), tmeta(r))));
     return error(`cannot rewrite row ${label} in ${type}: ${msg}`);
   });
@@ -67,7 +74,7 @@ export const unify = (a: TypeN, b: TypeN): TC<void> =>
             .chain(ta => apply(b.right)
             .chain(tb => unify(ta, tb))));
         if (isTRowExtend(a) && isTRowExtend(b))
-          return rewriteRow(a.label, b, `${a} <: ${b}`)
+          return rewriteRow(a.label, b, false, `${a} <: ${b}`)
             .chain(row => unify(a.type, row.type)
             .then(apply(a.rest)
             .chain(restA => apply(row.rest)

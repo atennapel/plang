@@ -45,3 +45,21 @@ export const kfun = <N extends INameRep<N>>(left: Kind<N>, right: Kind<N>) => ne
 export const kfunFrom = <N extends INameRep<N>>(ks: Kind<N>[]) => ks.reduceRight((x, y) => kfun(y, x));
 export function kfuns<N extends INameRep<N>>(...ks: Kind<N>[]) { return kfunFrom(ks) }
 export const isKFun = <N extends INameRep<N>>(kind: Kind<N>): kind is KFun<N> => kind instanceof KFun;
+
+export class KComp<N extends INameRep<N>> extends Kind<N> {
+
+  constructor(
+    readonly kind: Kind<N>,
+  ) { super() }
+
+  toString() {
+    return `Comp ${this.kind}`;
+  }
+
+  equals(that: Kind<N>): boolean {
+    return that instanceof KComp && this.kind.equals(that.kind);
+  }
+
+}
+export const kcomp = <N extends INameRep<N>>(kind: Kind<N>) => new KComp(kind);
+export const isKComp = <N extends INameRep<N>>(kind: Kind<N>): kind is KComp<N> => kind instanceof KComp;
