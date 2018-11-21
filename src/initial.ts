@@ -11,6 +11,12 @@ export const kType = kvar(nType);
 export const nRow = name('Row');
 export const kRow = kvar(nRow);
 
+export const nEffs = name('Effs');
+export const kEffs = kvar(nEffs);
+
+export const nEff = name('Eff');
+export const kEff = kvar(nEff);
+
 export const nFun = name('->');
 export const tFun = tvar(nFun);
 
@@ -39,6 +45,8 @@ export const matchTVariant = (type: TypeN): TypeN | null =>
 export const initialContext = Context.of<Elem<NameRep>>(
   ckvar(nType),
   ckvar(nRow),
+  ckvar(nEffs),
+  ckvar(nEff),
 
   ctvar(nFun, kfuns(kType, kcomp(kType), kType)),
 

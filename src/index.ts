@@ -8,10 +8,8 @@ import { kfun } from "./kinds";
 
 /*
 TODO:
-- wf of tcomp
-- wf fix of forall
-- subtyping for tcomp, arrows, forall
-- unification for tcomp, arrows, forall
+- wf check of forall, tfun, tcomp
+- subtyping for tcomp, arrows, forall, effs
 - inference with effectful arrows
 */
 

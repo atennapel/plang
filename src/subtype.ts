@@ -1,11 +1,12 @@
-import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTRowEmpty, isTRowExtend, trowextend } from './types';
+import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTRowEmpty, isTRowExtend, trowextend, isTComp, isTEffsEmpty } from './types';
 import Context from './generic/context';
 import { wfType, checkKind } from './wf';
-import { kType, matchTRec, matchTVariant, kRow, matchTFun, tfun, matchTComp, kComp } from './initial';
+import { kType, matchTRec, matchTVariant, kRow, matchTFun, tfun } from './initial';
 import { TypeN, TC, error, ok, pop, log, findTMeta, updateCtx, ElemN, ordered, iff, freshNames, replace, apply, freshName, withElems, check, getCtx } from './TC';
 import NameRep from './generic/NameRep';
 import { isCTMeta, ctmeta, csolved, ctvar } from './elems';
 import { unify, rewriteRow } from './unification';
+import { kcomp } from './kinds';
 
 const solve = (a: NameRep, b: TypeN): TC<void> =>
   log(`solve ${a} = ${b}`).then(
@@ -22,7 +23,7 @@ const instL = (a: NameRep, b: TypeN): TC<void> =>
         const fun = matchTFun(b);
         if (fun)
           return freshNames([a, a])
-            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kComp), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a2)))])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kcomp(kType)), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a2)))])
             .then(instR(fun.left, a1))
             .then(apply(fun.right))
             .chain(type => instL(a2, type)));
@@ -45,7 +46,7 @@ const instR = (a: TypeN, b: NameRep): TC<void> =>
         const fun = matchTFun(a);
         if (fun)
           return freshNames([b, b])
-            .chain(([b1, b2]) => replace(isCTMeta(b), [ctmeta(b2, kComp), ctmeta(b1, kType), csolved(b, kType, tfun(tmeta(b1), tmeta(b2)))])
+            .chain(([b1, b2]) => replace(isCTMeta(b), [ctmeta(b2, kcomp(kType)), ctmeta(b1, kType), csolved(b, kType, tfun(tmeta(b1), tmeta(b2)))])
             .then(instL(b1, fun.left))
             .then(apply(fun.right))
             .chain(type => instR(type, b2)));
@@ -68,13 +69,12 @@ export const subtype = (a: TypeN, b: TypeN): TC<void> =>
         if (isTVar(a) && isTVar(b) && a.name.equals(b.name)) return ok;
         if (isTMeta(a) && isTMeta(b) && a.name.equals(b.name)) return ok;
         if (isTRowEmpty(a) && isTRowEmpty(b)) return ok;
+        if (isTEffsEmpty(a) && isTEffsEmpty(b)) return ok;
         
-        const compa = matchTComp(a);
-        const compb = matchTComp(b);
-        if (compa && compb)
-          return subtype(compa.left, compb.left)
-            .then(apply(compa.right)
-            .chain(ta => apply(compb.right)
+        if (isTComp(a) && isTComp(b))
+          return subtype(a.type, b.type)
+            .then(apply(a.eff)
+            .chain(ta => apply(b.eff)
             .chain(tb => subtype(ta, tb))));
 
         const funa = matchTFun(a);
@@ -93,7 +93,7 @@ export const subtype = (a: TypeN, b: TypeN): TC<void> =>
         if (vara && varb) return subtype(vara, varb);
 
         if (isTRowExtend(a) && isTRowExtend(b))
-          return rewriteRow(a.label, b, false, `${a} <: ${b}`)
+          return rewriteRow(a.label, b, `${a} <: ${b}`)
             .chain(row => subtype(a.type, row.type)
             .then(apply(a.rest)
             .chain(restA => apply(row.rest)

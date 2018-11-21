@@ -1,9 +1,9 @@
 import { impossible } from './utils';
 import { ctvar } from './elems';
 import { isKVar, isKFun, isKComp } from './kinds';
-import { isTVar, isTMeta, isTForall, tvar, isTApp, isTRowEmpty, isTRowExtend, rowContainsDuplicate } from './types';
+import { isTVar, isTMeta, isTForall, tvar, isTApp, isTRowEmpty, isTRowExtend, rowContainsDuplicate, isTEffsEmpty, isTEffsExtend } from './types';
 import { TC, KindN, TypeN, error, ok, withElems, findKVar, findTVar, findTMeta, freshName, pure, check, log } from './TC';
-import { kRow, kType, matchTRec, matchTVariant } from './initial';
+import { kRow, kType, matchTRec, matchTVariant, kEffs, kEff } from './initial';
 
 export const checkKind = (exp: KindN, actual: KindN, msg?: string): TC<void> => {
   if (exp.equals(actual)) return ok;
@@ -46,10 +46,17 @@ export const wfType = (type: TypeN): TC<KindN> => {
       .then(wfType(type.rest))
       .chain(k => checkKind(kRow, k, `row rest ${type}`))
       .map(() => kRow);
+  if (isTEffsExtend(type))
+    return wfType(type.type)
+      .chain(k => checkKind(kEff, k, `effs type ${type}`))
+      .then(wfType(type.rest))
+      .chain(k => checkKind(kEffs, k, `effs rest ${type}`))
+      .map(() => kEffs);
   if (isTForall(type))
     return wfKind(type.kind)
       .then(freshName(type.name)
       .chain(x => withElems([ctvar(x, type.kind)], wfType(type.open(tvar(x))))));
   if (isTRowEmpty(type)) return pure(kRow);
+  if (isTEffsEmpty(type)) return pure(kEffs);
   return impossible();
 };

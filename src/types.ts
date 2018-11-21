@@ -15,6 +15,8 @@ export default abstract class Type<N extends INameRep<N>> {
 
   abstract freeTMeta(): N[];
 
+  abstract equals(that: Type<N>): boolean;
+
 }
 
 export class TVar<N extends INameRep<N>> extends Type<N> {
@@ -44,6 +46,10 @@ export class TVar<N extends INameRep<N>> extends Type<N> {
 
   freeTMeta(): N[] {
     return [];
+  }
+
+  equals(that: Type<N>): boolean {
+    return that instanceof TVar && this.name.equals(that.name);
   }
 
 }
@@ -77,6 +83,10 @@ export class TMeta<N extends INameRep<N>> extends Type<N> {
 
   freeTMeta(): N[] {
     return [this.name];
+  }
+
+  equals(that: Type<N>): boolean {
+    return that instanceof TMeta && this.name.equals(that.name);
   }
 
 }
@@ -116,11 +126,23 @@ export class TApp<N extends INameRep<N>> extends Type<N> {
     return this.left.freeTMeta().concat(this.right.freeTMeta());
   }
 
+  equals(that: Type<N>): boolean {
+    return that instanceof TApp && this.left.equals(that.left) && this.right.equals(that.right);
+  }
+
 }
 export const tapp = <N extends INameRep<N>>(left: Type<N>, right: Type<N>) => new TApp(left, right);
 export const tappFrom = <N extends INameRep<N>>(ts: Type<N>[]) => ts.reduce(tapp);
 export function tapps<N extends INameRep<N>>(...ts: Type<N>[]) { return tappFrom(ts) }
 export const isTApp = <N extends INameRep<N>>(type: Type<N>): type is TApp<N> => type instanceof TApp;
+export const flattenTApp = <N extends INameRep<N>>(type: Type<N>): { head: Type<N>, tail: Type<N>[] } => {
+  if (isTApp(type)) {
+    const rec = flattenTApp(type.left);
+    return { head: rec.head, tail: rec.tail.concat([type.right]) };
+  }
+  return { head: type, tail: [] };
+};
+export const headTApp = <N extends INameRep<N>>(type: Type<N>): Type<N> => flattenTApp(type).head;
 
 export class TForall<N extends INameRep<N>> extends Type<N> {
 
@@ -155,6 +177,10 @@ export class TForall<N extends INameRep<N>> extends Type<N> {
 
   freeTMeta(): N[] {
     return this.type.freeTMeta();
+  }
+
+  equals(that: Type<N>): boolean {
+    return that instanceof TForall && this.name.equals(that.name) && this.kind.equals(that.kind) && this.type.equals(that.type);
   }
 
 }
@@ -195,9 +221,95 @@ export class TComp<N extends INameRep<N>> extends Type<N> {
     return this.type.freeTMeta().concat(this.eff.freeTMeta());
   }
 
+  equals(that: Type<N>): boolean {
+    return that instanceof TComp && this.type.equals(that.type) && this.eff.equals(that.eff);
+  }
+
 }
 export const tcomp = <N extends INameRep<N>>(type: Type<N>, eff: Type<N>) => new TComp(type, eff);
 export const isTComp = <N extends INameRep<N>>(type: Type<N>): type is TComp<N> => type instanceof TComp;
+
+export class TEffsEmpty<N extends INameRep<N>> extends Type<N> {
+
+  constructor() { super() }
+
+  toString() {
+    return `{}`;
+  }
+
+  isMono() {
+    return true;
+  }
+
+  substTVar(name: N, type: Type<N>): Type<N> {
+    return this;
+  }
+
+  substTMeta(name: N, type: Type<N>): Type<N> {
+    return this;
+  }
+
+  containsTMeta(name: N): boolean {
+    return false;
+  }
+
+  freeTMeta(): N[] {
+    return [];
+  }
+
+  equals(that: Type<N>): boolean {
+    return that instanceof TEffsEmpty;
+  }
+
+}
+export const teffsempty = <N extends INameRep<N>>() => new TEffsEmpty<N>();
+export const isTEffsEmpty = <N extends INameRep<N>>(type: Type<N>): type is TEffsEmpty<N> => type instanceof TEffsEmpty;
+
+export class TEffsExtend<N extends INameRep<N>> extends Type<N> {
+
+  constructor(
+    public readonly type: Type<N>,
+    public readonly rest: Type<N>,
+  ) { super() }
+
+  toString() {
+    return `{ ${this.type} | ${this.rest} }`;
+  }
+
+  isMono() {
+    return this.type.isMono() && this.rest.isMono();
+  }
+
+  substTVar(name: N, type: Type<N>): Type<N> {
+    return new TEffsExtend(this.type.substTVar(name, type), this.rest.substTVar(name, type));
+  }
+
+  substTMeta(name: N, type: Type<N>): Type<N> {
+    return new TEffsExtend(this.type.substTMeta(name, type), this.rest.substTMeta(name, type));
+  }
+
+  containsTMeta(name: N): boolean {
+    return this.type.containsTMeta(name) || this.rest.containsTMeta(name);
+  }
+
+  freeTMeta(): N[] {
+    return this.type.freeTMeta().concat(this.rest.freeTMeta());
+  }
+
+  equals(that: Type<N>): boolean {
+    return that instanceof TEffsExtend && this.type.equals(that.type) && this.rest.equals(that.rest);
+  }
+
+}
+export const teffsextend = <N extends INameRep<N>>(type: Type<N>, rest: Type<N>) => new TEffsExtend<N>(type, rest);
+export const isTEffsExtend = <N extends INameRep<N>>(type: Type<N>): type is TEffsExtend<N> => type instanceof TEffsExtend;
+export const flattenEffs = <N extends INameRep<N>>(row: Type<N>): { types: Type<N>[], rest: Type<N> } => {
+  if (isTEffsExtend(row)) {
+    const rec = flattenEffs(row.rest);
+    return { types: [row.type].concat(rec.types), rest: rec.rest };
+  }
+  return { types: [], rest: row };
+};
 
 export class TRowEmpty<N extends INameRep<N>> extends Type<N> {
 
@@ -225,6 +337,10 @@ export class TRowEmpty<N extends INameRep<N>> extends Type<N> {
 
   freeTMeta(): N[] {
     return [];
+  }
+  
+  equals(that: Type<N>): boolean {
+    return that instanceof TRowEmpty;
   }
 
 }
@@ -261,6 +377,10 @@ export class TRowExtend<N extends INameRep<N>> extends Type<N> {
 
   freeTMeta(): N[] {
     return this.type.freeTMeta().concat(this.rest.freeTMeta());
+  }
+
+  equals(that: Type<N>): boolean {
+    return that instanceof TRowExtend && this.label.equals(that.label) && this.type.equals(that.type) && this.rest.equals(that.rest);
   }
 
 }

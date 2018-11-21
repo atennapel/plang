@@ -3,11 +3,10 @@ import Elem, { cmarker, isCMarker, isCTMeta, isCKVar, CKVar, isCTVar, isCVar, CT
 import Context from './generic/context';
 import NameRepSupply from './generic/NameSupply';
 import TCM from './generic/monad';
-import Type, { tforall, isTVar, isTMeta, isTForall, isTApp, tapp, isTRowEmpty, isTRowExtend, trowextend, isTComp, tcomp } from './types';
+import Type, { tforall, isTVar, isTMeta, isTForall, isTApp, tapp, isTRowEmpty, isTRowExtend, trowextend, isTComp, tcomp, isTEffsEmpty, isTEffsExtend, teffsextend } from './types';
 import { impossible } from './utils';
 import Expr from './exprs';
 import Kind from './kinds';
-import { matchTFun, tfun, matchTRec } from './initial';
 
 export type ElemN = Elem<NameRep>;
 export type KindN = Kind<NameRep>;
@@ -68,9 +67,14 @@ export const apply = (type: Type<NameRep>): TC<Type<NameRep>> => {
     return apply(type.type)
       .chain(left => apply(type.rest)
       .map(right => trowextend(type.label, left, right)));
+  if (isTEffsExtend(type))
+    return apply(type.type)
+      .chain(left => apply(type.rest)
+      .map(right => teffsextend(left, right)));
   if (isTForall(type))
     return apply(type.type).map(body => tforall(type.name, type.kind, body));
   if (isTRowEmpty(type)) return pure(type);
+  if (isTEffsEmpty(type)) return pure(type);
   return impossible();
 }
 
