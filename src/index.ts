@@ -8,8 +8,6 @@ import { kfun } from "./kinds";
 
 /*
 TODO:
-- wf check of forall, tfun, tcomp
-- subtyping for tcomp, arrows, forall, effs
 - inference with effectful arrows
 */
 

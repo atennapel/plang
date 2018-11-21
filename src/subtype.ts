@@ -1,11 +1,11 @@
-import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTRowEmpty, isTRowExtend, trowextend, isTComp, isTEffsEmpty } from './types';
+import { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTRowEmpty, isTRowExtend, trowextend, isTComp, isTEffsEmpty, isTEffsExtend, tcomp, teffsextend } from './types';
 import Context from './generic/context';
 import { wfType, checkKind } from './wf';
-import { kType, matchTRec, matchTVariant, kRow, matchTFun, tfun } from './initial';
+import { kType, matchTRec, matchTVariant, kRow, matchTFun, tfun, kEffs, kEff } from './initial';
 import { TypeN, TC, error, ok, pop, log, findTMeta, updateCtx, ElemN, ordered, iff, freshNames, replace, apply, freshName, withElems, check, getCtx } from './TC';
-import NameRep from './generic/NameRep';
+import NameRep, { name } from './generic/NameRep';
 import { isCTMeta, ctmeta, csolved, ctvar } from './elems';
-import { unify, rewriteRow } from './unification';
+import { unify, rewriteRow, rewriteEffs } from './unification';
 import { kcomp } from './kinds';
 
 const solve = (a: NameRep, b: TypeN): TC<void> =>
@@ -27,6 +27,13 @@ const instL = (a: NameRep, b: TypeN): TC<void> =>
             .then(instR(fun.left, a1))
             .then(apply(fun.right))
             .chain(type => instL(a2, type)));
+
+        if (isTComp(b))
+          return freshNames([a, a])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kcomp(kEffs)), ctmeta(a1, kType), csolved(a, kType, tcomp(tmeta(a1), tmeta(a2)))])
+            .then(instL(a1, b.type))
+            .then(apply(b.eff))
+            .chain(type => instL(a2, type)));
         
         if (isTForall(b))
           return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instL(a, b.open(tvar(x)))));
@@ -36,6 +43,13 @@ const instL = (a: NameRep, b: TypeN): TC<void> =>
             .then(instL(a1, b.type)
             .then(apply(b.rest))
             .chain(ty => instL(a1, ty))));
+
+        if (isTEffsExtend(b))
+          return freshNames([a, a])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kEff), csolved(a, kRow, teffsextend(tmeta(a1), tmeta(a2)))])
+            .then(instL(a1, b.type))
+            .then(apply(b.rest))
+            .chain(type => instL(a2, type)));
         return error(`instL failed: ${a} = ${b}`); 
       })));
 
@@ -51,6 +65,13 @@ const instR = (a: TypeN, b: NameRep): TC<void> =>
             .then(apply(fun.right))
             .chain(type => instR(type, b2)));
 
+        if (isTComp(a))
+          return freshNames([b, b])
+            .chain(([b1, b2]) => replace(isCTMeta(b), [ctmeta(b2, kcomp(kEffs)), ctmeta(b1, kType), csolved(b, kType, tcomp(tmeta(b1), tmeta(b2)))])
+            .then(instR(a.type, b1))
+            .then(apply(a.eff))
+            .chain(type => instR(type, b2)));
+
         if (isTForall(a))
           return freshName(a.name).chain(x => withElems([ctmeta(x, a.kind)], instR(a.open(tmeta(x)), b)));
         if (isTRowExtend(a))
@@ -59,6 +80,13 @@ const instR = (a: TypeN, b: NameRep): TC<void> =>
             .then(instR(a.type, b1)
             .then(apply(a.rest))
             .chain(ty => instR(ty, b2))));
+
+        if (isTEffsExtend(a))
+          return freshNames([b, b])
+            .chain(([b1, b2]) => replace(isCTMeta(b), [ctmeta(b2, kEffs), ctmeta(b1, kEff), csolved(b, kRow, teffsextend(tmeta(b1), tmeta(b2)))])
+            .then(instR(a.type, b1))
+            .then(apply(a.rest))
+            .chain(type => instR(type, b2)));
         return error(`instR failed: ${b} = ${a}`);  
       })));
 
@@ -97,6 +125,25 @@ export const subtype = (a: TypeN, b: TypeN): TC<void> =>
             .chain(row => subtype(a.type, row.type)
             .then(apply(a.rest)
             .chain(restA => apply(row.rest)
+            .chain(restB => subtype(restA, restB)))));
+
+        if (isTEffsEmpty(a) && isTEffsExtend(b))
+          return freshName(name('r'))
+            .chain(r => updateCtx(Context.add(
+              ctmeta(r, kEffs),
+            ))
+            .then(subtype(tmeta(r), b)));
+        if (isTEffsExtend(a) && isTEffsEmpty(b))
+          return freshName(name('r'))
+            .chain(r => updateCtx(Context.add(
+              ctmeta(r, kEffs),
+            ))
+            .then(subtype(a, tmeta(r))));
+        if (isTEffsExtend(a) && isTEffsExtend(b))
+          return rewriteEffs(a.type, b, `${a} <: ${b}`)
+            .chain(es => subtype(a.type, es.type)
+            .then(apply(a.rest)
+            .chain(restA => apply(es.rest)
             .chain(restB => subtype(restA, restB)))));
 
         if (isTApp(a) && isTApp(b))

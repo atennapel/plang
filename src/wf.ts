@@ -1,7 +1,7 @@
 import { impossible } from './utils';
 import { ctvar } from './elems';
-import { isKVar, isKFun, isKComp } from './kinds';
-import { isTVar, isTMeta, isTForall, tvar, isTApp, isTRowEmpty, isTRowExtend, rowContainsDuplicate, isTEffsEmpty, isTEffsExtend } from './types';
+import { isKVar, isKFun, isKComp, kcomp } from './kinds';
+import { isTVar, isTMeta, isTForall, tvar, isTApp, isTRowEmpty, isTRowExtend, rowContainsDuplicate, isTEffsEmpty, isTEffsExtend, isTComp } from './types';
 import { TC, KindN, TypeN, error, ok, withElems, findKVar, findTVar, findTMeta, freshName, pure, check, log } from './TC';
 import { kRow, kType, matchTRec, matchTVariant, kEffs, kEff } from './initial';
 
@@ -33,6 +33,12 @@ export const wfType = (type: TypeN): TC<KindN> => {
       .chain(k => checkKind(kRow, k, `${type}`))
       .then(check(!rowContainsDuplicate(variant), `variant contains duplicates ${type}`))
       .map(() => kType);
+
+  if (isTComp(type))
+    return wfType(type.type)
+      .chain(kt => wfType(type.eff)
+      .chain(k => checkKind(kEffs, k, `effect of ${type}`)
+      .map(() => kcomp(kt))));
   
   if (isTApp(type))
     return wfType(type.left)

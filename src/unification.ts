@@ -4,7 +4,8 @@ import { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTRowEmpty, TRowEmpty
 import { ctvar, ctmeta, isCTMeta, csolved } from './elems';
 import NameRep, { name } from './generic/NameRep';
 import Context from './generic/context';
-import { kType, kRow, matchTFun, tfun, kEffs } from './initial';
+import { kType, kRow, matchTFun, tfun, kEffs, kEff } from './initial';
+import { kcomp } from './kinds';
 
 export const rewriteRow = (label: NameRep, type: TypeN, msg: string): TC<TRowExtend<NameRep>> =>
   log(`rewriteRow ${label} in ${type}`).chain(() => {
@@ -56,7 +57,7 @@ const instUnify = (a: NameRep, b: TypeN): TC<void> =>
         const fun = matchTFun(b);
         if (fun)
           return freshNames([a, a])
-            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kType), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a2)))])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kcomp(kType)), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a2)))])
             .then(instUnify(a1, fun.left))
             .then(apply(fun.right))
             .chain(type => instUnify(a2, type)));
@@ -76,7 +77,7 @@ const instUnify = (a: NameRep, b: TypeN): TC<void> =>
             .chain(type => instUnify(a2, type)));
         if (isTEffsExtend(b))
           return freshNames([a, a])
-            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kType), csolved(a, kRow, teffsextend(tmeta(a1), tmeta(a2)))])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kEff), csolved(a, kRow, teffsextend(tmeta(a1), tmeta(a2)))])
             .then(instUnify(a1, b.type))
             .then(apply(b.rest))
             .chain(type => instUnify(a2, type)));
