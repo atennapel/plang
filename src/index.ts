@@ -8,6 +8,7 @@ import { kfun } from "./kinds";
 
 /*
 TODO:
+- split up computations and values
 - inference with effectful arrows
 */
 
@@ -44,10 +45,8 @@ const ctx = initialContext.add(
   //cvar(test, tforall(t, kType, tfun(tapp(tv(List), tv(t)), tv(t)))),
 
   //cvar(recX, tapp(tRec, trowextend(y, tvar(Unit), trowextend(x, tvar(Bool), trowempty())))),
-
-  cvar(pure, tforall(t, kType, tfun(tv(t), tforall(r, kRow, tfun(tv(Unit), tcomp(tv(t), tv(r))))))),
 );
 
-const expr = app(vr(pure), vr(Unit));
+const expr = abs(x, vr(x));
 console.log('' + expr);
 console.log('' + infer(ctx, expr));

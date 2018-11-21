@@ -4,12 +4,13 @@ import NameRepSupply from './generic/NameSupply';
 import { isVar, isAbs, isApp, isAnno, vr, isAbsT, isAppT, isSelect, isInject, isRestrict, isExtendRec, isExtendVar, isEmptyRecord, isCaseVar, isLet } from './exprs';
 import { impossible, assocGet } from './utils';
 import { wfType, checkKind, wfKind } from './wf';
-import { kType, kRow, tRec, tVar, kComp } from './initial';
+import { kType, kRow, tRec, tVar, tfun, matchTFun, tfuns } from './initial';
 import { isTForall, tvar, isTMeta, tmeta, tforalls, tforall, trowextend, tapp, trowempty } from './types';
 import { subtype } from './subtype';
 import { ctvar, cvar, ctmeta, isCTMeta, isCMarker, cmarker, CTMeta } from './elems';
 import Context from './generic/context';
 import NameRep, { name } from './generic/NameRep';
+import { kcomp } from './kinds';
 
 const orderedUnsolved = (ctx: Ctx, type: TypeN): [NameRep, KindN][] => {
   const u = ctx.findAll(e => e instanceof CTMeta && !e.type ? [e.name, e.kind] as [NameRep, KindN] : null);
@@ -46,13 +47,13 @@ const synthty = (expr: ExprN): TC<TypeN> =>
           .chain(k => checkKind(kType, k, `abstraction argument ${expr}`))
           .then(generalize(
             freshNames([expr.name, expr.name])
-            .chain(([x, b]) => updateCtx(Context.add<ElemN>(ctmeta(b, kType), cvar(x, type)))
+            .chain(([x, b]) => updateCtx(Context.add<ElemN>(ctmeta(b, kcomp(kType)), cvar(x, type)))
             .then(checkty(expr.open(vr(x)), tmeta(b)))
             .map(() => tfun(type, tmeta(b))))))
       else
         return generalize(
           freshNames([expr.name, expr.name, expr.name])
-          .chain(([x, a, b]) => updateCtx(Context.add<ElemN>(ctmeta(a, kType), ctmeta(b, kType), cvar(x, tmeta(a))))
+          .chain(([x, a, b]) => updateCtx(Context.add<ElemN>(ctmeta(a, kType), ctmeta(b, kcomp(kType)), cvar(x, tmeta(a))))
           .then(checkty(expr.open(vr(x)), tmeta(b)))
           .map(() => tfun(tmeta(a), tmeta(b)))));
     }
@@ -152,7 +153,7 @@ const synthappty = (type: TypeN, expr: ExprN): TC<TypeN> =>
       return findTMeta(type.name)
         .chain(e => freshNames([type.name, type.name])
         .chain(([a1, a2]) => replace(isCTMeta(type.name), [
-          ctmeta(a2, kType), ctmeta(a1, kType), e.solve(tfun(tmeta(a1), tmeta(a2)))
+          ctmeta(a2, kcomp(kType)), ctmeta(a1, kType), e.solve(tfun(tmeta(a1), tmeta(a2)))
         ])
         .then(checkty(expr, tmeta(a1))
         .map(() => tmeta(a2)))));
@@ -164,9 +165,9 @@ const synthappty = (type: TypeN, expr: ExprN): TC<TypeN> =>
 const synthgen = (expr: ExprN): TC<TypeN> =>
 generalize(synthty(expr))
   .chain(ty => wfType(ty)
-  .chain(k => checkKind(kComp, k, `synthgen of ${ty}`)
+  //.chain(k => checkKind(kcomp(kType), k, `synthgen of ${ty}`)
   .map(() => ty))
-  .chain(apply));
+  .chain(apply);
 
 export const infer = (ctx: Ctx, expr: ExprN): Either<string, TypeN> =>
   synthgen(expr).run(ctx, new NameRepSupply(0)).val;
