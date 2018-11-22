@@ -1,5 +1,5 @@
 import Kind from './kinds';
-import NameRep, { name } from '../NameRep';
+import NameRep from '../NameRep';
 
 export default abstract class Type {
 
