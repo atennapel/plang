@@ -48,3 +48,6 @@ export const isKFun = (kind: Kind): kind is KFun => kind instanceof KFun;
 
 export const nType = name('Type');
 export const kType = kvar(nType);
+
+export const nComp = name('Comp');
+export const kComp = kvar(nComp);

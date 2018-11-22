@@ -109,10 +109,7 @@ export class TApp extends ValType {
   ) { super() }
 
   toString(): string{
-    const left = this.left;
-    if (isTApp(left) && isTVar(left.left) && /[^a-z]/i.test(left.left.toString()[0]))
-      return `(${left.right} ${left.left} ${this.right})`;
-    return `(${left} ${this.right})`;
+    return `(${this.left} ${this.right})`;
   }
 
   isMono() {
@@ -140,8 +137,8 @@ export class TApp extends ValType {
 
 }
 export const tapp = (left: ValType, right: ValType) => new TApp(left, right);
-export const tappFrom = (ts: ValType[]) => ts.reduce(tapp);
-export function tapps(...ts: ValType[]) { return tappFrom(ts) }
+export const tappsFrom = (ts: ValType[]) => ts.reduce(tapp);
+export const tapps = (...ts: ValType[]) => tappsFrom(ts);
 export const isTApp = (type: Type): type is TApp => type instanceof TApp;
 export const flattenTApp = (type: ValType): { head: ValType, tail: ValType[] } => {
   if (isTApp(type)) {
@@ -151,6 +148,46 @@ export const flattenTApp = (type: ValType): { head: ValType, tail: ValType[] } =
   return { head: type, tail: [] };
 };
 export const headTApp = (type: ValType): ValType => flattenTApp(type).head;
+
+export class TFun extends ValType {
+
+  constructor(
+    public readonly left: ValType,
+    public readonly right: TComp,
+  ) { super() }
+
+  toString(): string{
+    return `(${this.left} -> ${this.right})`;
+  }
+
+  isMono() {
+    return this.left.isMono() && this.right.isMono();
+  }
+
+  substTVar(name: NameRep, type: ValType): ValType {
+    return new TFun(this.left.substTVar(name, type), this.right.substTVar(name, type));
+  }
+  substTMeta(name: NameRep, type: ValType): ValType {
+    return new TFun(this.left.substTMeta(name, type), this.right.substTMeta(name, type));
+  }
+
+  containsTMeta(name: NameRep): boolean {
+    return this.left.containsTMeta(name) || this.right.containsTMeta(name);
+  }
+
+  freeTMeta(): NameRep[] {
+    return this.left.freeTMeta().concat(this.right.freeTMeta());
+  }
+
+  equals(that: ValType): boolean {
+    return that instanceof TFun && this.left.equals(that.left) && this.right.equals(that.right);
+  }
+
+}
+export const tfun = (left: ValType, right: TComp) => new TFun(left, right);
+export const tfunsFrom = (ts: ValType[]) => ts.reduceRight((x, y) => tfun(y, tcomp(x)));
+export const tfuns = (...ts: ValType[]) => tappsFrom(ts);
+export const isTFun = (type: Type): type is TFun => type instanceof TFun;
 
 export class TForall extends ValType {
 
