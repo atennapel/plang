@@ -6,6 +6,17 @@ import NameRep, { name } from '../NameRep';
 import Context from './context';
 import { kEffs, kType, kEff } from './kinds';
 
+export const openEffs = (type: Type): TC<Type> =>
+  log(`openEffs ${type}`).chain(() => {
+    if (isTEffsExtend(type))
+      return openEffs(type.rest).map(rest => teffsextend(type.type, rest));
+    if (isTEffsEmpty(type))
+      return freshName(name('e')).chain(e => updateCtx(Context.add(ctmeta(e, kEffs))).map(() => tmeta(e)));
+    if (isTMeta(type))
+      return TC.of(type);
+    return error(`unexpected type in openEffs ${type}`);
+  });
+
 export const rewriteEffs = (head: Type, type: Type, msg: string): TC<TEffsExtend> =>
   log(`rewriteEffs ${head} in ${type}`).chain(() => {
     if (isTEffsExtend(type)) {
@@ -20,8 +31,6 @@ export const rewriteEffs = (head: Type, type: Type, msg: string): TC<TEffsExtend
           csolved(type.name, kEffs, teffsextend(head, tmeta(r)))
         ])
         .map(() => teffsextend(head, tmeta(r))));
-    if (isTEffsEmpty(type))
-      return TC.of(teffsextend(head, type));
     return error(`cannot rewrite effs ${head} in ${type}: ${msg}`);
   });
 
@@ -79,14 +88,6 @@ export const unify = (a: Type, b: Type): TC<void> =>
             .chain(ta => apply(b.right)
             .chain(tb => unify(ta, tb))));
 
-        if (isTEffsEmpty(a) && isTEffsExtend(b))
-          return freshName(name('r'))
-            .chain(r => updateCtx(Context.add(ctmeta(r, kEffs)))
-            .then(unify(tmeta(r), b)));
-        if (isTEffsExtend(a) && isTEffsEmpty(b))
-          return freshName(name('r'))
-            .chain(r => updateCtx(Context.add(ctmeta(r, kEffs)))
-            .then(unify(a, tmeta(r))));
         if (isTEffsExtend(a) && isTEffsExtend(b))
           return rewriteEffs(a.type, b, `${a} <: ${b}`)
             .chain(es => unify(a.type, es.type)

@@ -10,6 +10,7 @@ import { teffsempty } from "./backup/types";
 
 /*
 TODO:
+  - close effs at generalization
   - open and close effs at the right time (maybe not in unification/subsumption)
   - row polymorphism (records/variants)
   - infer computation (how to generalize?)

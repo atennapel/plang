@@ -79,18 +79,6 @@ export const subsume = (a: Type, b: Type): TC<void> =>
             .chain(ta => apply(b.right)
             .chain(tb => subsume(ta, tb))));
         
-        if (isTEffsEmpty(a) && isTEffsExtend(b))
-          return freshName(name('r'))
-            .chain(r => updateCtx(Context.add(
-              ctmeta(r, kEffs),
-            ))
-            .then(subsume(tmeta(r), b)));
-        if (isTEffsExtend(a) && isTEffsEmpty(b))
-          return freshName(name('r'))
-            .chain(r => updateCtx(Context.add(
-              ctmeta(r, kEffs),
-            ))
-            .then(subsume(a, tmeta(r))));
         if (isTEffsExtend(a) && isTEffsExtend(b))
           return rewriteEffs(a.type, b, `${a} <: ${b}`)
             .chain(es => subsume(a.type, es.type)

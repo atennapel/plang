@@ -11,7 +11,7 @@ import Elem, { ctvar, cvar, ctmeta, CTMeta, cmarker, isCMarker, isCTMeta } from 
 import Kind, { kType, kEffs } from './kinds';
 import NameRep, { name } from '../NameRep';
 import { assocGet } from '../utils';
-import { unify } from './unification';
+import { unify, openEffs } from './unification';
 import { isTEffsEmpty } from '../backup/types';
 
 type SynthResult = { type: Type, eff: Type };
@@ -102,7 +102,7 @@ const synthComp = (expr: Comp): TC<SynthResult> =>
       return synthComp(expr.expr)
         .chain(({ type: ty, eff: ef }) => freshName(expr.name)
         .chain(x => withElems([cvar(x, ty)], synthComp(expr.open(vr(x)))
-        .chain(({ type: ty2, eff: ef2 }) => unify(ef, ef2)
+        .chain(({ type: ty2, eff: ef2 }) => openEffs(ef).chain2(unify, openEffs(ef2))
         .map(() => ({ type: ty2, eff: ef2 }))))));
 
     return error(`cannot synthComp ${expr}`);
@@ -128,9 +128,10 @@ const checkComp = (expr: Comp, type: Type, eff: Type): TC<void> =>
       return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkComp(expr, type.open(tvar(x)), eff)));
     if (isLet(expr))
       return synthComp(expr.expr)
-        .chain(({ type: ty, eff: ef }) => subsume(ef, eff)
+        .chain(({ type: ty, eff: ef }) => openEffs(eff)
+        .chain(oeff => subsume(ef, oeff)
         .then(freshName(expr.name)
-        .chain(x => withElems([cvar(x, ty)], checkComp(expr.open(vr(x)), type, eff)))));
+        .chain(x => withElems([cvar(x, ty)], checkComp(expr.open(vr(x)), type, oeff))))));
     return synthComp(expr)
       .chain(({ type: ty, eff: ef }) => apply(ty)
       .chain(ty => apply(ef)

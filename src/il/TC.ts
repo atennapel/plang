@@ -37,6 +37,10 @@ export default class TC<T> {
       return fn((ret.val as Right<string, T>).val).run(ret.ctx, ret.supply);
     });
   }
+  
+  chain2<A, B>(fn: (a: T, b: A) => TC<B>, that: TC<A>): TC<B> {
+    return this.chain(a => that.chain(b => fn(a, b)));
+  }
 
   ap<R>(fn: TC<(val: T) => R>) {
     return this.chain(val => fn.map(fn => fn(val)));
