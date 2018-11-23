@@ -129,7 +129,7 @@ const checkComp = (expr: Comp, type: Type, eff: Type): TC<void> =>
     if (isLet(expr))
       return synthComp(expr.expr)
         .chain(({ type: ty, eff: ef }) => openEffs(eff)
-        .chain(oeff => subsume(ef, oeff)
+        .chain(oeff => openEffs(ef).chain(ef => subsume(ef, oeff))
         .then(freshName(expr.name)
         .chain(x => withElems([cvar(x, ty)], checkComp(expr.open(vr(x)), type, oeff))))));
     return synthComp(expr)
@@ -138,7 +138,7 @@ const checkComp = (expr: Comp, type: Type, eff: Type): TC<void> =>
       .chain(ef => apply(type)
       .chain(tyE => apply(eff)
       .chain(efE => subsume(ty, tyE)
-      .then(subsume(ef, efE)))))));
+      .then(openEffs(ef).chain2(subsume, openEffs(efE))))))));
   });
 
 const synthapp = (type: Type, expr: Val): TC<SynthResult> =>
