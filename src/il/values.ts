@@ -83,7 +83,7 @@ export class AbsT extends Val {
   substTVar(name: NameRep, type: Type): Val {
     return this.name.equals(name) ? this : new AbsT(this.name, this.kind, this.body.substTVar(name, type));
   }
-  openTVar(val: Type): Expr {
+  openTVar(val: Type): Comp {
     return this.body.substTVar(this.name, val);
   }
 
