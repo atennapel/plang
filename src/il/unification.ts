@@ -31,8 +31,6 @@ const solveUnify = (a: NameRep, b: Type): TC<void> =>
         .chain(right => wfType(b)
         .then(updateCtx(Context.append(Context.of(e.solve(b) as Elem).append(right)))))));
 
-// TODO: TFun in instUnify and unify
-
 const instUnify = (a: NameRep, b: Type): TC<void> =>
   log(`instUnify ${a} := ${b}`).then(
     isTMeta(b) ? iff(ordered(a, b.name), solveUnify(b.name, tmeta(a)), solveUnify(a, b)) :

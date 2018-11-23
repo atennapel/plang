@@ -1,4 +1,4 @@
-import TC, { error, log, apply, findVar, freshName, withElems, updateCtx, freshNames, pop, findTMeta, replace } from './TC';
+import TC, { error, log, apply, findVar, freshName, withElems, updateCtx, freshNames, pop, findTMeta, replace, ok, check } from './TC';
 import Type, { teffsempty, tvar, tforall, isTForall, tmeta, tfun, tforalls, isTFun, isTMeta } from './types';
 import { Val, isVar, isAbs, isAbsT, vr, isAnno } from './values';
 import { Comp, isReturn, isApp, isAppT, isLet } from './computations';
@@ -12,6 +12,7 @@ import Kind, { kType, kEffs } from './kinds';
 import NameRep, { name } from '../NameRep';
 import { assocGet } from '../utils';
 import { unify } from './unification';
+import { isTEffsEmpty } from '../backup/types';
 
 type SynthResult = { type: Type, eff: Type };
 
@@ -52,22 +53,23 @@ const synthVal = (expr: Val): TC<Type> =>
         return wfType(type)
           .chain(k => checkKind(kType, k, `abstraction argument ${expr}`))
           .then(generalize(
-            freshNames([expr.name, expr.name])
-            .chain(([x, b]) => updateCtx(Context.add(ctmeta(b, kcomp(kType)), cvar(x, type)))
-            .then(checkty(expr.open(vr(x)), tmeta(b)))
-            .map(() => tfun(type, tmeta(b))))))
+            freshNames([expr.name, expr.name, expr.name])
+            .chain(([x, b, e]) => updateCtx(Context.add(ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, type)))
+            .then(checkComp(expr.open(vr(x)), tmeta(b), tmeta(e)))
+            .map(() => tfun(type, tmeta(e), tmeta(b))))))
       else
         return generalize(
-          freshNames([expr.name, expr.name, expr.name])
-          .chain(([x, a, b]) => updateCtx(Context.add<Elem>(ctmeta(a, kType), ctmeta(b, kcomp(kType)), cvar(x, tmeta(a))))
-          .then(checkty(expr.open(vr(x)), tmeta(b)))
-          .map(() => tfun(tmeta(a), tmeta(b)))));
+          freshNames([expr.name, expr.name, expr.name, expr.name])
+          .chain(([x, a, b, e]) => updateCtx(Context.add(ctmeta(a, kType), ctmeta(e, kEffs), ctmeta(b, kType), cvar(x, tmeta(a))))
+          .then(checkComp(expr.open(vr(x)), tmeta(b), tmeta(e)))
+          .map(() => tfun(tmeta(a), tmeta(b), tmeta(e)))));
     }
     if (isAbsT(expr))
       return wfKind(expr.kind)
         .then(freshName(expr.name)
         .chain(x => withElems([ctvar(x, expr.kind)], synthComp(expr.openTVar(tvar(x))))
-        .map(ty => tforall(x, expr.kind, ty))));
+        .chain(({ type, eff }) => check(isTEffsEmpty(eff), `no effects allowed in AbsT: ${expr}, got ${eff}`)
+        .map(() => ({ type: tforall(x, expr.kind, type), eff: teffsempty() })))));
     if (isAnno(expr))
       return wfType(expr.type)
         .chain(k => checkKind(kType, k, `annotation ${expr}`))
@@ -77,7 +79,7 @@ const synthVal = (expr: Val): TC<Type> =>
   }).chain(apply);
 
 const synthComp = (expr: Comp): TC<SynthResult> =>
-  log(`synthComp ${expr}`).chain(() => {
+  log(`synthComp ${expr}`).chain<SynthResult>(() => {
     if (isReturn(expr))
       return synthVal(expr.val).map(type => ({ type, eff: teffsempty() }));
 
@@ -90,14 +92,14 @@ const synthComp = (expr: Comp): TC<SynthResult> =>
         .chain(ka => synthVal(expr.left)
         .checkIs(isTForall, ty => `not a forall in left side of ${expr}: got ${ty}`)
         .chain(ty => checkKind(ty.kind, ka, `${expr}`)
-        .map(() => ty.open(expr.right))));
+        .map(() => ({ type: ty.open(expr.right), eff: teffsempty() }))));
 
-    // combine effects
     if (isLet(expr))
       return synthComp(expr.expr)
         .chain(({ type: ty, eff: ef }) => freshName(expr.name)
         .chain(x => withElems([cvar(x, ty)], synthComp(expr.open(vr(x)))
-        .chain(({ type: ty2, eff: ef2 }) => unify(ef, ef2))));
+        .chain(({ type: ty2, eff: ef2 }) => unify(ef, ef2)
+        .map(() => ({ type: ty2, eff: ef2 }))))));
 
     return error(`cannot synthComp ${expr}`);
   }).chain(applySynthResult);
