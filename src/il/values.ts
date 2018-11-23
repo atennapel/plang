@@ -1,6 +1,6 @@
 import Expr from './exprs';
 import NameRep from '../NameRep';
-import { ValType } from './types';
+import Type from './types';
 import { Comp, ret } from './computations';
 import Kind from './kinds';
 
@@ -9,7 +9,7 @@ export abstract class Val extends Expr {
 
   abstract subst(name: NameRep, val: Val): Val;
   
-  abstract substTVar(name: NameRep, type: ValType): Val;
+  abstract substTVar(name: NameRep, type: Type): Val;
 }
 
 export class Var extends Val {
@@ -26,7 +26,7 @@ export class Var extends Val {
     return this.name.equals(name) ? val : this;
   }
 
-  substTVar(name: NameRep, type: ValType): Val {
+  substTVar(name: NameRep, type: Type): Val {
     return this;
   }
 
@@ -38,7 +38,7 @@ export class Abs extends Val {
 
   constructor(
     public readonly name: NameRep,
-    public readonly type: ValType | null,
+    public readonly type: Type | null,
     public readonly body: Comp,
   ) { super() }
 
@@ -53,15 +53,15 @@ export class Abs extends Val {
     return this.body.subst(this.name, val);
   }
 
-  substTVar(name: NameRep, type: ValType): Val {
+  substTVar(name: NameRep, type: Type): Val {
     return new Abs(this.name, this.type && this.type.substTVar(name, type), this.body.substTVar(name, type));
   }
 
 }
 export const abs = (name: NameRep, body: Comp) => new Abs(name, null, body);
-export const absty = (name: NameRep, type: ValType, body: Comp) => new Abs(name, type, body);
+export const absty = (name: NameRep, type: Type, body: Comp) => new Abs(name, type, body);
 export const abss = (ns: NameRep[], body: Comp) => ns.reduceRight((b, n) => ret(abs(n, b)), body);
-export const abstys = (ns: [NameRep, ValType][], body: Comp) => ns.reduceRight((b, [n, t]) => ret(absty(n, t, b)), body);
+export const abstys = (ns: [NameRep, Type][], body: Comp) => ns.reduceRight((b, [n, t]) => ret(absty(n, t, b)), body);
 export const isAbs = (expr: Expr): expr is Abs => expr instanceof Abs;
 
 export class AbsT extends Val {
@@ -80,10 +80,10 @@ export class AbsT extends Val {
     return new AbsT(this.name, this.kind, this.body.subst(name, val));
   }
 
-  substTVar(name: NameRep, type: ValType): Val {
+  substTVar(name: NameRep, type: Type): Val {
     return this.name.equals(name) ? this : new AbsT(this.name, this.kind, this.body.substTVar(name, type));
   }
-  openTVar(val: ValType): Expr {
+  openTVar(val: Type): Expr {
     return this.body.substTVar(this.name, val);
   }
 
@@ -96,7 +96,7 @@ export class Anno extends Val {
 
   constructor(
     public readonly expr: Val,
-    public readonly type: ValType,
+    public readonly type: Type,
   ) { super() }
 
   toString() {
@@ -107,10 +107,10 @@ export class Anno extends Val {
     return new Anno(this.expr.subst(name, val), this.type);
   }
 
-  substTVar(name: NameRep, type: ValType): Val {
+  substTVar(name: NameRep, type: Type): Val {
     return new Anno(this.expr.substTVar(name, type), this.type.substTVar(name, type));
   }
 
 }
-export const anno = (expr: Val, type: ValType) => new Anno(expr, type);
+export const anno = (expr: Val, type: Type) => new Anno(expr, type);
 export const isAnno = (expr: Expr): expr is Anno => expr instanceof Anno;

@@ -1,14 +1,14 @@
 import Expr from './exprs';
 import { Val } from './values';
 import NameRep from '../NameRep';
-import { ValType } from './types';
+import Type from './types';
 
 export abstract class Comp extends Expr {
   private readonly _type = 'Comp';
 
   abstract subst(name: NameRep, val: Val): Comp;
   
-  abstract substTVar(name: NameRep, type: ValType): Comp;
+  abstract substTVar(name: NameRep, type: Type): Comp;
 }
 
 export class Return extends Comp {
@@ -25,7 +25,7 @@ export class Return extends Comp {
     return new Return(this.val.subst(name, val));
   }
 
-  substTVar(name: NameRep, type: ValType): Comp {
+  substTVar(name: NameRep, type: Type): Comp {
     return new Return(this.val.substTVar(name, type));
   }
 
@@ -48,7 +48,7 @@ export class App extends Comp {
     return new App(this.left.subst(name, val), this.right.subst(name, val));
   }
 
-  substTVar(name: NameRep, type: ValType): Comp {
+  substTVar(name: NameRep, type: Type): Comp {
     return new App(this.left.substTVar(name, type), this.right.substTVar(name, type));
   }
 
@@ -62,7 +62,7 @@ export class AppT extends Comp {
 
   constructor(
     public readonly left: Val,
-    public readonly right: ValType,
+    public readonly right: Type,
   ) { super() }
 
   toString() {
@@ -73,12 +73,12 @@ export class AppT extends Comp {
     return new AppT(this.left.subst(name, val), this.right);
   }
 
-  substTVar(name: NameRep, type: ValType): Comp {
+  substTVar(name: NameRep, type: Type): Comp {
     return new AppT(this.left.substTVar(name, type), this.right.substTVar(name, type));
   }
 
 }
-export const appT = (left: Val, right: ValType) => new AppT(left, right);
+export const appT = (left: Val, right: Type) => new AppT(left, right);
 // export const appTs = (left: Expr, ts: Type[]) => ts.reduce(appT, left);
 export const isAppT = (expr: Expr): expr is AppT => expr instanceof AppT;
 
@@ -103,7 +103,7 @@ export class Let extends Comp {
     return this.body.subst(this.name, val);
   }
 
-  substTVar(name: NameRep, type: ValType): Comp {
+  substTVar(name: NameRep, type: Type): Comp {
     return new Let(this.name, this.expr.substTVar(name, type), this.body.substTVar(name, type));
   }
 

@@ -3,7 +3,7 @@ import NameSupply from '../NameSupply';
 import Context from './context';
 import NameRep, { name } from '../NameRep';
 import Elem, { cmarker, isCMarker, isCTMeta, CKVar, CTVar, CTMeta, CVar, CMarker, isCVar, isCKVar, isCTVar } from './elems';
-import Type, { isTVar, isTMeta, isTComp, isTApp, isTForall, tforall, tcomp, tapp, ValType, TComp } from './types';
+import Type, { isTVar, isTMeta, isTApp, isTForall, tforall, tapp, isTEffsExtend, isTEffsEmpty, teffsextend, isTFun, tfun } from './types';
 import { impossible } from '../utils';
 
 export default class TC<T> {
@@ -167,14 +167,21 @@ export const apply = (type: Type): TC<Type> => {
       e => e.type ? apply(e.type): pure<Type>(type),
       () => pure(type)
     ));
-  if (isTComp(type))
-    return apply(type.type)
-      .map(left => tcomp(left as ValType));
   if (isTApp(type))
     return apply(type.left)
       .chain(left => apply(type.right)
-      .map(right => tapp(left as ValType, right as ValType)));
+      .map(right => tapp(left, right)));
+  if (isTFun(type))
+    return apply(type.left)
+      .chain(left => apply(type.eff)
+      .chain(eff => apply(type.right)
+      .map(right => tfun(left, eff, right))));
   if (isTForall(type))
-    return apply(type.type).map(body => tforall(type.name, type.kind, body as TComp));
+    return apply(type.type).map(body => tforall(type.name, type.kind, body));
+  if (isTEffsExtend(type))
+    return apply(type.type)
+      .chain(left => apply(type.rest)
+      .map(right => teffsextend(left, right)));
+  if (isTEffsEmpty(type)) return pure(type);
   return impossible();
 }

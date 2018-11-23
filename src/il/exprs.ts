@@ -1,4 +1,4 @@
-import { ValType } from './types';
+import Type from './types';
 import NameRep from '../NameRep';
 
 export default abstract class Expr {
@@ -7,6 +7,6 @@ export default abstract class Expr {
 
   abstract subst(name: NameRep, val: Expr): Expr;
   
-  abstract substTVar(name: NameRep, type: ValType): Expr;
+  abstract substTVar(name: NameRep, type: Type): Expr;
 
 }

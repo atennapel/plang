@@ -1,5 +1,5 @@
 import Kind from './kinds';
-import { ValType } from './types';
+import Type from './types';
 import NameRep from '../NameRep';
 
 export default abstract class Elem {
@@ -44,20 +44,20 @@ export class CTMeta extends Elem {
   constructor(
     public readonly name: NameRep,
     public readonly kind: Kind,
-    public readonly type: ValType | null,
+    public readonly type: Type | null,
   ) { super() }
 
   toString() {
     return this.type ? `^${this.name} :k ${this.kind} = ${this.type}` : `^${this.name} :k ${this.kind}`;
   }
 
-  solve(type: ValType) {
+  solve(type: Type) {
     return new CTMeta(this.name, this.kind, type);
   }
 
 }
 export const ctmeta = (name: NameRep, kind: Kind) => new CTMeta(name, kind, null);
-export const csolved = (name: NameRep, kind: Kind, type: ValType) => new CTMeta(name, kind, type);
+export const csolved = (name: NameRep, kind: Kind, type: Type) => new CTMeta(name, kind, type);
 export const isCTMeta = (name: NameRep) =>
   (e: Elem): e is CTMeta => e instanceof CTMeta && e.name.equals(name);
 
@@ -80,7 +80,7 @@ export class CVar extends Elem {
 
   constructor(
     public readonly name: NameRep,
-    public readonly type: ValType,
+    public readonly type: Type,
   ) { super() }
 
   toString() {
@@ -88,6 +88,6 @@ export class CVar extends Elem {
   }
 
 }
-export const cvar = (name: NameRep, type: ValType) => new CVar(name, type);
+export const cvar = (name: NameRep, type: Type) => new CVar(name, type);
 export const isCVar = (name: NameRep) =>
   (e: Elem): e is CVar => e instanceof CVar && e.name.equals(name);
