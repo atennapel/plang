@@ -1,10 +1,10 @@
 import TC, { log, ok, error, check, freshName, withElems, apply, findTMeta, pop, updateCtx, iff, ordered, freshNames, replace, pure } from './TC';
 import { wfType, checkKind } from './wf';
-import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp } from './types';
+import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun } from './types';
 import Elem, { ctvar, ctmeta, isCTMeta, csolved } from './elems';
 import NameRep, { name } from '../NameRep';
 import Context from './context';
-import { kEffs } from './kinds';
+import { kEffs, kType, kEff } from './kinds';
 
 export const rewriteEffs = (head: Type, type: Type, msg: string): TC<TEffsExtend> =>
   log(`rewriteEffs ${head} in ${type}`).chain(() => {
@@ -37,18 +37,19 @@ const instUnify = (a: NameRep, b: Type): TC<void> =>
   log(`instUnify ${a} := ${b}`).then(
     isTMeta(b) ? iff(ordered(a, b.name), solveUnify(b.name, tmeta(a)), solveUnify(a, b)) :
       solveUnify(a, b).catch(err => log(`solveUnify failed: ${err}`).chain(() => {
-        const fun = matchTFun(b);
-        if (fun)
-          return freshNames([a, a])
-            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kcomp(kType)), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a2)))])
-            .then(instUnify(a1, fun.left))
-            .then(apply(fun.right))
+        if (isTFun(b))
+          return freshNames([a, a, a])
+            .chain(([a1, a2, a3]) => replace(isCTMeta(a), [ctmeta(a2, kType), ctmeta(a3, kEffs), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a3), tmeta(a2)))])
+            .then(instUnify(a1, b.left))
+            .then(apply(b.eff))
+            .chain(eff => instUnify(a3, eff))
+            .then(apply(b.right))
             .chain(type => instUnify(a2, type)));
         if (isTForall(b))
           return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instUnify(a, b.open(tvar(x)))));
         if (isTEffsExtend(b))
           return freshNames([a, a])
-            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kEff), csolved(a, kRow, teffsextend(tmeta(a1), tmeta(a2)))])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kEff), csolved(a, kEffs, teffsextend(tmeta(a1), tmeta(a2)))])
             .then(instUnify(a1, b.type))
             .then(apply(b.rest))
             .chain(type => instUnify(a2, type)));
@@ -62,6 +63,15 @@ export const unify = (a: Type, b: Type): TC<void> =>
         if (isTVar(a) && isTVar(b) && a.name.equals(b.name)) return ok;
         if (isTMeta(a) && isTMeta(b) && a.name.equals(b.name)) return ok;
         if (isTEffsEmpty(a) && isTEffsEmpty(b)) return ok;
+
+        if (isTFun(a) && isTFun(b))
+          return unify(a.left, b.left)
+            .then(apply(a.eff))
+            .chain(taeff => apply(b.eff)
+            .chain(tbeff => unify(taeff, tbeff)
+            .then(apply(a.right)
+            .chain(ta => apply(b.right)
+            .chain(tb => unify(ta, tb))))));
 
         if (isTApp(a) && isTApp(b))
           return unify(a.left, b.left)
