@@ -303,6 +303,8 @@ export class TEffsExtend extends Type {
 
 }
 export const teffsextend = (type: Type, rest: Type) => new TEffsExtend(type, rest);
+export const teffsFrom = (ts: Type[], rest?: Type) => ts.reduceRight((a, b) => teffsextend(b, a), rest || teffsempty());
+export const teffs = (...ts: Type[]) => teffsFrom(ts);
 export const isTEffsExtend = (type: Type): type is TEffsExtend => type instanceof TEffsExtend;
 export const flattenEffs = (row: Type): { types: Type[], rest: Type } => {
   if (isTEffsExtend(row)) {

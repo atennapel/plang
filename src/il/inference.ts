@@ -37,12 +37,14 @@ const generalize = (action: TC<Type>): TC<Type> =>
     .chain(m => updateCtx(Context.add(cmarker(m)))
     .then(action
     .chain(apply)
+    .chain(ty => log(`gen: ${ty}`).map(() => ty)
     .chain(ty => pop(isCMarker(m))
     .map(right => {
       const u = orderedUnsolved(right, ty);
       return tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, tvar(n)), ty));
     }))))
-    .chain(apply);
+    .chain(apply))
+    .chain(ty => log(`gen done: ${ty}`).map(() => ty));
 
 const synthVal = (expr: Val): TC<Type> =>
   log(`synthVal ${expr}`).chain(() => {
@@ -53,16 +55,16 @@ const synthVal = (expr: Val): TC<Type> =>
         return wfType(type)
           .chain(k => checkKind(kType, k, `abstraction argument ${expr}`))
           .then(generalize(
-            freshNames([expr.name, expr.name, expr.name])
+            freshNames([expr.name, name('t'), name('e')])
             .chain(([x, b, e]) => updateCtx(Context.add(ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, type)))
             .then(checkComp(expr.open(vr(x)), tmeta(b), tmeta(e)))
             .map(() => tfun(type, tmeta(e), tmeta(b))))))
       else
         return generalize(
-          freshNames([expr.name, expr.name, expr.name, expr.name])
+          freshNames([expr.name, expr.name, name('t'), name('e')])
           .chain(([x, a, b, e]) => updateCtx(Context.add(ctmeta(a, kType), ctmeta(e, kEffs), ctmeta(b, kType), cvar(x, tmeta(a))))
           .then(checkComp(expr.open(vr(x)), tmeta(b), tmeta(e)))
-          .map(() => tfun(tmeta(a), tmeta(b), tmeta(e)))));
+          .map(() => tfun(tmeta(a), tmeta(e), tmeta(b)))));
     }
     if (isAbsT(expr))
       return wfKind(expr.kind)
@@ -76,7 +78,9 @@ const synthVal = (expr: Val): TC<Type> =>
         .then(checkVal(expr.expr, expr.type)).map(() => expr.type);
 
     return error(`cannot synthVal ${expr}`);
-  }).chain(apply);
+  })
+  .chain(apply)
+  .chain(ty => log(`synthVal done ${expr} : ${ty}`).map(() => ty));
 
 const synthComp = (expr: Comp): TC<SynthResult> =>
   log(`synthComp ${expr}`).chain<SynthResult>(() => {
@@ -102,7 +106,9 @@ const synthComp = (expr: Comp): TC<SynthResult> =>
         .map(() => ({ type: ty2, eff: ef2 }))))));
 
     return error(`cannot synthComp ${expr}`);
-  }).chain(applySynthResult);
+  })
+  .chain(applySynthResult)
+  .chain(({ type, eff }) => log(`synthComp done ${expr} : ${type}!${eff}`).map(() => ({ type, eff })));
 
 const checkVal = (expr: Val, type: Type): TC<void> =>
   log(`checkVal ${expr} : ${type}`).chain(() => {
@@ -122,8 +128,9 @@ const checkComp = (expr: Comp, type: Type, eff: Type): TC<void> =>
       return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkComp(expr, type.open(tvar(x)), eff)));
     if (isLet(expr))
       return synthComp(expr.expr)
-        .chain(({ type: ty, eff: ef }) => freshName(expr.name)
-        .chain(x => withElems([cvar(x, ty)], checkComp(expr.open(vr(x)), type, ef))));
+        .chain(({ type: ty, eff: ef }) => subsume(ef, eff)
+        .then(freshName(expr.name)
+        .chain(x => withElems([cvar(x, ty)], checkComp(expr.open(vr(x)), type, eff)))));
     return synthComp(expr)
       .chain(({ type: ty, eff: ef }) => apply(ty)
       .chain(ty => apply(ef)
@@ -149,10 +156,15 @@ const synthapp = (type: Type, expr: Val): TC<SynthResult> =>
         .map(() => ({ type: tmeta(a2), eff: tmeta(a3) })))));
     if (isTFun(type)) return checkVal(expr, type.left).map(() => ({ type: type.right, eff: type.eff }));
     return error(`cannot synthapp ${type} @ ${expr}`);
-  }).chain(applySynthResult);
+  })
+  .chain(applySynthResult)
+  .chain(({ type: ty, eff }) => log(`synthapp done ${type} @ ${expr} => ${ty}!${eff}`).map(() => ({ type: ty, eff })));
 
-const synthgen = (expr: Comp): TC<Type> =>
-  synthComp(expr).map(({ type }) => type);
+const synthgenVal = (expr: Val): TC<Type> =>
+  generalize(synthVal(expr))
+    .chain(ty => wfType(ty)
+    .chain(k => checkKind(kType, k, `synthgenVal of ${ty}`)
+    .map(() => ty)));
 
-export const infer = (ctx: Context, expr: Comp): Either<string, Type> =>
-  synthgen(expr).run(ctx, new NameRepSupply(0)).val;
+export const inferVal = (ctx: Context, expr: Val): Either<string, Type> =>
+  synthgenVal(expr).run(ctx, new NameRepSupply(0)).val;
