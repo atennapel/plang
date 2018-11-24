@@ -168,5 +168,13 @@ export const synthgenVal = (expr: Val): TC<Type> =>
     .chain(k => checkKind(kType, k, `synthgenVal of ${ty}`)
     .map(() => ty)));
 
+export const synthgenComp = (expr: Comp): TC<SynthResult> =>
+  synthComp(expr)
+    .chain(({ type, eff }) => wfType(type)
+    .chain(k => checkKind(kType, k, `synthgenComp of ${type}`)
+    .then(wfType(eff)
+    .chain(k => checkKind(kEffs, k, `synthgenComp of ${eff}`)
+    .map(() => ({ type, eff }))))));
+
 export const inferVal = (ctx: Context, expr: Val): Either<string, Type> =>
   synthgenVal(expr).run(ctx, new NameRepSupply(0)).val;
