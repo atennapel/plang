@@ -18,3 +18,20 @@ export const containsDuplicate = <A extends { equals: (other: A) => boolean }>(a
   }
   return false;
 };
+
+export const any = <T>(arr: T[], fn: (val: T) => boolean): boolean => {
+  for (let i = 0; i < arr.length; i++) {
+    const c = arr[i];
+    if (fn(c)) return true;
+  }
+  return false;
+};
+
+export const remove = <T>(arr: T[], fn: (val: T) => boolean): T[] => {
+  const ret: T[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const c = arr[i];
+    if (!fn(c)) ret.push(c);
+  }
+  return ret;
+};

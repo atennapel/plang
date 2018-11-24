@@ -1,5 +1,5 @@
 import TC, { error, log, apply, findVar, freshName, withElems, updateCtx, freshNames, pop, findTMeta, replace, ok, check } from './TC';
-import Type, { teffsempty, tvar, tforall, isTForall, tmeta, tfun, tforalls, isTFun, isTMeta } from './types';
+import Type, { teffsempty, tvar, tforall, isTForall, tmeta, tfun, tforalls, isTFun, isTMeta, TFun, TForall } from './types';
 import { Val, isVar, isAbs, isAbsT, vr, isAnno } from './values';
 import { Comp, isReturn, isApp, isAppT, isLet } from './computations';
 import Either from '../Either';
@@ -11,7 +11,7 @@ import Elem, { ctvar, cvar, ctmeta, CTMeta, cmarker, isCMarker, isCTMeta } from 
 import Kind, { kType, kEffs } from './kinds';
 import NameRep, { name } from '../NameRep';
 import { assocGet } from '../utils';
-import { unify, openEffs } from './unification';
+import { unify, openEffs, closeTFun } from './unification';
 import { isTEffsEmpty } from '../backup/types';
 
 type SynthResult = { type: Type, eff: Type };
@@ -43,8 +43,9 @@ const generalize = (action: TC<Type>): TC<Type> =>
       const u = orderedUnsolved(right, ty);
       return tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, tvar(n)), ty));
     }))))
-    .chain(apply))
-    .chain(ty => log(`gen done: ${ty}`).map(() => ty));
+    .chain(apply)
+    .map(closeTFun)
+    .chain(ty => log(`gen done: ${ty}`).map(() => ty)));
 
 const synthVal = (expr: Val): TC<Type> =>
   log(`synthVal ${expr}`).chain(() => {

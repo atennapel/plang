@@ -1,10 +1,29 @@
 import TC, { log, ok, error, check, freshName, withElems, apply, findTMeta, pop, updateCtx, iff, ordered, freshNames, replace, pure } from './TC';
 import { wfType, checkKind } from './wf';
-import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun } from './types';
+import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls } from './types';
 import Elem, { ctvar, ctmeta, isCTMeta, csolved } from './elems';
 import NameRep, { name } from '../NameRep';
 import Context from './context';
 import { kEffs, kType, kEff } from './kinds';
+import { any, remove } from '../utils';
+
+export const closeTFun = (type: Type): Type => {
+  if (!isTForall(type)) return type;
+  const f = flattenTForall(type);
+  const body = f.type;
+  if (!isTFun(body)) return type;
+  const eff = body.eff;
+  const feff = flattenEffs(eff);
+  const tv = feff.rest;
+  if (!isTVar(tv)) return type;
+  const name = tv.name;
+  if (body.left.containsTVar(name)) return type;
+  if (body.right.containsTVar(name)) return type;
+  if (any(feff.types, t => t.containsTVar(name))) return type;
+  const neff = teffsFrom(feff.types);
+  const args = remove(f.ns, ([n, k]) => name.equals(n));
+  return tforalls(args, tfun(body.left, neff, body.right));
+};
 
 export const openEffs = (type: Type): TC<Type> =>
   log(`openEffs ${type}`).chain(() => {

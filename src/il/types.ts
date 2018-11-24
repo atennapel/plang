@@ -11,6 +11,7 @@ export default abstract class Type {
   abstract substTMeta(name: NameRep, type: Type): Type;
 
   abstract containsTMeta(name: NameRep): boolean;
+  abstract containsTVar(name: NameRep): boolean;
 
   abstract freeTMeta(): NameRep[];
 
@@ -41,6 +42,9 @@ export class TVar extends Type {
 
   containsTMeta(name: NameRep): boolean {
     return false;
+  }
+  containsTVar(name: NameRep): boolean {
+    return this.name.equals(name);
   }
 
   freeTMeta(): NameRep[] {
@@ -78,6 +82,9 @@ export class TMeta extends Type {
 
   containsTMeta(name: NameRep): boolean {
     return this.name.equals(name);
+  }
+  containsTVar(name: NameRep): boolean {
+    return false;
   }
 
   freeTMeta(): NameRep[] {
@@ -119,6 +126,9 @@ export class TApp extends Type {
 
   containsTMeta(name: NameRep): boolean {
     return this.left.containsTMeta(name) || this.right.containsTMeta(name);
+  }
+  containsTVar(name: NameRep): boolean {
+    return this.left.containsTVar(name) || this.right.containsTVar(name);
   }
 
   freeTMeta(): NameRep[] {
@@ -169,6 +179,9 @@ export class TFun extends Type {
   containsTMeta(name: NameRep): boolean {
     return this.left.containsTMeta(name) || this.eff.containsTMeta(name) || this.right.containsTMeta(name);
   }
+  containsTVar(name: NameRep): boolean {
+    return this.left.containsTVar(name) || this.eff.containsTVar(name) || this.right.containsTVar(name);
+  }
 
   freeTMeta(): NameRep[] {
     return this.left.freeTMeta().concat(this.eff.freeTMeta()).concat(this.right.freeTMeta());
@@ -214,6 +227,9 @@ export class TForall extends Type {
   containsTMeta(name: NameRep): boolean {
     return this.type.containsTMeta(name);
   }
+  containsTVar(name: NameRep): boolean {
+    return this.name.equals(name) ? false : this.type.containsTVar(name);
+  }
 
   freeTMeta(): NameRep[] {
     return this.type.freeTMeta();
@@ -229,6 +245,13 @@ export const tforall = (name: NameRep, kind: Kind, type: Type) =>
 export const tforalls = (ns: [NameRep, Kind][], type: Type) =>
   ns.reduceRight((t, [n, k]) => tforall(n, k, t), type);
 export const isTForall = (type: Type): type is TForall => type instanceof TForall;
+export const flattenTForall = (type: Type): { ns: [NameRep, Kind][], type: Type } => {
+  if (isTForall(type)) {
+    const rec = flattenTForall(type.type);
+    return { ns: [[type.name, type.kind] as [NameRep, Kind]].concat(rec.ns), type: rec.type };
+  }
+  return { ns: [], type };
+};
 
 export class TEffsEmpty extends Type {
 
@@ -251,6 +274,9 @@ export class TEffsEmpty extends Type {
   }
 
   containsTMeta(name: NameRep): boolean {
+    return false;
+  }
+  containsTVar(name: NameRep): boolean {
     return false;
   }
 
@@ -291,6 +317,9 @@ export class TEffsExtend extends Type {
 
   containsTMeta(name: NameRep): boolean {
     return this.type.containsTMeta(name) || this.rest.containsTMeta(name);
+  }
+  containsTVar(name: NameRep): boolean {
+    return this.type.containsTVar(name) || this.rest.containsTVar(name);
   }
 
   freeTMeta(): NameRep[] {
