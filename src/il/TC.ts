@@ -41,6 +41,9 @@ export default class TC<T> {
   chain2<A, B>(fn: (a: T, b: A) => TC<B>, that: TC<A>): TC<B> {
     return this.chain(a => that.chain(b => fn(a, b)));
   }
+  chain3<A, B, C>(fn: (a: T, b: A, c: B) => TC<C>, that: TC<A>, that2: TC<B>): TC<C> {
+    return this.chain(a => that.chain(b => that2.chain(c => fn(a, b, c))));
+  }
 
   ap<R>(fn: TC<(val: T) => R>) {
     return this.chain(val => fn.map(fn => fn(val)));

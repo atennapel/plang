@@ -1,7 +1,7 @@
 import TC, { error, log, apply, findVar, freshName, withElems, updateCtx, freshNames, pop, findTMeta, replace, ok, check } from './TC';
 import Type, { teffsempty, tvar, tforall, isTForall, tmeta, tfun, tforalls, isTFun, isTMeta, TFun, TForall } from './types';
-import { Val, isVar, isAbs, isAbsT, vr, isAnno } from './values';
-import { Comp, isReturn, isApp, isAppT, isLet } from './computations';
+import Val, { isVar, isAbs, isAbsT, vr, isAnno } from './values';
+import Comp, { isReturn, isApp, isAppT, isLet } from './computations';
 import Either from '../Either';
 import Context from './context';
 import NameRepSupply from '../NameSupply';
@@ -162,7 +162,7 @@ const synthapp = (type: Type, expr: Val): TC<SynthResult> =>
   .chain(applySynthResult)
   .chain(({ type: ty, eff }) => log(`synthapp done ${type} @ ${expr} => ${ty}!${eff}`).map(() => ({ type: ty, eff })));
 
-const synthgenVal = (expr: Val): TC<Type> =>
+export const synthgenVal = (expr: Val): TC<Type> =>
   generalize(synthVal(expr))
     .chain(ty => wfType(ty)
     .chain(k => checkKind(kType, k, `synthgenVal of ${ty}`)

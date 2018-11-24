@@ -1,12 +1,14 @@
-import { inferVal } from "./il/inference";
-import { abs, vr } from "./il/values";
-import { ret, app, lt } from "./il/computations";
+import { inferVal, synthgenVal } from "./il/inference";
 import { ctvar, cvar } from "./il/elems";
 import { kType, kEff } from "./il/kinds";
 import initialContext from "./il/initial";
-import { tvar, teffsextend, teffs, tfun } from "./il/types";
+import { tvar, teffsextend, teffs, tfun, tfuns } from "./il/types";
 import { name } from "./NameRep";
 import { teffsempty } from "./backup/types";
+import { abs, lt, app, vr, apps, abss } from "./surface/exprs";
+import { exprToValIL } from "./surface/surface";
+import { log } from "./il/TC";
+import NameRepSupply from "./NameSupply";
 
 /*
 TODO:
@@ -36,6 +38,7 @@ const Flip = name('Flip');
 const Flip2 = name('Flip2');
 const flip = name('flip');
 const flip2 = name('flip2');
+const add = name('add');
 
 const ctx = initialContext.add(
   //ctvar(Void, kType),
@@ -59,8 +62,13 @@ const ctx = initialContext.add(
 
   cvar(flip, tfun(tv(Unit), teffs(tv(Flip)), tv(Unit))),
   cvar(flip2, tfun(tv(Unit), teffs(tv(Flip2)), tv(Unit))),
+
+  cvar(add, tfuns(tv(Unit), tv(Unit), tv(Unit))),
 );
 
-const expr = abs(x, lt(y, app(vr(flip), vr(Unit)), app(vr(flip2), vr(Unit))));
+const expr = abss(['x', 'y'], vr('x'));
 console.log('' + expr);
-console.log('' + inferVal(ctx, expr));
+const prog = exprToValIL(expr)
+  .chain(v => log(`${v}`)
+  .then(synthgenVal(v)));
+console.log('' + prog.run(ctx, new NameRepSupply(0)).val);

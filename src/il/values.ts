@@ -1,10 +1,10 @@
 import Expr from './exprs';
 import NameRep from '../NameRep';
 import Type from './types';
-import { Comp, ret } from './computations';
+import Comp, { ret } from './computations';
 import Kind from './kinds';
 
-export abstract class Val extends Expr {
+export default abstract class Val extends Expr {
   private readonly _type = 'Val';
 
   abstract subst(name: NameRep, val: Val): Val;
