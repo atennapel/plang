@@ -1,6 +1,6 @@
 import TC, { log, ok, error, check, freshName, withElems, apply, findTMeta, pop, updateCtx, iff, ordered, freshNames, replace, pure } from './TC';
 import { wfType, checkKind } from './wf';
-import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls } from './types';
+import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls, teffsempty } from './types';
 import Elem, { ctvar, ctmeta, isCTMeta, csolved } from './elems';
 import NameRep, { name } from '../NameRep';
 import Context from './context';
@@ -24,6 +24,17 @@ export const closeTFun = (type: Type): Type => {
   const args = remove(f.ns, ([n, k]) => name.equals(n));
   return tforalls(args, tfun(body.left, neff, body.right));
 };
+
+export const closeEffs = (type: Type): TC<Type> =>
+  log(`closeEffs ${type}`).chain(() => {
+    if (isTEffsExtend(type))
+      return closeEffs(type.rest).map(rest => teffsextend(type.type, rest));
+    if (isTMeta(type))
+      return TC.of(teffsempty());
+    if (isTEffsEmpty(type))
+      return TC.of(type);
+    return error(`unexpected type in openEffs ${type}`);
+  });
 
 export const openEffs = (type: Type): TC<Type> =>
   log(`openEffs ${type}`).chain(() => {

@@ -23,6 +23,7 @@ TODO:
   - row polymorphism (records/variants)
   - pretty printing kinds/types/expressions
 BUGS:
+  - {} (flip ())
   - [ :x (flip ()) x ]
   - [ (flip ()) (fail ()) ]
 */
@@ -54,7 +55,7 @@ const ctx = initialContext.add(
   ctvar(Unit, kType),
   cvar(Unit, tv(Unit)),
 
-  //ctvar(Bool, kType),
+  ctvar(Bool, kType),
   //cvar(True, tv(Bool)),
   //cvar(False, tv(Bool)),
 
@@ -65,12 +66,12 @@ const ctx = initialContext.add(
 
   //cvar(recX, tapp(tRec, trowextend(y, tvar(Unit), trowextend(x, tvar(Bool), trowempty())))),
 
-  cvar(flip, tfun(tv(Unit), teffs(tv(Flip)), tv(Unit))),
+  cvar(flip, tfun(tv(Unit), teffs(tv(Flip)), tv(Bool))),
 
   cvar(add, tfuns(tv(Unit), tv(Unit), tv(Unit))),
 );
 
-const expr = '[:x (flip ()) :y (flip ()) x]';
+const expr = '[ :x (flip ()) x ]';
 console.log('' + expr);
 const p = parse(expr);
 console.log(''+p);

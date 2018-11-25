@@ -11,7 +11,7 @@ import Elem, { ctvar, cvar, ctmeta, CTMeta, cmarker, isCMarker, isCTMeta } from 
 import Kind, { kType, kEffs } from './kinds';
 import NameRep, { name } from '../NameRep';
 import { assocGet } from '../utils';
-import { unify, openEffs, closeTFun } from './unification';
+import { unify, openEffs, closeTFun, closeEffs } from './unification';
 import { isTEffsEmpty } from '../backup/types';
 
 type SynthResult = { type: Type, eff: Type };
@@ -103,8 +103,10 @@ const synthComp = (expr: Comp): TC<SynthResult> =>
       return synthComp(expr.expr)
         .chain(({ type: ty, eff: ef }) => freshName(expr.name)
         .chain(x => withElems([cvar(x, ty)], synthComp(expr.open(vr(x)))
-        .chain(({ type: ty2, eff: ef2 }) => openEffs(ef).chain2(unify, openEffs(ef2))
-        .map(() => ({ type: ty2, eff: ef2 }))))));
+        .chain(({ type: ty2, eff: ef2 }) => openEffs(ef2)
+        .chain(ef2open => openEffs(ef).chain2(unify, TC.of(ef2open))
+        .then(apply(ef2open).chain(closeEffs)
+        .map(ef2open => ({ type: ty2, eff: ef2open }))))))));
 
     return error(`cannot synthComp ${expr}`);
   })

@@ -969,8 +969,10 @@ const synthComp = (expr) => TC_1.log(`synthComp ${expr}`).chain(() => {
         return synthComp(expr.expr)
             .chain(({ type: ty, eff: ef }) => TC_1.freshName(expr.name)
             .chain(x => TC_1.withElems([elems_1.cvar(x, ty)], synthComp(expr.open(values_1.vr(x)))
-            .chain(({ type: ty2, eff: ef2 }) => unification_1.openEffs(ef).chain2(unification_1.unify, unification_1.openEffs(ef2))
-            .map(() => ({ type: ty2, eff: ef2 }))))));
+            .chain(({ type: ty2, eff: ef2 }) => unification_1.openEffs(ef2)
+            .chain(ef2open => unification_1.openEffs(ef).chain2(unification_1.unify, TC_1.default.of(ef2open))
+            .then(TC_1.apply(ef2open).chain(unification_1.closeEffs)
+            .map(ef2open => ({ type: ty2, eff: ef2open }))))))));
     return TC_1.error(`cannot synthComp ${expr}`);
 })
     .chain(applySynthResult)
@@ -1516,6 +1518,15 @@ exports.closeTFun = (type) => {
     const args = utils_1.remove(f.ns, ([n, k]) => name.equals(n));
     return types_1.tforalls(args, types_1.tfun(body.left, neff, body.right));
 };
+exports.closeEffs = (type) => TC_1.log(`closeEffs ${type}`).chain(() => {
+    if (types_1.isTEffsExtend(type))
+        return exports.closeEffs(type.rest).map(rest => types_1.teffsextend(type.type, rest));
+    if (types_1.isTMeta(type))
+        return TC_1.default.of(types_1.teffsempty());
+    if (types_1.isTEffsEmpty(type))
+        return TC_1.default.of(type);
+    return TC_1.error(`unexpected type in openEffs ${type}`);
+});
 exports.openEffs = (type) => TC_1.log(`openEffs ${type}`).chain(() => {
     if (types_1.isTEffsExtend(type))
         return exports.openEffs(type.rest).map(rest => types_1.teffsextend(type.type, rest));
