@@ -14,6 +14,8 @@ export default abstract class Either<E, T> {
   abstract map<R>(fn: (val: T) => R): Either<E, R>;
   abstract chain<R>(fn: (val: T) => Either<E, R>): Either<E, R>;
 
+  abstract throw(): T;
+
 }
 
 export class Left<E, T> extends Either<E, T> {
@@ -37,6 +39,10 @@ export class Left<E, T> extends Either<E, T> {
     return this as any;
   }
 
+  throw(): T {
+    throw this.error;
+  }
+
 }
 
 export class Right<E, T> extends Either<E, T> {
@@ -58,6 +64,10 @@ export class Right<E, T> extends Either<E, T> {
   }
   chain<R>(fn: (val: T) => Either<E, R>): Either<E, R> {
     return fn(this.val);
+  }
+
+  throw() {
+    return this.val;
   }
 
 } 

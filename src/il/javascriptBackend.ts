@@ -9,10 +9,10 @@ const compileToJS = (e: Expr): string => {
   if (isAbsT(e)) return compileToJS(e.body);
   if (isAnno(e)) return compileToJS(e.expr);
 
-  if (isReturn(e)) return compileToJS(e.val);
+  if (isReturn(e)) return `${compileToJS(e.val)}`;
   if (isApp(e)) return `${compileToJS(e.left)}(${compileToJS(e.right)})`;
   if (isAppT(e)) return compileToJS(e.left);
-  if (isLet(e)) return `(${e.name} => ${compileToJS(e.body)})(${compileToJS(e.expr)})`;
+  if (isLet(e)) return `_do(${compileToJS(e.expr)}, ${e.name} => ${compileToJS(e.body)})`;
 
   return impossible();
 };

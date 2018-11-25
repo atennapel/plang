@@ -18,11 +18,13 @@ import parse from "./surface/parser";
 
 /*
 TODO:
-  - algebraic effects
-  - find right position to open effs in inference
-  - row polymorphism (records/variants)
   - infer computation (how to generalize?)
-  - generalization in let?
+  - handlers types/syntax/typechecking
+  - row polymorphism (records/variants)
+  - pretty printing kinds/types/expressions
+BUGS:
+  - [ :x (flip ()) x ]
+  - [ (flip ()) (fail ()) ]
 */
 
 const tv = tvar;

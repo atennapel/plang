@@ -28,7 +28,7 @@ function tokenize(s: string): Token[] {
   for (let i = 0; i <= s.length; i++) {
     const c = s[i] || ' ';
     if (state === START) {
-      if (/[a-z\:]/i.test(c)) t += c, state = NAME;
+      if (/[a-z\:\_]/i.test(c)) t += c, state = NAME;
       else if(c === '(' || c === '{' || c === '[') b.push(c), p.push(r), r = [];
       else if(c === ')' || c === '}' || c === ']') {
         if(b.length === 0) throw new SyntaxError(`unmatched bracket: ${c}`);
@@ -40,7 +40,7 @@ function tokenize(s: string): Token[] {
       } else if(/\s+/.test(c)) continue;
       else throw new SyntaxError(`invalid char: ${c}`);
     } else if (state === NAME) {
-      if(!/[a-z0-9]/i.test(c)) r.push({ tag: 'name', val: t }), t = '', i--, state = START;
+      if(!/[a-z0-9\_]/i.test(c)) r.push({ tag: 'name', val: t }), t = '', i--, state = START;
       else t += c;
     }
   }
@@ -80,9 +80,9 @@ function exprs(r: Token[], br: Bracket = '['): Expr {
       if (r.length === 0) return abs('x', vr('x'));
       if (r.length === 1) return abs('_', expr(r[0]));
       const args = r[0];
-      if (args.tag !== 'list' || args.br !== '[') return abs('x', exprs(r));
+      if (args.tag !== 'list' || args.br !== '[') return abs('_', exprs(r, '('));
       if (any(args.val, a => a.tag !== 'name')) throw new SyntaxError(`invalid args: ${args.val.join(' ')}`);
-      return abss(args.val.map(a => a.tag === 'name' ? a.val : null).filter(Boolean) as string[], exprs(r.slice(1)));
+      return abss(args.val.map(a => a.tag === 'name' ? a.val : null).filter(Boolean) as string[], exprs(r.slice(1), '('));
   }
 }
 
@@ -94,5 +94,5 @@ function expr(r: Token): Expr {
 }
 
 export default function parse(s: string): Expr {
-  return exprs(tokenize(s));
+  return exprs(tokenize(s), '(');
 }
