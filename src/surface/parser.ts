@@ -1,4 +1,4 @@
-import Expr, { vr, apps, appFrom, lt, abs, abss, absty, lts } from './exprs';
+import Expr, { vr, apps, appFrom, lt, abs, abss, absty, lts, app } from './exprs';
 import { any } from '../utils';
 import { tvar } from './types';
 
@@ -40,7 +40,7 @@ function tokenize(s: string): Token[] {
       } else if(/\s+/.test(c)) continue;
       else throw new SyntaxError(`invalid char: ${c}`);
     } else if (state === NAME) {
-      if(!/[a-z0-9\_]/i.test(c)) r.push({ tag: 'name', val: t }), t = '', i--, state = START;
+      if(!/[a-z0-9\_\!]/i.test(c)) r.push({ tag: 'name', val: t }), t = '', i--, state = START;
       else t += c;
     }
   }
@@ -88,7 +88,7 @@ function exprs(r: Token[], br: Bracket = '['): Expr {
 
 function expr(r: Token): Expr {
   switch(r.tag) {
-    case 'name': return vr(r.val);
+    case 'name': return r.val[r.val.length - 1] === '!' ? app(vr(r.val.slice(0, -1)), vr('Unit')) : vr(r.val);
     case 'list': return exprs(r.val, r.br);
   }
 }

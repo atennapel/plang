@@ -971,7 +971,7 @@ const synthComp = (expr) => TC_1.log(`synthComp ${expr}`).chain(() => {
             .chain(x => TC_1.withElems([elems_1.cvar(x, ty)], synthComp(expr.open(values_1.vr(x)))
             .chain(({ type: ty2, eff: ef2 }) => unification_1.openEffs(ef2)
             .chain(ef2open => unification_1.openEffs(ef).chain2(unification_1.unify, TC_1.default.of(ef2open))
-            .then(TC_1.apply(ef2open)
+            .then(TC_1.apply(ef2open).chain(unification_1.closeEffs)
             .map(ef2open => ({ type: ty2, eff: ef2open }))))))));
     return TC_1.error(`cannot synthComp ${expr}`);
 })
@@ -2055,7 +2055,7 @@ function tokenize(s) {
                 throw new SyntaxError(`invalid char: ${c}`);
         }
         else if (state === NAME) {
-            if (!/[a-z0-9\_]/i.test(c))
+            if (!/[a-z0-9\_\!]/i.test(c))
                 r.push({ tag: 'name', val: t }), t = '', i--, state = START;
             else
                 t += c;
@@ -2113,7 +2113,7 @@ function exprs(r, br = '[') {
 }
 function expr(r) {
     switch (r.tag) {
-        case 'name': return exprs_1.vr(r.val);
+        case 'name': return r.val[r.val.length - 1] === '!' ? exprs_1.app(exprs_1.vr(r.val.slice(0, -1)), exprs_1.vr('Unit')) : exprs_1.vr(r.val);
         case 'list': return exprs(r.val, r.br);
     }
 }

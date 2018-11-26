@@ -105,7 +105,7 @@ const synthComp = (expr: Comp): TC<SynthResult> =>
         .chain(x => withElems([cvar(x, ty)], synthComp(expr.open(vr(x)))
         .chain(({ type: ty2, eff: ef2 }) => openEffs(ef2)
         .chain(ef2open => openEffs(ef).chain2(unify, TC.of(ef2open))
-        .then(apply(ef2open)
+        .then(apply(ef2open).chain(closeEffs)
         .map(ef2open => ({ type: ty2, eff: ef2open }))))))));
 
     return error(`cannot synthComp ${expr}`);
