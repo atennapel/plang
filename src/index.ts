@@ -23,9 +23,8 @@ TODO:
   - row polymorphism (records/variants)
   - pretty printing kinds/types/expressions
 BUGS:
-  - {} (flip ())
-  - [ :x (flip ()) x ]
-  - [ (flip ()) (fail ()) ]
+  - runState Z {[:x (get ()) (put (S x)) (get ())]}
+  - Cons Z (Cons Z Nil)
 */
 
 const tv = tvar;

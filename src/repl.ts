@@ -36,6 +36,12 @@ export const _context = initialContext.add(
   cvar(name('Just'), tforalls([[name('t'), kType]], tfuns(tvar(name('t')), tapps(tvar(name('Maybe')), tvar(name('t')))))),
   cvar(name('caseMaybe'), tforalls([[name('t'), kType], [name('r'), kType]],
     tfuns(tvar(name('r')), tfuns(tvar(name('t')), tvar(name('r'))), tapps(tvar(name('Maybe')), tvar(name('t'))), tvar(name('r'))))),
+  
+  ctvar(name('List'), kfuns(kType, kType)),
+  cvar(name('Nil'), tforalls([[name('t'), kType]], tapps(tvar(name('List')), tvar(name('t'))))),
+  cvar(name('Cons'), tforalls([[name('t'), kType]], tfuns(tvar(name('t')), tapps(tvar(name('List')), tvar(name('t'))), tapps(tvar(name('List')), tvar(name('t')))))),
+  cvar(name('caseList'), tforalls([[name('t'), kType], [name('r'), kType]],
+    tfuns(tvar(name('r')), tfuns(tvar(name('t')), tapps(tvar(name('List')), tvar(name('t'))), tvar(name('r'))), tapps(tvar(name('List')), tvar(name('t'))), tvar(name('r'))))),
 
   cvar(name('fix'), tforalls([[name('t'), kType]], tfuns(tfuns(tvar(name('t')), tvar(name('t'))), tvar(name('t'))))),
 
@@ -56,13 +62,27 @@ export const _context = initialContext.add(
       tvar(name('e')),
       tapps(tvar(name('Maybe')), tvar(name('t'))),
     ))),
+
+  ctvar(name('State'), kEff),
+  cvar(name('get'), tforalls([[name('t'), kType]], tfun(tvar(name('Unit')), teffs(tvar(name('State'))), tvar(name('Nat'))))),
+  cvar(name('put'), tforalls([[name('t'), kType]], tfun(tvar(name('Nat')), teffs(tvar(name('State'))), tvar(name('Unit'))))),
+  cvar(name('runState'), tforalls([[name('e'), kEffs], [name('t'), kType]],
+    tfuns(
+      tvar(name('Nat')),
+      tfun(
+        tfun(tvar(name('Unit')), teffsFrom([tvar(name('State'))], tvar(name('e'))), tvar(name('t'))),
+        tvar(name('e')),
+        tvar(name('t')),
+      )))),
 );
 
 function _show(x: any): string {
   if (typeof x === 'string') return JSON.stringify(x);
   if (typeof x === 'function') return '[Function]';
   if (typeof x._tag === 'string')
-    return typeof x.val === 'undefined' ? x._tag : `(${x._tag} ${_show(x.val)})`;
+    return typeof x.val === 'undefined' ? x._tag :
+    Array.isArray(x.val) ? `(${x._tag} ${x.val.map(_show).join(' ')})` :
+    `(${x._tag} ${_show(x.val)})`;
   if (x._cont) return `(${x.op}(${_show(x.val)}))`;
   return '' + x;
 }

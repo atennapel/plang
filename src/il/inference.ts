@@ -105,7 +105,7 @@ const synthComp = (expr: Comp): TC<SynthResult> =>
         .chain(x => withElems([cvar(x, ty)], synthComp(expr.open(vr(x)))
         .chain(({ type: ty2, eff: ef2 }) => openEffs(ef2)
         .chain(ef2open => openEffs(ef).chain2(unify, TC.of(ef2open))
-        .then(apply(ef2open).chain(closeEffs)
+        .then(apply(ef2open)
         .map(ef2open => ({ type: ty2, eff: ef2open }))))))));
 
     return error(`cannot synthComp ${expr}`);
@@ -166,17 +166,20 @@ const synthapp = (type: Type, expr: Val): TC<SynthResult> =>
 
 export const synthgenVal = (expr: Val): TC<Type> =>
   generalize(synthVal(expr))
+    .chain(apply)
     .chain(ty => wfType(ty)
     .chain(k => checkKind(kType, k, `synthgenVal of ${ty}`)
     .map(() => ty)));
 
 export const synthgenComp = (expr: Comp): TC<SynthResult> =>
   synthComp(expr)
+    .chain(applySynthResult)
     .chain(({ type, eff }) => wfType(type)
     .chain(k => checkKind(kType, k, `synthgenComp of ${type}`)
-    .then(wfType(eff)
+    .then(closeEffs(eff)
+    .chain(eff => wfType(eff)
     .chain(k => checkKind(kEffs, k, `synthgenComp of ${eff}`)
-    .map(() => ({ type, eff }))))));
+    .map(() => ({ type, eff })))))));
 
 export const inferVal = (ctx: Context, expr: Val): Either<string, Type> =>
   synthgenVal(expr).run(ctx, new NameRepSupply(0)).val;
