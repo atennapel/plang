@@ -79,11 +79,11 @@ export const instUnify = (a: NameRep, b: Type): TC<void> =>
     isTMeta(b) ? iff(ordered(a, b.name), solveUnify(b.name, tmeta(a)), solveUnify(a, b)) :
       solveUnify(a, b).catch(err => log(`solveUnify failed: ${err}`).chain(() => {
         if (isTFun(b))
-          return freshNames([a, a])
-            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kComp), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a2)))])
+          return freshNames([a, a, a])
+            .chain(([a1, a2, a3]) => replace(isCTMeta(a), [ctmeta(a2, kType), ctmeta(a3, kEffs), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tcomp(tmeta(a2), tmeta(a3))))])
             .then(instUnify(a1, b.left))
             .then(apply(b.right))
-            .chain(type => instUnify(a2, type)));
+            .chain(type => unify(tcomp(tmeta(a2), tmeta(a3)), type)));
         if (isTComp(b))
           return freshNames([a, a])
             .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kType), csolved(a, kComp, tcomp(tmeta(a1), tmeta(a2)))])

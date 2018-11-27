@@ -270,12 +270,18 @@ export class TForall extends Type {
 }
 export const tforall = (name: NameRep, kind: Kind, type: Type) =>
   new TForall(name, kind, type);
-export const tforalls = (ns: [NameRep, Kind][], type: Type) =>
-  ns.reduceRight((t, [n, k]) => tforall(n, k, t), type);
+export const tforalls = (ns: [NameRep, Kind][], type: Type) => {
+  if (ns.length === 0) return type;
+  const ret = ns.reduceRight((t, [n, k]) => tpure(tforall(n, k, t)), type);
+  return isTComp(ret) ? ret.type : ret;
+};
 export const tforallp = (name: NameRep, kind: Kind, type: Type) =>
   new TForall(name, kind, tpure(type));
-export const tforallps = (ns: [NameRep, Kind][], type: Type) =>
-  ns.reduceRight((t, [n, k]) => tforallp(n, k, t), type);
+export const tforallps = (ns: [NameRep, Kind][], type: Type) => {
+  if (ns.length === 0) return type;
+  const ret = ns.reduceRight((t, [n, k]) => tpure(tforallp(n, k, t)), type);
+  return isTComp(ret) ? ret.type : ret;
+}
 export const isTForall = (type: Type): type is TForall => type instanceof TForall;
 export const flattenTForall = (type: Type): { ns: [NameRep, Kind][], type: Type } => {
   if (isTForall(type)) {

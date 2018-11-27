@@ -256,7 +256,7 @@ exports.default = TC;
 exports.pure = (val) => TC.of(val);
 exports.error = (err) => TC.error(err);
 exports.ok = exports.pure(undefined);
-exports.log = (msg) => exports.getCtx.map(ctx => { console.log(`${msg} in ${ctx}`); return undefined; });
+exports.log = (msg) => exports.getCtx.map(ctx => { console.log(`${msg}`); return undefined; });
 exports.iff = (c, a, b) => TC.if(c, a, b);
 exports.check = (c, msg) => TC.check(c, msg);
 exports.getCtx = TC.getContext();
@@ -616,15 +616,15 @@ const synthVal = (expr) => TC_1.log(`synthVal ${expr}`).chain(() => {
         if (type)
             return wf_1.wfType(type)
                 .chain(k => wf_1.checkKind(kinds_1.kType, k, `abstraction argument ${expr}`))
-                .then(generalize(TC_1.freshNames([expr.name, NameRep_1.name('t')])
-                .chain(([x, b]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(b, kinds_1.kComp), elems_1.cvar(x, type)))
-                .then(checkComp(expr.open(values_1.vr(x)), types_1.tmeta(b)))
-                .map(() => types_1.tfun(type, types_1.tmeta(b))))));
+                .then(generalize(TC_1.freshNames([expr.name, NameRep_1.name('t'), NameRep_1.name('e')])
+                .chain(([x, b, e]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(b, kinds_1.kType), elems_1.ctmeta(e, kinds_1.kEffs), elems_1.cvar(x, type)))
+                .then(checkComp(expr.open(values_1.vr(x)), types_1.tcomp(types_1.tmeta(b), types_1.tmeta(e))))
+                .map(() => types_1.tfun(type, types_1.tcomp(types_1.tmeta(b), types_1.tmeta(e)))))));
         else
-            return generalize(TC_1.freshNames([expr.name, expr.name, NameRep_1.name('t')])
-                .chain(([x, a, b]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(a, kinds_1.kType), elems_1.ctmeta(b, kinds_1.kComp), elems_1.cvar(x, types_1.tmeta(a))))
-                .then(checkComp(expr.open(values_1.vr(x)), types_1.tmeta(b)))
-                .map(() => types_1.tfun(types_1.tmeta(a), types_1.tmeta(b)))));
+            return generalize(TC_1.freshNames([expr.name, expr.name, NameRep_1.name('t'), NameRep_1.name('e')])
+                .chain(([x, a, b, e]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(a, kinds_1.kType), elems_1.ctmeta(b, kinds_1.kType), elems_1.ctmeta(e, kinds_1.kEffs), elems_1.cvar(x, types_1.tmeta(a))))
+                .then(checkComp(expr.open(values_1.vr(x)), types_1.tcomp(types_1.tmeta(b), types_1.tmeta(e))))
+                .map(() => types_1.tfun(types_1.tmeta(a), types_1.tcomp(types_1.tmeta(b), types_1.tmeta(e))))));
     }
     if (values_1.isAbsT(expr))
         return wf_1.wfKind(expr.kind)
@@ -684,6 +684,9 @@ const checkVal = (expr, type) => TC_1.log(`checkVal ${expr} : ${type}`).chain(()
 const checkComp = (expr, type) => TC_1.log(`checkComp ${expr} : ${type}`).chain(() => {
     if (types_1.isTForall(type))
         return TC_1.freshName(type.name).chain(x => TC_1.withElems([elems_1.ctvar(x, type.kind)], checkComp(expr, type.open(types_1.tvar(x)))));
+    if (computations_1.isReturn(expr))
+        return TC_1.default.of(type).checkIs(types_1.isTComp, ty => `expected computation type but got ${ty} in checking ${expr}`)
+            .chain(ty => checkVal(expr.val, ty.type));
     if (computations_1.isLet(expr))
         return synthComp(expr.expr)
             .checkIs(types_1.isTComp, ty => `expected computation type but got ${ty} in left side of checking ${expr}`)
@@ -722,6 +725,7 @@ exports.synthgenVal = (expr) => generalize(synthVal(expr))
     .chain(k => wf_1.checkKind(kinds_1.kType, k, `synthgenVal of ${expr} : ${ty}`)
     .map(() => ty)));
 exports.synthgenComp = (expr) => generalize(synthComp(expr))
+    .map(ty => types_1.isTComp(ty) ? ty : types_1.tpure(ty))
     .chain(TC_1.apply)
     .chain(ty => wf_1.wfType(ty)
     .chain(k => wf_1.checkKind(kinds_1.kComp, k, `synthgenComp of ${expr} : ${ty}`)
@@ -831,11 +835,11 @@ const solve = (a, b) => TC_1.log(`solve ${a} = ${b}`).then(!b.isMono() ? TC_1.er
 const instL = (a, b) => TC_1.log(`instL ${a} := ${b}`).then(types_1.isTMeta(b) ? TC_1.iff(TC_1.ordered(a, b.name), solve(b.name, types_1.tmeta(a)), solve(a, b)) :
     solve(a, b).catch(err => TC_1.log(`solve failed: ${err}`).chain(() => {
         if (types_1.isTFun(b))
-            return TC_1.freshNames([a, a])
-                .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kComp), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kType, types_1.tfun(types_1.tmeta(a1), types_1.tmeta(a2)))])
+            return TC_1.freshNames([a, a, a])
+                .chain(([a1, a2, a3]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kType), elems_1.ctmeta(a3, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kType, types_1.tfun(types_1.tmeta(a1), types_1.tcomp(types_1.tmeta(a2), types_1.tmeta(a3))))])
                 .then(instR(b.left, a1))
                 .then(TC_1.apply(b.right))
-                .chain(type => instL(a2, type)));
+                .chain(type => exports.subsume(types_1.tcomp(types_1.tmeta(a2), types_1.tmeta(a3)), type)));
         if (types_1.isTComp(b))
             return TC_1.freshNames([a, a])
                 .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kComp, types_1.tcomp(types_1.tmeta(a1), types_1.tmeta(a2)))])
@@ -864,11 +868,11 @@ const instL = (a, b) => TC_1.log(`instL ${a} := ${b}`).then(types_1.isTMeta(b) ?
 const instR = (a, b) => TC_1.log(`instR ${b} := ${a}`).then(types_1.isTMeta(a) ? TC_1.iff(TC_1.ordered(b, a.name), solve(a.name, types_1.tmeta(b)), solve(b, a)) :
     solve(b, a).catch(err => TC_1.log(`solve failed: ${err}`).chain(() => {
         if (types_1.isTFun(a))
-            return TC_1.freshNames([b, b])
-                .chain(([b1, b2]) => TC_1.replace(elems_1.isCTMeta(b), [elems_1.ctmeta(b2, kinds_1.kComp), elems_1.ctmeta(b1, kinds_1.kType), elems_1.csolved(b, kinds_1.kType, types_1.tfun(types_1.tmeta(b1), types_1.tmeta(b2)))])
+            return TC_1.freshNames([b, b, b])
+                .chain(([b1, b2, b3]) => TC_1.replace(elems_1.isCTMeta(b), [elems_1.ctmeta(b2, kinds_1.kType), elems_1.ctmeta(b3, kinds_1.kEffs), elems_1.ctmeta(b1, kinds_1.kType), elems_1.csolved(b, kinds_1.kType, types_1.tfun(types_1.tmeta(b1), types_1.tcomp(types_1.tmeta(b2), types_1.tmeta(b3))))])
                 .then(instL(b1, a.left)
                 .then(TC_1.apply(a.right))
-                .chain(type => instR(type, b2))));
+                .chain(type => exports.subsume(type, types_1.tcomp(types_1.tmeta(b2), types_1.tmeta(b3))))));
         if (types_1.isTComp(a))
             return TC_1.freshNames([b, b])
                 .chain(([b1, b2]) => TC_1.replace(elems_1.isCTMeta(b), [elems_1.ctmeta(b2, kinds_1.kEffs), elems_1.ctmeta(b1, kinds_1.kType), elems_1.csolved(b, kinds_1.kComp, types_1.tcomp(types_1.tmeta(b1), types_1.tmeta(b2)))])
@@ -1154,9 +1158,19 @@ class TForall extends Type {
 }
 exports.TForall = TForall;
 exports.tforall = (name, kind, type) => new TForall(name, kind, type);
-exports.tforalls = (ns, type) => ns.reduceRight((t, [n, k]) => exports.tforall(n, k, t), type);
+exports.tforalls = (ns, type) => {
+    if (ns.length === 0)
+        return type;
+    const ret = ns.reduceRight((t, [n, k]) => exports.tpure(exports.tforall(n, k, t)), type);
+    return exports.isTComp(ret) ? ret.type : ret;
+};
 exports.tforallp = (name, kind, type) => new TForall(name, kind, exports.tpure(type));
-exports.tforallps = (ns, type) => ns.reduceRight((t, [n, k]) => exports.tforallp(n, k, t), type);
+exports.tforallps = (ns, type) => {
+    if (ns.length === 0)
+        return type;
+    const ret = ns.reduceRight((t, [n, k]) => exports.tpure(exports.tforallp(n, k, t)), type);
+    return exports.isTComp(ret) ? ret.type : ret;
+};
 exports.isTForall = (type) => type instanceof TForall;
 exports.flattenTForall = (type) => {
     if (exports.isTForall(type)) {
@@ -1352,11 +1366,11 @@ const solveUnify = (a, b) => TC_1.log(`solve unify ${a} = ${b}`).then(!b.isMono(
 exports.instUnify = (a, b) => TC_1.log(`instUnify ${a} := ${b}`).then(types_1.isTMeta(b) ? TC_1.iff(TC_1.ordered(a, b.name), solveUnify(b.name, types_1.tmeta(a)), solveUnify(a, b)) :
     solveUnify(a, b).catch(err => TC_1.log(`solveUnify failed: ${err}`).chain(() => {
         if (types_1.isTFun(b))
-            return TC_1.freshNames([a, a])
-                .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kComp), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kType, types_1.tfun(types_1.tmeta(a1), types_1.tmeta(a2)))])
+            return TC_1.freshNames([a, a, a])
+                .chain(([a1, a2, a3]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kType), elems_1.ctmeta(a3, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kType, types_1.tfun(types_1.tmeta(a1), types_1.tcomp(types_1.tmeta(a2), types_1.tmeta(a3))))])
                 .then(exports.instUnify(a1, b.left))
                 .then(TC_1.apply(b.right))
-                .chain(type => exports.instUnify(a2, type)));
+                .chain(type => exports.unify(types_1.tcomp(types_1.tmeta(a2), types_1.tmeta(a3)), type)));
         if (types_1.isTComp(b))
             return TC_1.freshNames([a, a])
                 .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kComp, types_1.tcomp(types_1.tmeta(a1), types_1.tmeta(a2)))])

@@ -20,11 +20,11 @@ const instL = (a: NameRep, b: Type): TC<void> =>
     isTMeta(b) ? iff(ordered(a, b.name), solve(b.name, tmeta(a)), solve(a, b)) :
       solve(a, b).catch(err => log(`solve failed: ${err}`).chain(() => {
         if (isTFun(b))
-          return freshNames([a, a])
-            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kComp), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a2)))])
+          return freshNames([a, a, a])
+            .chain(([a1, a2, a3]) => replace(isCTMeta(a), [ctmeta(a2, kType), ctmeta(a3, kEffs), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tcomp(tmeta(a2), tmeta(a3))))])
             .then(instR(b.left, a1))
             .then(apply(b.right))
-            .chain(type => instL(a2, type)));
+            .chain(type => subsume(tcomp(tmeta(a2), tmeta(a3)), type)));
 
         if (isTComp(b))
           return freshNames([a, a])
@@ -61,11 +61,11 @@ const instR = (a: Type, b: NameRep): TC<void> =>
     isTMeta(a) ? iff(ordered(b, a.name), solve(a.name, tmeta(b)), solve(b, a)) :
       solve(b, a).catch(err => log(`solve failed: ${err}`).chain(() => {
         if (isTFun(a))
-          return freshNames([b, b])
-            .chain(([b1, b2]) => replace(isCTMeta(b), [ctmeta(b2, kComp), ctmeta(b1, kType), csolved(b, kType, tfun(tmeta(b1), tmeta(b2)))])
+          return freshNames([b, b, b])
+            .chain(([b1, b2, b3]) => replace(isCTMeta(b), [ctmeta(b2, kType), ctmeta(b3, kEffs), ctmeta(b1, kType), csolved(b, kType, tfun(tmeta(b1), tcomp(tmeta(b2), tmeta(b3))))])
             .then(instL(b1, a.left)
             .then(apply(a.right))
-            .chain(type => instR(type, b2))));
+            .chain(type => subsume(type, tcomp(tmeta(b2), tmeta(b3))))));
 
         if (isTComp(a))
           return freshNames([b, b])

@@ -1,5 +1,5 @@
 import TC, { error, log, apply, findVar, freshName, withElems, updateCtx, freshNames, pop, findTMeta, replace, ok, check } from './TC';
-import Type, { teffsempty, tvar, tforall, isTForall, tmeta, tfun, tforalls, isTFun, isTMeta, TFun, TForall, tcomp, TComp, isTComp } from './types';
+import Type, { teffsempty, tvar, tforall, isTForall, tmeta, tfun, tforalls, isTFun, isTMeta, TFun, TForall, tcomp, TComp, isTComp, tpure } from './types';
 import Val, { isVar, isAbs, isAbsT, vr, isAnno } from './values';
 import Comp, { isReturn, isApp, isAppT, isLet } from './computations';
 import Either from '../Either';
@@ -53,16 +53,16 @@ const synthVal = (expr: Val): TC<Type> =>
         return wfType(type)
           .chain(k => checkKind(kType, k, `abstraction argument ${expr}`))
           .then(generalize(
-            freshNames([expr.name, name('t')])
-            .chain(([x, b]) => updateCtx(Context.add(ctmeta(b, kComp), cvar(x, type)))
-            .then(checkComp(expr.open(vr(x)), tmeta(b)))
-            .map(() => tfun(type, tmeta(b))))))
+            freshNames([expr.name, name('t'), name('e')])
+            .chain(([x, b, e]) => updateCtx(Context.add(ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, type)))
+            .then(checkComp(expr.open(vr(x)), tcomp(tmeta(b), tmeta(e))))
+            .map(() => tfun(type, tcomp(tmeta(b), tmeta(e)))))))
       else
         return generalize(
-          freshNames([expr.name, expr.name, name('t')])
-          .chain(([x, a, b]) => updateCtx(Context.add(ctmeta(a, kType), ctmeta(b, kComp), cvar(x, tmeta(a))))
-          .then(checkComp(expr.open(vr(x)), tmeta(b)))
-          .map(() => tfun(tmeta(a), tmeta(b)))));
+          freshNames([expr.name, expr.name, name('t'), name('e')])
+          .chain(([x, a, b, e]) => updateCtx(Context.add(ctmeta(a, kType), ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, tmeta(a))))
+          .then(checkComp(expr.open(vr(x)), tcomp(tmeta(b), tmeta(e))))
+          .map(() => tfun(tmeta(a), tcomp(tmeta(b), tmeta(e))))));
     }
 
     if (isAbsT(expr))
@@ -135,6 +135,9 @@ const checkComp = (expr: Comp, type: Type): TC<void> =>
   log(`checkComp ${expr} : ${type}`).chain(() => {
     if (isTForall(type))
       return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkComp(expr, type.open(tvar(x)))));
+    if (isReturn(expr))
+      return TC.of(type).checkIs(isTComp, ty => `expected computation type but got ${ty} in checking ${expr}`)
+        .chain(ty => checkVal(expr.val, ty.type));
     if (isLet(expr))
       return synthComp(expr.expr)
         .checkIs(isTComp, ty => `expected computation type but got ${ty} in left side of checking ${expr}`)
@@ -178,6 +181,7 @@ export const synthgenVal = (expr: Val): TC<Type> =>
 
 export const synthgenComp = (expr: Comp): TC<Type> =>
   generalize(synthComp(expr))
+    .map(ty => isTComp(ty) ? ty : tpure(ty))
     .chain(apply)
     .chain(ty => wfType(ty)
     .chain(k => checkKind(kComp, k, `synthgenComp of ${expr} : ${ty}`)
