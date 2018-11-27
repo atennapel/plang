@@ -1,9 +1,13 @@
 import Kind from './kinds';
 import NameRep, { name } from '../NameRep';
+import { any } from '../utils';
 
 export default abstract class Type {
 
   abstract toString(): string;
+  pretty(): string {
+    return this.toString();
+  }
 
   abstract isMono(): boolean;
 
@@ -19,6 +23,9 @@ export default abstract class Type {
 
 }
 
+const parenIf = (cs: Function[], x: Type): string =>
+  any(cs, c => x instanceof c) ? `(${x.pretty()})`: x.pretty();
+
 export class TVar extends Type {
 
   constructor(
@@ -26,6 +33,9 @@ export class TVar extends Type {
   ) { super() }
 
   toString() {
+    return this.name.toString();
+  }
+  pretty() {
     return this.name.toString();
   }
 
@@ -68,6 +78,9 @@ export class TMeta extends Type {
   toString() {
     return `^${this.name}`;
   }
+  pretty() {
+    return `^${this.name}`;
+  }
 
   isMono() {
     return true;
@@ -106,11 +119,15 @@ export class TApp extends Type {
     public readonly right: Type,
   ) { super() }
 
-  toString(): string{
+  toString(): string {
     const left = this.left;
     if (isTApp(left) && isTVar(left.left) && /[^a-z]/i.test(left.left.toString()[0]))
       return `(${left.right} ${left.left} ${this.right})`;
     return `(${left} ${this.right})`;
+  }
+  pretty(): string {
+    const f = flattenTApp(this);
+    return `${[f.head].concat(f.tail).map(x => parenIf([TApp, TFun, TForall], x)).join(' ')}`;
   }
 
   isMono() {
@@ -153,6 +170,7 @@ export const flattenTApp = (type: Type): { head: Type, tail: Type[] } => {
 };
 export const headTApp = (type: Type): Type => flattenTApp(type).head;
 
+const ARROW = '->';
 export class TFun extends Type {
 
   constructor(
@@ -161,7 +179,7 @@ export class TFun extends Type {
     public readonly right: Type,
   ) { super() }
 
-  toString(): string{
+  toString(): string {
     return isTEffsEmpty(this.eff) ? `(${this.left} -> ${this.right})` : `(${this.left} -> ${this.right}!${this.eff})`;
   }
 
@@ -197,6 +215,7 @@ export const tfunFrom = (ts: Type[]) => ts.reduceRight((x, y) => tfun(y, teffsem
 export function tfuns(...ts: Type[]) { return tfunFrom(ts) }
 export const isTFun = (type: Type): type is TFun => type instanceof TFun;
 
+const FORALL = 'forall';
 export class TForall extends Type {
 
   constructor(
@@ -207,6 +226,10 @@ export class TForall extends Type {
 
   toString() {
     return `(forall(${this.name} : ${this.kind}). ${this.type})`;
+  }
+  pretty(): string {
+    const f = flattenTForall(this);
+    return `${FORALL}${f.ns.map(([n, k]) => `(${n} : ${k})`).join('')}. ${f.type.pretty()}`;
   }
 
   isMono() {

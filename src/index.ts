@@ -18,11 +18,14 @@ import parse from "./surface/parser";
 
 /*
 TODO:
+  - think about rewriting with a TComp type added
+  - tapp in instL, instR and instUnify
   - infer computation (how to generalize?)
   - handlers types/syntax/typechecking
   - row polymorphism (records/variants)
   - pretty printing kinds/types/expressions
 BUGS:
+  - list map
 */
 
 const tv = tvar;

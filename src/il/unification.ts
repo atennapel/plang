@@ -1,6 +1,6 @@
 import TC, { log, ok, error, check, freshName, withElems, apply, findTMeta, pop, updateCtx, iff, ordered, freshNames, replace, pure } from './TC';
 import { wfType, checkKind } from './wf';
-import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls, teffsempty } from './types';
+import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls, teffsempty, tapp } from './types';
 import Elem, { ctvar, ctmeta, isCTMeta, csolved } from './elems';
 import NameRep, { name } from '../NameRep';
 import Context from './context';
@@ -72,7 +72,7 @@ const solveUnify = (a: NameRep, b: Type): TC<void> =>
         .chain(right => wfType(b)
         .then(updateCtx(Context.append(Context.of(e.solve(b) as Elem).append(right)))))));
 
-const instUnify = (a: NameRep, b: Type): TC<void> =>
+export const instUnify = (a: NameRep, b: Type): TC<void> =>
   log(`instUnify ${a} := ${b}`).then(
     isTMeta(b) ? iff(ordered(a, b.name), solveUnify(b.name, tmeta(a)), solveUnify(a, b)) :
       solveUnify(a, b).catch(err => log(`solveUnify failed: ${err}`).chain(() => {
@@ -92,6 +92,15 @@ const instUnify = (a: NameRep, b: Type): TC<void> =>
             .then(instUnify(a1, b.type))
             .then(apply(b.rest))
             .chain(type => instUnify(a2, type)));
+        if (isTApp(b))
+          return wfType(b)
+            .chain(kAll => wfType(b.left)
+            .chain(kLeft => wfType(b.right)
+            .chain(kRight => freshNames([a, a])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kRight), ctmeta(a1, kLeft), csolved(a, kAll, tapp(tmeta(a1), tmeta(a2)))])
+            .then(instUnify(a1, b.left)
+            .then(apply(b.right)
+            .chain(right => instUnify(a2, right))))))));
         return error(`instUnify failed: ${a} = ${b}`); 
       })));
 

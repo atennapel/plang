@@ -1154,6 +1154,15 @@ const instL = (a, b) => TC_1.log(`instL ${a} := ${b}`).then(types_1.isTMeta(b) ?
                 .then(instL(a1, b.type))
                 .then(TC_1.apply(b.rest))
                 .chain(type => instL(a2, type)));
+        if (types_1.isTApp(b))
+            return wf_1.wfType(b)
+                .chain(kAll => wf_1.wfType(b.left)
+                .chain(kLeft => wf_1.wfType(b.right)
+                .chain(kRight => TC_1.freshNames([a, a])
+                .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kRight), elems_1.ctmeta(a1, kLeft), elems_1.csolved(a, kAll, types_1.tapp(types_1.tmeta(a1), types_1.tmeta(a2)))])
+                .then(unification_1.instUnify(a1, b.left)
+                .then(TC_1.apply(b.right)
+                .chain(right => unification_1.instUnify(a2, right))))))));
         return TC_1.error(`instL failed: ${a} = ${b}`);
     })));
 const instR = (a, b) => TC_1.log(`instR ${b} := ${a}`).then(types_1.isTMeta(a) ? TC_1.iff(TC_1.ordered(b, a.name), solve(a.name, types_1.tmeta(b)), solve(b, a)) :
@@ -1174,6 +1183,15 @@ const instR = (a, b) => TC_1.log(`instR ${b} := ${a}`).then(types_1.isTMeta(a) ?
                 .then(instR(a.type, b1))
                 .then(TC_1.apply(a.rest))
                 .chain(type => instR(type, b2)));
+        if (types_1.isTApp(a))
+            return wf_1.wfType(a)
+                .chain(kAll => wf_1.wfType(a.left)
+                .chain(kLeft => wf_1.wfType(a.right)
+                .chain(kRight => TC_1.freshNames([b, b])
+                .chain(([b1, b2]) => TC_1.replace(elems_1.isCTMeta(b), [elems_1.ctmeta(b2, kRight), elems_1.ctmeta(b1, kLeft), elems_1.csolved(b, kAll, types_1.tapp(types_1.tmeta(b1), types_1.tmeta(b2)))])
+                .then(unification_1.instUnify(b1, a.left)
+                .then(TC_1.apply(a.right)
+                .chain(right => unification_1.instUnify(b2, right))))))));
         return TC_1.error(`instR failed: ${b} = ${a}`);
     })));
 exports.subsume = (a, b) => TC_1.log(`subsume ${a} <: ${b}`).then(wf_1.wfType(a).chain(k1 => wf_1.wfType(b).chain(k2 => wf_1.checkKind(k1, k2, `subsume ${a} <: ${b}`)
@@ -1213,15 +1231,23 @@ exports.subsume = (a, b) => TC_1.log(`subsume ${a} <: ${b}`).then(wf_1.wfType(a)
 },{"./TC":6,"./context":8,"./elems":9,"./kinds":14,"./types":16,"./unification":17,"./wf":19}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const utils_1 = require("../utils");
 class Type {
+    pretty() {
+        return this.toString();
+    }
 }
 exports.default = Type;
+const parenIf = (cs, x) => utils_1.any(cs, c => x instanceof c) ? `(${x.pretty()})` : x.pretty();
 class TVar extends Type {
     constructor(name) {
         super();
         this.name = name;
     }
     toString() {
+        return this.name.toString();
+    }
+    pretty() {
         return this.name.toString();
     }
     isMono() {
@@ -1255,6 +1281,9 @@ class TMeta extends Type {
         this.name = name;
     }
     toString() {
+        return `^${this.name}`;
+    }
+    pretty() {
         return `^${this.name}`;
     }
     isMono() {
@@ -1294,6 +1323,10 @@ class TApp extends Type {
             return `(${left.right} ${left.left} ${this.right})`;
         return `(${left} ${this.right})`;
     }
+    pretty() {
+        const f = exports.flattenTApp(this);
+        return `${[f.head].concat(f.tail).map(x => parenIf([TApp, TFun, TForall], x)).join(' ')}`;
+    }
     isMono() {
         return this.left.isMono() && this.right.isMono();
     }
@@ -1329,6 +1362,7 @@ exports.flattenTApp = (type) => {
     return { head: type, tail: [] };
 };
 exports.headTApp = (type) => exports.flattenTApp(type).head;
+const ARROW = '->';
 class TFun extends Type {
     constructor(left, eff, right) {
         super();
@@ -1367,6 +1401,7 @@ exports.tfunFrom = (ts) => ts.reduceRight((x, y) => exports.tfun(y, exports.teff
 function tfuns(...ts) { return exports.tfunFrom(ts); }
 exports.tfuns = tfuns;
 exports.isTFun = (type) => type instanceof TFun;
+const FORALL = 'forall';
 class TForall extends Type {
     constructor(name, kind, type) {
         super();
@@ -1376,6 +1411,10 @@ class TForall extends Type {
     }
     toString() {
         return `(forall(${this.name} : ${this.kind}). ${this.type})`;
+    }
+    pretty() {
+        const f = exports.flattenTForall(this);
+        return `${FORALL}${f.ns.map(([n, k]) => `(${n} : ${k})`).join('')}. ${f.type.pretty()}`;
     }
     isMono() {
         return false;
@@ -1487,7 +1526,7 @@ exports.flattenEffs = (row) => {
     return { types: [], rest: row };
 };
 
-},{}],17:[function(require,module,exports){
+},{"../utils":26}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const TC_1 = require("./TC");
@@ -1560,24 +1599,33 @@ const solveUnify = (a, b) => TC_1.log(`solve unify ${a} = ${b}`).then(
 TC_1.findTMeta(a).chain(e => TC_1.pop(elems_1.isCTMeta(a))
     .chain(right => wf_1.wfType(b)
     .then(TC_1.updateCtx(context_1.default.append(context_1.default.of(e.solve(b)).append(right)))))));
-const instUnify = (a, b) => TC_1.log(`instUnify ${a} := ${b}`).then(types_1.isTMeta(b) ? TC_1.iff(TC_1.ordered(a, b.name), solveUnify(b.name, types_1.tmeta(a)), solveUnify(a, b)) :
+exports.instUnify = (a, b) => TC_1.log(`instUnify ${a} := ${b}`).then(types_1.isTMeta(b) ? TC_1.iff(TC_1.ordered(a, b.name), solveUnify(b.name, types_1.tmeta(a)), solveUnify(a, b)) :
     solveUnify(a, b).catch(err => TC_1.log(`solveUnify failed: ${err}`).chain(() => {
         if (types_1.isTFun(b))
             return TC_1.freshNames([a, a, a])
                 .chain(([a1, a2, a3]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kType), elems_1.ctmeta(a3, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kType, types_1.tfun(types_1.tmeta(a1), types_1.tmeta(a3), types_1.tmeta(a2)))])
-                .then(instUnify(a1, b.left))
+                .then(exports.instUnify(a1, b.left))
                 .then(TC_1.apply(b.eff))
-                .chain(eff => instUnify(a3, eff))
+                .chain(eff => exports.instUnify(a3, eff))
                 .then(TC_1.apply(b.right))
-                .chain(type => instUnify(a2, type)));
+                .chain(type => exports.instUnify(a2, type)));
         if (types_1.isTForall(b))
-            return TC_1.freshName(b.name).chain(x => TC_1.withElems([elems_1.ctvar(x, b.kind)], instUnify(a, b.open(types_1.tvar(x)))));
+            return TC_1.freshName(b.name).chain(x => TC_1.withElems([elems_1.ctvar(x, b.kind)], exports.instUnify(a, b.open(types_1.tvar(x)))));
         if (types_1.isTEffsExtend(b))
             return TC_1.freshNames([a, a])
                 .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kEff), elems_1.csolved(a, kinds_1.kEffs, types_1.teffsextend(types_1.tmeta(a1), types_1.tmeta(a2)))])
-                .then(instUnify(a1, b.type))
+                .then(exports.instUnify(a1, b.type))
                 .then(TC_1.apply(b.rest))
-                .chain(type => instUnify(a2, type)));
+                .chain(type => exports.instUnify(a2, type)));
+        if (types_1.isTApp(b))
+            return wf_1.wfType(b)
+                .chain(kAll => wf_1.wfType(b.left)
+                .chain(kLeft => wf_1.wfType(b.right)
+                .chain(kRight => TC_1.freshNames([a, a])
+                .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kRight), elems_1.ctmeta(a1, kLeft), elems_1.csolved(a, kAll, types_1.tapp(types_1.tmeta(a1), types_1.tmeta(a2)))])
+                .then(exports.instUnify(a1, b.left)
+                .then(TC_1.apply(b.right)
+                .chain(right => exports.instUnify(a2, right))))))));
         return TC_1.error(`instUnify failed: ${a} = ${b}`);
     })));
 exports.unify = (a, b) => TC_1.log(`unify ${a} ~ ${b}`).then(wf_1.wfType(a).chain(k1 => wf_1.wfType(b).chain(k2 => wf_1.checkKind(k1, k2, `unify ${a} ~ ${b}`)
@@ -1613,10 +1661,10 @@ exports.unify = (a, b) => TC_1.log(`unify ${a} ~ ${b}`).then(wf_1.wfType(a).chai
             .chain(x => TC_1.withElems([elems_1.ctvar(x, a.kind)], exports.unify(a.open(types_1.tvar(x)), b.open(types_1.tvar(x))))));
     if (types_1.isTMeta(a))
         return TC_1.check(!b.containsTMeta(a.name), `occurs check failed L unify: ${a} in ${b}`)
-            .then(instUnify(a.name, b));
+            .then(exports.instUnify(a.name, b));
     if (types_1.isTMeta(b))
         return TC_1.check(!a.containsTMeta(b.name), `occurs check failed R unify: ${b} in ${a}`)
-            .then(instUnify(b.name, a));
+            .then(exports.instUnify(b.name, a));
     return TC_1.error(`unification failed: ${a} <: ${b}`);
 }))));
 
@@ -1820,7 +1868,7 @@ function _run(i, cb) {
             const c = javascriptBackend_1.default(cex);
             console.log(c);
             const res = eval(c);
-            cb(`${_show(res)} : ${result.type}${types_1.isTEffsEmpty(result.eff) ? '' : `!${result.eff}`}`);
+            cb(`${_show(res)} : ${result.type.pretty()}${types_1.isTEffsEmpty(result.eff) ? '' : `!${result.eff}`}`);
         }
     }
     catch (e) {

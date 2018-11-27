@@ -105,7 +105,7 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
       const c = compileToJS(cex);
       console.log(c);
       const res = eval(c);
-      cb(`${_show(res)} : ${result.type}${isTEffsEmpty(result.eff) ? '' : `!${result.eff}`}`);
+      cb(`${_show(res)} : ${result.type.pretty()}${isTEffsEmpty(result.eff) ? '' : `!${result.eff}`}`);
     }
   } catch(e) {
     console.log(e);

@@ -1,10 +1,10 @@
-import Type, { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTEffsEmpty, isTEffsExtend, teffsextend, teffsempty, isTFun, tfun } from './types';
+import Type, { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTEffsEmpty, isTEffsExtend, teffsextend, teffsempty, isTFun, tfun, tapp } from './types';
 import Context from './context';
 import { wfType, checkKind } from './wf';
 import TC, { error, ok, pop, log, findTMeta, updateCtx, ordered, iff, freshNames, replace, apply, freshName, withElems, check, getCtx } from './TC';
 import NameRep, { name } from '../NameRep';
 import Elem, { isCTMeta, ctmeta, csolved, ctvar } from './elems';
-import { unify, rewriteEffs } from './unification';
+import { unify, rewriteEffs, instUnify } from './unification';
 import { kType, kEffs, kEff } from './kinds';
 
 const solve = (a: NameRep, b: Type): TC<void> =>
@@ -37,6 +37,17 @@ const instL = (a: NameRep, b: Type): TC<void> =>
             .then(instL(a1, b.type))
             .then(apply(b.rest))
             .chain(type => instL(a2, type)));
+
+        if (isTApp(b))
+          return wfType(b)
+            .chain(kAll => wfType(b.left)
+            .chain(kLeft => wfType(b.right)
+            .chain(kRight => freshNames([a, a])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kRight), ctmeta(a1, kLeft), csolved(a, kAll, tapp(tmeta(a1), tmeta(a2)))])
+            .then(instUnify(a1, b.left)
+            .then(apply(b.right)
+            .chain(right => instUnify(a2, right))))))));
+
         return error(`instL failed: ${a} = ${b}`); 
       })));
 
@@ -62,6 +73,17 @@ const instR = (a: Type, b: NameRep): TC<void> =>
             .then(instR(a.type, b1))
             .then(apply(a.rest))
             .chain(type => instR(type, b2)));
+
+        if (isTApp(a))
+          return wfType(a)
+            .chain(kAll => wfType(a.left)
+            .chain(kLeft => wfType(a.right)
+            .chain(kRight => freshNames([b, b])
+            .chain(([b1, b2]) => replace(isCTMeta(b), [ctmeta(b2, kRight), ctmeta(b1, kLeft), csolved(b, kAll, tapp(tmeta(b1), tmeta(b2)))])
+            .then(instUnify(b1, a.left)
+            .then(apply(a.right)
+            .chain(right => instUnify(b2, right))))))));
+
         return error(`instR failed: ${b} = ${a}`);  
       })));
 
