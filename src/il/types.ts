@@ -285,7 +285,9 @@ export const tforallps = (ns: [NameRep, Kind][], type: Type) => {
 export const isTForall = (type: Type): type is TForall => type instanceof TForall;
 export const flattenTForall = (type: Type): { ns: [NameRep, Kind][], type: Type } => {
   if (isTForall(type)) {
-    const rec = flattenTForall(type.type);
+    const rec = isTComp(type.type) && isTEffsEmpty(type.type.eff) ?
+      flattenTForall(type.type.type) :
+      flattenTForall(type.type);
     return { ns: [[type.name, type.kind] as [NameRep, Kind]].concat(rec.ns), type: rec.type };
   }
   return { ns: [], type };

@@ -33,9 +33,12 @@ const instL = (a: NameRep, b: Type): TC<void> =>
             .then(apply(b.eff))
             .chain(eff => instL(a2, eff)));
         
-        // TODO: what to do about the effects in the forall
         if (isTForall(b))
-          return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instL(a, b.open(tvar(x)))));
+          return freshName(b.name)
+            .chain(x => TC.of(b.open(tvar(x)))
+            .checkIs(isTComp, _ => `not a tcomp in forall ${b} in instL`)
+            .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${b} in instL`)
+            .then(withElems([ctvar(x, b.kind)], instL(a, t.type)))));
 
         if (isTEffsExtend(b))
           return freshNames([a, a])
@@ -75,9 +78,12 @@ const instR = (a: Type, b: NameRep): TC<void> =>
             .then(apply(a.eff))
             .chain(eff => instR(eff, b2))));
 
-        // TODO: what to do about the effects in the forall
         if (isTForall(a))
-          return freshName(a.name).chain(x => withElems([ctmeta(x, a.kind)], instR(a.open(tmeta(x)), b)));
+          return freshName(a.name)
+            .chain(x => TC.of(a.open(tmeta(x)))
+            .checkIs(isTComp, _ => `not a tcomp in forall ${a} in instR`)
+            .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${a} in instR`)
+            .then(withElems([ctmeta(x, a.kind)], instR(t.type, b)))));
 
         if (isTEffsExtend(a))
           return freshNames([b, b])
@@ -128,14 +134,21 @@ export const subsume = (a: Type, b: Type): TC<void> =>
 
         if (isTApp(a) && isTApp(b))
           return unify(a, b);
-          
-        // TODO: what to do about the effects in the forall
+                  
         if (isTForall(a))
-          return freshName(a.name).chain(x => withElems([ctmeta(x, a.kind)], subsume(a.open(tmeta(x)), b)));
-        // TODO: what to do about the effects in the forall
+          return freshName(a.name)
+            .chain(x => TC.of(a.open(tmeta(x)))
+            .checkIs(isTComp, _ => `not a tcomp in forall ${a} in subsumption a`)
+            .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${a} in subsumption a`)
+            .then(withElems([ctmeta(x, a.kind)], subsume(t.type, b)))));
+
         if (isTForall(b))
-          return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], subsume(a, b.open(tvar(x)))));
-        
+          return freshName(b.name)
+            .chain(x => TC.of(b.open(tvar(x)))
+            .checkIs(isTComp, _ => `not a tcomp in forall ${b} in subsumption b`)
+            .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${b} in subsumption b`)
+            .then(withElems([ctvar(x, b.kind)], subsume(a, t.type)))));
+ 
         if (isTMeta(a))
           return check(!b.containsTMeta(a.name), `occurs check failed L: ${a} in ${b}`)
             .then(instL(a.name, b));

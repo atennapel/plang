@@ -603,10 +603,11 @@ const generalize = (action) => TC_1.freshName(NameRep_1.name('m'))
     .chain(ty => TC_1.pop(elems_1.isCMarker(m))
     .map(right => {
     const u = orderedUnsolved(right, ty);
-    return types_1.tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, types_1.tvar(n)), types_1.isTComp(ty) ? ty : types_1.tcomp(ty, types_1.teffsempty())));
+    const typ = types_1.isTComp(ty) ? ty : types_1.tcomp(ty, types_1.teffsempty());
+    return types_1.tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, types_1.tvar(n)), typ));
 }))))
     .chain(TC_1.apply)
-    //.map(closeTFun)
+    .map(unification_1.closeTFun)
     .chain(ty => TC_1.log(`gen done: ${ty}`).map(() => ty)));
 const synthVal = (expr) => TC_1.log(`synthVal ${expr}`).chain(() => {
     if (values_1.isVar(expr))
@@ -673,7 +674,11 @@ const synthComp = (expr) => TC_1.log(`synthComp ${expr}`).chain(() => {
     .map(() => ty))));
 const checkVal = (expr, type) => TC_1.log(`checkVal ${expr} : ${type}`).chain(() => {
     if (types_1.isTForall(type))
-        return TC_1.freshName(type.name).chain(x => TC_1.withElems([elems_1.ctvar(x, type.kind)], checkVal(expr, type.open(types_1.tvar(x)))));
+        return TC_1.freshName(type.name)
+            .chain(x => TC_1.default.of(type.open(types_1.tvar(x)))
+            .checkIs(types_1.isTComp, _ => `not a tcomp in forall ${type} in checkVal`)
+            .chain(t => TC_1.check(types_1.isTEffsEmpty(t.eff), `effects in forall ${type} in checkVal`)
+            .then(TC_1.withElems([elems_1.ctvar(x, type.kind)], checkVal(expr, t.type)))));
     if (types_1.isTFun(type) && values_1.isAbs(expr) && !expr.type)
         return TC_1.freshName(expr.name).chain(x => TC_1.withElems([elems_1.cvar(x, type.left)], checkComp(expr.open(values_1.vr(x)), type.right)));
     return synthVal(expr)
@@ -700,8 +705,11 @@ const checkComp = (expr, type) => TC_1.log(`checkComp ${expr} : ${type}`).chain(
 const synthapp = (type, expr) => TC_1.log(`synthapp ${type} @ ${expr}`).chain(() => {
     if (types_1.isTForall(type))
         return TC_1.freshName(type.name)
-            .chain(x => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(x, type.kind)))
-            .then(synthapp(type.open(types_1.tmeta(x)), expr)));
+            .chain(x => TC_1.default.of(type.open(types_1.tmeta(x)))
+            .checkIs(types_1.isTComp, _ => `not a tcomp in forall ${type} in checkVal`)
+            .chain(t => TC_1.check(types_1.isTEffsEmpty(t.eff), `effects in forall ${type} in synthapp`)
+            .then(TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(x, type.kind)))
+            .then(synthapp(t.type, expr)))));
     if (types_1.isTMeta(type))
         return TC_1.findTMeta(type.name)
             .chain(e => TC_1.freshNames([type.name, type.name])
@@ -847,7 +855,11 @@ const instL = (a, b) => TC_1.log(`instL ${a} := ${b}`).then(types_1.isTMeta(b) ?
                 .then(TC_1.apply(b.eff))
                 .chain(eff => instL(a2, eff)));
         if (types_1.isTForall(b))
-            return TC_1.freshName(b.name).chain(x => TC_1.withElems([elems_1.ctvar(x, b.kind)], instL(a, b.open(types_1.tvar(x)))));
+            return TC_1.freshName(b.name)
+                .chain(x => TC_1.default.of(b.open(types_1.tvar(x)))
+                .checkIs(types_1.isTComp, _ => `not a tcomp in forall ${b} in instL`)
+                .chain(t => TC_1.check(types_1.isTEffsEmpty(t.eff), `effects in forall ${b} in instL`)
+                .then(TC_1.withElems([elems_1.ctvar(x, b.kind)], instL(a, t.type)))));
         if (types_1.isTEffsExtend(b))
             return TC_1.freshNames([a, a])
                 .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kEff), elems_1.csolved(a, kinds_1.kEffs, types_1.teffsextend(types_1.tmeta(a1), types_1.tmeta(a2)))])
@@ -880,7 +892,11 @@ const instR = (a, b) => TC_1.log(`instR ${b} := ${a}`).then(types_1.isTMeta(a) ?
                 .then(TC_1.apply(a.eff))
                 .chain(eff => instR(eff, b2))));
         if (types_1.isTForall(a))
-            return TC_1.freshName(a.name).chain(x => TC_1.withElems([elems_1.ctmeta(x, a.kind)], instR(a.open(types_1.tmeta(x)), b)));
+            return TC_1.freshName(a.name)
+                .chain(x => TC_1.default.of(a.open(types_1.tmeta(x)))
+                .checkIs(types_1.isTComp, _ => `not a tcomp in forall ${a} in instR`)
+                .chain(t => TC_1.check(types_1.isTEffsEmpty(t.eff), `effects in forall ${a} in instR`)
+                .then(TC_1.withElems([elems_1.ctmeta(x, a.kind)], instR(t.type, b)))));
         if (types_1.isTEffsExtend(a))
             return TC_1.freshNames([b, b])
                 .chain(([b1, b2]) => TC_1.replace(elems_1.isCTMeta(b), [elems_1.ctmeta(b2, kinds_1.kEffs), elems_1.ctmeta(b1, kinds_1.kEff), elems_1.csolved(b, kinds_1.kEffs, types_1.teffsextend(types_1.tmeta(b1), types_1.tmeta(b2)))])
@@ -925,9 +941,17 @@ exports.subsume = (a, b) => TC_1.log(`subsume ${a} <: ${b}`).then(wf_1.wfType(a)
     if (types_1.isTApp(a) && types_1.isTApp(b))
         return unification_1.unify(a, b);
     if (types_1.isTForall(a))
-        return TC_1.freshName(a.name).chain(x => TC_1.withElems([elems_1.ctmeta(x, a.kind)], exports.subsume(a.open(types_1.tmeta(x)), b)));
+        return TC_1.freshName(a.name)
+            .chain(x => TC_1.default.of(a.open(types_1.tmeta(x)))
+            .checkIs(types_1.isTComp, _ => `not a tcomp in forall ${a} in subsumption a`)
+            .chain(t => TC_1.check(types_1.isTEffsEmpty(t.eff), `effects in forall ${a} in subsumption a`)
+            .then(TC_1.withElems([elems_1.ctmeta(x, a.kind)], exports.subsume(t.type, b)))));
     if (types_1.isTForall(b))
-        return TC_1.freshName(b.name).chain(x => TC_1.withElems([elems_1.ctvar(x, b.kind)], exports.subsume(a, b.open(types_1.tvar(x)))));
+        return TC_1.freshName(b.name)
+            .chain(x => TC_1.default.of(b.open(types_1.tvar(x)))
+            .checkIs(types_1.isTComp, _ => `not a tcomp in forall ${b} in subsumption b`)
+            .chain(t => TC_1.check(types_1.isTEffsEmpty(t.eff), `effects in forall ${b} in subsumption b`)
+            .then(TC_1.withElems([elems_1.ctvar(x, b.kind)], exports.subsume(a, t.type)))));
     if (types_1.isTMeta(a))
         return TC_1.check(!b.containsTMeta(a.name), `occurs check failed L: ${a} in ${b}`)
             .then(instL(a.name, b));
@@ -1174,7 +1198,9 @@ exports.tforallps = (ns, type) => {
 exports.isTForall = (type) => type instanceof TForall;
 exports.flattenTForall = (type) => {
     if (exports.isTForall(type)) {
-        const rec = exports.flattenTForall(type.type);
+        const rec = exports.isTComp(type.type) && exports.isTEffsEmpty(type.type.eff) ?
+            exports.flattenTForall(type.type.type) :
+            exports.flattenTForall(type.type);
         return { ns: [[type.name, type.kind]].concat(rec.ns), type: rec.type };
     }
     return { ns: [], type };
@@ -1306,25 +1332,34 @@ const elems_1 = require("./elems");
 const NameRep_1 = require("../NameRep");
 const context_1 = require("./context");
 const kinds_1 = require("./kinds");
-/*
-export const closeTFun = (type: Type): Type => {
-  if (!isTForall(type)) return type;
-  const f = flattenTForall(type);
-  const body = f.type;
-  if (!isTFun(body)) return type;
-  const eff = body.eff;
-  const feff = flattenEffs(eff);
-  const tv = feff.rest;
-  if (!isTVar(tv)) return type;
-  const name = tv.name;
-  if (body.left.containsTVar(name)) return type;
-  if (body.right.containsTVar(name)) return type;
-  if (any(feff.types, t => t.containsTVar(name))) return type;
-  const neff = teffsFrom(feff.types);
-  const args = remove(f.ns, ([n, k]) => name.equals(n));
-  return tforalls(args, tfun(body.left, neff, body.right));
+const utils_1 = require("../utils");
+exports.closeTFun = (type) => {
+    console.log(`closeTFun ${type}`);
+    if (!types_1.isTForall(type))
+        return type;
+    const f = types_1.flattenTForall(type);
+    const body = f.type;
+    if (!types_1.isTFun(body))
+        return type;
+    const right = body.right;
+    if (!types_1.isTComp(right))
+        return type;
+    const eff = right.eff;
+    const feff = types_1.flattenEffs(eff);
+    const tv = feff.rest;
+    if (!types_1.isTVar(tv))
+        return type;
+    const name = tv.name;
+    if (body.left.containsTVar(name))
+        return type;
+    if (right.type.containsTVar(name))
+        return type;
+    if (utils_1.any(feff.types, t => t.containsTVar(name)))
+        return type;
+    const neff = types_1.teffsFrom(feff.types);
+    const args = utils_1.remove(f.ns, ([n, k]) => name.equals(n));
+    return types_1.tforalls(args, types_1.tpure(types_1.tfun(body.left, types_1.tcomp(right.type, neff))));
 };
-*/
 exports.closeEffs = (type) => TC_1.log(`closeEffs ${type}`).chain(() => {
     if (types_1.isTEffsExtend(type))
         return exports.closeEffs(type.rest).map(rest => types_1.teffsextend(type.type, rest));
@@ -1378,7 +1413,11 @@ exports.instUnify = (a, b) => TC_1.log(`instUnify ${a} := ${b}`).then(types_1.is
                 .then(TC_1.apply(b.eff))
                 .chain(eff => exports.instUnify(a2, eff)));
         if (types_1.isTForall(b))
-            return TC_1.freshName(b.name).chain(x => TC_1.withElems([elems_1.ctvar(x, b.kind)], exports.instUnify(a, b.open(types_1.tvar(x)))));
+            return TC_1.freshName(b.name)
+                .chain(x => TC_1.default.of(b.open(types_1.tvar(x)))
+                .checkIs(types_1.isTComp, _ => `not a tcomp in forall ${b} in instUnify`)
+                .chain(t => TC_1.check(types_1.isTEffsEmpty(t.eff), `effects in forall ${b} in instUnify`)
+                .then(TC_1.withElems([elems_1.ctvar(x, b.kind)], exports.instUnify(a, t.type)))));
         if (types_1.isTEffsExtend(b))
             return TC_1.freshNames([a, a])
                 .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kEff), elems_1.csolved(a, kinds_1.kEffs, types_1.teffsextend(types_1.tmeta(a1), types_1.tmeta(a2)))])
@@ -1438,7 +1477,7 @@ exports.unify = (a, b) => TC_1.log(`unify ${a} ~ ${b}`).then(wf_1.wfType(a).chai
     return TC_1.error(`unification failed: ${a} <: ${b}`);
 }))));
 
-},{"../NameRep":2,"./TC":5,"./context":7,"./elems":8,"./kinds":13,"./types":15,"./wf":18}],17:[function(require,module,exports){
+},{"../NameRep":2,"../utils":25,"./TC":5,"./context":7,"./elems":8,"./kinds":13,"./types":15,"./wf":18}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");

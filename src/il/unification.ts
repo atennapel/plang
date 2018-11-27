@@ -1,31 +1,32 @@
 import TC, { log, ok, error, check, freshName, withElems, apply, findTMeta, pop, updateCtx, iff, ordered, freshNames, replace, pure } from './TC';
 import { wfType, checkKind } from './wf';
-import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls, teffsempty, tapp, isTComp, tcomp } from './types';
+import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls, teffsempty, tapp, isTComp, tcomp, tpure } from './types';
 import Elem, { ctvar, ctmeta, isCTMeta, csolved } from './elems';
 import NameRep, { name } from '../NameRep';
 import Context from './context';
 import { kEffs, kType, kEff, kComp } from './kinds';
 import { any, remove } from '../utils';
 
-/*
 export const closeTFun = (type: Type): Type => {
+  console.log(`closeTFun ${type}`)
   if (!isTForall(type)) return type;
   const f = flattenTForall(type);
   const body = f.type;
   if (!isTFun(body)) return type;
-  const eff = body.eff;
+  const right = body.right;
+  if (!isTComp(right)) return type;
+  const eff = right.eff;
   const feff = flattenEffs(eff);
   const tv = feff.rest;
   if (!isTVar(tv)) return type;
   const name = tv.name;
   if (body.left.containsTVar(name)) return type;
-  if (body.right.containsTVar(name)) return type;
+  if (right.type.containsTVar(name)) return type;
   if (any(feff.types, t => t.containsTVar(name))) return type;
   const neff = teffsFrom(feff.types);
   const args = remove(f.ns, ([n, k]) => name.equals(n));
-  return tforalls(args, tfun(body.left, neff, body.right));
+  return tforalls(args, tpure(tfun(body.left, tcomp(right.type, neff))));
 };
-*/
 
 export const closeEffs = (type: Type): TC<Type> =>
   log(`closeEffs ${type}`).chain(() => {
@@ -92,11 +93,14 @@ export const instUnify = (a: NameRep, b: Type): TC<void> =>
             .then(apply(b.eff))
             .chain(eff => instUnify(a2, eff)));
         
-        // TODO: what to do about the effects in the forall
         if (isTForall(b))
-          return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instUnify(a, b.open(tvar(x)))));
+          return freshName(b.name)
+            .chain(x => TC.of(b.open(tvar(x)))
+            .checkIs(isTComp, _ => `not a tcomp in forall ${b} in instUnify`)
+            .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${b} in instUnify`)
+            .then(withElems([ctvar(x, b.kind)], instUnify(a, t.type)))));
         
-          if (isTEffsExtend(b))
+        if (isTEffsExtend(b))
           return freshNames([a, a])
             .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kEff), csolved(a, kEffs, teffsextend(tmeta(a1), tmeta(a2)))])
             .then(instUnify(a1, b.type))
@@ -149,7 +153,6 @@ export const unify = (a: Type, b: Type): TC<void> =>
             .chain(restA => apply(es.rest)
             .chain(restB => unify(restA, restB)))));
             
-        // TODO: what to do about the effects in the forall
         if (isTForall(a) && isTForall(b))
           return checkKind(a.kind, b.kind, `unification of ${a} ~ ${b}`)
             .then(freshName(a.name)

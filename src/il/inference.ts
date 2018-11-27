@@ -1,5 +1,5 @@
 import TC, { error, log, apply, findVar, freshName, withElems, updateCtx, freshNames, pop, findTMeta, replace, ok, check } from './TC';
-import Type, { teffsempty, tvar, tforall, isTForall, tmeta, tfun, tforalls, isTFun, isTMeta, TFun, TForall, tcomp, TComp, isTComp, tpure } from './types';
+import Type, { teffsempty, tvar, tforall, isTForall, tmeta, tfun, tforalls, isTFun, isTMeta, TFun, TForall, tcomp, TComp, isTComp, tpure, isTEffsEmpty } from './types';
 import Val, { isVar, isAbs, isAbsT, vr, isAnno } from './values';
 import Comp, { isReturn, isApp, isAppT, isLet } from './computations';
 import Either from '../Either';
@@ -11,8 +11,7 @@ import Elem, { ctvar, cvar, ctmeta, CTMeta, cmarker, isCMarker, isCTMeta } from 
 import Kind, { kType, kEffs, kComp } from './kinds';
 import NameRep, { name } from '../NameRep';
 import { assocGet } from '../utils';
-import { unify, openEffs, closeEffs } from './unification';
-import { isTEffsEmpty } from '../backup/types';
+import { unify, openEffs, closeEffs, closeTFun } from './unification';
 
 const orderedUnsolved = (ctx: Context, type: Type): [NameRep, Kind][] => {
   const u = ctx.findAll(e => e instanceof CTMeta && !e.type ? [e.name, e.kind] as [NameRep, Kind] : null);
@@ -36,12 +35,11 @@ const generalize = (action: TC<Type>): TC<Type> =>
     .chain(ty => pop(isCMarker(m))
     .map(right => {
       const u = orderedUnsolved(right, ty);
-      return tforalls(u, u.reduce((t, [n, _]) =>
-        t.substTMeta(n, tvar(n)),isTComp(ty) ? ty : tcomp(ty, teffsempty())));
+      const typ = isTComp(ty) ? ty : tcomp(ty, teffsempty());
+      return tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, tvar(n)), typ));
     }))))
     .chain(apply)
-    // TODO: try to close type
-    //.map(closeTFun)
+    .map(closeTFun)
     .chain(ty => log(`gen done: ${ty}`).map(() => ty)));
 
 const synthVal = (expr: Val): TC<Type> =>
@@ -122,9 +120,12 @@ const synthComp = (expr: Comp): TC<Type> =>
 
 const checkVal = (expr: Val, type: Type): TC<void> =>
   log(`checkVal ${expr} : ${type}`).chain(() => {
-    // TODO: how to handle the effects in side the forall
     if (isTForall(type))
-      return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkVal(expr, type.open(tvar(x)))));
+      return freshName(type.name)
+        .chain(x => TC.of(type.open(tvar(x)))
+        .checkIs(isTComp, _ => `not a tcomp in forall ${type} in checkVal`)
+        .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${type} in checkVal`)
+        .then(withElems([ctvar(x, type.kind)], checkVal(expr, t.type)))));
     if (isTFun(type) && isAbs(expr) && !expr.type)
       return freshName(expr.name).chain(x => withElems([cvar(x, type.left)], checkComp(expr.open(vr(x)), type.right)));
     return synthVal(expr)
@@ -135,7 +136,6 @@ const checkVal = (expr: Val, type: Type): TC<void> =>
 
 const checkComp = (expr: Comp, type: Type): TC<void> =>
   log(`checkComp ${expr} : ${type}`).chain(() => {
-    // TODO: TComp here
     if (isTForall(type))
       return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkComp(expr, type.open(tvar(x)))));
     if (isReturn(expr))
@@ -154,11 +154,13 @@ const checkComp = (expr: Comp, type: Type): TC<void> =>
 
 const synthapp = (type: Type, expr: Val): TC<Type> =>
   log(`synthapp ${type} @ ${expr}`).chain(() => {
-    // TODO: handle effects inside forall
     if (isTForall(type))
       return freshName(type.name)
-        .chain(x => updateCtx(Context.add(ctmeta(x, type.kind)))
-        .then(synthapp(type.open(tmeta(x)), expr)));
+        .chain(x => TC.of(type.open(tmeta(x)))
+        .checkIs(isTComp, _ => `not a tcomp in forall ${type} in checkVal`)
+        .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${type} in synthapp`)
+        .then(updateCtx(Context.add(ctmeta(x, type.kind)))
+        .then(synthapp(t.type, expr)))));
     if (isTMeta(type))
       return findTMeta(type.name)
         .chain(e => freshNames([type.name, type.name])
