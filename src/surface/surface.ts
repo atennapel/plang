@@ -18,7 +18,7 @@ export const kindToIL = (k: Kind): TC<ILKind> => {
 export const typeToIL = (t: Type): TC<ILType> => {
   if (isTVar(t)) return TC.of(tvar(name(t.name)));
   if (isTApp(t)) return typeToIL(t.left).chain2((l, r) => TC.of(tapp(l, r)), typeToIL(t.right));
-  if (isTFun(t)) return typeToIL(t.left).chain3((a, b, c) => TC.of(tfun(a, b, c)), typeToIL(t.eff), typeToIL(t.right));
+  if (isTFun(t)) return typeToIL(t.left).chain2((a, b) => TC.of(tfun(a, b)), typeToIL(t.right));
   if (isTForall(t)) return kindToIL(t.kind).chain(k => typeToIL(t.type).map(ty => tforall(name(t.name), k, ty)));
   if (isTEffsExtend(t)) return typeToIL(t.type).chain2((l, r) => TC.of(teffsextend(l, r)), typeToIL(t.rest));
   if (isTEffsEmpty(t)) return TC.of(teffsempty());

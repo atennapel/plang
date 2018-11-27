@@ -52,17 +52,16 @@ export class TFun extends Type {
 
   constructor(
     public readonly left: Type,
-    public readonly eff: Type,
     public readonly right: Type,
   ) { super() }
 
   toString(): string{
-    return isTEffsEmpty(this.eff) ? `(${this.left} -> ${this.right})` : `(${this.left} -> ${this.right}!${this.eff})`;
+    return `(${this.left} -> ${this.right})`;
   }
 
 }
-export const tfun = (left: Type, eff: Type, right: Type) => new TFun(left, eff, right);
-export const tfunFrom = (ts: Type[]) => ts.reduceRight((x, y) => tfun(y, teffsempty(), x));
+export const tfun = (left: Type, right: Type) => new TFun(left, right);
+export const tfunFrom = (ts: Type[]) => ts.reduceRight((x, y) => tfun(y, x));
 export function tfuns(...ts: Type[]) { return tfunFrom(ts) }
 export const isTFun = (type: Type): type is TFun => type instanceof TFun;
 

@@ -1,12 +1,13 @@
 import TC, { log, ok, error, check, freshName, withElems, apply, findTMeta, pop, updateCtx, iff, ordered, freshNames, replace, pure } from './TC';
 import { wfType, checkKind } from './wf';
-import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls, teffsempty, tapp } from './types';
+import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls, teffsempty, tapp, isTComp, tcomp } from './types';
 import Elem, { ctvar, ctmeta, isCTMeta, csolved } from './elems';
 import NameRep, { name } from '../NameRep';
 import Context from './context';
-import { kEffs, kType, kEff } from './kinds';
+import { kEffs, kType, kEff, kComp } from './kinds';
 import { any, remove } from '../utils';
 
+/*
 export const closeTFun = (type: Type): Type => {
   if (!isTForall(type)) return type;
   const f = flattenTForall(type);
@@ -24,6 +25,7 @@ export const closeTFun = (type: Type): Type => {
   const args = remove(f.ns, ([n, k]) => name.equals(n));
   return tforalls(args, tfun(body.left, neff, body.right));
 };
+*/
 
 export const closeEffs = (type: Type): TC<Type> =>
   log(`closeEffs ${type}`).chain(() => {
@@ -66,7 +68,7 @@ export const rewriteEffs = (head: Type, type: Type, msg: string): TC<TEffsExtend
 
 const solveUnify = (a: NameRep, b: Type): TC<void> =>
   log(`solve unify ${a} = ${b}`).then(
-    // !b.isMono() ? error(`polymorphic type in solve unify ${a} = ${b}`) :
+    !b.isMono() ? error(`polymorphic type in solve unify ${a} = ${b}`) :
     findTMeta(a).chain(e =>
       pop(isCTMeta(a))
         .chain(right => wfType(b)
@@ -77,13 +79,17 @@ export const instUnify = (a: NameRep, b: Type): TC<void> =>
     isTMeta(b) ? iff(ordered(a, b.name), solveUnify(b.name, tmeta(a)), solveUnify(a, b)) :
       solveUnify(a, b).catch(err => log(`solveUnify failed: ${err}`).chain(() => {
         if (isTFun(b))
-          return freshNames([a, a, a])
-            .chain(([a1, a2, a3]) => replace(isCTMeta(a), [ctmeta(a2, kType), ctmeta(a3, kEffs), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a3), tmeta(a2)))])
+          return freshNames([a, a])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kComp), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a2)))])
             .then(instUnify(a1, b.left))
-            .then(apply(b.eff))
-            .chain(eff => instUnify(a3, eff))
             .then(apply(b.right))
             .chain(type => instUnify(a2, type)));
+        if (isTComp(b))
+          return freshNames([a, a])
+            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kType), csolved(a, kComp, tcomp(tmeta(a1), tmeta(a2)))])
+            .then(instUnify(a1, b.type))
+            .then(apply(b.eff))
+            .chain(eff => instUnify(a2, eff)));
         if (isTForall(b))
           return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instUnify(a, b.open(tvar(x)))));
         if (isTEffsExtend(b))
@@ -114,12 +120,15 @@ export const unify = (a: Type, b: Type): TC<void> =>
 
         if (isTFun(a) && isTFun(b))
           return unify(a.left, b.left)
-            .then(apply(a.eff))
-            .chain(taeff => apply(b.eff)
-            .chain(tbeff => unify(taeff, tbeff)
             .then(apply(a.right)
             .chain(ta => apply(b.right)
-            .chain(tb => unify(ta, tb))))));
+            .chain(tb => unify(ta, tb))));
+
+        if (isTComp(a) && isTComp(b))
+          return unify(a.type, b.type)
+            .then(apply(a.eff)
+            .chain(ta => apply(b.eff)
+            .chain(tb => unify(ta, tb))));
 
         if (isTApp(a) && isTApp(b))
           return unify(a.left, b.left)

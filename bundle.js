@@ -120,319 +120,6 @@ exports.default = NameRepSupply;
 },{"./NameRep":2}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const utils_1 = require("./utils");
-class Type {
-}
-exports.default = Type;
-class TVar extends Type {
-    constructor(name) {
-        super();
-        this.name = name;
-    }
-    toString() {
-        return this.name.toString();
-    }
-    isMono() {
-        return true;
-    }
-    substTVar(name, type) {
-        return this.name.equals(name) ? type : this;
-    }
-    substTMeta(name, type) {
-        return this;
-    }
-    containsTMeta(name) {
-        return false;
-    }
-    freeTMeta() {
-        return [];
-    }
-    equals(that) {
-        return that instanceof TVar && this.name.equals(that.name);
-    }
-}
-exports.TVar = TVar;
-exports.tvar = (name) => new TVar(name);
-exports.isTVar = (type) => type instanceof TVar;
-class TMeta extends Type {
-    constructor(name) {
-        super();
-        this.name = name;
-    }
-    toString() {
-        return `^${this.name}`;
-    }
-    isMono() {
-        return true;
-    }
-    substTVar(name, type) {
-        return this;
-    }
-    substTMeta(name, type) {
-        return this.name.equals(name) ? type : this;
-    }
-    containsTMeta(name) {
-        return this.name.equals(name);
-    }
-    freeTMeta() {
-        return [this.name];
-    }
-    equals(that) {
-        return that instanceof TMeta && this.name.equals(that.name);
-    }
-}
-exports.TMeta = TMeta;
-exports.tmeta = (name) => new TMeta(name);
-exports.isTMeta = (type) => type instanceof TMeta;
-class TApp extends Type {
-    constructor(left, right) {
-        super();
-        this.left = left;
-        this.right = right;
-    }
-    toString() {
-        const left = this.left;
-        if (exports.isTApp(left) && exports.isTVar(left.left) && /[^a-z]/i.test(left.left.toString()[0]))
-            return `(${left.right} ${left.left} ${this.right})`;
-        return `(${left} ${this.right})`;
-    }
-    isMono() {
-        return this.left.isMono() && this.right.isMono();
-    }
-    substTVar(name, type) {
-        return new TApp(this.left.substTVar(name, type), this.right.substTVar(name, type));
-    }
-    substTMeta(name, type) {
-        return new TApp(this.left.substTMeta(name, type), this.right.substTMeta(name, type));
-    }
-    containsTMeta(name) {
-        return this.left.containsTMeta(name) || this.right.containsTMeta(name);
-    }
-    freeTMeta() {
-        return this.left.freeTMeta().concat(this.right.freeTMeta());
-    }
-    equals(that) {
-        return that instanceof TApp && this.left.equals(that.left) && this.right.equals(that.right);
-    }
-}
-exports.TApp = TApp;
-exports.tapp = (left, right) => new TApp(left, right);
-exports.tappFrom = (ts) => ts.reduce(exports.tapp);
-function tapps(...ts) { return exports.tappFrom(ts); }
-exports.tapps = tapps;
-exports.isTApp = (type) => type instanceof TApp;
-exports.flattenTApp = (type) => {
-    if (exports.isTApp(type)) {
-        const rec = exports.flattenTApp(type.left);
-        return { head: rec.head, tail: rec.tail.concat([type.right]) };
-    }
-    return { head: type, tail: [] };
-};
-exports.headTApp = (type) => exports.flattenTApp(type).head;
-class TForall extends Type {
-    constructor(name, kind, type) {
-        super();
-        this.name = name;
-        this.kind = kind;
-        this.type = type;
-    }
-    toString() {
-        return `(forall(${this.name} : ${this.kind}). ${this.type})`;
-    }
-    isMono() {
-        return false;
-    }
-    substTVar(name, type) {
-        return this.name.equals(name) ? this : new TForall(this.name, this.kind, this.type.substTVar(name, type));
-    }
-    open(type) {
-        return this.type.substTVar(this.name, type);
-    }
-    substTMeta(name, type) {
-        return new TForall(this.name, this.kind, this.type.substTMeta(name, type));
-    }
-    containsTMeta(name) {
-        return this.type.containsTMeta(name);
-    }
-    freeTMeta() {
-        return this.type.freeTMeta();
-    }
-    equals(that) {
-        return that instanceof TForall && this.name.equals(that.name) && this.kind.equals(that.kind) && this.type.equals(that.type);
-    }
-}
-exports.TForall = TForall;
-exports.tforall = (name, kind, type) => new TForall(name, kind, type);
-exports.tforalls = (ns, type) => ns.reduceRight((t, [n, k]) => exports.tforall(n, k, t), type);
-exports.isTForall = (type) => type instanceof TForall;
-class TComp extends Type {
-    constructor(type, eff) {
-        super();
-        this.type = type;
-        this.eff = eff;
-    }
-    toString() {
-        return exports.isTRowEmpty(this.eff) ? `${this.type}` : `${this.type}!${this.eff}`;
-    }
-    isMono() {
-        return this.type.isMono() && this.eff.isMono();
-    }
-    substTVar(name, type) {
-        return new TComp(this.type.substTVar(name, type), this.eff.substTVar(name, type));
-    }
-    substTMeta(name, type) {
-        return new TComp(this.type.substTMeta(name, type), this.eff.substTMeta(name, type));
-    }
-    containsTMeta(name) {
-        return this.type.containsTMeta(name) || this.eff.containsTMeta(name);
-    }
-    freeTMeta() {
-        return this.type.freeTMeta().concat(this.eff.freeTMeta());
-    }
-    equals(that) {
-        return that instanceof TComp && this.type.equals(that.type) && this.eff.equals(that.eff);
-    }
-}
-exports.TComp = TComp;
-exports.tcomp = (type, eff) => new TComp(type, eff);
-exports.isTComp = (type) => type instanceof TComp;
-class TEffsEmpty extends Type {
-    constructor() { super(); }
-    toString() {
-        return `{}`;
-    }
-    isMono() {
-        return true;
-    }
-    substTVar(name, type) {
-        return this;
-    }
-    substTMeta(name, type) {
-        return this;
-    }
-    containsTMeta(name) {
-        return false;
-    }
-    freeTMeta() {
-        return [];
-    }
-    equals(that) {
-        return that instanceof TEffsEmpty;
-    }
-}
-exports.TEffsEmpty = TEffsEmpty;
-exports.teffsempty = () => new TEffsEmpty();
-exports.isTEffsEmpty = (type) => type instanceof TEffsEmpty;
-class TEffsExtend extends Type {
-    constructor(type, rest) {
-        super();
-        this.type = type;
-        this.rest = rest;
-    }
-    toString() {
-        return `{ ${this.type} | ${this.rest} }`;
-    }
-    isMono() {
-        return this.type.isMono() && this.rest.isMono();
-    }
-    substTVar(name, type) {
-        return new TEffsExtend(this.type.substTVar(name, type), this.rest.substTVar(name, type));
-    }
-    substTMeta(name, type) {
-        return new TEffsExtend(this.type.substTMeta(name, type), this.rest.substTMeta(name, type));
-    }
-    containsTMeta(name) {
-        return this.type.containsTMeta(name) || this.rest.containsTMeta(name);
-    }
-    freeTMeta() {
-        return this.type.freeTMeta().concat(this.rest.freeTMeta());
-    }
-    equals(that) {
-        return that instanceof TEffsExtend && this.type.equals(that.type) && this.rest.equals(that.rest);
-    }
-}
-exports.TEffsExtend = TEffsExtend;
-exports.teffsextend = (type, rest) => new TEffsExtend(type, rest);
-exports.isTEffsExtend = (type) => type instanceof TEffsExtend;
-exports.flattenEffs = (row) => {
-    if (exports.isTEffsExtend(row)) {
-        const rec = exports.flattenEffs(row.rest);
-        return { types: [row.type].concat(rec.types), rest: rec.rest };
-    }
-    return { types: [], rest: row };
-};
-class TRowEmpty extends Type {
-    constructor() { super(); }
-    toString() {
-        return `{}`;
-    }
-    isMono() {
-        return true;
-    }
-    substTVar(name, type) {
-        return this;
-    }
-    substTMeta(name, type) {
-        return this;
-    }
-    containsTMeta(name) {
-        return false;
-    }
-    freeTMeta() {
-        return [];
-    }
-    equals(that) {
-        return that instanceof TRowEmpty;
-    }
-}
-exports.TRowEmpty = TRowEmpty;
-exports.trowempty = () => new TRowEmpty();
-exports.isTRowEmpty = (type) => type instanceof TRowEmpty;
-class TRowExtend extends Type {
-    constructor(label, type, rest) {
-        super();
-        this.label = label;
-        this.type = type;
-        this.rest = rest;
-    }
-    toString() {
-        return `{ ${this.label} : ${this.type} | ${this.rest} }`;
-    }
-    isMono() {
-        return this.type.isMono() && this.rest.isMono();
-    }
-    substTVar(name, type) {
-        return new TRowExtend(this.label, this.type.substTVar(name, type), this.rest.substTVar(name, type));
-    }
-    substTMeta(name, type) {
-        return new TRowExtend(this.label, this.type.substTMeta(name, type), this.rest.substTMeta(name, type));
-    }
-    containsTMeta(name) {
-        return this.type.containsTMeta(name) || this.rest.containsTMeta(name);
-    }
-    freeTMeta() {
-        return this.type.freeTMeta().concat(this.rest.freeTMeta());
-    }
-    equals(that) {
-        return that instanceof TRowExtend && this.label.equals(that.label) && this.type.equals(that.type) && this.rest.equals(that.rest);
-    }
-}
-exports.TRowExtend = TRowExtend;
-exports.trowextend = (label, type, rest) => new TRowExtend(label, type, rest);
-exports.isTRowExtend = (type) => type instanceof TRowExtend;
-exports.flattenRow = (row) => {
-    if (exports.isTRowExtend(row)) {
-        const rec = exports.flattenRow(row.rest);
-        return { map: [[row.label, row.type]].concat(rec.map), rest: rec.rest };
-    }
-    return { map: [], rest: row };
-};
-exports.labelsOfRow = (row) => exports.flattenRow(row).map.map(x => x[0]);
-exports.rowContainsDuplicate = (row) => utils_1.containsDuplicate(exports.labelsOfRow(row));
-
-},{"./utils":5}],5:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
 exports.impossible = () => { throw new Error('impossible'); };
 exports.assocGet = (arr, val) => {
     for (let i = arr.length - 1; i >= 0; i--) {
@@ -454,7 +141,7 @@ exports.containsDuplicate = (arr) => {
     return false;
 };
 
-},{}],6:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const Either_1 = require("../Either");
@@ -602,9 +289,12 @@ exports.apply = (type) => {
             .map(right => types_1.tapp(left, right)));
     if (types_1.isTFun(type))
         return exports.apply(type.left)
+            .chain(left => exports.apply(type.right)
+            .map(right => types_1.tfun(left, right)));
+    if (types_1.isTComp(type))
+        return exports.apply(type.type)
             .chain(left => exports.apply(type.eff)
-            .chain(eff => exports.apply(type.right)
-            .map(right => types_1.tfun(left, eff, right))));
+            .map(right => types_1.tcomp(left, right)));
     if (types_1.isTForall(type))
         return exports.apply(type.type).map(body => types_1.tforall(type.name, type.kind, body));
     if (types_1.isTEffsExtend(type))
@@ -616,7 +306,7 @@ exports.apply = (type) => {
     return utils_1.impossible();
 };
 
-},{"../Either":1,"../NameRep":2,"../utils":26,"./context":8,"./elems":9,"./types":16}],7:[function(require,module,exports){
+},{"../Either":1,"../NameRep":2,"../utils":25,"./context":7,"./elems":8,"./types":15}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
@@ -713,7 +403,7 @@ exports.lt = (name, expr, body) => new Let(name, expr, body);
 exports.lts = (ns, body) => ns.reduceRight((b, [n, e]) => exports.lt(n, e, b), body);
 exports.isLet = (expr) => expr instanceof Let;
 
-},{"./exprs":10}],8:[function(require,module,exports){
+},{"./exprs":9}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Context {
@@ -795,7 +485,7 @@ class Context {
 }
 exports.default = Context;
 
-},{}],9:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Elem {
@@ -870,14 +560,14 @@ exports.CVar = CVar;
 exports.cvar = (name, type) => new CVar(name, type);
 exports.isCVar = (name) => (e) => e instanceof CVar && e.name.equals(name);
 
-},{}],10:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Expr {
 }
 exports.default = Expr;
 
-},{}],11:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const TC_1 = require("./TC");
@@ -893,8 +583,6 @@ const kinds_1 = require("./kinds");
 const NameRep_1 = require("../NameRep");
 const utils_1 = require("../utils");
 const unification_1 = require("./unification");
-const types_2 = require("../backup/types");
-const applySynthResult = (res) => TC_1.apply(res.type).chain(type => TC_1.apply(res.eff).map(eff => ({ type, eff })));
 const orderedUnsolved = (ctx, type) => {
     const u = ctx.findAll(e => e instanceof elems_1.CTMeta && !e.type ? [e.name, e.kind] : null);
     const r = [];
@@ -915,10 +603,10 @@ const generalize = (action) => TC_1.freshName(NameRep_1.name('m'))
     .chain(ty => TC_1.pop(elems_1.isCMarker(m))
     .map(right => {
     const u = orderedUnsolved(right, ty);
-    return types_1.tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, types_1.tvar(n)), ty));
+    return types_1.tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, types_1.tvar(n)), types_1.isTComp(ty) ? ty : types_1.tcomp(ty, types_1.teffsempty())));
 }))))
     .chain(TC_1.apply)
-    .map(unification_1.closeTFun)
+    //.map(closeTFun)
     .chain(ty => TC_1.log(`gen done: ${ty}`).map(() => ty)));
 const synthVal = (expr) => TC_1.log(`synthVal ${expr}`).chain(() => {
     if (values_1.isVar(expr))
@@ -928,22 +616,21 @@ const synthVal = (expr) => TC_1.log(`synthVal ${expr}`).chain(() => {
         if (type)
             return wf_1.wfType(type)
                 .chain(k => wf_1.checkKind(kinds_1.kType, k, `abstraction argument ${expr}`))
-                .then(generalize(TC_1.freshNames([expr.name, NameRep_1.name('t'), NameRep_1.name('e')])
-                .chain(([x, b, e]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(b, kinds_1.kType), elems_1.ctmeta(e, kinds_1.kEffs), elems_1.cvar(x, type)))
-                .then(checkComp(expr.open(values_1.vr(x)), types_1.tmeta(b), types_1.tmeta(e)))
-                .map(() => types_1.tfun(type, types_1.tmeta(e), types_1.tmeta(b))))));
+                .then(generalize(TC_1.freshNames([expr.name, NameRep_1.name('t')])
+                .chain(([x, b]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(b, kinds_1.kComp), elems_1.cvar(x, type)))
+                .then(checkComp(expr.open(values_1.vr(x)), types_1.tmeta(b)))
+                .map(() => types_1.tfun(type, types_1.tmeta(b))))));
         else
-            return generalize(TC_1.freshNames([expr.name, expr.name, NameRep_1.name('t'), NameRep_1.name('e')])
-                .chain(([x, a, b, e]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(a, kinds_1.kType), elems_1.ctmeta(e, kinds_1.kEffs), elems_1.ctmeta(b, kinds_1.kType), elems_1.cvar(x, types_1.tmeta(a))))
-                .then(checkComp(expr.open(values_1.vr(x)), types_1.tmeta(b), types_1.tmeta(e)))
-                .map(() => types_1.tfun(types_1.tmeta(a), types_1.tmeta(e), types_1.tmeta(b)))));
+            return generalize(TC_1.freshNames([expr.name, expr.name, NameRep_1.name('t')])
+                .chain(([x, a, b]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(a, kinds_1.kType), elems_1.ctmeta(b, kinds_1.kComp), elems_1.cvar(x, types_1.tmeta(a))))
+                .then(checkComp(expr.open(values_1.vr(x)), types_1.tmeta(b)))
+                .map(() => types_1.tfun(types_1.tmeta(a), types_1.tmeta(b)))));
     }
     if (values_1.isAbsT(expr))
         return wf_1.wfKind(expr.kind)
             .then(TC_1.freshName(expr.name)
             .chain(x => TC_1.withElems([elems_1.ctvar(x, expr.kind)], synthComp(expr.openTVar(types_1.tvar(x))))
-            .chain(({ type, eff }) => TC_1.check(types_2.isTEffsEmpty(eff), `no effects allowed in AbsT: ${expr}, got ${eff}`)
-            .map(() => ({ type: types_1.tforall(x, expr.kind, type), eff: types_1.teffsempty() })))));
+            .map(type => types_1.tforall(x, expr.kind, type))));
     if (values_1.isAnno(expr))
         return wf_1.wfType(expr.type)
             .chain(k => wf_1.checkKind(kinds_1.kType, k, `annotation ${expr}`))
@@ -951,10 +638,12 @@ const synthVal = (expr) => TC_1.log(`synthVal ${expr}`).chain(() => {
     return TC_1.error(`cannot synthVal ${expr}`);
 })
     .chain(TC_1.apply)
-    .chain(ty => TC_1.log(`synthVal done ${expr} : ${ty}`).map(() => ty));
+    .chain(ty => wf_1.wfType(ty)
+    .chain(k => wf_1.checkKind(kinds_1.kType, k, `synthVal end ${expr} : ${ty}`)
+    .chain(() => TC_1.log(`synthVal done ${expr} : ${ty}`).map(() => ty))));
 const synthComp = (expr) => TC_1.log(`synthComp ${expr}`).chain(() => {
     if (computations_1.isReturn(expr))
-        return synthVal(expr.val).map(type => ({ type, eff: types_1.teffsempty() }));
+        return synthVal(expr.val).map(type => types_1.tcomp(type, types_1.teffsempty()));
     if (computations_1.isApp(expr))
         return synthVal(expr.left)
             .chain(ty => TC_1.apply(ty))
@@ -964,45 +653,46 @@ const synthComp = (expr) => TC_1.log(`synthComp ${expr}`).chain(() => {
             .chain(ka => synthVal(expr.left)
             .checkIs(types_1.isTForall, ty => `not a forall in left side of ${expr}: got ${ty}`)
             .chain(ty => wf_1.checkKind(ty.kind, ka, `${expr}`)
-            .map(() => ({ type: ty.open(expr.right), eff: types_1.teffsempty() }))));
+            .map(() => ty.open(expr.right))));
     if (computations_1.isLet(expr))
         return synthComp(expr.expr)
-            .chain(({ type: ty, eff: ef }) => TC_1.freshName(expr.name)
-            .chain(x => TC_1.withElems([elems_1.cvar(x, ty)], synthComp(expr.open(values_1.vr(x)))
-            .chain(({ type: ty2, eff: ef2 }) => unification_1.openEffs(ef2)
-            .chain(ef2open => unification_1.openEffs(ef).chain2(unification_1.unify, TC_1.default.of(ef2open))
+            .checkIs(types_1.isTComp, ty => `expected computation type but got ${ty} in left side of ${expr}`)
+            .chain(ty => TC_1.freshName(expr.name)
+            .chain(x => TC_1.withElems([elems_1.cvar(x, ty.type)], synthComp(expr.open(values_1.vr(x)))
+            .checkIs(types_1.isTComp, ty2 => `expected computation type but got ${ty2} in right side of ${expr}`)
+            .chain(ty2 => unification_1.openEffs(ty2.eff)
+            .chain(ef2open => unification_1.openEffs(ty.eff).chain2(unification_1.unify, TC_1.default.of(ef2open))
             .then(TC_1.apply(ef2open).chain(unification_1.closeEffs)
-            .map(ef2open => ({ type: ty2, eff: ef2open }))))))));
+            .map(ef2open => types_1.tcomp(ty2.type, ef2open))))))));
     return TC_1.error(`cannot synthComp ${expr}`);
 })
-    .chain(applySynthResult)
-    .chain(({ type, eff }) => TC_1.log(`synthComp done ${expr} : ${type}!${eff}`).map(() => ({ type, eff })));
+    .chain(TC_1.apply)
+    .chain(ty => wf_1.wfType(ty)
+    .chain(k => wf_1.checkKind(kinds_1.kComp, k, `synthComp end ${expr} : ${ty}`)
+    .chain(() => TC_1.log(`synthComp done ${expr} : ${ty}`)
+    .map(() => ty))));
 const checkVal = (expr, type) => TC_1.log(`checkVal ${expr} : ${type}`).chain(() => {
     if (types_1.isTForall(type))
         return TC_1.freshName(type.name).chain(x => TC_1.withElems([elems_1.ctvar(x, type.kind)], checkVal(expr, type.open(types_1.tvar(x)))));
     if (types_1.isTFun(type) && values_1.isAbs(expr) && !expr.type)
-        return TC_1.freshName(expr.name).chain(x => TC_1.withElems([elems_1.cvar(x, type.left)], checkComp(expr.open(values_1.vr(x)), type.right, type.eff)));
+        return TC_1.freshName(expr.name).chain(x => TC_1.withElems([elems_1.cvar(x, type.left)], checkComp(expr.open(values_1.vr(x)), type.right)));
     return synthVal(expr)
         .chain(te => TC_1.apply(te))
         .chain(te => TC_1.apply(type)
         .chain(ta => subsumption_1.subsume(te, ta)));
 });
-const checkComp = (expr, type, eff) => TC_1.log(`checkComp ${expr} : ${type}!${eff}`).chain(() => {
+const checkComp = (expr, type) => TC_1.log(`checkComp ${expr} : ${type}`).chain(() => {
     if (types_1.isTForall(type))
-        return TC_1.freshName(type.name).chain(x => TC_1.withElems([elems_1.ctvar(x, type.kind)], checkComp(expr, type.open(types_1.tvar(x)), eff)));
+        return TC_1.freshName(type.name).chain(x => TC_1.withElems([elems_1.ctvar(x, type.kind)], checkComp(expr, type.open(types_1.tvar(x)))));
     if (computations_1.isLet(expr))
         return synthComp(expr.expr)
-            .chain(({ type: ty, eff: ef }) => unification_1.openEffs(eff)
-            .chain(oeff => unification_1.openEffs(ef).chain(ef => subsumption_1.subsume(ef, oeff))
-            .then(TC_1.freshName(expr.name)
-            .chain(x => TC_1.withElems([elems_1.cvar(x, ty)], checkComp(expr.open(values_1.vr(x)), type, oeff))))));
+            .checkIs(types_1.isTComp, ty => `expected computation type but got ${ty} in left side of checking ${expr}`)
+            .chain(ty => TC_1.freshName(expr.name)
+            .chain(x => TC_1.withElems([elems_1.cvar(x, ty.type)], checkComp(expr.open(values_1.vr(x)), type))));
     return synthComp(expr)
-        .chain(({ type: ty, eff: ef }) => TC_1.apply(ty)
-        .chain(ty => TC_1.apply(ef)
-        .chain(ef => TC_1.apply(type)
-        .chain(tyE => TC_1.apply(eff)
-        .chain(efE => subsumption_1.subsume(ty, tyE)
-        .then(unification_1.openEffs(ef).chain2(subsumption_1.subsume, unification_1.openEffs(efE))))))));
+        .chain(ty => TC_1.apply(ty)
+        .chain(ty => TC_1.apply(type)
+        .chain(type => subsumption_1.subsume(ty, type))));
 });
 const synthapp = (type, expr) => TC_1.log(`synthapp ${type} @ ${expr}`).chain(() => {
     if (types_1.isTForall(type))
@@ -1011,43 +701,43 @@ const synthapp = (type, expr) => TC_1.log(`synthapp ${type} @ ${expr}`).chain(()
             .then(synthapp(type.open(types_1.tmeta(x)), expr)));
     if (types_1.isTMeta(type))
         return TC_1.findTMeta(type.name)
-            .chain(e => TC_1.freshNames([type.name, type.name, type.name])
-            .chain(([a1, a2, a3]) => TC_1.replace(elems_1.isCTMeta(type.name), [
-            elems_1.ctmeta(a2, kinds_1.kType), elems_1.ctmeta(a3, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kType), e.solve(types_1.tfun(types_1.tmeta(a1), types_1.tmeta(a3), types_1.tmeta(a2)))
+            .chain(e => TC_1.freshNames([type.name, type.name])
+            .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(type.name), [
+            elems_1.ctmeta(a2, kinds_1.kComp), elems_1.ctmeta(a1, kinds_1.kType), e.solve(types_1.tfun(types_1.tmeta(a1), types_1.tmeta(a2)))
         ])
             .then(checkVal(expr, types_1.tmeta(a1))
-            .map(() => ({ type: types_1.tmeta(a2), eff: types_1.tmeta(a3) })))));
+            .map(() => types_1.tmeta(a2)))));
     if (types_1.isTFun(type))
-        return checkVal(expr, type.left).map(() => ({ type: type.right, eff: type.eff }));
+        return checkVal(expr, type.left).map(() => type.right);
     return TC_1.error(`cannot synthapp ${type} @ ${expr}`);
 })
-    .chain(applySynthResult)
-    .chain(({ type: ty, eff }) => TC_1.log(`synthapp done ${type} @ ${expr} => ${ty}!${eff}`).map(() => ({ type: ty, eff })));
+    .chain(TC_1.apply)
+    .chain(ty => wf_1.wfType(ty)
+    .chain(k => wf_1.checkKind(kinds_1.kComp, k, `synthapp end ${type} @ ${expr}`)
+    .chain(() => TC_1.log(`synthapp done ${type} @ ${expr}`)
+    .map(() => ty))));
 exports.synthgenVal = (expr) => generalize(synthVal(expr))
     .chain(TC_1.apply)
     .chain(ty => wf_1.wfType(ty)
-    .chain(k => wf_1.checkKind(kinds_1.kType, k, `synthgenVal of ${ty}`)
+    .chain(k => wf_1.checkKind(kinds_1.kType, k, `synthgenVal of ${expr} : ${ty}`)
     .map(() => ty)));
-exports.synthgenComp = (expr) => synthComp(expr)
-    .chain(applySynthResult)
-    .chain(({ type, eff }) => wf_1.wfType(type)
-    .chain(k => wf_1.checkKind(kinds_1.kType, k, `synthgenComp of ${type}`)
-    .then(unification_1.closeEffs(eff)
-    .chain(eff => wf_1.wfType(eff)
-    .chain(k => wf_1.checkKind(kinds_1.kEffs, k, `synthgenComp of ${eff}`)
-    .map(() => ({ type, eff })))))));
+exports.synthgenComp = (expr) => generalize(synthComp(expr))
+    .chain(TC_1.apply)
+    .chain(ty => wf_1.wfType(ty)
+    .chain(k => wf_1.checkKind(kinds_1.kComp, k, `synthgenComp of ${expr} : ${ty}`)
+    .map(() => ty)));
 exports.inferVal = (ctx, expr) => exports.synthgenVal(expr).run(ctx, new NameSupply_1.default(0)).val;
 
-},{"../NameRep":2,"../NameSupply":3,"../backup/types":4,"../utils":26,"./TC":6,"./computations":7,"./context":8,"./elems":9,"./kinds":14,"./subsumption":15,"./types":16,"./unification":17,"./values":18,"./wf":19}],12:[function(require,module,exports){
+},{"../NameRep":2,"../NameSupply":3,"../utils":25,"./TC":5,"./computations":6,"./context":7,"./elems":8,"./kinds":13,"./subsumption":14,"./types":15,"./unification":16,"./values":17,"./wf":18}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const context_1 = require("./context");
 const kinds_1 = require("./kinds");
 const elems_1 = require("./elems");
-const initialContext = context_1.default.of(elems_1.ckvar(kinds_1.nType), elems_1.ckvar(kinds_1.nEffs), elems_1.ckvar(kinds_1.nEff));
+const initialContext = context_1.default.of(elems_1.ckvar(kinds_1.nType), elems_1.ckvar(kinds_1.nComp), elems_1.ckvar(kinds_1.nEffs), elems_1.ckvar(kinds_1.nEff));
 exports.default = initialContext;
 
-},{"./context":8,"./elems":9,"./kinds":14}],13:[function(require,module,exports){
+},{"./context":7,"./elems":8,"./kinds":13}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const values_1 = require("./values");
@@ -1074,7 +764,7 @@ const compileToJS = (e) => {
 };
 exports.default = compileToJS;
 
-},{"../utils":26,"./computations":7,"./values":18}],14:[function(require,module,exports){
+},{"../utils":25,"./computations":6,"./values":17}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const NameRep_1 = require("../NameRep");
@@ -1117,12 +807,14 @@ exports.kfuns = kfuns;
 exports.isKFun = (kind) => kind instanceof KFun;
 exports.nType = NameRep_1.name('Type');
 exports.kType = exports.kvar(exports.nType);
+exports.nComp = NameRep_1.name('Comp');
+exports.kComp = exports.kvar(exports.nComp);
 exports.nEffs = NameRep_1.name('Effs');
 exports.kEffs = exports.kvar(exports.nEffs);
 exports.nEff = NameRep_1.name('Eff');
 exports.kEff = exports.kvar(exports.nEff);
 
-},{"../NameRep":2}],15:[function(require,module,exports){
+},{"../NameRep":2}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1139,13 +831,17 @@ const solve = (a, b) => TC_1.log(`solve ${a} = ${b}`).then(!b.isMono() ? TC_1.er
 const instL = (a, b) => TC_1.log(`instL ${a} := ${b}`).then(types_1.isTMeta(b) ? TC_1.iff(TC_1.ordered(a, b.name), solve(b.name, types_1.tmeta(a)), solve(a, b)) :
     solve(a, b).catch(err => TC_1.log(`solve failed: ${err}`).chain(() => {
         if (types_1.isTFun(b))
-            return TC_1.freshNames([a, a, a])
-                .chain(([a1, a2, a3]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kType), elems_1.ctmeta(a3, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kType, types_1.tfun(types_1.tmeta(a1), types_1.tmeta(a3), types_1.tmeta(a2)))])
+            return TC_1.freshNames([a, a])
+                .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kComp), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kType, types_1.tfun(types_1.tmeta(a1), types_1.tmeta(a2)))])
                 .then(instR(b.left, a1))
-                .then(TC_1.apply(b.eff))
-                .chain(eff => instL(a3, eff))
                 .then(TC_1.apply(b.right))
                 .chain(type => instL(a2, type)));
+        if (types_1.isTComp(b))
+            return TC_1.freshNames([a, a])
+                .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kComp, types_1.tcomp(types_1.tmeta(a1), types_1.tmeta(a2)))])
+                .then(instL(a1, b.type))
+                .then(TC_1.apply(b.eff))
+                .chain(eff => instL(a2, eff)));
         if (types_1.isTForall(b))
             return TC_1.freshName(b.name).chain(x => TC_1.withElems([elems_1.ctvar(x, b.kind)], instL(a, b.open(types_1.tvar(x)))));
         if (types_1.isTEffsExtend(b))
@@ -1168,13 +864,17 @@ const instL = (a, b) => TC_1.log(`instL ${a} := ${b}`).then(types_1.isTMeta(b) ?
 const instR = (a, b) => TC_1.log(`instR ${b} := ${a}`).then(types_1.isTMeta(a) ? TC_1.iff(TC_1.ordered(b, a.name), solve(a.name, types_1.tmeta(b)), solve(b, a)) :
     solve(b, a).catch(err => TC_1.log(`solve failed: ${err}`).chain(() => {
         if (types_1.isTFun(a))
-            return TC_1.freshNames([b, b, b])
-                .chain(([b1, b2, b3]) => TC_1.replace(elems_1.isCTMeta(b), [elems_1.ctmeta(b2, kinds_1.kType), elems_1.ctmeta(b3, kinds_1.kEffs), elems_1.ctmeta(b1, kinds_1.kType), elems_1.csolved(b, kinds_1.kType, types_1.tfun(types_1.tmeta(b1), types_1.tmeta(b3), types_1.tmeta(b2)))])
-                .then(instL(b1, a.left))
-                .then(TC_1.apply(a.eff))
-                .chain(eff => instR(eff, b3))
+            return TC_1.freshNames([b, b])
+                .chain(([b1, b2]) => TC_1.replace(elems_1.isCTMeta(b), [elems_1.ctmeta(b2, kinds_1.kComp), elems_1.ctmeta(b1, kinds_1.kType), elems_1.csolved(b, kinds_1.kType, types_1.tfun(types_1.tmeta(b1), types_1.tmeta(b2)))])
+                .then(instL(b1, a.left)
                 .then(TC_1.apply(a.right))
-                .chain(type => instR(type, b2)));
+                .chain(type => instR(type, b2))));
+        if (types_1.isTComp(a))
+            return TC_1.freshNames([b, b])
+                .chain(([b1, b2]) => TC_1.replace(elems_1.isCTMeta(b), [elems_1.ctmeta(b2, kinds_1.kEffs), elems_1.ctmeta(b1, kinds_1.kType), elems_1.csolved(b, kinds_1.kComp, types_1.tcomp(types_1.tmeta(b1), types_1.tmeta(b2)))])
+                .then(instR(a.type, b1)
+                .then(TC_1.apply(a.eff))
+                .chain(eff => instR(eff, b2))));
         if (types_1.isTForall(a))
             return TC_1.freshName(a.name).chain(x => TC_1.withElems([elems_1.ctmeta(x, a.kind)], instR(a.open(types_1.tmeta(x)), b)));
         if (types_1.isTEffsExtend(a))
@@ -1207,6 +907,11 @@ exports.subsume = (a, b) => TC_1.log(`subsume ${a} <: ${b}`).then(wf_1.wfType(a)
             .then(TC_1.apply(a.right)
             .chain(ta => TC_1.apply(b.right)
             .chain(tb => exports.subsume(ta, tb))));
+    if (types_1.isTComp(a) && types_1.isTComp(b))
+        return exports.subsume(a.type, b.type)
+            .then(TC_1.apply(a.eff)
+            .chain(ta => TC_1.apply(b.eff)
+            .chain(tb => exports.subsume(ta, tb))));
     if (types_1.isTEffsExtend(a) && types_1.isTEffsExtend(b))
         return unification_1.rewriteEffs(a.type, b, `${a} <: ${b}`)
             .chain(es => exports.subsume(a.type, es.type)
@@ -1228,7 +933,7 @@ exports.subsume = (a, b) => TC_1.log(`subsume ${a} <: ${b}`).then(wf_1.wfType(a)
     return TC_1.error(`subsume failed: ${a} <: ${b}`);
 }))));
 
-},{"./TC":6,"./context":8,"./elems":9,"./kinds":14,"./types":16,"./unification":17,"./wf":19}],16:[function(require,module,exports){
+},{"./TC":5,"./context":7,"./elems":8,"./kinds":13,"./types":15,"./unification":16,"./wf":18}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const utils_1 = require("../utils");
@@ -1364,42 +1069,48 @@ exports.flattenTApp = (type) => {
 exports.headTApp = (type) => exports.flattenTApp(type).head;
 const ARROW = '->';
 class TFun extends Type {
-    constructor(left, eff, right) {
+    constructor(left, right) {
         super();
         this.left = left;
-        this.eff = eff;
         this.right = right;
     }
     toString() {
-        return exports.isTEffsEmpty(this.eff) ? `(${this.left} -> ${this.right})` : `(${this.left} -> ${this.right}!${this.eff})`;
+        return `(${this.left} -> ${this.right})`;
+    }
+    pretty() {
+        return `(${this.left.pretty()} ${ARROW} ${this.right.pretty()})`;
     }
     isMono() {
-        return this.left.isMono() && this.eff.isMono() && this.right.isMono();
+        return this.left.isMono() && this.right.isMono();
     }
     substTVar(name, type) {
-        return new TFun(this.left.substTVar(name, type), this.eff.substTVar(name, type), this.right.substTVar(name, type));
+        return new TFun(this.left.substTVar(name, type), this.right.substTVar(name, type));
     }
     substTMeta(name, type) {
-        return new TFun(this.left.substTMeta(name, type), this.eff.substTMeta(name, type), this.right.substTMeta(name, type));
+        return new TFun(this.left.substTMeta(name, type), this.right.substTMeta(name, type));
     }
     containsTMeta(name) {
-        return this.left.containsTMeta(name) || this.eff.containsTMeta(name) || this.right.containsTMeta(name);
+        return this.left.containsTMeta(name) || this.right.containsTMeta(name);
     }
     containsTVar(name) {
-        return this.left.containsTVar(name) || this.eff.containsTVar(name) || this.right.containsTVar(name);
+        return this.left.containsTVar(name) || this.right.containsTVar(name);
     }
     freeTMeta() {
-        return this.left.freeTMeta().concat(this.eff.freeTMeta()).concat(this.right.freeTMeta());
+        return this.left.freeTMeta().concat(this.right.freeTMeta());
     }
     equals(that) {
-        return that instanceof TFun && this.left.equals(that.left) && this.eff.equals(that.eff) && this.right.equals(that.right);
+        return that instanceof TFun && this.left.equals(that.left) && this.right.equals(that.right);
     }
 }
 exports.TFun = TFun;
-exports.tfun = (left, eff, right) => new TFun(left, eff, right);
-exports.tfunFrom = (ts) => ts.reduceRight((x, y) => exports.tfun(y, exports.teffsempty(), x));
+exports.tfun = (left, right) => new TFun(left, right);
+exports.tfunFrom = (ts) => ts.reduceRight((x, y) => exports.tfun(y, x));
 function tfuns(...ts) { return exports.tfunFrom(ts); }
 exports.tfuns = tfuns;
+exports.tfunp = (left, right) => new TFun(left, exports.tpure(right));
+exports.tfunpFrom = (ts) => ts.reduceRight((x, y) => exports.tfunp(y, x));
+function tfunps(...ts) { return exports.tfunpFrom(ts); }
+exports.tfunps = tfunps;
 exports.isTFun = (type) => type instanceof TFun;
 const FORALL = 'forall';
 class TForall extends Type {
@@ -1444,6 +1155,8 @@ class TForall extends Type {
 exports.TForall = TForall;
 exports.tforall = (name, kind, type) => new TForall(name, kind, type);
 exports.tforalls = (ns, type) => ns.reduceRight((t, [n, k]) => exports.tforall(n, k, t), type);
+exports.tforallp = (name, kind, type) => new TForall(name, kind, exports.tpure(type));
+exports.tforallps = (ns, type) => ns.reduceRight((t, [n, k]) => exports.tforallp(n, k, t), type);
 exports.isTForall = (type) => type instanceof TForall;
 exports.flattenTForall = (type) => {
     if (exports.isTForall(type)) {
@@ -1452,6 +1165,45 @@ exports.flattenTForall = (type) => {
     }
     return { ns: [], type };
 };
+class TComp extends Type {
+    constructor(type, eff) {
+        super();
+        this.type = type;
+        this.eff = eff;
+    }
+    toString() {
+        return `${this.type}!${this.eff}`;
+    }
+    pretty() {
+        return exports.isTEffsEmpty(this.eff) ? `${this.type.pretty()}` :
+            `${this.type.pretty()}!${this.eff.pretty()}`;
+    }
+    isMono() {
+        return this.type.isMono() && this.eff.isMono();
+    }
+    substTVar(name, type) {
+        return new TComp(this.type.substTVar(name, type), this.eff.substTVar(name, type));
+    }
+    substTMeta(name, type) {
+        return new TComp(this.type.substTMeta(name, type), this.eff.substTMeta(name, type));
+    }
+    containsTMeta(name) {
+        return this.type.containsTMeta(name) || this.eff.containsTMeta(name);
+    }
+    containsTVar(name) {
+        return this.type.containsTVar(name) || this.eff.containsTVar(name);
+    }
+    freeTMeta() {
+        return this.type.freeTMeta().concat(this.eff.freeTMeta());
+    }
+    equals(that) {
+        return that instanceof TComp && this.type.equals(that.type) && this.eff.equals(that.eff);
+    }
+}
+exports.TComp = TComp;
+exports.tcomp = (type, eff) => new TComp(type, eff);
+exports.tpure = (type) => exports.tcomp(type, exports.teffsempty());
+exports.isTComp = (type) => type instanceof TComp;
 class TEffsEmpty extends Type {
     constructor() { super(); }
     toString() {
@@ -1491,6 +1243,10 @@ class TEffsExtend extends Type {
     toString() {
         return `{ ${this.type} | ${this.rest} }`;
     }
+    pretty() {
+        return exports.isTEffsEmpty(this.rest) ? `{ ${this.type.pretty()} }` :
+            `{ ${this.type.pretty()} | ${this.rest.pretty()} }`;
+    }
     isMono() {
         return this.type.isMono() && this.rest.isMono();
     }
@@ -1526,7 +1282,7 @@ exports.flattenEffs = (row) => {
     return { types: [], rest: row };
 };
 
-},{"../utils":26}],17:[function(require,module,exports){
+},{"../utils":25}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const TC_1 = require("./TC");
@@ -1536,30 +1292,25 @@ const elems_1 = require("./elems");
 const NameRep_1 = require("../NameRep");
 const context_1 = require("./context");
 const kinds_1 = require("./kinds");
-const utils_1 = require("../utils");
-exports.closeTFun = (type) => {
-    if (!types_1.isTForall(type))
-        return type;
-    const f = types_1.flattenTForall(type);
-    const body = f.type;
-    if (!types_1.isTFun(body))
-        return type;
-    const eff = body.eff;
-    const feff = types_1.flattenEffs(eff);
-    const tv = feff.rest;
-    if (!types_1.isTVar(tv))
-        return type;
-    const name = tv.name;
-    if (body.left.containsTVar(name))
-        return type;
-    if (body.right.containsTVar(name))
-        return type;
-    if (utils_1.any(feff.types, t => t.containsTVar(name)))
-        return type;
-    const neff = types_1.teffsFrom(feff.types);
-    const args = utils_1.remove(f.ns, ([n, k]) => name.equals(n));
-    return types_1.tforalls(args, types_1.tfun(body.left, neff, body.right));
+/*
+export const closeTFun = (type: Type): Type => {
+  if (!isTForall(type)) return type;
+  const f = flattenTForall(type);
+  const body = f.type;
+  if (!isTFun(body)) return type;
+  const eff = body.eff;
+  const feff = flattenEffs(eff);
+  const tv = feff.rest;
+  if (!isTVar(tv)) return type;
+  const name = tv.name;
+  if (body.left.containsTVar(name)) return type;
+  if (body.right.containsTVar(name)) return type;
+  if (any(feff.types, t => t.containsTVar(name))) return type;
+  const neff = teffsFrom(feff.types);
+  const args = remove(f.ns, ([n, k]) => name.equals(n));
+  return tforalls(args, tfun(body.left, neff, body.right));
 };
+*/
 exports.closeEffs = (type) => TC_1.log(`closeEffs ${type}`).chain(() => {
     if (types_1.isTEffsExtend(type))
         return exports.closeEffs(type.rest).map(rest => types_1.teffsextend(type.type, rest));
@@ -1594,21 +1345,24 @@ exports.rewriteEffs = (head, type, msg) => TC_1.log(`rewriteEffs ${head} in ${ty
             .map(() => types_1.teffsextend(head, types_1.tmeta(r))));
     return TC_1.error(`cannot rewrite effs ${head} in ${type}: ${msg}`);
 });
-const solveUnify = (a, b) => TC_1.log(`solve unify ${a} = ${b}`).then(
-// !b.isMono() ? error(`polymorphic type in solve unify ${a} = ${b}`) :
-TC_1.findTMeta(a).chain(e => TC_1.pop(elems_1.isCTMeta(a))
-    .chain(right => wf_1.wfType(b)
-    .then(TC_1.updateCtx(context_1.default.append(context_1.default.of(e.solve(b)).append(right)))))));
+const solveUnify = (a, b) => TC_1.log(`solve unify ${a} = ${b}`).then(!b.isMono() ? TC_1.error(`polymorphic type in solve unify ${a} = ${b}`) :
+    TC_1.findTMeta(a).chain(e => TC_1.pop(elems_1.isCTMeta(a))
+        .chain(right => wf_1.wfType(b)
+        .then(TC_1.updateCtx(context_1.default.append(context_1.default.of(e.solve(b)).append(right)))))));
 exports.instUnify = (a, b) => TC_1.log(`instUnify ${a} := ${b}`).then(types_1.isTMeta(b) ? TC_1.iff(TC_1.ordered(a, b.name), solveUnify(b.name, types_1.tmeta(a)), solveUnify(a, b)) :
     solveUnify(a, b).catch(err => TC_1.log(`solveUnify failed: ${err}`).chain(() => {
         if (types_1.isTFun(b))
-            return TC_1.freshNames([a, a, a])
-                .chain(([a1, a2, a3]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kType), elems_1.ctmeta(a3, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kType, types_1.tfun(types_1.tmeta(a1), types_1.tmeta(a3), types_1.tmeta(a2)))])
+            return TC_1.freshNames([a, a])
+                .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kComp), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kType, types_1.tfun(types_1.tmeta(a1), types_1.tmeta(a2)))])
                 .then(exports.instUnify(a1, b.left))
-                .then(TC_1.apply(b.eff))
-                .chain(eff => exports.instUnify(a3, eff))
                 .then(TC_1.apply(b.right))
                 .chain(type => exports.instUnify(a2, type)));
+        if (types_1.isTComp(b))
+            return TC_1.freshNames([a, a])
+                .chain(([a1, a2]) => TC_1.replace(elems_1.isCTMeta(a), [elems_1.ctmeta(a2, kinds_1.kEffs), elems_1.ctmeta(a1, kinds_1.kType), elems_1.csolved(a, kinds_1.kComp, types_1.tcomp(types_1.tmeta(a1), types_1.tmeta(a2)))])
+                .then(exports.instUnify(a1, b.type))
+                .then(TC_1.apply(b.eff))
+                .chain(eff => exports.instUnify(a2, eff)));
         if (types_1.isTForall(b))
             return TC_1.freshName(b.name).chain(x => TC_1.withElems([elems_1.ctvar(x, b.kind)], exports.instUnify(a, b.open(types_1.tvar(x)))));
         if (types_1.isTEffsExtend(b))
@@ -1638,12 +1392,14 @@ exports.unify = (a, b) => TC_1.log(`unify ${a} ~ ${b}`).then(wf_1.wfType(a).chai
         return TC_1.ok;
     if (types_1.isTFun(a) && types_1.isTFun(b))
         return exports.unify(a.left, b.left)
-            .then(TC_1.apply(a.eff))
-            .chain(taeff => TC_1.apply(b.eff)
-            .chain(tbeff => exports.unify(taeff, tbeff)
             .then(TC_1.apply(a.right)
             .chain(ta => TC_1.apply(b.right)
-            .chain(tb => exports.unify(ta, tb))))));
+            .chain(tb => exports.unify(ta, tb))));
+    if (types_1.isTComp(a) && types_1.isTComp(b))
+        return exports.unify(a.type, b.type)
+            .then(TC_1.apply(a.eff)
+            .chain(ta => TC_1.apply(b.eff)
+            .chain(tb => exports.unify(ta, tb))));
     if (types_1.isTApp(a) && types_1.isTApp(b))
         return exports.unify(a.left, b.left)
             .then(TC_1.apply(a.right)
@@ -1668,7 +1424,7 @@ exports.unify = (a, b) => TC_1.log(`unify ${a} ~ ${b}`).then(wf_1.wfType(a).chai
     return TC_1.error(`unification failed: ${a} <: ${b}`);
 }))));
 
-},{"../NameRep":2,"../utils":26,"./TC":6,"./context":8,"./elems":9,"./kinds":14,"./types":16,"./wf":19}],18:[function(require,module,exports){
+},{"../NameRep":2,"./TC":5,"./context":7,"./elems":8,"./kinds":13,"./types":15,"./wf":18}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
@@ -1768,7 +1524,7 @@ exports.Anno = Anno;
 exports.anno = (expr, type) => new Anno(expr, type);
 exports.isAnno = (expr) => expr instanceof Anno;
 
-},{"./computations":7,"./exprs":10}],19:[function(require,module,exports){
+},{"./computations":6,"./exprs":9}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const TC_1 = require("./TC");
@@ -1802,11 +1558,15 @@ exports.wfType = (type) => {
     if (types_1.isTFun(type))
         return exports.wfType(type.left)
             .chain(kl => exports.checkKind(kinds_1.kType, kl, `left side of function: ${type}`))
-            .then(exports.wfType(type.eff)
-            .chain(ke => exports.checkKind(kinds_1.kEffs, ke, `effect of function: ${type}`))
             .then(exports.wfType(type.right)
-            .chain(kr => exports.checkKind(kinds_1.kType, kr, `right side of function: ${type}`))
-            .map(() => kinds_1.kType)));
+            .chain(kr => exports.checkKind(kinds_1.kComp, kr, `right side of function: ${type}`))
+            .map(() => kinds_1.kType));
+    if (types_1.isTComp(type))
+        return exports.wfType(type.type)
+            .chain(kl => exports.checkKind(kinds_1.kType, kl, `left side of comp type: ${type}`))
+            .then(exports.wfType(type.eff)
+            .chain(kr => exports.checkKind(kinds_1.kEffs, kr, `right side of comp type: ${type}`))
+            .map(() => kinds_1.kComp));
     if (types_1.isTEffsExtend(type))
         return exports.wfType(type.type)
             .chain(k => exports.checkKind(kinds_1.kEff, k, `effs type ${type}`))
@@ -1816,13 +1576,15 @@ exports.wfType = (type) => {
     if (types_1.isTForall(type))
         return exports.wfKind(type.kind)
             .then(TC_1.freshName(type.name)
-            .chain(x => TC_1.withElems([elems_1.ctvar(x, type.kind)], exports.wfType(type.open(types_1.tvar(x))))));
+            .chain(x => TC_1.withElems([elems_1.ctvar(x, type.kind)], exports.wfType(type.open(types_1.tvar(x)))
+            .chain(k => exports.checkKind(kinds_1.kComp, k, `tforall: ${type}`)))))
+            .map(() => kinds_1.kType);
     if (types_1.isTEffsEmpty(type))
         return TC_1.pure(kinds_1.kEffs);
     return utils_1.impossible();
 };
 
-},{"../utils":26,"./TC":6,"./elems":9,"./kinds":14,"./types":16}],20:[function(require,module,exports){
+},{"../utils":25,"./TC":5,"./elems":8,"./kinds":13,"./types":15}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const initial_1 = require("./il/initial");
@@ -1836,7 +1598,7 @@ const TC_1 = require("./il/TC");
 const inference_1 = require("./il/inference");
 const NameSupply_1 = require("./NameSupply");
 const javascriptBackend_1 = require("./il/javascriptBackend");
-exports._context = initial_1.default.add(elems_1.ctvar(NameRep_1.name('Str'), kinds_1.kType), elems_1.cvar(NameRep_1.name('show'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('Str'))))), elems_1.ctvar(NameRep_1.name('Void'), kinds_1.kType), elems_1.cvar(NameRep_1.name('caseVoid'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('Void')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Unit'), kinds_1.kType), elems_1.cvar(NameRep_1.name('Unit'), types_1.tvar(NameRep_1.name('Unit'))), elems_1.ctvar(NameRep_1.name('Bool'), kinds_1.kType), elems_1.cvar(NameRep_1.name('True'), types_1.tvar(NameRep_1.name('Bool'))), elems_1.cvar(NameRep_1.name('False'), types_1.tvar(NameRep_1.name('Bool'))), elems_1.cvar(NameRep_1.name('caseBool'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('Bool')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Nat'), kinds_1.kType), elems_1.cvar(NameRep_1.name('Z'), types_1.tvar(NameRep_1.name('Nat'))), elems_1.cvar(NameRep_1.name('S'), types_1.tfuns(types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('Nat')))), elems_1.cvar(NameRep_1.name('caseNat'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tfuns(types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Maybe'), kinds_1.kfuns(kinds_1.kType, kinds_1.kType)), elems_1.cvar(NameRep_1.name('Nothing'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t'))))), elems_1.cvar(NameRep_1.name('Just'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t')))))), elems_1.cvar(NameRep_1.name('caseMaybe'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType], [NameRep_1.name('r'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('r')), types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('r'))), types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))))), elems_1.ctvar(NameRep_1.name('List'), kinds_1.kfuns(kinds_1.kType, kinds_1.kType)), elems_1.cvar(NameRep_1.name('Nil'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))))), elems_1.cvar(NameRep_1.name('Cons'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t')))))), elems_1.cvar(NameRep_1.name('caseList'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType], [NameRep_1.name('r'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('r')), types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))))), elems_1.cvar(NameRep_1.name('fix'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Flip'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('flip'), types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.teffs(types_1.tvar(NameRep_1.name('Flip'))), types_1.tvar(NameRep_1.name('Bool')))), elems_1.cvar(NameRep_1.name('runFlip'), types_1.tforalls([[NameRep_1.name('e'), kinds_1.kEffs], [NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.teffsFrom([types_1.tvar(NameRep_1.name('Flip'))], types_1.tvar(NameRep_1.name('e'))), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('e')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Fail'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('fail'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.teffs(types_1.tvar(NameRep_1.name('Fail'))), types_1.tvar(NameRep_1.name('t'))))), elems_1.cvar(NameRep_1.name('runFail'), types_1.tforalls([[NameRep_1.name('e'), kinds_1.kEffs], [NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.teffsFrom([types_1.tvar(NameRep_1.name('Fail'))], types_1.tvar(NameRep_1.name('e'))), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('e')), types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t')))))), elems_1.ctvar(NameRep_1.name('State'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('get'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.teffs(types_1.tvar(NameRep_1.name('State'))), types_1.tvar(NameRep_1.name('Nat'))))), elems_1.cvar(NameRep_1.name('put'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tvar(NameRep_1.name('Nat')), types_1.teffs(types_1.tvar(NameRep_1.name('State'))), types_1.tvar(NameRep_1.name('Unit'))))), elems_1.cvar(NameRep_1.name('runState'), types_1.tforalls([[NameRep_1.name('e'), kinds_1.kEffs], [NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('Nat')), types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.teffsFrom([types_1.tvar(NameRep_1.name('State'))], types_1.tvar(NameRep_1.name('e'))), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('e')), types_1.tvar(NameRep_1.name('t')))))));
+exports._context = initial_1.default.add(elems_1.ctvar(NameRep_1.name('Str'), kinds_1.kType), elems_1.cvar(NameRep_1.name('show'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfunps(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('Str'))))), elems_1.ctvar(NameRep_1.name('Void'), kinds_1.kType), elems_1.cvar(NameRep_1.name('caseVoid'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfunps(types_1.tvar(NameRep_1.name('Void')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Unit'), kinds_1.kType), elems_1.cvar(NameRep_1.name('Unit'), types_1.tvar(NameRep_1.name('Unit'))), elems_1.ctvar(NameRep_1.name('Bool'), kinds_1.kType), elems_1.cvar(NameRep_1.name('True'), types_1.tvar(NameRep_1.name('Bool'))), elems_1.cvar(NameRep_1.name('False'), types_1.tvar(NameRep_1.name('Bool'))), elems_1.cvar(NameRep_1.name('caseBool'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfunps(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('Bool')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Nat'), kinds_1.kType), elems_1.cvar(NameRep_1.name('Z'), types_1.tvar(NameRep_1.name('Nat'))), elems_1.cvar(NameRep_1.name('S'), types_1.tfunps(types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('Nat')))), elems_1.cvar(NameRep_1.name('caseNat'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfunps(types_1.tvar(NameRep_1.name('t')), types_1.tfunps(types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Maybe'), kinds_1.kfuns(kinds_1.kType, kinds_1.kType)), elems_1.cvar(NameRep_1.name('Nothing'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t'))))), elems_1.cvar(NameRep_1.name('Just'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfunps(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t')))))), elems_1.cvar(NameRep_1.name('caseMaybe'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType], [NameRep_1.name('r'), kinds_1.kType]], types_1.tfunps(types_1.tvar(NameRep_1.name('r')), types_1.tfunps(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('r'))), types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))))), elems_1.ctvar(NameRep_1.name('List'), kinds_1.kfuns(kinds_1.kType, kinds_1.kType)), elems_1.cvar(NameRep_1.name('Nil'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))))), elems_1.cvar(NameRep_1.name('Cons'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfunps(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t')))))), elems_1.cvar(NameRep_1.name('caseList'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType], [NameRep_1.name('r'), kinds_1.kType]], types_1.tfunps(types_1.tvar(NameRep_1.name('r')), types_1.tfunps(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))))), elems_1.cvar(NameRep_1.name('fix'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfunps(types_1.tfunps(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Flip'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('flip'), types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tcomp(types_1.tvar(NameRep_1.name('Bool')), types_1.teffs(types_1.tvar(NameRep_1.name('Flip')))))), elems_1.cvar(NameRep_1.name('runFlip'), types_1.tforallps([[NameRep_1.name('e'), kinds_1.kEffs], [NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tcomp(types_1.tvar(NameRep_1.name('t')), types_1.teffsFrom([types_1.tvar(NameRep_1.name('Flip'))], types_1.tvar(NameRep_1.name('e'))))), types_1.tcomp(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('e')))))), elems_1.ctvar(NameRep_1.name('Fail'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('fail'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tcomp(types_1.tvar(NameRep_1.name('t')), types_1.teffs(types_1.tvar(NameRep_1.name('Fail'))))))), elems_1.cvar(NameRep_1.name('runFail'), types_1.tforallps([[NameRep_1.name('e'), kinds_1.kEffs], [NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tcomp(types_1.tvar(NameRep_1.name('t')), types_1.teffsFrom([types_1.tvar(NameRep_1.name('Fail'))], types_1.tvar(NameRep_1.name('e'))))), types_1.tcomp(types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('e')))))), elems_1.ctvar(NameRep_1.name('State'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('get'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tcomp(types_1.tvar(NameRep_1.name('Nat')), types_1.teffs(types_1.tvar(NameRep_1.name('State'))))))), elems_1.cvar(NameRep_1.name('put'), types_1.tforallps([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tvar(NameRep_1.name('Nat')), types_1.tcomp(types_1.tvar(NameRep_1.name('Unit')), types_1.teffs(types_1.tvar(NameRep_1.name('State'))))))), elems_1.cvar(NameRep_1.name('runState'), types_1.tforallps([[NameRep_1.name('e'), kinds_1.kEffs], [NameRep_1.name('t'), kinds_1.kType]], types_1.tfunps(types_1.tvar(NameRep_1.name('Nat')), types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tcomp(types_1.tvar(NameRep_1.name('t')), types_1.teffsFrom([types_1.tvar(NameRep_1.name('State'))], types_1.tvar(NameRep_1.name('e'))))), types_1.tcomp(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('e'))))))));
 function _show(x) {
     if (typeof x === 'string')
         return JSON.stringify(x);
@@ -1863,12 +1625,12 @@ function _run(i, cb) {
             return TC_1.log(`${ex}`).then(inference_1.synthgenComp(ex));
         });
         const result = prog.run(_ctx, new NameSupply_1.default(0)).val.throw();
-        console.log(`${result.type}!${result.eff}`);
+        console.log(`${result}`);
         if (cex) {
             const c = javascriptBackend_1.default(cex);
             console.log(c);
             const res = eval(c);
-            cb(`${_show(res)} : ${result.type.pretty()}${types_1.isTEffsEmpty(result.eff) ? '' : `!${result.eff}`}`);
+            cb(`${_show(res)} : ${result.pretty()}`);
         }
     }
     catch (e) {
@@ -1878,7 +1640,7 @@ function _run(i, cb) {
 }
 exports.default = _run;
 
-},{"./NameRep":2,"./NameSupply":3,"./il/TC":6,"./il/elems":9,"./il/inference":11,"./il/initial":12,"./il/javascriptBackend":13,"./il/kinds":14,"./il/types":16,"./surface/parser":23,"./surface/surface":24}],21:[function(require,module,exports){
+},{"./NameRep":2,"./NameSupply":3,"./il/TC":5,"./il/elems":8,"./il/inference":10,"./il/initial":11,"./il/javascriptBackend":12,"./il/kinds":13,"./il/types":15,"./surface/parser":22,"./surface/surface":23}],20:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Expr {
@@ -2019,7 +1781,7 @@ exports.lt = (name, expr, body) => new Let(name, expr, body);
 exports.lts = (ns, body) => ns.reduceRight((b, [n, e]) => exports.lt(n, e, b), body);
 exports.isLet = (expr) => expr instanceof Let;
 
-},{}],22:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Kind {
@@ -2054,7 +1816,7 @@ function kfuns(...ks) { return exports.kfunFrom(ks); }
 exports.kfuns = kfuns;
 exports.isKFun = (kind) => kind instanceof KFun;
 
-},{}],23:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
@@ -2170,7 +1932,7 @@ function parse(s) {
 }
 exports.default = parse;
 
-},{"../utils":26,"./exprs":21}],24:[function(require,module,exports){
+},{"../utils":25,"./exprs":20}],23:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("../il/kinds");
@@ -2196,7 +1958,7 @@ exports.typeToIL = (t) => {
     if (types_2.isTApp(t))
         return exports.typeToIL(t.left).chain2((l, r) => TC_1.default.of(types_1.tapp(l, r)), exports.typeToIL(t.right));
     if (types_2.isTFun(t))
-        return exports.typeToIL(t.left).chain3((a, b, c) => TC_1.default.of(types_1.tfun(a, b, c)), exports.typeToIL(t.eff), exports.typeToIL(t.right));
+        return exports.typeToIL(t.left).chain2((a, b) => TC_1.default.of(types_1.tfun(a, b)), exports.typeToIL(t.right));
     if (types_2.isTForall(t))
         return exports.kindToIL(t.kind).chain(k => exports.typeToIL(t.type).map(ty => types_1.tforall(NameRep_1.name(t.name), k, ty)));
     if (types_2.isTEffsExtend(t))
@@ -2261,7 +2023,7 @@ exports.exprToValIL = (e) => {
     return utils_1.impossible();
 };
 
-},{"../NameRep":2,"../backup/utils":5,"../il/TC":6,"../il/computations":7,"../il/kinds":14,"../il/types":16,"../il/values":18,"./exprs":21,"./kinds":22,"./types":25}],25:[function(require,module,exports){
+},{"../NameRep":2,"../backup/utils":4,"../il/TC":5,"../il/computations":6,"../il/kinds":13,"../il/types":15,"../il/values":17,"./exprs":20,"./kinds":21,"./types":24}],24:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Type {
@@ -2306,19 +2068,18 @@ exports.flattenTApp = (type) => {
 };
 exports.headTApp = (type) => exports.flattenTApp(type).head;
 class TFun extends Type {
-    constructor(left, eff, right) {
+    constructor(left, right) {
         super();
         this.left = left;
-        this.eff = eff;
         this.right = right;
     }
     toString() {
-        return exports.isTEffsEmpty(this.eff) ? `(${this.left} -> ${this.right})` : `(${this.left} -> ${this.right}!${this.eff})`;
+        return `(${this.left} -> ${this.right})`;
     }
 }
 exports.TFun = TFun;
-exports.tfun = (left, eff, right) => new TFun(left, eff, right);
-exports.tfunFrom = (ts) => ts.reduceRight((x, y) => exports.tfun(y, exports.teffsempty(), x));
+exports.tfun = (left, right) => new TFun(left, right);
+exports.tfunFrom = (ts) => ts.reduceRight((x, y) => exports.tfun(y, x));
 function tfuns(...ts) { return exports.tfunFrom(ts); }
 exports.tfuns = tfuns;
 exports.isTFun = (type) => type instanceof TFun;
@@ -2376,7 +2137,7 @@ exports.flattenEffs = (row) => {
     return { types: [], rest: row };
 };
 
-},{}],26:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.impossible = () => { throw new Error('impossible'); };
@@ -2417,7 +2178,7 @@ exports.remove = (arr, fn) => {
     return ret;
 };
 
-},{}],27:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -2475,4 +2236,4 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":20}]},{},[27]);
+},{"./repl":19}]},{},[26]);

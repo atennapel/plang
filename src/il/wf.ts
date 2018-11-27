@@ -1,7 +1,7 @@
 import TC, { error, ok, findKVar, pure, findTVar, findTMeta, freshName, withElems } from "./TC";
-import Kind, { isKVar, isKFun, kEffs, kEff, kType } from "./kinds";
+import Kind, { isKVar, isKFun, kEffs, kEff, kType, kComp } from "./kinds";
 import { impossible } from "../utils";
-import Type, { isTVar, isTMeta, isTApp, isTEffsExtend, isTForall, isTEffsEmpty, tvar, isTFun } from "./types";
+import Type, { isTVar, isTMeta, isTApp, isTEffsExtend, isTForall, isTEffsEmpty, tvar, isTFun, isTComp } from "./types";
 import { ctvar } from "./elems";
 
 export const checkKind = (exp: Kind, actual: Kind, msg?: string): TC<void> => {
@@ -27,11 +27,15 @@ export const wfType = (type: Type): TC<Kind> => {
   if (isTFun(type))
     return wfType(type.left)
       .chain(kl => checkKind(kType, kl, `left side of function: ${type}`))
-      .then(wfType(type.eff)
-      .chain(ke => checkKind(kEffs, ke, `effect of function: ${type}`))
       .then(wfType(type.right)
-      .chain(kr => checkKind(kType, kr, `right side of function: ${type}`))
-      .map(() => kType)));
+      .chain(kr => checkKind(kComp, kr, `right side of function: ${type}`))
+      .map(() => kType));
+  if (isTComp(type))
+    return wfType(type.type)
+      .chain(kl => checkKind(kType, kl, `left side of comp type: ${type}`))
+      .then(wfType(type.eff)
+      .chain(kr => checkKind(kEffs, kr, `right side of comp type: ${type}`))
+      .map(() => kComp));
   if (isTEffsExtend(type))
     return wfType(type.type)
       .chain(k => checkKind(kEff, k, `effs type ${type}`))
@@ -41,7 +45,10 @@ export const wfType = (type: Type): TC<Kind> => {
   if (isTForall(type))
     return wfKind(type.kind)
       .then(freshName(type.name)
-      .chain(x => withElems([ctvar(x, type.kind)], wfType(type.open(tvar(x))))));
+      .chain(x => withElems([ctvar(x, type.kind)],
+        wfType(type.open(tvar(x)))
+        .chain(k => checkKind(kComp, k, `tforall: ${type}`)))))
+      .map(() => kType);
   if (isTEffsEmpty(type)) return pure(kEffs);
   return impossible();
 };
