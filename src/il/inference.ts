@@ -163,12 +163,12 @@ const synthapp = (type: Type, expr: Val): TC<Type> =>
         .then(synthapp(t.type, expr)))));
     if (isTMeta(type))
       return findTMeta(type.name)
-        .chain(e => freshNames([type.name, type.name])
-        .chain(([a1, a2]) => replace(isCTMeta(type.name), [
-          ctmeta(a2, kComp), ctmeta(a1, kType), e.solve(tfun(tmeta(a1), tmeta(a2)))
+        .chain(e => freshNames([type.name, type.name, type.name])
+        .chain(([a1, a2, a3]) => replace(isCTMeta(type.name), [
+          ctmeta(a2, kType), ctmeta(a3, kEffs), ctmeta(a1, kType), e.solve(tfun(tmeta(a1), tcomp(tmeta(a2), tmeta(a3))))
         ])
         .then(checkVal(expr, tmeta(a1))
-        .map(() => tmeta(a2)))));
+        .map(() => tcomp(tmeta(a2), tmeta(a3))))));
     if (isTFun(type)) return checkVal(expr, type.left).map(() => type.right);
     return error(`cannot synthapp ${type} @ ${expr}`);
   })
