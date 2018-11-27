@@ -40,6 +40,7 @@ const generalize = (action: TC<Type>): TC<Type> =>
         t.substTMeta(n, tvar(n)),isTComp(ty) ? ty : tcomp(ty, teffsempty())));
     }))))
     .chain(apply)
+    // TODO: try to close type
     //.map(closeTFun)
     .chain(ty => log(`gen done: ${ty}`).map(() => ty)));
 
@@ -121,6 +122,7 @@ const synthComp = (expr: Comp): TC<Type> =>
 
 const checkVal = (expr: Val, type: Type): TC<void> =>
   log(`checkVal ${expr} : ${type}`).chain(() => {
+    // TODO: how to handle the effects in side the forall
     if (isTForall(type))
       return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkVal(expr, type.open(tvar(x)))));
     if (isTFun(type) && isAbs(expr) && !expr.type)
@@ -133,6 +135,7 @@ const checkVal = (expr: Val, type: Type): TC<void> =>
 
 const checkComp = (expr: Comp, type: Type): TC<void> =>
   log(`checkComp ${expr} : ${type}`).chain(() => {
+    // TODO: TComp here
     if (isTForall(type))
       return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkComp(expr, type.open(tvar(x)))));
     if (isReturn(expr))
@@ -151,6 +154,7 @@ const checkComp = (expr: Comp, type: Type): TC<void> =>
 
 const synthapp = (type: Type, expr: Val): TC<Type> =>
   log(`synthapp ${type} @ ${expr}`).chain(() => {
+    // TODO: handle effects inside forall
     if (isTForall(type))
       return freshName(type.name)
         .chain(x => updateCtx(Context.add(ctmeta(x, type.kind)))

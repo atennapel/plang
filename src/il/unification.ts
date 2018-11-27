@@ -84,20 +84,25 @@ export const instUnify = (a: NameRep, b: Type): TC<void> =>
             .then(instUnify(a1, b.left))
             .then(apply(b.right))
             .chain(type => unify(tcomp(tmeta(a2), tmeta(a3)), type)));
+
         if (isTComp(b))
           return freshNames([a, a])
             .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kType), csolved(a, kComp, tcomp(tmeta(a1), tmeta(a2)))])
             .then(instUnify(a1, b.type))
             .then(apply(b.eff))
             .chain(eff => instUnify(a2, eff)));
+        
+        // TODO: what to do about the effects in the forall
         if (isTForall(b))
           return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instUnify(a, b.open(tvar(x)))));
-        if (isTEffsExtend(b))
+        
+          if (isTEffsExtend(b))
           return freshNames([a, a])
             .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kEff), csolved(a, kEffs, teffsextend(tmeta(a1), tmeta(a2)))])
             .then(instUnify(a1, b.type))
             .then(apply(b.rest))
             .chain(type => instUnify(a2, type)));
+        
         if (isTApp(b))
           return wfType(b)
             .chain(kAll => wfType(b.left)
@@ -107,6 +112,7 @@ export const instUnify = (a: NameRep, b: Type): TC<void> =>
             .then(instUnify(a1, b.left)
             .then(apply(b.right)
             .chain(right => instUnify(a2, right))))))));
+        
         return error(`instUnify failed: ${a} = ${b}`); 
       })));
 
@@ -142,16 +148,19 @@ export const unify = (a: Type, b: Type): TC<void> =>
             .then(apply(a.rest)
             .chain(restA => apply(es.rest)
             .chain(restB => unify(restA, restB)))));
-              
+            
+        // TODO: what to do about the effects in the forall
         if (isTForall(a) && isTForall(b))
           return checkKind(a.kind, b.kind, `unification of ${a} ~ ${b}`)
             .then(freshName(a.name)
             .chain(x => withElems([ctvar(x, a.kind)], unify(a.open(tvar(x)), b.open(tvar(x))))));
+
         if (isTMeta(a))
           return check(!b.containsTMeta(a.name), `occurs check failed L unify: ${a} in ${b}`)
             .then(instUnify(a.name, b));
         if (isTMeta(b))
           return check(!a.containsTMeta(b.name), `occurs check failed R unify: ${b} in ${a}`)
             .then(instUnify(b.name, a));
+            
         return error(`unification failed: ${a} <: ${b}`);
       }))));

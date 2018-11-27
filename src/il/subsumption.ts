@@ -33,6 +33,7 @@ const instL = (a: NameRep, b: Type): TC<void> =>
             .then(apply(b.eff))
             .chain(eff => instL(a2, eff)));
         
+        // TODO: what to do about the effects in the forall
         if (isTForall(b))
           return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instL(a, b.open(tvar(x)))));
 
@@ -74,6 +75,7 @@ const instR = (a: Type, b: NameRep): TC<void> =>
             .then(apply(a.eff))
             .chain(eff => instR(eff, b2))));
 
+        // TODO: what to do about the effects in the forall
         if (isTForall(a))
           return freshName(a.name).chain(x => withElems([ctmeta(x, a.kind)], instR(a.open(tmeta(x)), b)));
 
@@ -126,15 +128,20 @@ export const subsume = (a: Type, b: Type): TC<void> =>
 
         if (isTApp(a) && isTApp(b))
           return unify(a, b);
+          
+        // TODO: what to do about the effects in the forall
         if (isTForall(a))
           return freshName(a.name).chain(x => withElems([ctmeta(x, a.kind)], subsume(a.open(tmeta(x)), b)));
+        // TODO: what to do about the effects in the forall
         if (isTForall(b))
           return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], subsume(a, b.open(tvar(x)))));
+        
         if (isTMeta(a))
           return check(!b.containsTMeta(a.name), `occurs check failed L: ${a} in ${b}`)
             .then(instL(a.name, b));
         if (isTMeta(b))
           return check(!a.containsTMeta(b.name), `occurs check failed R: ${b} in ${a}`)
             .then(instR(a, b.name));
+
         return error(`subsume failed: ${a} <: ${b}`);
       }))));
