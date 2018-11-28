@@ -1,11 +1,11 @@
-import Type, { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTEffsEmpty, isTEffsExtend, teffsextend, teffsempty, isTFun, tfun, tapp, isTComp, tcomp } from './types';
+import Type, { tmeta, tvar, isTForall, isTMeta, isTVar, isTApp, isTEffsEmpty, isTEffsExtend, teffsextend, teffsempty, isTFun, tfun, tapp } from './types';
 import Context from './context';
 import { wfType, checkKind } from './wf';
 import TC, { error, ok, pop, log, findTMeta, updateCtx, ordered, iff, freshNames, replace, apply, freshName, withElems, check, getCtx } from './TC';
-import NameRep, { name } from '../NameRep';
+import NameRep, { name } from './NameRep';
 import Elem, { isCTMeta, ctmeta, csolved, ctvar } from './elems';
 import { unify, rewriteEffs, instUnify } from './unification';
-import { kType, kEffs, kEff, kComp } from './kinds';
+import { kType, kEffs, kEff } from './kinds';
 
 const solve = (a: NameRep, b: Type): TC<void> =>
   log(`solve ${a} = ${b}`).then(
@@ -21,24 +21,15 @@ const instL = (a: NameRep, b: Type): TC<void> =>
       solve(a, b).catch(err => log(`solve failed: ${err}`).chain(() => {
         if (isTFun(b))
           return freshNames([a, a, a])
-            .chain(([a1, a2, a3]) => replace(isCTMeta(a), [ctmeta(a2, kType), ctmeta(a3, kEffs), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tcomp(tmeta(a2), tmeta(a3))))])
+            .chain(([a1, a2, a3]) => replace(isCTMeta(a), [ctmeta(a2, kType), ctmeta(a3, kEffs), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a2), tmeta(a3)))])
             .then(instR(b.left, a1))
             .then(apply(b.right))
-            .chain(type => subsume(tcomp(tmeta(a2), tmeta(a3)), type)));
-
-        if (isTComp(b))
-          return freshNames([a, a])
-            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kType), csolved(a, kComp, tcomp(tmeta(a1), tmeta(a2)))])
-            .then(instL(a1, b.type))
-            .then(apply(b.eff))
-            .chain(eff => instL(a2, eff)));
-        
+            .chain(type => instL(a2, type)
+            .then(apply(b.eff)
+            .chain(eff => instL(a3, eff)))));
+   
         if (isTForall(b))
-          return freshName(b.name)
-            .chain(x => TC.of(b.open(tvar(x)))
-            .checkIs(isTComp, _ => `not a tcomp in forall ${b} in instL`)
-            .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${b} in instL`)
-            .then(withElems([ctvar(x, b.kind)], instL(a, t.type)))));
+          return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instL(a, b.open(tvar(x)))));
 
         if (isTEffsExtend(b))
           return freshNames([a, a])
@@ -66,24 +57,15 @@ const instR = (a: Type, b: NameRep): TC<void> =>
       solve(b, a).catch(err => log(`solve failed: ${err}`).chain(() => {
         if (isTFun(a))
           return freshNames([b, b, b])
-            .chain(([b1, b2, b3]) => replace(isCTMeta(b), [ctmeta(b2, kType), ctmeta(b3, kEffs), ctmeta(b1, kType), csolved(b, kType, tfun(tmeta(b1), tcomp(tmeta(b2), tmeta(b3))))])
+            .chain(([b1, b2, b3]) => replace(isCTMeta(b), [ctmeta(b2, kType), ctmeta(b3, kEffs), ctmeta(b1, kType), csolved(b, kType, tfun(tmeta(b1), tmeta(b2), tmeta(b3)))])
             .then(instL(b1, a.left)
             .then(apply(a.right))
-            .chain(type => subsume(type, tcomp(tmeta(b2), tmeta(b3))))));
-
-        if (isTComp(a))
-          return freshNames([b, b])
-            .chain(([b1, b2]) => replace(isCTMeta(b), [ctmeta(b2, kEffs), ctmeta(b1, kType), csolved(b, kComp, tcomp(tmeta(b1), tmeta(b2)))])
-            .then(instR(a.type, b1)
-            .then(apply(a.eff))
-            .chain(eff => instR(eff, b2))));
+            .chain(type => instR(type, b2)
+            .then(apply(a.eff)
+            .chain(eff => instR(eff, b3))))));
 
         if (isTForall(a))
-          return freshName(a.name)
-            .chain(x => TC.of(a.open(tmeta(x)))
-            .checkIs(isTComp, _ => `not a tcomp in forall ${a} in instR`)
-            .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${a} in instR`)
-            .then(withElems([ctmeta(x, a.kind)], instR(t.type, b)))));
+          return freshName(a.name).chain(x => withElems([ctmeta(x, a.kind)], instR(a.open(tmeta(x)), b)));
 
         if (isTEffsExtend(a))
           return freshNames([b, b])
@@ -117,13 +99,10 @@ export const subsume = (a: Type, b: Type): TC<void> =>
           return subsume(b.left, a.left)
             .then(apply(a.right)
             .chain(ta => apply(b.right)
-            .chain(tb => subsume(ta, tb))));
-
-        if (isTComp(a) && isTComp(b))
-          return subsume(a.type, b.type)
+            .chain(tb => subsume(ta, tb)
             .then(apply(a.eff)
-            .chain(ta => apply(b.eff)
-            .chain(tb => subsume(ta, tb))));
+            .chain(ea => apply(b.eff)
+            .chain(eb => subsume(ea, eb)))))));
         
         if (isTEffsExtend(a) && isTEffsExtend(b))
           return rewriteEffs(a.type, b, `${a} <: ${b}`)
@@ -136,18 +115,10 @@ export const subsume = (a: Type, b: Type): TC<void> =>
           return unify(a, b);
                   
         if (isTForall(a))
-          return freshName(a.name)
-            .chain(x => TC.of(a.open(tmeta(x)))
-            .checkIs(isTComp, _ => `not a tcomp in forall ${a} in subsumption a`)
-            .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${a} in subsumption a`)
-            .then(withElems([ctmeta(x, a.kind)], subsume(t.type, b)))));
+          return freshName(a.name).chain(x => withElems([ctmeta(x, a.kind)], subsume(a.open(tmeta(x)), b)));
 
         if (isTForall(b))
-          return freshName(b.name)
-            .chain(x => TC.of(b.open(tvar(x)))
-            .checkIs(isTComp, _ => `not a tcomp in forall ${b} in subsumption b`)
-            .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${b} in subsumption b`)
-            .then(withElems([ctvar(x, b.kind)], subsume(a, t.type)))));
+          return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], subsume(a, b.open(tvar(x)))));
  
         if (isTMeta(a))
           return check(!b.containsTMeta(a.name), `occurs check failed L: ${a} in ${b}`)

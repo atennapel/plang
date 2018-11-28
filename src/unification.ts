@@ -1,11 +1,11 @@
 import TC, { log, ok, error, check, freshName, withElems, apply, findTMeta, pop, updateCtx, iff, ordered, freshNames, replace, pure } from './TC';
 import { wfType, checkKind } from './wf';
-import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, flattenTApp, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls, teffsempty, tapp, isTComp, tcomp, tpure } from './types';
+import Type, { isTVar, isTMeta, isTApp, isTForall, tmeta, tvar, isTEffsEmpty, TEffsExtend, isTEffsExtend, teffsextend, headTApp, isTFun, tfun, flattenTForall, flattenEffs, teffsFrom, tforalls, teffsempty, tapp } from './types';
 import Elem, { ctvar, ctmeta, isCTMeta, csolved } from './elems';
-import NameRep, { name } from '../NameRep';
+import NameRep, { name } from './NameRep';
 import Context from './context';
-import { kEffs, kType, kEff, kComp } from './kinds';
-import { any, remove } from '../utils';
+import { kEffs, kType, kEff } from './kinds';
+import { any, remove } from './utils';
 
 export const closeTFun = (type: Type): Type => {
   console.log(`closeTFun ${type}`)
@@ -13,19 +13,17 @@ export const closeTFun = (type: Type): Type => {
   const f = flattenTForall(type);
   const body = f.type;
   if (!isTFun(body)) return type;
-  const right = body.right;
-  if (!isTComp(right)) return type;
-  const eff = right.eff;
+  const eff = body.eff;
   const feff = flattenEffs(eff);
   const tv = feff.rest;
   if (!isTVar(tv)) return type;
   const name = tv.name;
   if (body.left.containsTVar(name)) return type;
-  if (right.type.containsTVar(name)) return type;
+  if (body.right.containsTVar(name)) return type;
   if (any(feff.types, t => t.containsTVar(name))) return type;
   const neff = teffsFrom(feff.types);
   const args = remove(f.ns, ([n, k]) => name.equals(n));
-  return tforalls(args, tpure(tfun(body.left, tcomp(right.type, neff))));
+  return tforalls(args, tfun(body.left, body.right, neff));
 };
 
 export const closeEffs = (type: Type): TC<Type> =>
@@ -81,24 +79,15 @@ export const instUnify = (a: NameRep, b: Type): TC<void> =>
       solveUnify(a, b).catch(err => log(`solveUnify failed: ${err}`).chain(() => {
         if (isTFun(b))
           return freshNames([a, a, a])
-            .chain(([a1, a2, a3]) => replace(isCTMeta(a), [ctmeta(a2, kType), ctmeta(a3, kEffs), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tcomp(tmeta(a2), tmeta(a3))))])
+            .chain(([a1, a2, a3]) => replace(isCTMeta(a), [ctmeta(a2, kType), ctmeta(a3, kEffs), ctmeta(a1, kType), csolved(a, kType, tfun(tmeta(a1), tmeta(a2), tmeta(a3)))])
             .then(instUnify(a1, b.left))
             .then(apply(b.right))
-            .chain(type => unify(tcomp(tmeta(a2), tmeta(a3)), type)));
-
-        if (isTComp(b))
-          return freshNames([a, a])
-            .chain(([a1, a2]) => replace(isCTMeta(a), [ctmeta(a2, kEffs), ctmeta(a1, kType), csolved(a, kComp, tcomp(tmeta(a1), tmeta(a2)))])
-            .then(instUnify(a1, b.type))
-            .then(apply(b.eff))
-            .chain(eff => instUnify(a2, eff)));
-        
+            .chain(type => instUnify(a2, type)
+            .then(apply(b.eff)
+            .chain(eff => instUnify(a3, eff)))));
+   
         if (isTForall(b))
-          return freshName(b.name)
-            .chain(x => TC.of(b.open(tvar(x)))
-            .checkIs(isTComp, _ => `not a tcomp in forall ${b} in instUnify`)
-            .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${b} in instUnify`)
-            .then(withElems([ctvar(x, b.kind)], instUnify(a, t.type)))));
+          return freshName(b.name).chain(x => withElems([ctvar(x, b.kind)], instUnify(a, b.open(tvar(x)))));
         
         if (isTEffsExtend(b))
           return freshNames([a, a])
@@ -132,13 +121,10 @@ export const unify = (a: Type, b: Type): TC<void> =>
           return unify(a.left, b.left)
             .then(apply(a.right)
             .chain(ta => apply(b.right)
-            .chain(tb => unify(ta, tb))));
-
-        if (isTComp(a) && isTComp(b))
-          return unify(a.type, b.type)
+            .chain(tb => unify(ta, tb)
             .then(apply(a.eff)
-            .chain(ta => apply(b.eff)
-            .chain(tb => unify(ta, tb))));
+            .chain(ea => apply(b.eff)
+            .chain(eb => unify(ea, eb)))))));
 
         if (isTApp(a) && isTApp(b))
           return unify(a.left, b.left)
