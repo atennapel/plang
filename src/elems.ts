@@ -1,6 +1,6 @@
 import Kind from './kinds';
 import Type from './types';
-import NameRep from '../NameRep';
+import NameRep from './NameRep';
 
 export default abstract class Elem {
 

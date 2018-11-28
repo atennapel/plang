@@ -1,6 +1,9 @@
 import Expr, { vr, apps, appFrom, lt, abs, abss, absty, lts, app } from './exprs';
-import { any } from '../utils';
+import { any } from './utils';
 import { tvar } from './types';
+import NameRep, { name } from './NameRep';
+
+const $ = name;
 
 function matchingBracket(c: string) {
   if(c === '(') return ')';
@@ -50,45 +53,45 @@ function tokenize(s: string): Token[] {
 
 function exprs(r: Token[], br: Bracket = '['): Expr {
   switch(br) {
-    case '(': return r.length === 0 ? vr('Unit') : r.length === 1 ? expr(r[0]) : appFrom(r.map(expr));
+    case '(': return r.length === 0 ? vr($('Unit')) : r.length === 1 ? expr(r[0]) : appFrom(r.map(expr));
     case '[':
-      if (r.length === 0) return vr('Nil');
+      if (r.length === 0) return vr($('Nil'));
       if (r.length === 1) return expr(r[0]);
       let n: string|null = null;
-      let res: [string, Expr][] = [];
+      let res: [NameRep, Expr][] = [];
       for (let i = 0; i < r.length - 1; i++) {
         const c = r[i];
         if (n === null) {
           if (c.tag === 'name' && c.val[0] === ':') {
             n = c.val.slice(1);
           } else {
-            res.push(['_', expr(c)]);
+            res.push([$('_'), expr(c)]);
           }
         } else {
           if (c.tag === 'name' && c.val[0] === ':') {
-            res.push([n, vr('Unit')] as [string, Expr]);
+            res.push([$(n), vr($('Unit'))] as [NameRep, Expr]);
             n = null;
             i--;
           } else {
-            res.push([n, expr(c)]);
+            res.push([$(n), expr(c)]);
             n = null;
           }
         }
       }
       return lts(res, expr(r[r.length - 1]));
     case '{':
-      if (r.length === 0) return abs('x', vr('x'));
-      if (r.length === 1) return abs('_', expr(r[0]));
+      if (r.length === 0) return abs($('x'), vr($('x')));
+      if (r.length === 1) return abs($('_'), expr(r[0]));
       const args = r[0];
-      if (args.tag !== 'list' || args.br !== '[') return abs('_', exprs(r, '('));
+      if (args.tag !== 'list' || args.br !== '[') return abs($('_'), exprs(r, '('));
       if (any(args.val, a => a.tag !== 'name')) throw new SyntaxError(`invalid args: ${args.val.join(' ')}`);
-      return abss(args.val.map(a => a.tag === 'name' ? a.val : null).filter(Boolean) as string[], exprs(r.slice(1), '('));
+      return abss(args.val.map(a => a.tag === 'name' ? a.val : null).filter(Boolean).map($) as NameRep[], exprs(r.slice(1), '('));
   }
 }
 
 function expr(r: Token): Expr {
   switch(r.tag) {
-    case 'name': return r.val[r.val.length - 1] === '!' ? app(vr(r.val.slice(0, -1)), vr('Unit')) : vr(r.val);
+    case 'name': return r.val[r.val.length - 1] === '!' ? app(vr($(r.val.slice(0, -1))), vr($('Unit'))) : vr($(r.val));
     case 'list': return exprs(r.val, r.br);
   }
 }

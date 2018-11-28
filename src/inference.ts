@@ -12,6 +12,7 @@ import Kind, { kType, kEffs, kComp } from './kinds';
 import NameRep, { name } from '../NameRep';
 import { assocGet } from '../utils';
 import { unify, openEffs, closeEffs, closeTFun } from './unification';
+import Expr from './exprs';
 
 const orderedUnsolved = (ctx: Context, type: Type): [NameRep, Kind][] => {
   const u = ctx.findAll(e => e instanceof CTMeta && !e.type ? [e.name, e.kind] as [NameRep, Kind] : null);
@@ -178,20 +179,12 @@ const synthapp = (type: Type, expr: Val): TC<Type> =>
   .chain(() => log(`synthapp done ${type} @ ${expr}`)
   .map(() => ty))));
 
-export const synthgenVal = (expr: Val): TC<Type> =>
+export const synthgen = (expr: Expr): TC<Type> =>
   generalize(synthVal(expr))
     .chain(apply)
     .chain(ty => wfType(ty)
     .chain(k => checkKind(kType, k, `synthgenVal of ${expr} : ${ty}`)
     .map(() => ty)));
 
-export const synthgenComp = (expr: Comp): TC<Type> =>
-  generalize(synthComp(expr))
-    .map(ty => isTComp(ty) ? ty : tpure(ty))
-    .chain(apply)
-    .chain(ty => wfType(ty)
-    .chain(k => checkKind(kComp, k, `synthgenComp of ${expr} : ${ty}`)
-    .map(() => ty)));
-
-export const inferVal = (ctx: Context, expr: Val): Either<string, Type> =>
-  synthgenVal(expr).run(ctx, new NameRepSupply(0)).val;
+export const infer = (ctx: Context, expr: Expr): Either<string, Type> =>
+  synthgen(expr).run(ctx, new NameRepSupply(0)).val;

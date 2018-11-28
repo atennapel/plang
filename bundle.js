@@ -837,9 +837,10 @@ const elems_1 = require("./elems");
 const unification_1 = require("./unification");
 const kinds_1 = require("./kinds");
 const solve = (a, b) => TC_1.log(`solve ${a} = ${b}`).then(!b.isMono() ? TC_1.error(`polymorphic type in solve ${a} = ${b}`) :
-    TC_1.findTMeta(a).chain(e => TC_1.pop(elems_1.isCTMeta(a))
-        .chain(right => wf_1.wfType(b)
-        .then(TC_1.updateCtx(context_1.default.append(context_1.default.of(e.solve(b)).append(right)))))));
+    types_1.isTComp(b) ? TC_1.error(`tcomp in solve ${a} = ${b}`) :
+        TC_1.findTMeta(a).chain(e => TC_1.pop(elems_1.isCTMeta(a))
+            .chain(right => wf_1.wfType(b)
+            .then(TC_1.updateCtx(context_1.default.append(context_1.default.of(e.solve(b)).append(right)))))));
 const instL = (a, b) => TC_1.log(`instL ${a} := ${b}`).then(types_1.isTMeta(b) ? TC_1.iff(TC_1.ordered(a, b.name), solve(b.name, types_1.tmeta(a)), solve(a, b)) :
     solve(a, b).catch(err => TC_1.log(`solve failed: ${err}`).chain(() => {
         if (types_1.isTFun(b))
@@ -1395,9 +1396,10 @@ exports.rewriteEffs = (head, type, msg) => TC_1.log(`rewriteEffs ${head} in ${ty
     return TC_1.error(`cannot rewrite effs ${head} in ${type}: ${msg}`);
 });
 const solveUnify = (a, b) => TC_1.log(`solve unify ${a} = ${b}`).then(!b.isMono() ? TC_1.error(`polymorphic type in solve unify ${a} = ${b}`) :
-    TC_1.findTMeta(a).chain(e => TC_1.pop(elems_1.isCTMeta(a))
-        .chain(right => wf_1.wfType(b)
-        .then(TC_1.updateCtx(context_1.default.append(context_1.default.of(e.solve(b)).append(right)))))));
+    types_1.isTComp(b) ? TC_1.error(`tcomp in solve unify ${a} = ${b}`) :
+        TC_1.findTMeta(a).chain(e => TC_1.pop(elems_1.isCTMeta(a))
+            .chain(right => wf_1.wfType(b)
+            .then(TC_1.updateCtx(context_1.default.append(context_1.default.of(e.solve(b)).append(right)))))));
 exports.instUnify = (a, b) => TC_1.log(`instUnify ${a} := ${b}`).then(types_1.isTMeta(b) ? TC_1.iff(TC_1.ordered(a, b.name), solveUnify(b.name, types_1.tmeta(a)), solveUnify(a, b)) :
     solveUnify(a, b).catch(err => TC_1.log(`solveUnify failed: ${err}`).chain(() => {
         if (types_1.isTFun(b))

@@ -1,6 +1,6 @@
 import Kind from './kinds';
-import NameRep, { name } from '../NameRep';
-import { any } from '../utils';
+import NameRep from './NameRep';
+import { any } from './utils';
 
 export default abstract class Type {
 
@@ -120,10 +120,7 @@ export class TApp extends Type {
   ) { super() }
 
   toString(): string {
-    const left = this.left;
-    if (isTApp(left) && isTVar(left.left) && /[^a-z]/i.test(left.left.toString()[0]))
-      return `(${left.right} ${left.left} ${this.right})`;
-    return `(${left} ${this.right})`;
+    return `(${this.left} ${this.right})`;
   }
   pretty(): string {
     const f = flattenTApp(this);
@@ -176,48 +173,50 @@ export class TFun extends Type {
   constructor(
     public readonly left: Type,
     public readonly right: Type,
+    public readonly eff: Type,
   ) { super() }
 
   toString(): string {
-    return `(${this.left} -> ${this.right})`;
+    return isTEffsEmpty(this.eff) ?
+      `(${this.left} -> ${this.right})` :
+      `(${this.left} -> ${this.right}!${this.eff})`;
   }
   pretty(): string {
-    return `(${this.left.pretty()} ${ARROW} ${this.right.pretty()})`;
+    return isTEffsEmpty(this.eff) ?
+      `(${this.left.pretty()} ${ARROW} ${this.right.pretty()})` :
+      `(${this.left.pretty()} ${ARROW} ${this.right.pretty()}!${(this.eff as any).pretty()})`;
   }
 
   isMono() {
-    return this.left.isMono() && this.right.isMono();
+    return this.left.isMono() && this.right.isMono() && this.eff.isMono();
   }
 
   substTVar(name: NameRep, type: Type): Type {
-    return new TFun(this.left.substTVar(name, type), this.right.substTVar(name, type));
+    return new TFun(this.left.substTVar(name, type), this.right.substTVar(name, type), this.eff.substTVar(name, type));
   }
   substTMeta(name: NameRep, type: Type): Type {
-    return new TFun(this.left.substTMeta(name, type), this.right.substTMeta(name, type));
+    return new TFun(this.left.substTMeta(name, type), this.right.substTMeta(name, type), this.eff.substTMeta(name, type));
   }
 
   containsTMeta(name: NameRep): boolean {
-    return this.left.containsTMeta(name) || this.right.containsTMeta(name);
+    return this.left.containsTMeta(name) || this.right.containsTMeta(name) || this.eff.containsTMeta(name);
   }
   containsTVar(name: NameRep): boolean {
-    return this.left.containsTVar(name) || this.right.containsTVar(name);
+    return this.left.containsTVar(name) || this.right.containsTVar(name) || this.eff.containsTVar(name);
   }
 
   freeTMeta(): NameRep[] {
-    return this.left.freeTMeta().concat(this.right.freeTMeta());
+    return this.left.freeTMeta().concat(this.right.freeTMeta()).concat(this.eff.freeTMeta());
   }
 
   equals(that: Type): boolean {
-    return that instanceof TFun && this.left.equals(that.left) && this.right.equals(that.right);
+    return that instanceof TFun && this.left.equals(that.left) && this.right.equals(that.right) && this.eff.equals(that.eff);
   }
 
 }
-export const tfun = (left: Type, right: Type) => new TFun(left, right);
+export const tfun = (left: Type, right: Type, eff: Type = teffsempty()) => new TFun(left, right, eff);
 export const tfunFrom = (ts: Type[]) => ts.reduceRight((x, y) => tfun(y, x));
 export function tfuns(...ts: Type[]) { return tfunFrom(ts) }
-export const tfunp = (left: Type, right: Type) => new TFun(left, tpure(right));
-export const tfunpFrom = (ts: Type[]) => ts.reduceRight((x, y) => tfunp(y, x));
-export function tfunps(...ts: Type[]) { return tfunpFrom(ts) }
 export const isTFun = (type: Type): type is TFun => type instanceof TFun;
 
 const FORALL = 'forall';
@@ -268,76 +267,16 @@ export class TForall extends Type {
   }
 
 }
-export const tforall = (name: NameRep, kind: Kind, type: Type) =>
-  new TForall(name, kind, type);
-export const tforalls = (ns: [NameRep, Kind][], type: Type) => {
-  if (ns.length === 0) return type;
-  const ret = ns.reduceRight((t, [n, k]) => tpure(tforall(n, k, t)), type);
-  return isTComp(ret) ? ret.type : ret;
-};
-export const tforallp = (name: NameRep, kind: Kind, type: Type) =>
-  new TForall(name, kind, tpure(type));
-export const tforallps = (ns: [NameRep, Kind][], type: Type) => {
-  if (ns.length === 0) return type;
-  const ret = ns.reduceRight((t, [n, k]) => tpure(tforallp(n, k, t)), type);
-  return isTComp(ret) ? ret.type : ret;
-}
+export const tforall = (name: NameRep, kind: Kind, type: Type) => new TForall(name, kind, type);
+export const tforalls = (ns: [NameRep, Kind][], type: Type) => ns.reduceRight((t, [n, k]) => tforall(n, k, t), type);
 export const isTForall = (type: Type): type is TForall => type instanceof TForall;
 export const flattenTForall = (type: Type): { ns: [NameRep, Kind][], type: Type } => {
   if (isTForall(type)) {
-    const rec = isTComp(type.type) && isTEffsEmpty(type.type.eff) ?
-      flattenTForall(type.type.type) :
-      flattenTForall(type.type);
+    const rec = flattenTForall(type.type);
     return { ns: [[type.name, type.kind] as [NameRep, Kind]].concat(rec.ns), type: rec.type };
   }
   return { ns: [], type };
 };
-
-export class TComp extends Type {
-
-  constructor(
-    public readonly type: Type,
-    public readonly eff: Type,
-  ) { super() }
-
-  toString(): string {
-    return `${this.type}!${this.eff}`;
-  }
-  pretty(): string {
-    return isTEffsEmpty(this.eff) ? `${this.type.pretty()}` :
-      `${this.type.pretty()}!${(this.eff as any).pretty()}`;
-  }
-
-  isMono() {
-    return this.type.isMono() && this.eff.isMono();
-  }
-
-  substTVar(name: NameRep, type: Type): Type {
-    return new TComp(this.type.substTVar(name, type), this.eff.substTVar(name, type));
-  }
-  substTMeta(name: NameRep, type: Type): Type {
-    return new TComp(this.type.substTMeta(name, type), this.eff.substTMeta(name, type));
-  }
-
-  containsTMeta(name: NameRep): boolean {
-    return this.type.containsTMeta(name) || this.eff.containsTMeta(name);
-  }
-  containsTVar(name: NameRep): boolean {
-    return this.type.containsTVar(name) || this.eff.containsTVar(name);
-  }
-
-  freeTMeta(): NameRep[] {
-    return this.type.freeTMeta().concat(this.eff.freeTMeta());
-  }
-
-  equals(that: Type): boolean {
-    return that instanceof TComp && this.type.equals(that.type) && this.eff.equals(that.eff);
-  }
-
-}
-export const tcomp = (type: Type, eff: Type) => new TComp(type, eff);
-export const tpure = (type: Type) => tcomp(type, teffsempty());
-export const isTComp = (type: Type): type is TComp => type instanceof TComp;
 
 export class TEffsEmpty extends Type {
 
