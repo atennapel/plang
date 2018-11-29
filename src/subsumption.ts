@@ -94,6 +94,7 @@ export const subsume = (a: Type, b: Type): TC<void> =>
         if (isTVar(a) && isTVar(b) && a.name.equals(b.name)) return ok;
         if (isTMeta(a) && isTMeta(b) && a.name.equals(b.name)) return ok;
         if (isTEffsEmpty(a) && isTEffsEmpty(b)) return ok;
+        if (isTEffsEmpty(a) && isTEffsExtend(b)) return ok;
         
         if (isTFun(a) && isTFun(b))
           return subsume(b.left, a.left)

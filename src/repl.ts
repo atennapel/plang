@@ -40,7 +40,8 @@ export const _context = initialContext.add(
   cvar(name('caseList'), tforalls([[name('t'), kType], [name('r'), kType]],
     tfuns(tvar(name('r')), tfuns(tvar(name('t')), tapps(tvar(name('List')), tvar(name('t'))), tvar(name('r'))), tapps(tvar(name('List')), tvar(name('t'))), tvar(name('r'))))),
 
-  cvar(name('fix'), tforalls([[name('t'), kType]], tfuns(tfuns(tvar(name('t')), tvar(name('t'))), tvar(name('t'))))),
+  cvar(name('fix'), tforalls([[name('t'), kType], [name('e'), kEffs]],
+    tfun(tfun(tvar(name('t')), tvar(name('t')), tvar(name('e'))), tvar(name('t')), tvar(name('e'))))),
 
   ctvar(name('Flip'), kEff),
   cvar(name('flip'), tfun(tvar(name('Unit')), tvar(name('Bool')), teffs(tvar(name('Flip'))))),
@@ -91,7 +92,7 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
     const p = parse(i);
     console.log(''+p);
     const result = infer(_ctx, p).throw();
-    console.log(`${result}`);
+    console.log(`${result.type}!${result.eff}`);
     const c = compileToJS(p);
     console.log(c);
     const res = eval(c);
