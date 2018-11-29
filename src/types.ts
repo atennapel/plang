@@ -182,9 +182,9 @@ export class TFun extends Type {
       `(${this.left} -> ${this.right}!${this.eff})`;
   }
   pretty(): string {
-    return isTEffsEmpty(this.eff) ?
-      `(${this.left.pretty()} ${ARROW} ${this.right.pretty()})` :
-      `(${this.left.pretty()} ${ARROW} ${this.right.pretty()}!${(this.eff as any).pretty()})`;
+    const f = flattenTFun(this);
+    const eff = f.eff ? (isTEffsEmpty(f.eff) ? '' : `!${(f.eff as any).pretty()}`) : '';
+    return `${f.ts.map(t => parenIf([TFun, TForall], t)).join(` ${ARROW} `)}${eff}`;
   }
 
   isMono() {
@@ -218,6 +218,18 @@ export const tfun = (left: Type, right: Type, eff: Type = teffsempty()) => new T
 export const tfunFrom = (ts: Type[]) => ts.reduceRight((x, y) => tfun(y, x));
 export function tfuns(...ts: Type[]) { return tfunFrom(ts) }
 export const isTFun = (type: Type): type is TFun => type instanceof TFun;
+export const flattenTFun = (type: Type): { ts: Type[], eff?: Type } => {
+  if (isTFun(type)) {
+    const eff = type.eff;
+    if (isTEffsEmpty(eff)) {
+      const rec = flattenTFun(type.right);
+      return { ts: [type.left].concat(rec.ts), eff: rec.eff };
+    } else {
+      return { ts: [type.left, type.right], eff };
+    }
+  }
+  return { ts: [type] };
+};
 
 const FORALL = 'forall';
 export class TForall extends Type {
@@ -325,11 +337,12 @@ export class TEffsExtend extends Type {
   ) { super() }
 
   toString() {
-    return `{ ${this.type} | ${this.rest} }`;
+    return `{${this.type} | ${this.rest}}`;
   }
   pretty() {
-    return isTEffsEmpty(this.rest) ? `{ ${this.type.pretty()} }` :
-      `{ ${this.type.pretty()} | ${(this.rest as any).pretty()} }`;
+    const f = flattenEffs(this as any);
+    const ts = f.types.map(x => x.pretty());
+    return isTEffsEmpty(f.rest) ? `{${ts.join(', ')}}` : `{${ts.join(', ')} | ${(f.rest as any).pretty()}}`;
   }
 
   isMono() {

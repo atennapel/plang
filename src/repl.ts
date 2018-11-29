@@ -1,6 +1,6 @@
 import initialContext from "./initial";
 import { cvar, ctvar } from "./elems";
-import { tvar, tfun, teffs, tapps, teffsFrom, tforalls, tfuns } from "./types";
+import { tvar, tfun, teffs, tapps, teffsFrom, tforalls, tfuns, isTEffsEmpty } from "./types";
 import { name } from "./NameRep";
 import { kType, kEff, kfuns, kEffs } from "./kinds";
 import parse from "./parser";
@@ -80,7 +80,7 @@ function _show(x: any): string {
     return typeof x.val === 'undefined' ? x._tag :
     Array.isArray(x.val) ? `(${x._tag} ${x.val.map(_show).join(' ')})` :
     `(${x._tag} ${_show(x.val)})`;
-  if (x._cont) return `(${x.op}(${_show(x.val)}))`;
+  if (x._cont) return `${x.op}(${_show(x.val)})`;
   return '' + x;
 }
 
@@ -95,7 +95,7 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
     const c = compileToJS(p);
     console.log(c);
     const res = eval(c);
-    cb(`${_show(res)} : ${result.type.pretty()}!${result.eff.pretty()}`);
+    cb(`${_show(res)} : ${result.type.pretty()}${isTEffsEmpty(result.eff) ? '' : `!${(result.eff as any).pretty()}`}`);
   } catch(e) {
     console.log(e);
     cb(''+e, true);

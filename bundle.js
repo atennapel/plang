@@ -586,16 +586,18 @@ const orderedUnsolved = (ctx, type) => {
 const generalize = (action) => TC_1.freshName(NameRep_1.name('m'))
     .chain(m => TC_1.updateCtx(context_1.default.add(elems_1.cmarker(m)))
     .then(action
-    .chain(TC_1.apply)
-    .chain(ty => TC_1.log(`gen: ${ty}`).map(() => ty)
+    .chain(applyTypeEff)
+    .chain(ty => TC_1.log(`gen: ${ty.type}!${ty.eff}`)
+    .map(() => ty)
     .chain(ty => TC_1.pop(elems_1.isCMarker(m))
     .map(right => {
-    const u = orderedUnsolved(right, ty);
-    return types_1.tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, types_1.tvar(n)), ty));
+    const u = orderedUnsolved(right, ty.type);
+    return typeEff(types_1.tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, types_1.tvar(n)), ty.type)), ty.eff);
 }))))
-    .chain(TC_1.apply)
-    .map(unification_1.closeTFun)
-    .chain(ty => TC_1.log(`gen done: ${ty}`).map(() => ty)));
+    .chain(applyTypeEff)
+    //.map(closeTFun)
+    .chain(ty => TC_1.log(`gen done: ${ty.type}!${ty.eff}`)
+    .map(() => ty)));
 const synth = (expr) => TC_1.log(`synth ${expr}`).chain(() => {
     if (exprs_1.isVar(expr))
         return TC_1.findVar(expr.name).map(e => typeEff(e.type, types_1.teffsempty()));
@@ -607,14 +609,12 @@ const synth = (expr) => TC_1.log(`synth ${expr}`).chain(() => {
                 .then(generalize(TC_1.freshNames([expr.name, NameRep_1.name('t'), NameRep_1.name('e')])
                 .chain(([x, b, e]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(b, kinds_1.kType), elems_1.ctmeta(e, kinds_1.kEffs), elems_1.cvar(x, type)))
                 .then(checkTy(expr.open(exprs_1.vr(x)), typeEff(types_1.tmeta(b), types_1.tmeta(e))))
-                .map(() => types_1.tfun(type, types_1.tmeta(b), types_1.tmeta(e))))))
-                .map(ty => typeEff(ty, types_1.teffsempty()));
+                .map(() => typeEff(types_1.tfun(type, types_1.tmeta(b), types_1.tmeta(e)), types_1.teffsempty())))));
         else
             return generalize(TC_1.freshNames([expr.name, expr.name, NameRep_1.name('t'), NameRep_1.name('e')])
                 .chain(([x, a, b, e]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(a, kinds_1.kType), elems_1.ctmeta(b, kinds_1.kType), elems_1.ctmeta(e, kinds_1.kEffs), elems_1.cvar(x, types_1.tmeta(a))))
                 .then(checkTy(expr.open(exprs_1.vr(x)), typeEff(types_1.tmeta(b), types_1.tmeta(e))))
-                .map(() => types_1.tfun(types_1.tmeta(a), types_1.tmeta(b), types_1.tmeta(e)))))
-                .map(ty => typeEff(ty, types_1.teffsempty()));
+                .map(() => typeEff(types_1.tfun(types_1.tmeta(a), types_1.tmeta(b), types_1.tmeta(e)), types_1.teffsempty()))));
     }
     if (exprs_1.isApp(expr))
         return synth(expr.left)
@@ -689,7 +689,7 @@ const synthapp = (type, expr) => TC_1.log(`synthapp ${type} @ ${expr}`).chain(()
     .chain(applyTypeEff)
     .chain(ty => TC_1.log(`synthapp done ${type} @ ${expr} : ${ty.type}!${ty.eff}`)
     .map(() => ty));
-exports.synthgen = (expr) => synth(expr)
+exports.synthgen = (expr) => generalize(synth(expr))
     .chain(applyTypeEff);
 exports.infer = (ctx, expr) => exports.synthgen(expr).run(ctx, new NameSupply_1.default(0)).val;
 
@@ -910,7 +910,7 @@ function _show(x) {
             Array.isArray(x.val) ? `(${x._tag} ${x.val.map(_show).join(' ')})` :
                 `(${x._tag} ${_show(x.val)})`;
     if (x._cont)
-        return `(${x.op}(${_show(x.val)}))`;
+        return `${x.op}(${_show(x.val)})`;
     return '' + x;
 }
 let _ctx = exports._context;
@@ -924,7 +924,7 @@ function _run(i, cb) {
         const c = javascriptBackend_1.default(p);
         console.log(c);
         const res = eval(c);
-        cb(`${_show(res)} : ${result.type.pretty()}!${result.eff.pretty()}`);
+        cb(`${_show(res)} : ${result.type.pretty()}${types_1.isTEffsEmpty(result.eff) ? '' : `!${result.eff.pretty()}`}`);
     }
     catch (e) {
         console.log(e);
@@ -1187,9 +1187,9 @@ class TFun extends Type {
             `(${this.left} -> ${this.right}!${this.eff})`;
     }
     pretty() {
-        return exports.isTEffsEmpty(this.eff) ?
-            `(${this.left.pretty()} ${ARROW} ${this.right.pretty()})` :
-            `(${this.left.pretty()} ${ARROW} ${this.right.pretty()}!${this.eff.pretty()})`;
+        const f = exports.flattenTFun(this);
+        const eff = f.eff ? (exports.isTEffsEmpty(f.eff) ? '' : `!${f.eff.pretty()}`) : '';
+        return `${f.ts.map(t => parenIf([TFun, TForall], t)).join(` ${ARROW} `)}${eff}`;
     }
     isMono() {
         return this.left.isMono() && this.right.isMono() && this.eff.isMono();
@@ -1219,6 +1219,19 @@ exports.tfunFrom = (ts) => ts.reduceRight((x, y) => exports.tfun(y, x));
 function tfuns(...ts) { return exports.tfunFrom(ts); }
 exports.tfuns = tfuns;
 exports.isTFun = (type) => type instanceof TFun;
+exports.flattenTFun = (type) => {
+    if (exports.isTFun(type)) {
+        const eff = type.eff;
+        if (exports.isTEffsEmpty(eff)) {
+            const rec = exports.flattenTFun(type.right);
+            return { ts: [type.left].concat(rec.ts), eff: rec.eff };
+        }
+        else {
+            return { ts: [type.left, type.right], eff };
+        }
+    }
+    return { ts: [type] };
+};
 const FORALL = 'forall';
 class TForall extends Type {
     constructor(name, kind, type) {
@@ -1307,11 +1320,12 @@ class TEffsExtend extends Type {
         this.rest = rest;
     }
     toString() {
-        return `{ ${this.type} | ${this.rest} }`;
+        return `{${this.type} | ${this.rest}}`;
     }
     pretty() {
-        return exports.isTEffsEmpty(this.rest) ? `{ ${this.type.pretty()} }` :
-            `{ ${this.type.pretty()} | ${this.rest.pretty()} }`;
+        const f = exports.flattenEffs(this);
+        const ts = f.types.map(x => x.pretty());
+        return exports.isTEffsEmpty(f.rest) ? `{${ts.join(', ')}}` : `{${ts.join(', ')} | ${f.rest.pretty()}}`;
     }
     isMono() {
         return this.type.isMono() && this.rest.isMono();

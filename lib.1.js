@@ -20,17 +20,17 @@ const caseBool = a => b => x => x._tag === 'True' ? a : b;
 
 const Z = { _tag: 'Z' };
 const S = x => ({ _tag: 'S', val: x });
-const caseNat = z => s => x => x._tag === 'S' ? $(s, x.val) : z;
+const caseNat = z => s => x => x._tag === 'S' ? s(x.val) : z;
 
 const Nothing = { _tag: 'Nothing' };
 const Just = x => ({ _tag: 'Just', val: x });
-const caseMaybe = z => s => x => x._tag === 'Just' ? $(s, x.val) : z;
+const caseMaybe = z => s => x => x._tag === 'Just' ? s(x.val) : z;
 
 const Nil = { _tag: 'Nil' };
 const Cons = h => t => ({ _tag: 'Cons', val: [h, t] });
-const caseList = z => s => x => x._tag === 'Cons' ? $($(s, x.val[0]), x.val[1]) : z; 
+const caseList = z => s => x => x._tag === 'Cons' ? s(x.val[0])(x.val[1]) : z; 
 
-const fix = f => $(x => $(f, y => $($(x, x), y)), x => $(f, y => $($(x, x), y)));
+const fix = f => (x => f(y => x(x)(y)))(x => f(y => x(x)(y)));
 
 // effects
 const _cont = (op, val, cont) => ({ _cont: true, op, val, cont });
@@ -39,8 +39,6 @@ const _do = (c, f) => c._cont ? _cont(c.op, c.val, v => _do(c.cont(v), f)) : f(c
 const _handler = m => c =>
   c._cont? (m[c.op]? m[c.op](c.val)(v => _handler(m)(c.cont(v))): _cont(c.op, c.val, v => _handler(m)(c.cont(v)))):
   m['return']? m['return'](c): c;
-
-const $ = (f, x) => _do(f, f => _do(x, x => f(x)));
 
 const flip = _op('flip');
 const fail = _op('fail');

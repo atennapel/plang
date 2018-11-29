@@ -30,20 +30,22 @@ const orderedUnsolved = (ctx: Context, type: Type): [NameRep, Kind][] => {
   return r;
 };
 
-const generalize = (action: TC<Type>): TC<Type> =>
+const generalize = (action: TC<TypeEff>): TC<TypeEff> =>
   freshName(name('m'))
     .chain(m => updateCtx(Context.add(cmarker(m)))
     .then(action
-    .chain(apply)
-    .chain(ty => log(`gen: ${ty}`).map(() => ty)
+    .chain(applyTypeEff)
+    .chain(ty => log(`gen: ${ty.type}!${ty.eff}`)
+    .map(() => ty)
     .chain(ty => pop(isCMarker(m))
     .map(right => {
-      const u = orderedUnsolved(right, ty);
-      return tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, tvar(n)), ty));
+      const u = orderedUnsolved(right, ty.type);
+      return typeEff(tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, tvar(n)), ty.type)), ty.eff);
     }))))
-    .chain(apply)
-    .map(closeTFun)
-    .chain(ty => log(`gen done: ${ty}`).map(() => ty)));
+    .chain(applyTypeEff)
+    //.map(closeTFun)
+    .chain(ty => log(`gen done: ${ty.type}!${ty.eff}`)
+    .map(() => ty)));
 
 const synth = (expr: Expr): TC<TypeEff> =>
   log(`synth ${expr}`).chain(() => {
@@ -58,15 +60,13 @@ const synth = (expr: Expr): TC<TypeEff> =>
             freshNames([expr.name, name('t'), name('e')])
             .chain(([x, b, e]) => updateCtx(Context.add(ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, type)))
             .then(checkTy(expr.open(vr(x)), typeEff(tmeta(b), tmeta(e))))
-            .map(() => tfun(type, tmeta(b), tmeta(e))))))
-          .map(ty => typeEff(ty, teffsempty()))
+            .map(() => typeEff(tfun(type, tmeta(b), tmeta(e)), teffsempty())))));
       else
         return generalize(
           freshNames([expr.name, expr.name, name('t'), name('e')])
             .chain(([x, a, b, e]) => updateCtx(Context.add(ctmeta(a, kType), ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, tmeta(a))))
             .then(checkTy(expr.open(vr(x)), typeEff(tmeta(b), tmeta(e))))
-            .map(() => tfun(tmeta(a), tmeta(b), tmeta(e)))))
-          .map(ty => typeEff(ty, teffsempty()));
+            .map(() => typeEff(tfun(tmeta(a), tmeta(b), tmeta(e)), teffsempty()))));
     }
 
     if (isApp(expr))
@@ -159,7 +159,7 @@ const synthapp = (type: Type, expr: Expr): TC<TypeEff> =>
   .map(() => ty));
 
 export const synthgen = (expr: Expr): TC<TypeEff> =>
-  synth(expr)
+  generalize(synth(expr))
     .chain(applyTypeEff);
 
 export const infer = (ctx: Context, expr: Expr): Either<string, TypeEff> =>
