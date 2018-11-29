@@ -59,12 +59,14 @@ const synth = (expr: Expr): TC<TypeEff> =>
             .chain(([x, b, e]) => updateCtx(Context.add(ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, type)))
             .then(checkTy(expr.open(vr(x)), typeEff(tmeta(b), tmeta(e))))
             .map(() => tfun(type, tmeta(b), tmeta(e))))))
+          .map(ty => typeEff(ty, teffsempty()))
       else
         return generalize(
           freshNames([expr.name, expr.name, name('t'), name('e')])
-          .chain(([x, a, b, e]) => updateCtx(Context.add(ctmeta(a, kType), ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, tmeta(a))))
-          .then(checkTy(expr.open(vr(x)), typeEff(tmeta(b), tmeta(e))))
-          .map(() => tfun(tmeta(a), tmeta(b), tmeta(e)))));
+            .chain(([x, a, b, e]) => updateCtx(Context.add(ctmeta(a, kType), ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, tmeta(a))))
+            .then(checkTy(expr.open(vr(x)), typeEff(tmeta(b), tmeta(e))))
+            .map(() => tfun(tmeta(a), tmeta(b), tmeta(e)))))
+          .map(ty => typeEff(ty, teffsempty()));
     }
 
     if (isApp(expr))
