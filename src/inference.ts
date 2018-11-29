@@ -1,18 +1,21 @@
 import TC, { error, log, apply, findVar, freshName, withElems, updateCtx, freshNames, pop, findTMeta, replace, ok, check } from './TC';
-import Type, { teffsempty, tvar, tforall, isTForall, tmeta, tfun, tforalls, isTFun, isTMeta, TFun, TForall, tcomp, TComp, isTComp, tpure, isTEffsEmpty } from './types';
-import Val, { isVar, isAbs, isAbsT, vr, isAnno } from './values';
-import Comp, { isReturn, isApp, isAppT, isLet } from './computations';
-import Either from '../Either';
+import Type, { teffsempty, tvar, tforall, isTForall, tmeta, tfun, tforalls, isTFun, isTMeta, TFun, TForall, isTEffsEmpty } from './types';
+import Either from './Either';
 import Context from './context';
-import NameRepSupply from '../NameSupply';
+import NameRepSupply from './NameSupply';
 import { subsume } from './subsumption';
 import { wfKind, wfType, checkKind } from './wf';
 import Elem, { ctvar, cvar, ctmeta, CTMeta, cmarker, isCMarker, isCTMeta } from './elems';
-import Kind, { kType, kEffs, kComp } from './kinds';
-import NameRep, { name } from '../NameRep';
-import { assocGet } from '../utils';
-import { unify, openEffs, closeEffs, closeTFun } from './unification';
-import Expr from './exprs';
+import Kind, { kType, kEffs } from './kinds';
+import NameRep, { name } from './NameRep';
+import { assocGet } from './utils';
+import { unify, openEffs, closeEffs, closeTFun, unifyEffs } from './unification';
+import Expr, { isVar, isAbs, isApp, isLet, isAnno, vr } from './exprs';
+
+type TypeEff = { type: Type, eff: Type };
+const typeEff = (type: Type, eff: Type) => ({ type, eff });
+const applyTypeEff = (t: TypeEff): TC<TypeEff> =>
+  apply(t.type).chain(ty => apply(t.eff).map(eff => typeEff(ty, eff)));
 
 const orderedUnsolved = (ctx: Context, type: Type): [NameRep, Kind][] => {
   const u = ctx.findAll(e => e instanceof CTMeta && !e.type ? [e.name, e.kind] as [NameRep, Kind] : null);
@@ -36,16 +39,15 @@ const generalize = (action: TC<Type>): TC<Type> =>
     .chain(ty => pop(isCMarker(m))
     .map(right => {
       const u = orderedUnsolved(right, ty);
-      const typ = isTComp(ty) ? ty : tcomp(ty, teffsempty());
-      return tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, tvar(n)), typ));
+      return tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, tvar(n)), ty));
     }))))
     .chain(apply)
     .map(closeTFun)
     .chain(ty => log(`gen done: ${ty}`).map(() => ty)));
 
-const synthVal = (expr: Val): TC<Type> =>
-  log(`synthVal ${expr}`).chain(() => {
-    if (isVar(expr)) return findVar(expr.name).map(e => e.type);
+const synth = (expr: Expr): TC<TypeEff> =>
+  log(`synth ${expr}`).chain(() => {
+    if (isVar(expr)) return findVar(expr.name).map(e => typeEff(e.type, teffsempty()));
 
     if (isAbs(expr)) {
       const type = expr.type;
@@ -55,136 +57,108 @@ const synthVal = (expr: Val): TC<Type> =>
           .then(generalize(
             freshNames([expr.name, name('t'), name('e')])
             .chain(([x, b, e]) => updateCtx(Context.add(ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, type)))
-            .then(checkComp(expr.open(vr(x)), tcomp(tmeta(b), tmeta(e))))
-            .map(() => tfun(type, tcomp(tmeta(b), tmeta(e)))))))
+            .then(checkTy(expr.open(vr(x)), typeEff(tmeta(b), tmeta(e))))
+            .map(() => tfun(type, tmeta(b), tmeta(e))))))
       else
         return generalize(
           freshNames([expr.name, expr.name, name('t'), name('e')])
           .chain(([x, a, b, e]) => updateCtx(Context.add(ctmeta(a, kType), ctmeta(b, kType), ctmeta(e, kEffs), cvar(x, tmeta(a))))
-          .then(checkComp(expr.open(vr(x)), tcomp(tmeta(b), tmeta(e))))
-          .map(() => tfun(tmeta(a), tcomp(tmeta(b), tmeta(e))))));
+          .then(checkTy(expr.open(vr(x)), typeEff(tmeta(b), tmeta(e))))
+          .map(() => tfun(tmeta(a), tmeta(b), tmeta(e)))));
     }
 
-    if (isAbsT(expr))
-      return wfKind(expr.kind)
-        .then(freshName(expr.name)
-        .chain(x => withElems([ctvar(x, expr.kind)], synthComp(expr.openTVar(tvar(x))))
-        .map(type => tforall(x, expr.kind, type))));
+    if (isApp(expr))
+      return synth(expr.left)
+        .chain(applyTypeEff)
+        .chain(ty => synthapp(ty.type, expr.right)
+        .chain(res => apply(ty.eff)
+        .chain(eff => unifyEffs(eff, res.eff))
+        .map(eff => typeEff(res.type, eff))));
+
+    if (isLet(expr))
+      return synth(expr.expr)
+        .chain(ty => freshName(expr.name)
+        .chain(x => withElems([cvar(x, ty.type)], synth(expr.open(vr(x)))
+        .chain(ty2 => unifyEffs(ty2.eff, ty.eff)
+        .map(ef2open => typeEff(ty2.type, ef2open))))));
 
     if (isAnno(expr))
       return wfType(expr.type)
         .chain(k => checkKind(kType, k, `annotation ${expr}`))
-        .then(checkVal(expr.expr, expr.type)).map(() => expr.type);
+        .then(checktyOpen(expr.expr, expr.type));
 
-    return error(`cannot synthVal ${expr}`);
+    return error(`cannot synth ${expr}`);
   })
-  .chain(apply)
-  .chain(ty => wfType(ty)
-  .chain(k => checkKind(kType, k, `synthVal end ${expr} : ${ty}`)
-  .chain(() => log(`synthVal done ${expr} : ${ty}`).map(() => ty))));
+  .chain(applyTypeEff)
+  .chain(ty => log(`synth done ${expr} : ${ty.type}!${ty.eff}`)
+  .map(() => ty));
 
-const synthComp = (expr: Comp): TC<Type> =>
-  log(`synthComp ${expr}`).chain(() => {
-    if (isReturn(expr))
-      return synthVal(expr.val).map(type => tcomp(type, teffsempty()));
+const checktyOpen = (expr: Expr, type: Type): TC<TypeEff> =>
+  freshName(name('e'))
+    .chain(x => updateCtx(Context.add(ctmeta(x, kEffs)))
+    .then(checkTy(expr, typeEff(type, tmeta(x))))
+    .map(() => typeEff(type, tmeta(x))))
+    .chain(applyTypeEff);
 
-    if (isApp(expr))
-      return synthVal(expr.left)
-        .chain(ty => apply(ty))
-        .chain(ty => synthapp(ty, expr.right));
-
-    if (isAppT(expr))
-      return wfType(expr.right)
-        .chain(ka => synthVal(expr.left)
-        .checkIs(isTForall, ty => `not a forall in left side of ${expr}: got ${ty}`)
-        .chain(ty => checkKind(ty.kind, ka, `${expr}`)
-        .map(() => ty.open(expr.right))));
-
-    if (isLet(expr))
-      return synthComp(expr.expr)
-        .checkIs(isTComp, ty => `expected computation type but got ${ty} in left side of ${expr}`)
-        .chain(ty => freshName(expr.name)
-        .chain(x => withElems([cvar(x, ty.type)], synthComp(expr.open(vr(x)))
-        .checkIs(isTComp, ty2 => `expected computation type but got ${ty2} in right side of ${expr}`)
-        .chain(ty2 => openEffs(ty2.eff)
-        .chain(ef2open => openEffs(ty.eff).chain2(unify, TC.of(ef2open))
-        .then(apply(ef2open).chain(closeEffs)
-        .map(ef2open => tcomp(ty2.type, ef2open))))))));
-
-    return error(`cannot synthComp ${expr}`);
-  })
-  .chain(apply)
-  .chain(ty => wfType(ty)
-  .chain(k => checkKind(kComp, k, `synthComp end ${expr} : ${ty}`)
-  .chain(() => log(`synthComp done ${expr} : ${ty}`)
-  .map(() => ty))));
-
-const checkVal = (expr: Val, type: Type): TC<void> =>
-  log(`checkVal ${expr} : ${type}`).chain(() => {
+const checkTy = (expr: Expr, ty: TypeEff): TC<void> =>
+  log(`check ${expr} : ${ty.type}!${ty.eff}`).chain(() => {
+    const type = ty.type;
+    const eff = ty.eff;
     if (isTForall(type))
-      return freshName(type.name)
-        .chain(x => TC.of(type.open(tvar(x)))
-        .checkIs(isTComp, _ => `not a tcomp in forall ${type} in checkVal`)
-        .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${type} in checkVal`)
-        .then(withElems([ctvar(x, type.kind)], checkVal(expr, t.type)))));
+      return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkTy(expr, typeEff(type.open(tvar(x)), eff))));
+
     if (isTFun(type) && isAbs(expr) && !expr.type)
-      return freshName(expr.name).chain(x => withElems([cvar(x, type.left)], checkComp(expr.open(vr(x)), type.right)));
-    return synthVal(expr)
-      .chain(te => apply(te))
-      .chain(te => apply(type)
-      .chain(ta => subsume(te, ta)));
-  });
+      return freshName(expr.name)
+        .chain(x => withElems([cvar(x, type.left)], checkTy(expr.open(vr(x)), typeEff(type.right, type.eff))));
 
-const checkComp = (expr: Comp, type: Type): TC<void> =>
-  log(`checkComp ${expr} : ${type}`).chain(() => {
-    if (isTForall(type))
-      return freshName(type.name).chain(x => withElems([ctvar(x, type.kind)], checkComp(expr, type.open(tvar(x)))));
-    if (isReturn(expr))
-      return TC.of(type).checkIs(isTComp, ty => `expected computation type but got ${ty} in checking ${expr}`)
-        .chain(ty => checkVal(expr.val, ty.type));
     if (isLet(expr))
-      return synthComp(expr.expr)
-        .checkIs(isTComp, ty => `expected computation type but got ${ty} in left side of checking ${expr}`)
-        .chain(ty => freshName(expr.name)
-        .chain(x => withElems([cvar(x, ty.type)], checkComp(expr.open(vr(x)), type))));
-    return synthComp(expr)
-      .chain(ty => apply(ty)
-      .chain(ty => apply(type)
-      .chain(type => subsume(ty, type))));
+      return synth(expr.expr)
+        .chain(({ type: ty, eff: ef }) => subsume(ef, eff)
+        .then(freshName(expr.name)
+        .chain(x => withElems([cvar(x, ty)], checkTy(expr.open(vr(x)), typeEff(type, eff))))));
+
+    return synth(expr)
+      .chain(({ type: t, eff: e }) => apply(t)
+      .chain(a => apply(type)
+      .chain(b => subsume(a, b)
+      .then(apply(e)
+      .chain(ea => apply(eff)
+      .chain(eb => subsume(ea, eb)))))));
   });
 
-const synthapp = (type: Type, expr: Val): TC<Type> =>
+const synthapp = (type: Type, expr: Expr): TC<TypeEff> =>
   log(`synthapp ${type} @ ${expr}`).chain(() => {
     if (isTForall(type))
       return freshName(type.name)
         .chain(x => TC.of(type.open(tmeta(x)))
-        .checkIs(isTComp, _ => `not a tcomp in forall ${type} in checkVal`)
-        .chain(t => check(isTEffsEmpty(t.eff), `effects in forall ${type} in synthapp`)
         .then(updateCtx(Context.add(ctmeta(x, type.kind)))
-        .then(synthapp(t.type, expr)))));
+        .then(synthapp(type.open(tmeta(x)), expr))));
+
     if (isTMeta(type))
       return findTMeta(type.name)
-        .chain(e => freshNames([type.name, type.name])
-        .chain(([a1, a2]) => replace(isCTMeta(type.name), [
-          ctmeta(a2, kComp), ctmeta(a1, kType), e.solve(tfun(tmeta(a1), tmeta(a2)))
+        .chain(e => freshNames([type.name, type.name, name('e')])
+        .chain(([a1, a2, a3]) => replace(isCTMeta(type.name), [
+          ctmeta(a2, kType), ctmeta(a3, kEffs), ctmeta(a1, kType), e.solve(tfun(tmeta(a1), tmeta(a2), tmeta(a3)))
         ])
-        .then(checkVal(expr, tmeta(a1))
-        .map(() => tmeta(a2)))));
-    if (isTFun(type)) return checkVal(expr, type.left).map(() => type.right);
+        .then(checktyOpen(expr, tmeta(a1))
+        .chain(({ eff }) => apply(tmeta(a3))
+        .chain(ty => unifyEffs(ty, eff))
+        .map(eff => typeEff(tmeta(a2), eff))))));
+
+    if (isTFun(type))
+      return checktyOpen(expr, type.left)
+        .chain(({ eff }) => unifyEffs(eff, type.eff))
+        .map(eff => typeEff(type.right, eff));
+
     return error(`cannot synthapp ${type} @ ${expr}`);
   })
-  .chain(apply)
-  .chain(ty => wfType(ty)
-  .chain(k => checkKind(kComp, k, `synthapp end ${type} @ ${expr}`)
-  .chain(() => log(`synthapp done ${type} @ ${expr}`)
-  .map(() => ty))));
+  .chain(applyTypeEff)
+  .chain(ty => log(`synthapp done ${type} @ ${expr} : ${ty.type}!${ty.eff}`)
+  .map(() => ty));
 
-export const synthgen = (expr: Expr): TC<Type> =>
-  generalize(synthVal(expr))
-    .chain(apply)
-    .chain(ty => wfType(ty)
-    .chain(k => checkKind(kType, k, `synthgenVal of ${expr} : ${ty}`)
-    .map(() => ty)));
+export const synthgen = (expr: Expr): TC<TypeEff> =>
+  synth(expr)
+    .chain(applyTypeEff);
 
-export const infer = (ctx: Context, expr: Expr): Either<string, Type> =>
+export const infer = (ctx: Context, expr: Expr): Either<string, TypeEff> =>
   synthgen(expr).run(ctx, new NameRepSupply(0)).val;

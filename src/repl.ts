@@ -6,6 +6,7 @@ import { kType, kEff, kfuns, kEffs } from "./kinds";
 import parse from "./parser";
 import { infer } from "./inference";
 import compileToJS from "./javascriptBackend";
+import { Right } from "./backup/generic/Either";
 
 export const _context = initialContext.add(
   ctvar(name('Str'), kType),
@@ -89,12 +90,12 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
     console.log(i);
     const p = parse(i);
     console.log(''+p);
-    const result = infer(_ctx, p);
+    const result = infer(_ctx, p).throw();
     console.log(`${result}`);
     const c = compileToJS(p);
     console.log(c);
     const res = eval(c);
-    cb(`${_show(res)} : ${result.pretty()}`);
+    cb(`${_show(res)} : ${result.type.pretty()}!${result.eff.pretty()}`);
   } catch(e) {
     console.log(e);
     cb(''+e, true);

@@ -64,6 +64,13 @@ export const rewriteEffs = (head: Type, type: Type, msg: string): TC<TEffsExtend
         .map(() => teffsextend(head, tmeta(r))));
     return error(`cannot rewrite effs ${head} in ${type}: ${msg}`);
   });
+  
+export const unifyEffs = (a: Type, b: Type): TC<Type> =>
+  openEffs(a)
+    .chain(a => openEffs(b).chain2(unify, TC.of(a))
+    .map(() => a))
+    .chain(apply)
+    .chain(closeEffs);
 
 const solveUnify = (a: NameRep, b: Type): TC<void> =>
   log(`solve unify ${a} = ${b}`).then(
