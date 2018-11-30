@@ -2,7 +2,7 @@ import Either, { Right, Left } from './Either';
 import NameSupply from './NameSupply';
 import Context from './context';
 import NameRep, { name } from './NameRep';
-import Elem, { cmarker, isCMarker, isCTMeta, CKVar, CTVar, CTMeta, CVar, CMarker, isCVar, isCKVar, isCTVar } from './elems';
+import Elem, { cmarker, isCMarker, isCTMeta, CKVar, CTVar, CTMeta, CVar, CMarker, isCVar, isCKVar, isCTVar, CEff, isCEff, COp, isCOp } from './elems';
 import Type, { isTVar, isTMeta, isTApp, isTForall, tforall, tapp, isTEffsExtend, isTEffsEmpty, teffsextend, isTFun, tfun } from './types';
 import { impossible } from './utils';
 
@@ -131,6 +131,9 @@ export const pure = <T>(val: T): TC<T> => TC.of(val);
 export const error = <T>(err: string): TC<T> => TC.error(err);
 export const ok = pure(undefined);
 
+export const sequence = <T>(val: TC<T>[]): TC<T[]> =>
+  val.reduceRight((arr, comp) => comp.chain(ret => arr.map(a => [ret].concat(a))), TC.of([] as T[]));
+
 export const log = (msg: any): TC<void> => getCtx.map(ctx => { console.log(`${msg}`); return undefined });
 
 export const iff = <T>(c: TC<boolean>, a: TC<T>, b: TC<T>): TC<T> => TC.if(c, a, b);
@@ -165,6 +168,9 @@ export const findTVar = (name: NameRep): TC<CTVar> => find(isCTVar(name), e => p
 export const findTMeta = (name: NameRep): TC<CTMeta> => find(isCTMeta(name), e => pure(e), () => error(`tmeta ${name} not found`));
 export const findMarker = (name: NameRep): TC<CMarker> => find(isCMarker(name), e => pure(e), () => error(`marker ${name} not found`));
 export const findVar = (name: NameRep): TC<CVar> => find(isCVar(name), e => pure(e), () => error(`var ${name} not found`));
+export const findEff = (name: NameRep): TC<CEff> => find(isCEff(name), e => pure(e), () => error(`eff ${name} not found`));
+export const findOp = (name: NameRep): TC<COp> => find(isCOp(name), e => pure(e), () => error(`op ${name} not found`));
+export const findOps = (name: NameRep): TC<COp[]> => getCtx.map(c => c.findAll(e => e instanceof COp && e.eff.equals(name) ? e : null));
 
 export const apply = (type: Type): TC<Type> => {
   if (isTVar(type)) return pure(type);

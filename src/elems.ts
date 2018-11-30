@@ -91,3 +91,37 @@ export class CVar extends Elem {
 export const cvar = (name: NameRep, type: Type) => new CVar(name, type);
 export const isCVar = (name: NameRep) =>
   (e: Elem): e is CVar => e instanceof CVar && e.name.equals(name);
+
+export class CEff extends Elem {
+
+  constructor(
+    public readonly name: NameRep,
+  ) { super() }
+
+  toString() {
+    return `eff ${this.name}`;
+  }
+
+}
+export const ceff = (name: NameRep) => new CEff(name);
+export const isCEff = (name: NameRep) =>
+  (e: Elem): e is CEff => e instanceof CEff && e.name.equals(name);
+
+export class COp extends Elem {
+
+  constructor(
+    public readonly name: NameRep,
+    public readonly eff: NameRep,
+    public readonly paramty: Type,
+    public readonly returnty: Type,
+  ) { super() }
+
+  toString() {
+    return `op ${this.name} of ${this.eff} : ${this.paramty} -> ${this.returnty}`;
+  }
+
+}
+export const cop = (name: NameRep, eff: NameRep, paramty: Type, returnty: Type) =>
+  new COp(name, eff, paramty, returnty);
+export const isCOp = (name: NameRep) =>
+  (e: Elem): e is COp => e instanceof COp && e.name.equals(name);

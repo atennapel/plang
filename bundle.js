@@ -232,6 +232,7 @@ exports.default = TC;
 exports.pure = (val) => TC.of(val);
 exports.error = (err) => TC.error(err);
 exports.ok = exports.pure(undefined);
+exports.sequence = (val) => val.reduceRight((arr, comp) => comp.chain(ret => arr.map(a => [ret].concat(a))), TC.of([]));
 exports.log = (msg) => exports.getCtx.map(ctx => { console.log(`${msg}`); return undefined; });
 exports.iff = (c, a, b) => TC.if(c, a, b);
 exports.check = (c, msg) => TC.check(c, msg);
@@ -254,6 +255,9 @@ exports.findTVar = (name) => exports.find(elems_1.isCTVar(name), e => exports.pu
 exports.findTMeta = (name) => exports.find(elems_1.isCTMeta(name), e => exports.pure(e), () => exports.error(`tmeta ${name} not found`));
 exports.findMarker = (name) => exports.find(elems_1.isCMarker(name), e => exports.pure(e), () => exports.error(`marker ${name} not found`));
 exports.findVar = (name) => exports.find(elems_1.isCVar(name), e => exports.pure(e), () => exports.error(`var ${name} not found`));
+exports.findEff = (name) => exports.find(elems_1.isCEff(name), e => exports.pure(e), () => exports.error(`eff ${name} not found`));
+exports.findOp = (name) => exports.find(elems_1.isCOp(name), e => exports.pure(e), () => exports.error(`op ${name} not found`));
+exports.findOps = (name) => exports.getCtx.map(c => c.findAll(e => e instanceof elems_1.COp && e.eff.equals(name) ? e : null));
 exports.apply = (type) => {
     if (types_1.isTVar(type))
         return exports.pure(type);
@@ -279,7 +283,31 @@ exports.apply = (type) => {
     return utils_1.impossible();
 };
 
-},{"./Either":1,"./NameRep":2,"./context":5,"./elems":6,"./types":15,"./utils":17}],5:[function(require,module,exports){
+},{"./Either":1,"./NameRep":2,"./context":6,"./elems":7,"./types":16,"./utils":18}],5:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.impossible = () => { throw new Error('impossible'); };
+exports.assocGet = (arr, val) => {
+    for (let i = arr.length - 1; i >= 0; i--) {
+        if (arr[i][0].equals(val))
+            return arr[i][1];
+    }
+    return null;
+};
+exports.containsDuplicate = (arr) => {
+    const acc = [];
+    for (let i = 0; i < arr.length; i++) {
+        const c = arr[i];
+        for (let j = 0; j < acc.length; j++) {
+            if (acc[j].equals(c))
+                return true;
+        }
+        acc.push(c);
+    }
+    return false;
+};
+
+},{}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Context {
@@ -361,7 +389,7 @@ class Context {
 }
 exports.default = Context;
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Elem {
@@ -435,8 +463,35 @@ class CVar extends Elem {
 exports.CVar = CVar;
 exports.cvar = (name, type) => new CVar(name, type);
 exports.isCVar = (name) => (e) => e instanceof CVar && e.name.equals(name);
+class CEff extends Elem {
+    constructor(name) {
+        super();
+        this.name = name;
+    }
+    toString() {
+        return `eff ${this.name}`;
+    }
+}
+exports.CEff = CEff;
+exports.ceff = (name) => new CEff(name);
+exports.isCEff = (name) => (e) => e instanceof CEff && e.name.equals(name);
+class COp extends Elem {
+    constructor(name, eff, paramty, returnty) {
+        super();
+        this.name = name;
+        this.eff = eff;
+        this.paramty = paramty;
+        this.returnty = returnty;
+    }
+    toString() {
+        return `op ${this.name} of ${this.eff} : ${this.paramty} -> ${this.returnty}`;
+    }
+}
+exports.COp = COp;
+exports.cop = (name, eff, paramty, returnty) => new COp(name, eff, paramty, returnty);
+exports.isCOp = (name) => (e) => e instanceof COp && e.name.equals(name);
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class Expr {
@@ -553,8 +608,76 @@ exports.Let = Let;
 exports.lt = (name, expr, body) => new Let(name, expr, body);
 exports.lts = (ns, body) => ns.reduceRight((b, [n, e]) => exports.lt(n, e, b), body);
 exports.isLet = (expr) => expr instanceof Let;
+class Handler extends Expr {
+    constructor(cases) {
+        super();
+        this.cases = cases;
+    }
+    toString() {
+        return `(handler {${this.cases}})`;
+    }
+    subst(name, val) {
+        return new Handler(this.cases.subst(name, val));
+    }
+    substTVar(name, type) {
+        return new Handler(this.cases.substTVar(name, type));
+    }
+}
+exports.Handler = Handler;
+exports.handler = (cases) => new Handler(cases);
+exports.isHandler = (expr) => expr instanceof Handler;
+class HandlerCase {
+}
+exports.HandlerCase = HandlerCase;
+class HOp extends HandlerCase {
+    constructor(op, x, k, expr, rest) {
+        super();
+        this.op = op;
+        this.x = x;
+        this.k = k;
+        this.expr = expr;
+        this.rest = rest;
+    }
+    toString() {
+        return `${this.op} ${this.x} ${this.k} -> ${this.expr}; ${this.rest}`;
+    }
+    subst(name, val) {
+        return new HOp(this.op, this.x, this.k, name.equals(this.x) || name.equals(this.k) ? this.expr : this.expr.subst(name, val), this.rest.subst(name, val));
+    }
+    open(valX, valK) {
+        return this.expr.subst(this.x, valX).subst(this.k, valK);
+    }
+    substTVar(name, type) {
+        return new HOp(this.op, this.x, this.k, this.expr.substTVar(name, type), this.rest.substTVar(name, type));
+    }
+}
+exports.HOp = HOp;
+exports.hop = (op, x, k, expr, rest) => new HOp(op, x, k, expr, rest);
+exports.isHOp = (expr) => expr instanceof HOp;
+class HReturn extends HandlerCase {
+    constructor(x, expr) {
+        super();
+        this.x = x;
+        this.expr = expr;
+    }
+    toString() {
+        return `return ${this.x} -> ${this.expr}`;
+    }
+    subst(name, val) {
+        return new HReturn(this.x, name.equals(this.x) ? this.expr : this.expr.subst(name, val));
+    }
+    open(val) {
+        return this.expr.subst(this.x, val);
+    }
+    substTVar(name, type) {
+        return new HReturn(this.x, this.expr.substTVar(name, type));
+    }
+}
+exports.HReturn = HReturn;
+exports.hreturn = (x, expr) => new HReturn(x, expr);
+exports.isHReturn = (expr) => expr instanceof HReturn;
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const TC_1 = require("./TC");
@@ -569,6 +692,7 @@ const NameRep_1 = require("./NameRep");
 const utils_1 = require("./utils");
 const unification_1 = require("./unification");
 const exprs_1 = require("./exprs");
+const utils_2 = require("./backup/utils");
 const typeEff = (type, eff) => ({ type, eff });
 const applyTypeEff = (t) => TC_1.apply(t.type).chain(ty => TC_1.apply(t.eff).map(eff => typeEff(ty, eff)));
 const orderedUnsolved = (ctx, type) => {
@@ -595,9 +719,49 @@ const generalize = (action) => TC_1.freshName(NameRep_1.name('m'))
     return typeEff(types_1.tforalls(u, u.reduce((t, [n, _]) => t.substTMeta(n, types_1.tvar(n)), ty.type)), ty.eff);
 }))))
     .chain(applyTypeEff)
-    //.map(closeTFun)
+    .map(({ type, eff }) => ({ type: unification_1.closeTFun(type), eff }))
     .chain(ty => TC_1.log(`gen done: ${ty.type}!${ty.eff}`)
     .map(() => ty)));
+const emptyHandlerState = {};
+const addOp = (s, eff, op) => {
+    const n = utils_1.objClone(s);
+    if (!s[eff.toString()])
+        n[eff.toString()] = [];
+    if (!utils_1.any(n[eff.toString()], n => n.equals(op)))
+        n[eff.toString()].push(op);
+    return n;
+};
+const allEffs = (s) => Object.keys(s).map(NameRep_1.name);
+const showHandlerState = (s) => {
+    const r = [];
+    for (let k in s)
+        r.push(`${k}: [${s[k].join(', ')}]`);
+    return `{${r.join(', ')}}`;
+};
+const synthHandler = (cs, t1, te) => TC_1.log(`synthHandler ${cs} with ${t1}`).chain(() => {
+    if (exprs_1.isHOp(cs))
+        return TC_1.findOp(cs.op)
+            .chain(op => TC_1.findEff(op.eff)
+            .then(synthHandler(cs.rest, t1, te)
+            .chain(({ type: t2, state }) => TC_1.freshNames([cs.x, cs.k])
+            .chain(([x, k]) => TC_1.withElems([elems_1.cvar(x, op.paramty), elems_1.cvar(k, types_1.tfun(op.returnty, t2.type, t2.eff))], checkTy(cs.open(exprs_1.vr(x), exprs_1.vr(k)), t2))
+            .map(() => ({ type: t2, state: addOp(state, op.eff, op.name) }))))));
+    if (exprs_1.isHReturn(cs))
+        return TC_1.freshName(cs.x)
+            .chain(x => TC_1.withElems([elems_1.cvar(x, t1)], synth(cs.open(exprs_1.vr(x)))))
+            .map(type => ({ type, state: emptyHandlerState }));
+    return utils_2.impossible();
+})
+    .chain(({ type, state }) => applyTypeEff(type)
+    .map(type => ({ type, state })))
+    .chain(ty => TC_1.log(`synthHandler done ${t1} and ${te} : ${ty.type.type}!${ty.type.eff} with ${showHandlerState(ty.state)}`)
+    .map(() => ty));
+const getCompleteEffs = (s) => TC_1.sequence(utils_1.objMapToArr(s, (ops, eff) => TC_1.findOps(NameRep_1.name(eff))
+    .map(allops => ({ eff, complete: utils_1.all(allops, o => utils_1.any(ops, o2 => o.name.equals(o2))) }))))
+    .map(a => a.filter(o => o.complete).map(o => NameRep_1.name(o.eff)));
+const getIncompleteEffs = (s) => TC_1.sequence(utils_1.objMapToArr(s, (ops, eff) => TC_1.findOps(NameRep_1.name(eff))
+    .map(allops => ({ eff, complete: utils_1.all(allops, o => utils_1.any(ops, o2 => o.name.equals(o2))) }))))
+    .map(a => a.filter(o => !o.complete).map(o => NameRep_1.name(o.eff)));
 const synth = (expr) => TC_1.log(`synth ${expr}`).chain(() => {
     if (exprs_1.isVar(expr))
         return TC_1.findVar(expr.name).map(e => typeEff(e.type, types_1.teffsempty()));
@@ -633,6 +797,15 @@ const synth = (expr) => TC_1.log(`synth ${expr}`).chain(() => {
         return wf_1.wfType(expr.type)
             .chain(k => wf_1.checkKind(kinds_1.kType, k, `annotation ${expr}`))
             .then(checktyOpen(expr.expr, expr.type));
+    if (exprs_1.isHandler(expr))
+        return generalize(TC_1.freshNames([NameRep_1.name('a'), NameRep_1.name('e')])
+            .chain(([a, e]) => TC_1.updateCtx(context_1.default.add(elems_1.ctmeta(a, kinds_1.kType), elems_1.ctmeta(e, kinds_1.kEffs)))
+            .then(synthHandler(expr.cases, types_1.tmeta(a), types_1.tmeta(e))
+            .chain(({ type: tb, state }) => getIncompleteEffs(state)
+            .chain(compl => TC_1.log(`${allEffs(state)} ; ${compl.join(' ')}`)
+            .then(TC_1.apply(types_1.tmeta(a))
+            .map(ta => typeEff(types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), ta, types_1.teffsFrom(allEffs(state).map(types_1.tvar), types_1.tmeta(e))), tb.type, types_1.teffsFrom(compl.map(types_1.tvar), types_1.tmeta(e)) //tb.eff
+        ), types_1.teffsempty()))))))));
     return TC_1.error(`cannot synth ${expr}`);
 })
     .chain(applyTypeEff)
@@ -653,9 +826,10 @@ const checkTy = (expr, ty) => TC_1.log(`check ${expr} : ${ty.type}!${ty.eff}`).c
             .chain(x => TC_1.withElems([elems_1.cvar(x, type.left)], checkTy(expr.open(exprs_1.vr(x)), typeEff(type.right, type.eff))));
     if (exprs_1.isLet(expr))
         return synth(expr.expr)
-            .chain(({ type: ty, eff: ef }) => subsumption_1.subsume(ef, eff)
+            .chain(({ type: ty, eff: ef }) => unification_1.openEffs(ef)
+            .chain(ef => subsumption_1.subsume(ef, eff)
             .then(TC_1.freshName(expr.name)
-            .chain(x => TC_1.withElems([elems_1.cvar(x, ty)], checkTy(expr.open(exprs_1.vr(x)), typeEff(type, eff))))));
+            .chain(x => TC_1.withElems([elems_1.cvar(x, ty)], checkTy(expr.open(exprs_1.vr(x)), typeEff(type, eff)))))));
     return synth(expr)
         .chain(({ type: t, eff: e }) => TC_1.apply(t)
         .chain(a => TC_1.apply(type)
@@ -693,20 +867,29 @@ exports.synthgen = (expr) => generalize(synth(expr))
     .chain(applyTypeEff);
 exports.infer = (ctx, expr) => exports.synthgen(expr).run(ctx, new NameSupply_1.default(0)).val;
 
-},{"./NameRep":2,"./NameSupply":3,"./TC":4,"./context":5,"./elems":6,"./exprs":7,"./kinds":11,"./subsumption":14,"./types":15,"./unification":16,"./utils":17,"./wf":19}],9:[function(require,module,exports){
+},{"./NameRep":2,"./NameSupply":3,"./TC":4,"./backup/utils":5,"./context":6,"./elems":7,"./exprs":8,"./kinds":12,"./subsumption":15,"./types":16,"./unification":17,"./utils":18,"./wf":20}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const context_1 = require("./context");
 const kinds_1 = require("./kinds");
 const elems_1 = require("./elems");
-const initialContext = context_1.default.of(elems_1.ckvar(kinds_1.nType), elems_1.ckvar(kinds_1.nEffs), elems_1.ckvar(kinds_1.nEff));
+const NameRep_1 = require("./NameRep");
+const types_1 = require("./types");
+const initialContext = context_1.default.of(elems_1.ckvar(kinds_1.nType), elems_1.ckvar(kinds_1.nEffs), elems_1.ckvar(kinds_1.nEff), elems_1.ctvar(NameRep_1.name('Unit'), kinds_1.kType), elems_1.cvar(NameRep_1.name('Unit'), types_1.tvar(NameRep_1.name('Unit'))));
 exports.default = initialContext;
 
-},{"./context":5,"./elems":6,"./kinds":11}],10:[function(require,module,exports){
+},{"./NameRep":2,"./context":6,"./elems":7,"./kinds":12,"./types":16}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
 const utils_1 = require("./utils");
+const compileHandlerToJS = (e) => {
+    if (exprs_1.isHOp(e))
+        return `${e.op}: ${e.x} => ${e.k} => ${compileToJS(e.expr)}, ${compileHandlerToJS(e.rest)}`;
+    if (exprs_1.isHReturn(e))
+        return `return: ${e.x} => ${compileToJS(e.expr)}`;
+    return utils_1.impossible();
+};
 const compileToJS = (e) => {
     if (exprs_1.isVar(e))
         return `${e.name}`;
@@ -718,11 +901,13 @@ const compileToJS = (e) => {
         return `$(${compileToJS(e.left)}, ${compileToJS(e.right)})`;
     if (exprs_1.isLet(e))
         return `_do(${compileToJS(e.expr)}, ${e.name} => ${compileToJS(e.body)})`;
+    if (exprs_1.isHandler(e))
+        return `_newhandler({${compileHandlerToJS(e.cases)}})`;
     return utils_1.impossible();
 };
 exports.default = compileToJS;
 
-},{"./exprs":7,"./utils":17}],11:[function(require,module,exports){
+},{"./exprs":8,"./utils":18}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const NameRep_1 = require("./NameRep");
@@ -770,11 +955,12 @@ exports.kEffs = exports.kvar(exports.nEffs);
 exports.nEff = NameRep_1.name('Eff');
 exports.kEff = exports.kvar(exports.nEff);
 
-},{"./NameRep":2}],12:[function(require,module,exports){
+},{"./NameRep":2}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
 const utils_1 = require("./utils");
+const types_1 = require("./types");
 const NameRep_1 = require("./NameRep");
 const $ = NameRep_1.name;
 function matchingBracket(c) {
@@ -831,7 +1017,28 @@ function tokenize(s) {
         throw new SyntaxError(`invalid parsing end state: ${state}`);
     return r;
 }
+function createHandler(r) {
+    if (r.length === 0 || r.length % 2 !== 0)
+        throw new SyntaxError(`invalid handler`);
+    const map = [];
+    let ret = null;
+    for (let i = 0; i < r.length; i += 2) {
+        const k = r[i];
+        const v = r[i + 1];
+        if (k.tag === 'name') {
+            if (k.val === 'return')
+                ret = expr(v);
+            else
+                map.push([k.val, expr(v)]);
+        }
+        else
+            throw new SyntaxError('invalid op in handler');
+    }
+    const retcase = exprs_1.hreturn(NameRep_1.name('x'), ret || exprs_1.vr(NameRep_1.name('x')));
+    return exprs_1.handler(map.reduceRight((p, [op, e]) => exprs_1.hop(NameRep_1.name(op), NameRep_1.name('x'), NameRep_1.name('k'), e, p), retcase));
+}
 function exprs(r, br = '[') {
+    console.log('exprs', r, br);
     switch (br) {
         case '(': return r.length === 0 ? exprs_1.vr($('Unit')) : r.length === 1 ? expr(r[0]) : exprs_1.appFrom(r.map(expr));
         case '[':
@@ -870,25 +1077,52 @@ function exprs(r, br = '[') {
             if (r.length === 1)
                 return exprs_1.abs($('_'), expr(r[0]));
             const args = r[0];
-            if (args.tag !== 'list' || args.br !== '[')
+            if (args.tag === 'name' && args.val === 'handler')
+                return createHandler(r.slice(1));
+            if (args.tag !== 'list' || args.br !== '[' || args.val.length === 0)
                 return exprs_1.abs($('_'), exprs(r, '('));
             if (utils_1.any(args.val, a => a.tag !== 'name'))
                 throw new SyntaxError(`invalid args: ${args.val.join(' ')}`);
-            return exprs_1.abss(args.val.map(a => a.tag === 'name' ? a.val : null).filter(Boolean).map($), exprs(r.slice(1), '('));
+            const argss = [];
+            for (let i = 0; i < args.val.length; i += 2) {
+                const a = args.val[i];
+                const b = args.val[i + 1];
+                if (!b) {
+                    argss.push([a.val, null]);
+                    continue;
+                }
+                if (a.tag !== 'name' || b.tag !== 'name')
+                    throw new SyntaxError(`invalid arg for abs`);
+                if (b.val[0] === ':') {
+                    argss.push([a.val, type({ tag: 'name', val: b.val.slice(1) })]);
+                }
+                else {
+                    argss.push([a.val, null]);
+                    argss.push([b.val, null]);
+                }
+            }
+            return argss.reduceRight((b, [a, t]) => t ? exprs_1.absty($(a), t, b) : exprs_1.abs($(a), b), exprs(r.slice(1), '('));
     }
 }
 function expr(r) {
+    console.log('expr', r);
     switch (r.tag) {
         case 'name': return r.val[r.val.length - 1] === '!' ? exprs_1.app(exprs_1.vr($(r.val.slice(0, -1))), exprs_1.vr($('Unit'))) : exprs_1.vr($(r.val));
         case 'list': return exprs(r.val, r.br);
     }
+}
+function type(r) {
+    switch (r.tag) {
+        case 'name': return types_1.tvar($(r.val));
+    }
+    throw new SyntaxError('unimplemented type parsing');
 }
 function parse(s) {
     return exprs(tokenize(s), '(');
 }
 exports.default = parse;
 
-},{"./NameRep":2,"./exprs":7,"./utils":17}],13:[function(require,module,exports){
+},{"./NameRep":2,"./exprs":8,"./types":16,"./utils":18}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const initial_1 = require("./initial");
@@ -899,7 +1133,7 @@ const kinds_1 = require("./kinds");
 const parser_1 = require("./parser");
 const inference_1 = require("./inference");
 const javascriptBackend_1 = require("./javascriptBackend");
-exports._context = initial_1.default.add(elems_1.ctvar(NameRep_1.name('Str'), kinds_1.kType), elems_1.cvar(NameRep_1.name('show'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('Str'))))), elems_1.ctvar(NameRep_1.name('Void'), kinds_1.kType), elems_1.cvar(NameRep_1.name('caseVoid'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('Void')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Unit'), kinds_1.kType), elems_1.cvar(NameRep_1.name('Unit'), types_1.tvar(NameRep_1.name('Unit'))), elems_1.ctvar(NameRep_1.name('Bool'), kinds_1.kType), elems_1.cvar(NameRep_1.name('True'), types_1.tvar(NameRep_1.name('Bool'))), elems_1.cvar(NameRep_1.name('False'), types_1.tvar(NameRep_1.name('Bool'))), elems_1.cvar(NameRep_1.name('caseBool'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('Bool')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Nat'), kinds_1.kType), elems_1.cvar(NameRep_1.name('Z'), types_1.tvar(NameRep_1.name('Nat'))), elems_1.cvar(NameRep_1.name('S'), types_1.tfuns(types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('Nat')))), elems_1.cvar(NameRep_1.name('caseNat'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tfuns(types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Maybe'), kinds_1.kfuns(kinds_1.kType, kinds_1.kType)), elems_1.cvar(NameRep_1.name('Nothing'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t'))))), elems_1.cvar(NameRep_1.name('Just'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t')))))), elems_1.cvar(NameRep_1.name('caseMaybe'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType], [NameRep_1.name('r'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('r')), types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('r'))), types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))))), elems_1.ctvar(NameRep_1.name('List'), kinds_1.kfuns(kinds_1.kType, kinds_1.kType)), elems_1.cvar(NameRep_1.name('Nil'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))))), elems_1.cvar(NameRep_1.name('Cons'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t')))))), elems_1.cvar(NameRep_1.name('caseList'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType], [NameRep_1.name('r'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('r')), types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))))), elems_1.cvar(NameRep_1.name('fix'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType], [NameRep_1.name('e'), kinds_1.kEffs]], types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('e'))), types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('e'))))), elems_1.ctvar(NameRep_1.name('Flip'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('flip'), types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('Bool')), types_1.teffs(types_1.tvar(NameRep_1.name('Flip'))))), elems_1.cvar(NameRep_1.name('runFlip'), types_1.tforalls([[NameRep_1.name('e'), kinds_1.kEffs], [NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('t')), types_1.teffsFrom([types_1.tvar(NameRep_1.name('Flip'))], types_1.tvar(NameRep_1.name('e')))), types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('e'))))), elems_1.ctvar(NameRep_1.name('Fail'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('fail'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('t')), types_1.teffs(types_1.tvar(NameRep_1.name('Fail')))))), elems_1.cvar(NameRep_1.name('runFail'), types_1.tforalls([[NameRep_1.name('e'), kinds_1.kEffs], [NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('t')), types_1.teffsFrom([types_1.tvar(NameRep_1.name('Fail'))], types_1.tvar(NameRep_1.name('e')))), types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('e'))))), elems_1.ctvar(NameRep_1.name('State'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('get'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('Nat')), types_1.teffs(types_1.tvar(NameRep_1.name('State')))))), elems_1.cvar(NameRep_1.name('put'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfun(types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('Unit')), types_1.teffs(types_1.tvar(NameRep_1.name('State')))))), elems_1.cvar(NameRep_1.name('runState'), types_1.tforalls([[NameRep_1.name('e'), kinds_1.kEffs], [NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('Nat')), types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('t')), types_1.teffsFrom([types_1.tvar(NameRep_1.name('State'))], types_1.tvar(NameRep_1.name('e')))), types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('e')))))));
+exports._context = initial_1.default.add(elems_1.ctvar(NameRep_1.name('Str'), kinds_1.kType), elems_1.cvar(NameRep_1.name('show'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('Str'))))), elems_1.ctvar(NameRep_1.name('Void'), kinds_1.kType), elems_1.cvar(NameRep_1.name('caseVoid'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('Void')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Bool'), kinds_1.kType), elems_1.cvar(NameRep_1.name('True'), types_1.tvar(NameRep_1.name('Bool'))), elems_1.cvar(NameRep_1.name('False'), types_1.tvar(NameRep_1.name('Bool'))), elems_1.cvar(NameRep_1.name('caseBool'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('Bool')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Nat'), kinds_1.kType), elems_1.cvar(NameRep_1.name('Z'), types_1.tvar(NameRep_1.name('Nat'))), elems_1.cvar(NameRep_1.name('S'), types_1.tfuns(types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('Nat')))), elems_1.cvar(NameRep_1.name('caseNat'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tfuns(types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('Nat')), types_1.tvar(NameRep_1.name('t'))))), elems_1.ctvar(NameRep_1.name('Maybe'), kinds_1.kfuns(kinds_1.kType, kinds_1.kType)), elems_1.cvar(NameRep_1.name('Nothing'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t'))))), elems_1.cvar(NameRep_1.name('Just'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t')))))), elems_1.cvar(NameRep_1.name('caseMaybe'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType], [NameRep_1.name('r'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('r')), types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('r'))), types_1.tapps(types_1.tvar(NameRep_1.name('Maybe')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))))), elems_1.ctvar(NameRep_1.name('List'), kinds_1.kfuns(kinds_1.kType, kinds_1.kType)), elems_1.cvar(NameRep_1.name('Nil'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))))), elems_1.cvar(NameRep_1.name('Cons'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t')))))), elems_1.cvar(NameRep_1.name('caseList'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType], [NameRep_1.name('r'), kinds_1.kType]], types_1.tfuns(types_1.tvar(NameRep_1.name('r')), types_1.tfuns(types_1.tvar(NameRep_1.name('t')), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))), types_1.tapps(types_1.tvar(NameRep_1.name('List')), types_1.tvar(NameRep_1.name('t'))), types_1.tvar(NameRep_1.name('r'))))), elems_1.cvar(NameRep_1.name('fix'), types_1.tforalls([[NameRep_1.name('t'), kinds_1.kType], [NameRep_1.name('e'), kinds_1.kEffs]], types_1.tfun(types_1.tfun(types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('e'))), types_1.tvar(NameRep_1.name('t')), types_1.tvar(NameRep_1.name('e'))))), elems_1.ceff(NameRep_1.name('Flip')), elems_1.cop(NameRep_1.name('flip'), NameRep_1.name('Flip'), types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('Bool'))), elems_1.ctvar(NameRep_1.name('Flip'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('flip'), types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('Bool')), types_1.teffs(types_1.tvar(NameRep_1.name('Flip'))))), elems_1.ceff(NameRep_1.name('Fail')), elems_1.cop(NameRep_1.name('fail'), NameRep_1.name('Fail'), types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('Void'))), elems_1.ctvar(NameRep_1.name('Fail'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('fail'), types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('Void')), types_1.teffs(types_1.tvar(NameRep_1.name('Fail'))))), elems_1.ceff(NameRep_1.name('StateBool')), elems_1.cop(NameRep_1.name('get'), NameRep_1.name('StateBool'), types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('Bool'))), elems_1.cop(NameRep_1.name('put'), NameRep_1.name('StateBool'), types_1.tvar(NameRep_1.name('Bool')), types_1.tvar(NameRep_1.name('Unit'))), elems_1.ctvar(NameRep_1.name('StateBool'), kinds_1.kEff), elems_1.cvar(NameRep_1.name('get'), types_1.tfun(types_1.tvar(NameRep_1.name('Unit')), types_1.tvar(NameRep_1.name('Bool')), types_1.teffs(types_1.tvar(NameRep_1.name('StateBool'))))), elems_1.cvar(NameRep_1.name('put'), types_1.tfun(types_1.tvar(NameRep_1.name('Bool')), types_1.tvar(NameRep_1.name('Unit')), types_1.teffs(types_1.tvar(NameRep_1.name('StateBool'))))));
 function _show(x) {
     if (typeof x === 'string')
         return JSON.stringify(x);
@@ -920,7 +1154,7 @@ function _run(i, cb) {
         const p = parser_1.default(i);
         console.log('' + p);
         const result = inference_1.infer(_ctx, p).throw();
-        console.log(`${result}`);
+        console.log(`${result.type}!${result.eff}`);
         const c = javascriptBackend_1.default(p);
         console.log(c);
         const res = eval(c);
@@ -933,7 +1167,7 @@ function _run(i, cb) {
 }
 exports.default = _run;
 
-},{"./NameRep":2,"./elems":6,"./inference":8,"./initial":9,"./javascriptBackend":10,"./kinds":11,"./parser":12,"./types":15}],14:[function(require,module,exports){
+},{"./NameRep":2,"./elems":7,"./inference":9,"./initial":10,"./javascriptBackend":11,"./kinds":12,"./parser":13,"./types":16}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1044,7 +1278,7 @@ exports.subsume = (a, b) => TC_1.log(`subsume ${a} <: ${b}`).then(wf_1.wfType(a)
     return TC_1.error(`subsume failed: ${a} <: ${b}`);
 }))));
 
-},{"./TC":4,"./context":5,"./elems":6,"./kinds":11,"./types":15,"./unification":16,"./wf":19}],15:[function(require,module,exports){
+},{"./TC":4,"./context":6,"./elems":7,"./kinds":12,"./types":16,"./unification":17,"./wf":20}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const utils_1 = require("./utils");
@@ -1364,7 +1598,7 @@ exports.flattenEffs = (row) => {
     return { types: [], rest: row };
 };
 
-},{"./utils":17}],16:[function(require,module,exports){
+},{"./utils":18}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const TC_1 = require("./TC");
@@ -1511,7 +1745,7 @@ exports.unify = (a, b) => TC_1.log(`unify ${a} ~ ${b}`).then(wf_1.wfType(a).chai
     return TC_1.error(`unification failed: ${a} <: ${b}`);
 }))));
 
-},{"./NameRep":2,"./TC":4,"./context":5,"./elems":6,"./kinds":11,"./types":15,"./utils":17,"./wf":19}],17:[function(require,module,exports){
+},{"./NameRep":2,"./TC":4,"./context":6,"./elems":7,"./kinds":12,"./types":16,"./utils":18,"./wf":20}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.impossible = () => { throw new Error('impossible'); };
@@ -1542,6 +1776,14 @@ exports.any = (arr, fn) => {
     }
     return false;
 };
+exports.all = (arr, fn) => {
+    for (let i = 0; i < arr.length; i++) {
+        const c = arr[i];
+        if (!fn(c))
+            return false;
+    }
+    return true;
+};
 exports.remove = (arr, fn) => {
     const ret = [];
     for (let i = 0; i < arr.length; i++) {
@@ -1551,8 +1793,26 @@ exports.remove = (arr, fn) => {
     }
     return ret;
 };
+exports.objMap = (map, fn) => {
+    const r = {};
+    for (let k in map)
+        r[k] = fn(map[k], k);
+    return r;
+};
+exports.objMapToArr = (map, fn) => {
+    const r = [];
+    for (let k in map)
+        r.push(fn(map[k], k));
+    return r;
+};
+exports.objClone = (map) => {
+    const n = {};
+    for (let k in map)
+        n[k] = map[k];
+    return n;
+};
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -1610,7 +1870,7 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":13}],19:[function(require,module,exports){
+},{"./repl":14}],20:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const TC_1 = require("./TC");
@@ -1664,4 +1924,4 @@ exports.wfType = (type) => {
     return utils_1.impossible();
 };
 
-},{"./TC":4,"./elems":6,"./kinds":11,"./types":15,"./utils":17}]},{},[18]);
+},{"./TC":4,"./elems":7,"./kinds":12,"./types":16,"./utils":18}]},{},[19]);

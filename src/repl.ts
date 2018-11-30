@@ -1,5 +1,5 @@
 import initialContext from "./initial";
-import { cvar, ctvar } from "./elems";
+import { cvar, ctvar, ceff, cop } from "./elems";
 import { tvar, tfun, teffs, tapps, teffsFrom, tforalls, tfuns, isTEffsEmpty } from "./types";
 import { name } from "./NameRep";
 import { kType, kEff, kfuns, kEffs } from "./kinds";
@@ -14,9 +14,6 @@ export const _context = initialContext.add(
 
   ctvar(name('Void'), kType),
   cvar(name('caseVoid'), tforalls([[name('t'), kType]], tfuns(tvar(name('Void')), tvar(name('t'))))),
-
-  ctvar(name('Unit'), kType),
-  cvar(name('Unit'), tvar(name('Unit'))),
 
   ctvar(name('Bool'), kType),
   cvar(name('True'), tvar(name('Bool'))),
@@ -43,35 +40,22 @@ export const _context = initialContext.add(
   cvar(name('fix'), tforalls([[name('t'), kType], [name('e'), kEffs]],
     tfun(tfun(tvar(name('t')), tvar(name('t')), tvar(name('e'))), tvar(name('t')), tvar(name('e'))))),
 
+  ceff(name('Flip')),
+  cop(name('flip'), name('Flip'), tvar(name('Unit')), tvar(name('Bool'))),
   ctvar(name('Flip'), kEff),
   cvar(name('flip'), tfun(tvar(name('Unit')), tvar(name('Bool')), teffs(tvar(name('Flip'))))),
-  cvar(name('runFlip'), tforalls([[name('e'), kEffs], [name('t'), kType]],
-    tfun(
-      tfun(tvar(name('Unit')), tvar(name('t')), teffsFrom([tvar(name('Flip'))], tvar(name('e')))),
-      tvar(name('t')),
-      tvar(name('e')),
-    ))),
 
+  ceff(name('Fail')),
+  cop(name('fail'), name('Fail'), tvar(name('Unit')), tvar(name('Void'))),
   ctvar(name('Fail'), kEff),
-  cvar(name('fail'), tforalls([[name('t'), kType]], tfun(tvar(name('Unit')), tvar(name('t')), teffs(tvar(name('Fail')))))),
-  cvar(name('runFail'), tforalls([[name('e'), kEffs], [name('t'), kType]],
-    tfun(
-      tfun(tvar(name('Unit')), tvar(name('t')), teffsFrom([tvar(name('Fail'))], tvar(name('e')))),
-      tapps(tvar(name('Maybe')), tvar(name('t'))),
-      tvar(name('e')),
-    ))),
-
-  ctvar(name('State'), kEff),
-  cvar(name('get'), tforalls([[name('t'), kType]], tfun(tvar(name('Unit')), tvar(name('Nat')), teffs(tvar(name('State')))))),
-  cvar(name('put'), tforalls([[name('t'), kType]], tfun(tvar(name('Nat')), tvar(name('Unit')), teffs(tvar(name('State')))))),
-  cvar(name('runState'), tforalls([[name('e'), kEffs], [name('t'), kType]],
-    tfuns(
-      tvar(name('Nat')),
-      tfun(
-        tfun(tvar(name('Unit')), tvar(name('t')), teffsFrom([tvar(name('State'))], tvar(name('e')))),
-        tvar(name('t')),
-        tvar(name('e')),
-      )))),
+  cvar(name('fail'), tfun(tvar(name('Unit')), tvar(name('Void')), teffs(tvar(name('Fail'))))),
+  
+  ceff(name('StateBool')),
+  cop(name('get'), name('StateBool'), tvar(name('Unit')), tvar(name('Bool'))),
+  cop(name('put'), name('StateBool'), tvar(name('Bool')), tvar(name('Unit'))),
+  ctvar(name('StateBool'), kEff),
+  cvar(name('get'), tfun(tvar(name('Unit')), tvar(name('Bool')), teffs(tvar(name('StateBool'))))),
+  cvar(name('put'), tfun(tvar(name('Bool')), tvar(name('Unit')), teffs(tvar(name('StateBool'))))),
 );
 
 function _show(x: any): string {

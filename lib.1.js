@@ -40,6 +40,14 @@ const _handler = m => c =>
   c._cont? (m[c.op]? m[c.op](c.val)(v => _handler(m)(c.cont(v))): _cont(c.op, c.val, v => _handler(m)(c.cont(v)))):
   m['return']? m['return'](c): c;
 
+const _newhandler = m => {
+  const r = [];
+  for (let k in m) r.push([k, m[k]]);
+  return _do(r.reduce((p, [k, c]) =>
+    _do(c, x => Object.assign(p, { [k]: x })), {}),
+    m => c => _handler(m)(c(Unit)));
+};
+
 const flip = _op('flip');
 const fail = _op('fail');
 const get = _op('get');

@@ -40,22 +40,17 @@ const _handler = m => c =>
   c._cont? (m[c.op]? m[c.op](c.val)(v => _handler(m)(c.cont(v))): _cont(c.op, c.val, v => _handler(m)(c.cont(v)))):
   m['return']? m['return'](c): c;
 
+const _newhandler = m => {
+  const r = [];
+  for (let k in m) r.push([k, m[k]]);
+  return _do(r.reduce((p, [k, c]) =>
+    _do(c, x => Object.assign(p, { [k]: x })), {}),
+    m => c => _handler(m)(c(Unit)));
+};
+
 const $ = (f, x) => _do(f, f => _do(x, x => f(x)));
 
 const flip = _op('flip');
 const fail = _op('fail');
 const get = _op('get');
 const put = _op('put');
-
-const runFlip = c => _handler({
-  flip: v => k => k(Math.random() > 0.5 ? True : False),
-})(c(Unit));
-const runFail = c => _handler({
-  fail: v => k => Nothing,
-  return: Just,
-})(c(Unit));
-const runState = v => c => _handler({
-  get: v => k => s => _do(k(s), f => f(s)),
-  put: v => k => s => _do(k(Unit), f => f(v)),
-  return: x => s => x,
-})(c(Unit))(v);
