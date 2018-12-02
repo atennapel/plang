@@ -10,8 +10,7 @@
     "buildindexlog": "npm run build && npm run index > log.txt",
     "test": "compile test.pl && node test.pl.js",
     "buildtest": "npm run build && npm run test",
-    "bundle": "npm run build && browserify build/src/web.js -o bundle.js",
-    "hm": "npm run build && node build/src/HM.js"
+    "bundle": "npm run build && browserify build/src/web.js -o bundle.js"
   },
   "author": "",
   "license": "ISC",
