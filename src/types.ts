@@ -1,27 +1,36 @@
 import { Name } from './names';
-import { ADT, cases } from './utils';
 
-export type TypeTag = { TVar: TVar, TMeta: TMeta, TFun: TFun };
-export type Type = ADT<TypeTag>;
+export type Type = TVar | TMeta | TFun;
 
-export type TVar = { tag: 'TVar', name: Name };
+export interface TVar { tag: 'TVar', name: Name };
 export const TVar = (name: Name): Type => ({ tag: 'TVar', name });
 
-export type TMeta = { tag: 'TMeta', name: Name };
+export interface TMeta { tag: 'TMeta', name: Name };
 export const TMeta = (name: Name): Type => ({ tag: 'TMeta', name });
 
-export type TFun = { tag: 'TFun', left: Type, right: Type };
+export interface TFun { tag: 'TFun', left: Type, right: Type };
 export const TFun = (left: Type, right: Type): Type => ({ tag: 'TFun', left, right });
 
-export const caseType = cases<TypeTag>();
+export type CasesType<R> = {
+  TVar: (name: Name) => R;
+  TMeta: (name: Name) => R;
+  TFun: (left: Type, right: Type) => R;
+};
+export const caseOf = <R>(val: Type, cs: CasesType<R>): R => {
+  switch (val.tag) {
+    case 'TVar': return cs.TVar(val.name);
+    case 'TMeta': return cs.TMeta(val.name);
+    case 'TFun': return cs.TFun(val.left, val.right);
+  }
+};
 
-export const showType = (type: Type): string => caseType(type, {
-  TVar: val => `${val.name}`,
-  TMeta: val => `^${val.name}`,
-  TFun: val => `(${showType(val.left)} -> ${showType(val.right)})`,
+export const showType = (type: Type): string => caseOf(type, {
+  TVar: name => `${name}`,
+  TMeta: name => `^${name}`,
+  TFun: (left, right) => `(${showType(left)} -> ${showType(right)})`,
 });
 
-export type Forall = { tag: 'Forall', args: Name[], type: Type };
+export interface Forall { tag: 'Forall', args: Name[], type: Type };
 export const Forall = (args: Name[], type: Type): Forall => ({ tag: 'Forall', args, type });
 
 export const showForall = (forall: Forall) =>
