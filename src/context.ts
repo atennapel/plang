@@ -64,7 +64,7 @@ export const initial = Context(
     [nEffs]: true,
   },
   {
-    [nFun]: kfun(kType, kType, kType),
+    [nFun]: kfun(kType, kEffs, kType, kType),
     [nEffsEmpty]: kEffs,
     [nEffsExtend]: kfun(kEff, kEffs, kEffs),
   },

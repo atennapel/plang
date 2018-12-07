@@ -1,6 +1,6 @@
 import { caseExpr, Expr } from "./exprs";
 import { TC } from "./TC";
-import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar } from "./types";
+import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar, TFunP } from "./types";
 import { Context, findVar, extendVar } from "./context";
 import { isLeft, Right } from "./either";
 import { prune, unify } from "./unification";
@@ -29,7 +29,7 @@ export const infer = (ctx: Context, expr: Expr): TC<Type> => caseExpr(expr, {
     const m = TMeta(fresh(arg), kType);
     const res = infer(extendVar(ctx, arg, Forall([], m)), body);
     if (isLeft(res)) return res;
-    return Right(TFun(prune(m), res.val));
+    return Right(TFunP(prune(m), res.val));
   },
   App: (left, right) => {
     const lr = infer(ctx, left);
@@ -37,7 +37,7 @@ export const infer = (ctx: Context, expr: Expr): TC<Type> => caseExpr(expr, {
     const rr = infer(ctx, right);
     if (isLeft(rr)) return rr;
     const m = TMeta(fresh('t'), kType);
-    const ur = unify(ctx, lr.val, TFun(rr.val, m), false);
+    const ur = unify(ctx, lr.val, TFunP(rr.val, m), false);
     if (isLeft(ur)) return ur;
     return Right(prune(m));
   },

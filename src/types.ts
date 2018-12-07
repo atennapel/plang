@@ -46,6 +46,10 @@ export const showType = (type: Type): string => caseType(type, {
   TVar: name => `${name}`,
   TMeta: name => `?${name}`,
   TApp: (left, right) =>
+    left.tag === 'TApp' && left.left.tag === 'TApp' && left.left.left.tag === 'TVar' && left.left.left.name === '->' ?
+      (left.right.tag === 'TVar' && left.right.name === '{}' ?
+        `(${showType(left.left.right)} -> ${showType(right)})` :
+        `(${showType(left.left.right)} -> ${showType(right)}!${showType(left.right)})`) :
     left.tag === 'TApp' && left.left.tag === 'TVar' && /[^a-z]/i.test(left.left.name[0]) ?
       `(${showType(left.right)} ${left.left.name} ${showType(right)})` :
       `(${showType(left)} ${showType(right)})`,
@@ -78,15 +82,6 @@ export const showForall = (forall: Forall) =>
     showType(forall.type) :
     `forall ${forall.args.map(([n, k]) => `(${n} : ${showKind(k)})`).join('')}. ${showType(forall.type)}`;
 
-export const nFun = '->';
-export const tFun = TVar(nFun);
-export const TFun = (a: Type, b: Type) => TApp(TApp(tFun, a), b);
-export const tfun = (...ts: Type[]): Type => ts.reduceRight((a, b) => TFun(b, a));
-export const matchTFun = (type: Type): { left: Type, right: Type } | null =>
-  type.tag === 'TApp' && type.left.tag === 'TApp' &&
-    (type.left.left === tFun || (type.left.left.tag === 'TVar' && type.left.left.name === nFun)) ?
-    { left: type.left.right, right: type.right } : null;
-
 export const nEffsEmpty = '{}';
 export const tEffsEmpty = TVar(nEffsEmpty);
 export const isTEffsEmpty = (type: Type): type is TVar =>
@@ -101,3 +96,13 @@ export const matchTEffsExtend = (type: Type): { eff: Type, rest: Type } | null =
     { eff: type.left.right, rest: type.right } : null;
 export const teffs = (es: Type[], rest: Type = tEffsEmpty): Type =>
   es.reduceRight((a, b) => TEffsExtend(b, a), rest);
+
+export const nFun = '->';
+export const tFun = TVar(nFun);
+export const TFun = (a: Type, e: Type, b: Type) => TApp(TApp(TApp(tFun, a), e), b);
+export const TFunP = (a: Type, b: Type) => TFun(a, tEffsEmpty, b);
+export const tfun = (...ts: Type[]): Type => ts.reduceRight((a, b) => TFunP(b, a));
+export const matchTFun = (type: Type): { left: Type, eff: Type, right: Type } | null =>
+  type.tag === 'TApp' && type.left.tag === 'TApp' && type.left.left.tag === 'TApp' &&
+    (type.left.left.left === tFun || (type.left.left.left.tag === 'TVar' && type.left.left.left.name === nFun)) ?
+    { left: type.left.left.right, eff: type.left.right, right: type.right } : null;
