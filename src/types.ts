@@ -82,3 +82,22 @@ export const nFun = '->';
 export const tFun = TVar(nFun);
 export const TFun = (a: Type, b: Type) => TApp(TApp(tFun, a), b);
 export const tfun = (...ts: Type[]): Type => ts.reduceRight((a, b) => TFun(b, a));
+export const matchTFun = (type: Type): { left: Type, right: Type } | null =>
+  type.tag === 'TApp' && type.left.tag === 'TApp' &&
+    (type.left.left === tFun || (type.left.left.tag === 'TVar' && type.left.left.name === nFun)) ?
+    { left: type.left.right, right: type.right } : null;
+
+export const nEffsEmpty = '{}';
+export const tEffsEmpty = TVar(nEffsEmpty);
+export const isTEffsEmpty = (type: Type): type is TVar =>
+  type === tEffsEmpty || (type.tag === 'TVar' && type.name === nEffsEmpty);
+
+export const nEffsExtend = '|';
+export const tEffsExtend = TVar(nEffsExtend);
+export const TEffsExtend = (a: Type, b: Type) => TApp(TApp(tEffsExtend, a), b);
+export const matchTEffsExtend = (type: Type): { eff: Type, rest: Type } | null =>
+  type.tag === 'TApp' && type.left.tag === 'TApp' &&
+    (type.left.left === tEffsExtend || (type.left.left.tag === 'TVar' && type.left.left.name === nEffsExtend)) ?
+    { eff: type.left.right, rest: type.right } : null;
+export const teffs = (es: Type[], rest: Type = tEffsEmpty): Type =>
+  es.reduceRight((a, b) => TEffsExtend(b, a), rest);

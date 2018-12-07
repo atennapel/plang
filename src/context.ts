@@ -1,5 +1,5 @@
-import { Forall, tFun, nFun } from "./types";
-import { Kind, KFun, kfun, kType, nType } from "./kinds";
+import { Forall, tFun, nFun, nEffsEmpty, nEffsExtend } from "./types";
+import { Kind, KFun, kfun, kType, nType, nEffs, nEff, kEffs, kEff } from "./kinds";
 import { Name } from "./names";
 import { Right, Left } from "./either";
 import { TC, ok } from "./TC";
@@ -60,9 +60,13 @@ export const extendContextMut = (ctx: Context, kvs: Map<true>, tvs: Map<Kind>, v
 export const initial = Context(
   {
     [nType]: true,
+    [nEff]: true,
+    [nEffs]: true,
   },
   {
     [nFun]: kfun(kType, kType, kType),
+    [nEffsEmpty]: kEffs,
+    [nEffsExtend]: kfun(kEff, kEffs, kEffs),
   },
   {
 

@@ -39,3 +39,9 @@ export const eqKind = (a: Kind, b: Kind): boolean => caseKind(a, {
 
 export const nType = 'Type';
 export const kType = KVar(nType);
+
+export const nEff = 'Eff';
+export const kEff = KVar(nEff);
+
+export const nEffs = 'Effs';
+export const kEffs = KVar(nEffs);
