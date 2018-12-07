@@ -13,8 +13,8 @@ const openFun = (type: Type): Type => {
   if (!f) return type;
   const fl = flattenTEffs(f.eff);
   if (!isTEffsEmpty(fl.rest)) return type;
-  const ret = TFun(f.left, teffs(fl.ts, TMeta(fresh('e'), kEffs)), f.right);
-  console.log(`openend ${showType(ret)}`);
+  const ret = TFun(openFun(f.left), teffs(fl.ts, TMeta(fresh('e'), kEffs)), openFun(f.right));
+  console.log(`opened ${showType(ret)}`);
   return ret;
 };
 

@@ -6,6 +6,9 @@ import { showForall, TVar, Forall, tfun, tapp, TFun, teffs } from "./types";
 import { kType, kfun, kEff, kEffs } from "./kinds";
 
 /*
+Questions:
+  - how much needs to be opened and closed?
+  - rethink closeFun (maybe after adding Forall?)
 TODO:
   - handlers
   - polymorphic effects
@@ -43,6 +46,7 @@ const ctx = extendContextMut(initial,
     True: Forall([], tv('Bool')),
     False: Forall([], tv('Bool')),
 
+    not: Forall([], tfun(tv('Bool'), tv('Bool'))),
     and: Forall([], tfun(tv('Bool'), tv('Bool'), tv('Bool'))),
     
     id: Forall([['t', kType]], tfun(tv('t'), tv('t'))),
@@ -58,7 +62,10 @@ const ctx = extendContextMut(initial,
     caseList: Forall([['t', kType], ['r', kType], ['e', kEffs]], tfun(tv('r'), tfun(tv('t'), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r'))), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r')))),
   },
 );
-const expr = abs(['f', 'x'], app(v('and'), app(v('f'), v('x')), v('True')));
+//const expr = app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))));
+//const expr = abs(['f', 'x'], app(v('and'), v('True'), app(v('f'), v('x'))));
+//const expr = abs(['x', 'y'], v('x'));
+const expr = abs(['f', 'x', 'b'], app(v('f'), v('x')));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));
