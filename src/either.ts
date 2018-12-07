@@ -1,5 +1,3 @@
-import { Maybe, caseMaybe } from "./maybe";
-
 export type Either<E, T> = Left<E> | Right<T>;
 
 export interface Left<E> { readonly tag: 'Left', readonly val: E };
@@ -31,10 +29,4 @@ export const throwEither = <E, T>(val: Either<E, T>): T =>
   caseOf(val, {
     Left: val => { throw val },
     Right: val => val,
-  });
-
-export const fromMaybe = <E, T>(val: Maybe<T>, err: () => E): Either<E, T> =>
-  caseMaybe(val, {
-    Just: val => Right<E, T>(val),
-    Nothing: () => Left<E, T>(err()),
   });

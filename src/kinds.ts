@@ -14,6 +14,7 @@ export interface KFun {
   readonly right: Kind;
 };
 export const KFun = (left: Kind, right: Kind): Kind => ({ tag: 'KFun', left, right });
+export const kfun = (...ks: Kind[]): Kind => ks.reduceRight((a, b) => KFun(b, a));
 
 export type CasesKind<R> = {
   KVar: (name: Name) => R;
@@ -35,3 +36,6 @@ export const eqKind = (a: Kind, b: Kind): boolean => caseKind(a, {
   KVar: name => b.tag === 'KVar' && b.name === name,
   KFun: (left, right) => b.tag === 'KFun' && eqKind(left, b.left) && eqKind(right, b.right),
 });
+
+export const nType = 'Type';
+export const kType = KVar(nType);

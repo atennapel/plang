@@ -13,10 +13,11 @@ export const TVar = (name: Name): Type =>
 export interface TMeta {
   readonly tag: 'TMeta';
   readonly name: Name;
+  readonly kind: Kind;
   type: Type | null;
 };
-export const TMeta = (name: Name, type: Type | null): Type =>
-  ({ tag: 'TMeta', name, type });
+export const TMeta = (name: Name, kind: Kind, type: Type | null = null): Type =>
+  ({ tag: 'TMeta', name, kind, type });
 
 export interface TApp {
   readonly tag: 'TApp';
@@ -24,26 +25,49 @@ export interface TApp {
   readonly right: Type;
   kind: Kind | null;
 };
-export const TApp = (left: Type, right: Type, kind: Kind | null): Type =>
+export const TApp = (left: Type, right: Type, kind: Kind | null = null): Type =>
   ({ tag: 'TApp', left, right, kind });
+export const tapp = (...ts: Type[]): Type => ts.reduce((a, b) => TApp(a, b));
 
 export type CasesType<R> = {
   TVar: (name: Name) => R;
-  TMeta: (name: Name, type: Type | null) => R;
+  TMeta: (name: Name, kind: Kind, type: Type | null) => R;
   TApp: (left: Type, right: Type, kind: Kind | null) => R;
 };
 export const caseType = <R>(val: Type, cs: CasesType<R>): R => {
   switch (val.tag) {
     case 'TVar': return cs.TVar(val.name);
-    case 'TMeta': return cs.TMeta(val.name, val.type);
+    case 'TMeta': return cs.TMeta(val.name, val.kind, val.type);
     case 'TApp': return cs.TApp(val.left, val.right, val.kind);
   }
 };
 
 export const showType = (type: Type): string => caseType(type, {
   TVar: name => `${name}`,
-  TMeta: name => `^${name}`,
-  TApp: (left, right) => `(${showType(left)} ${showType(right)})`,
+  TMeta: name => `?${name}`,
+  TApp: (left, right) =>
+    left.tag === 'TApp' && left.left.tag === 'TVar' && /[^a-z]/i.test(left.left.name[0]) ?
+      `(${showType(left.right)} ${left.left.name} ${showType(right)})` :
+      `(${showType(left)} ${showType(right)})`,
+});
+
+export type Subst = { [key: string]: Type };
+export const substMeta = (sub: Subst, type: Type): Type => caseType(type, {
+  TVar: name => type,
+  TMeta: name => sub[name] ? sub[name] : type,
+  TApp: (left, right) => TApp(substMeta(sub, left), substMeta(sub, right)),
+});
+export const substTVar = (sub: Subst, type: Type): Type => caseType(type, {
+  TVar: name => sub[name] ? sub[name] : type,
+  TMeta: name => type,
+  TApp: (left, right) => TApp(substTVar(sub, left), substTVar(sub, right)),
+});
+
+export type Free = { [key: string]: TMeta };
+export const freeMeta = (type: Type, fr: Free = {}): Free => caseType(type, {
+  TVar: name => fr,
+  TMeta: name => { fr[name] = type as TMeta; return fr },
+  TApp: (left, right) => freeMeta(right, freeMeta(left, fr)),
 });
 
 export interface Forall { tag: 'Forall', args: [Name, Kind][], type: Type };
@@ -53,3 +77,8 @@ export const showForall = (forall: Forall) =>
   forall.args.length === 0 ?
     showType(forall.type) :
     `forall ${forall.args.map(([n, k]) => `(${n} : ${showKind(k)})`).join('')}. ${showType(forall.type)}`;
+
+export const nFun = '->';
+export const tFun = TVar(nFun);
+export const TFun = (a: Type, b: Type) => TApp(TApp(tFun, a), b);
+export const tfun = (...ts: Type[]): Type => ts.reduceRight((a, b) => TFun(b, a));
