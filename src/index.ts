@@ -18,11 +18,13 @@ TODO:
   - adts
 
 Bugs:
+    effects dissapear:
     - app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))))
     - abs(['f', 'x'], app(v('and'), app(v('f'), v('x')), v('True')))
-      effects dissapear ^
+    - app(v('app'), v('flip'))
+
+    effects can be ommitted:
     - \x y -> x
-      effects can be ommitted ^
 */
 
 const v = Var;
@@ -60,12 +62,15 @@ const ctx = extendContextMut(initial,
 
     fix: Forall([['t', kType]], tfun(tfun(tv('t'), tv('t')), tv('t'))),
     caseList: Forall([['t', kType], ['r', kType], ['e', kEffs]], tfun(tv('r'), tfun(tv('t'), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r'))), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r')))),
+
+    app: Forall([['a', kType], ['b', kType]], tfun(tfun(tv('a'), tv('b')), tv('a'), tv('b'))),
   },
 );
 //const expr = app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))));
 //const expr = abs(['f', 'x'], app(v('and'), v('True'), app(v('f'), v('x'))));
 //const expr = abs(['x', 'y'], v('x'));
-const expr = abs(['f', 'x', 'b'], app(v('f'), v('x')));
+//const expr = abs(['f', 'x', 'b'], app(v('f'), v('x')));
+const expr = app(v('app'), v('flip'));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));
