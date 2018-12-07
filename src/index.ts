@@ -16,7 +16,10 @@ TODO:
 
 Bugs:
     - app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))))
+    - abs(['f', 'x'], app(v('and'), app(v('f'), v('x')), v('True')))
       effects dissapear ^
+    - \x y -> x
+      effects can be ommitted ^
 */
 
 const v = Var;
@@ -55,7 +58,7 @@ const ctx = extendContextMut(initial,
     caseList: Forall([['t', kType], ['r', kType], ['e', kEffs]], tfun(tv('r'), tfun(tv('t'), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r'))), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r')))),
   },
 );
-const expr = app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))));
+const expr = abs(['f', 'x'], app(v('and'), app(v('f'), v('x')), v('True')));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));
