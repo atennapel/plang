@@ -1,9 +1,9 @@
-import { Type, caseType, TMeta, TApp, showType } from "./types";
+import { Type, caseType, TMeta, TApp, showType, matchTEffsExtend, TEffsExtend } from "./types";
 import { Context, findTVar } from "./context";
-import { Kind, eqKind, showKind } from "./kinds";
+import { Kind, eqKind, showKind, kEffs } from "./kinds";
 import { TC, ok } from "./TC";
-import { isLeft, Left, Right } from "./either";
-import { Name } from "./names";
+import { isLeft, Left, Right, isRight } from "./either";
+import { Name, fresh } from "./names";
 
 export const prune = (type: Type): Type => caseType(type, {
   TVar: name => type,
@@ -50,6 +50,26 @@ export const bind = (meta: TMeta, type: Type): TC<true> => {
   return ok;
 };
 
+const rewriteEffs = (ctx: Context, eff: Type, type: Type): TC<Type> => {
+  console.log(`rewriteEffs ${showType(eff)} in ${showType(type)}`);
+  const ex = matchTEffsExtend(type);
+  if (ex) {
+    const rest = ex.rest;
+    const u = unify(ctx, eff, ex.eff);
+    if (isRight(u)) return Right(prune(rest));
+    if (rest.tag === 'TMeta') {
+      const r = TMeta(fresh('e'), kEffs);
+      const ret = bind(rest, TEffsExtend(prune(eff), r));
+      if (isLeft(ret)) return ret;
+      return Right(TEffsExtend(prune(ex.eff), r));
+    }
+    const rec = rewriteEffs(ctx, eff, ex.rest);
+    if (isLeft(rec)) return rec;
+    return Right(TEffsExtend(prune(ex.eff), rec.val));
+  }
+  return Left(`cannot rewrite effs: ${showType(eff)} in ${showType(type)}`);
+};
+
 export const unify = (ctx: Context, a_: Type, b_: Type, pr = true): TC<true> => {
   // eq check & prune
   let a = a_;
@@ -70,6 +90,13 @@ export const unify = (ctx: Context, a_: Type, b_: Type, pr = true): TC<true> => 
   if (a.tag === 'TMeta') return bind(a, b);
   if (b.tag === 'TMeta') return bind(b, a);
   if (a.tag === 'TVar' && b.tag === 'TVar' && a.name === b.name) return ok;
+  const ea = matchTEffsExtend(a);
+  const eb = matchTEffsExtend(b);
+  if (ea && eb) {
+    const reb = rewriteEffs(ctx, ea.eff, b);
+    if (isLeft(reb)) return reb;
+    return unify(ctx, ea.rest, reb.val, false);
+  }
   if (a.tag === 'TApp' && b.tag === 'TApp') {
     const left = unify(ctx, a.left, b.left, false);
     if (isLeft(left)) return left;

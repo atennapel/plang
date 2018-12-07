@@ -50,7 +50,7 @@ export const showType = (type: Type): string => caseType(type, {
       (left.right.tag === 'TVar' && left.right.name === '{}' ?
         `(${showType(left.left.right)} -> ${showType(right)})` :
         `(${showType(left.left.right)} -> ${showType(right)}!${showType(left.right)})`) :
-    left.tag === 'TApp' && left.left.tag === 'TVar' && /[^a-z]/i.test(left.left.name[0]) ?
+    left.tag === 'TApp' && left.left.tag === 'TVar' && /[^a-z]/i.test(left.left.name[0]) && left.left.name !== '->'?
       `(${showType(left.right)} ${left.left.name} ${showType(right)})` :
       `(${showType(left)} ${showType(right)})`,
 });
@@ -72,6 +72,11 @@ export const freeMeta = (type: Type, fr: Free = {}): Free => caseType(type, {
   TVar: name => fr,
   TMeta: name => { fr[name] = type as TMeta; return fr },
   TApp: (left, right) => freeMeta(right, freeMeta(left, fr)),
+});
+export const containsMeta = (m: Name, type: Type): boolean => caseType(type, {
+  TVar: name => false,
+  TMeta: name => name === m,
+  TApp: (left, right) => containsMeta(m, left) || containsMeta(m, right),
 });
 
 export interface Forall { tag: 'Forall', args: [Name, Kind][], type: Type };
@@ -96,6 +101,14 @@ export const matchTEffsExtend = (type: Type): { eff: Type, rest: Type } | null =
     { eff: type.left.right, rest: type.right } : null;
 export const teffs = (es: Type[], rest: Type = tEffsEmpty): Type =>
   es.reduceRight((a, b) => TEffsExtend(b, a), rest);
+export const flattenTEffs = (type: Type): { ts: Type[], rest: Type } => {
+  const m = matchTEffsExtend(type);
+  if (m) {
+    const rec = flattenTEffs(m.rest);
+    return { ts: [m.eff].concat(rec.ts), rest: rec.rest };
+  }
+  return { ts: [], rest: type };
+};
 
 export const nFun = '->';
 export const tFun = TVar(nFun);

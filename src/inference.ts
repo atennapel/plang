@@ -1,11 +1,22 @@
 import { caseExpr, Expr, showExpr } from "./exprs";
 import { TC } from "./TC";
-import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar, TFunP, tEffsEmpty, isTEffsEmpty, showType, TypeEff, typePure, showTypeEff, typeEff } from "./types";
+import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar, TFunP, tEffsEmpty, isTEffsEmpty, showType, TypeEff, typePure, showTypeEff, typeEff, matchTEffsExtend, TEffsExtend, matchTFun, flattenTEffs, teffs, containsMeta } from "./types";
 import { Context, findVar, extendVar } from "./context";
 import { isLeft, Right, Left } from "./either";
 import { prune, unify } from "./unification";
 import { fresh, resetId, Name } from "./names";
 import { kType, Kind, kEffs } from "./kinds";
+
+const openFun = (type: Type): Type => {
+  console.log(`openFun ${showType(type)}`);
+  const f = matchTFun(type);
+  if (!f) return type;
+  const fl = flattenTEffs(f.eff);
+  if (!isTEffsEmpty(fl.rest)) return type;
+  const ret = TFun(f.left, teffs(fl.ts, TMeta(fresh('e'), kEffs)), f.right);
+  console.log(`openend ${showType(ret)}`);
+  return ret;
+};
 
 const instantiate = (type: Forall): Type => {
   const sub: Subst = {};
@@ -16,7 +27,7 @@ const instantiate = (type: Forall): Type => {
     const k = c[1];
     sub[n] = TMeta(fresh(n), k);
   }
-  return substTVar(sub, type.type);
+  return openFun(substTVar(sub, type.type));
 };
 
 export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
@@ -25,13 +36,13 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
     Var: name => {
       const ty = findVar(ctx, name);
       if (isLeft(ty)) return ty;
-      return Right(typePure(instantiate(ty.val)));
+      return Right(typeEff(instantiate(ty.val), TMeta(fresh('e'), kEffs)));
     },
     Abs: (arg, body) => {
       const m = TMeta(fresh(arg), kType);
       const res = infer(extendVar(ctx, arg, Forall([], m)), body);
       if (isLeft(res)) return res;
-      return Right(typePure(TFun(prune(m), res.val.eff, res.val.type)));
+      return Right(typeEff(TFun(prune(m), res.val.eff, res.val.type), TMeta(fresh('e'), kEffs)));
     },
     App: (left, right) => {
       const lr = infer(ctx, left);
@@ -51,14 +62,34 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
   });
 };
 
-const generalize = (ctx: Context, typeE: TypeEff): TC<Forall> => {
+const closeFun = (type: Type): Type => {
+  console.log(`closeFun ${showType(type)}`);
+  const f = matchTFun(type);
+  if (!f) return type;
+  const fl = flattenTEffs(f.eff);
+  if (fl.rest.tag !== 'TMeta') return type;
+  const x = fl.rest.name;
+  if (containsMeta(x, f.left) || containsMeta(x, f.right)) return type;
+  const ts = fl.ts;
+  for (let i = ts.length - 1; i >= 0; i--)
+    if (containsMeta(x, ts[i])) return type;
+  const ret = TFun(f.left, teffs(fl.ts, tEffsEmpty), f.right);
+  console.log(`closed ${showType(ret)}`);
+  return ret;
+};
+
+const generalize = (ctx: Context, typeE: TypeEff, topLevel = false): TC<Forall> => {
   if (!isTEffsEmpty(typeE.eff) && typeE.eff.tag !== 'TMeta')
     return Left(`cannot generalize over ${showTypeEff(typeE)}`);
-  const type = typeE.type;
+  const type = closeFun(typeE.type);
   const fr = freeMeta(type);
-  for (let name in ctx.vars) {
-    for (let k in freeMeta(ctx.vars[name].type))
-      (fr[k] as any) = undefined;
+  if (!topLevel) {
+    for (let name in ctx.vars) {
+      for (let k in freeMeta(ctx.vars[name].type)) {
+        console.log('remove');
+        (fr[k] as any) = undefined;
+      }
+    }
   }
   const args: [Name, Kind][] = [];
   const sub: Subst = {};
@@ -69,12 +100,12 @@ const generalize = (ctx: Context, typeE: TypeEff): TC<Forall> => {
   return Right(Forall(args, substMeta(sub, type)));
 };
 
-export const inferGen = (ctx: Context, expr: Expr): TC<Forall> => {
+export const inferGen = (ctx: Context, expr: Expr, topLevel = false): TC<Forall> => {
   resetId();
   const ty = infer(ctx, expr);
   if (isLeft(ty)) return ty;
   console.log(`infer done ${showTypeEff(ty.val)}`);
-  const f = generalize(ctx, ty.val);
+  const f = generalize(ctx, ty.val, topLevel);
   if (isLeft(f)) return f;
   return Right(f.val);
 };
