@@ -106,3 +106,11 @@ export const matchTFun = (type: Type): { left: Type, eff: Type, right: Type } | 
   type.tag === 'TApp' && type.left.tag === 'TApp' && type.left.left.tag === 'TApp' &&
     (type.left.left.left === tFun || (type.left.left.left.tag === 'TVar' && type.left.left.left.name === nFun)) ?
     { left: type.left.left.right, eff: type.left.right, right: type.right } : null;
+
+export interface TypeEff {
+  readonly type: Type;
+  readonly eff: Type;
+}
+export const typeEff = (type: Type, eff: Type): TypeEff => ({ type, eff });
+export const typePure = (type: Type) => typeEff(type, tEffsEmpty);
+export const showTypeEff = (type: TypeEff) => `${showType(type.type)}!${showType(type.eff)}`;
