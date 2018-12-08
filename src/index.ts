@@ -2,7 +2,7 @@ import { inferGen } from "./inference";
 import { initial, extendContextMut } from "./context";
 import { throwEither } from "./either";
 import { abs, Var, app, showExpr } from "./exprs";
-import { showForall, TVar, Forall, tfun, tapp, TFun, teffs } from "./types";
+import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall } from "./types";
 import { kType, kfun, kEff, kEffs } from "./kinds";
 
 /*
@@ -10,7 +10,8 @@ Questions:
   - how much needs to be opened and closed?
   - rethink closeFun (maybe after adding Forall?)
 TODO:
-  - change all concat to use mutation
+  - pretty forall and kinds
+  - replace recursion with iteration where convenient
   - fix openFun and closeFun
   - pretty printer
   - handlers
@@ -70,13 +71,14 @@ const ctx = extendContextMut(initial,
   },
 );
 //const expr = app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))));
+const expr = abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t'))))));
 //const expr = abs(['f', 'x'], app(v('and'), v('True'), app(v('f'), v('x'))));
-const expr = abs(['x', 'y'], v('x'));
+//const expr = abs(['x', 'y'], v('x'));
 //const expr = abs(['f', 'x', 'b'], app(v('f'), v('x')));
 //const expr = app(abs(['f'], app(v('f'), v('flip'))), abs(['g'], app(v('g'), v('Unit'))));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));
 time = Date.now() - time;
-console.log(`${showForall(res)}`);
+console.log(`${prettyForall(res)}`);
 console.log(`${time}ms`);

@@ -28,6 +28,15 @@ export interface TApp {
 export const TApp = (left: Type, right: Type, kind: Kind | null = null): Type =>
   ({ tag: 'TApp', left, right, kind });
 export const tapp = (...ts: Type[]): Type => ts.reduce((a, b) => TApp(a, b));
+export const flattenTApp = (type: Type, ts: Type[] = []): Type[] => {
+  if (type.tag === 'TApp') {
+    const rec = flattenTApp(type.left, ts);
+    ts.push(type.right);
+    return ts;
+  }
+  ts.push(type);
+  return ts;
+};
 
 export type CasesType<R> = {
   TVar: (name: Name) => R;
@@ -108,13 +117,14 @@ export const matchTEffsExtend = (type: Type): { eff: Type, rest: Type } | null =
     { eff: type.left.right, rest: type.right } : null;
 export const teffs = (es: Type[], rest: Type = tEffsEmpty): Type =>
   es.reduceRight((a, b) => TEffsExtend(b, a), rest);
-export const flattenTEffs = (type: Type): { ts: Type[], rest: Type } => {
+export const flattenTEffs = (type: Type, ts: Type[] = []): { ts: Type[], rest: Type } => {
   const m = matchTEffsExtend(type);
   if (m) {
-    const rec = flattenTEffs(m.rest);
-    return { ts: [m.eff].concat(rec.ts), rest: rec.rest };
+    ts.push(m.eff);
+    const rec = flattenTEffs(m.rest, ts);
+    return { ts, rest: rec.rest };
   }
-  return { ts: [], rest: type };
+  return { ts, rest: type };
 };
 
 export const nFun = '->';
@@ -126,6 +136,46 @@ export const matchTFun = (type: Type): { left: Type, eff: Type, right: Type } | 
   type.tag === 'TApp' && type.left.tag === 'TApp' && type.left.left.tag === 'TApp' &&
     (type.left.left.left === tFun || (type.left.left.left.tag === 'TVar' && type.left.left.left.name === nFun)) ?
     { left: type.left.left.right, eff: type.left.right, right: type.right } : null;
+export const flattenTFun = (type: Type, ts: Type[] = []): { ts: Type[], eff: Type } => {
+  const f = matchTFun(type);
+  if (f) {
+    if (isTEffsEmpty(f.eff)) {
+      ts.push(f.left);
+      const rec = flattenTFun(f.right, ts);
+      return { ts, eff: rec.eff };
+    } else {
+      ts.push(f.left);
+      ts.push(f.right);
+      return { ts, eff: f.eff };
+    }
+  }
+  ts.push(type);
+  return { ts, eff: tEffsEmpty };
+};
+
+const ARR = '->';
+export const prettyType = (type: Type): string => {
+  const f = matchTFun(type);
+  if (f) {
+    const fl = flattenTFun(type);
+    return `(${fl.ts.map(prettyType).join(` ${ARR} `)}!${prettyType(fl.eff)})`;
+  }
+  if (isTEffsEmpty(type)) return '{}';
+  const m = matchTEffsExtend(type);
+  if (m) {
+    const fm = flattenTEffs(type);
+    return `{${fm.ts.map(prettyType).join(', ')}${isTEffsEmpty(fm.rest) ? '' : ` | ${prettyType(fm.rest)}`}`;
+  }
+  if (type.tag === 'TApp') {
+    const ta = flattenTApp(type);
+    return `(${ta.map(prettyType).join(' ')})`;
+  }
+  return showType(type);
+};
+export const prettyForall = (forall: Forall) =>
+  forall.args.length === 0 ?
+    prettyType(forall.type) :
+    `forall ${forall.args.map(([n, k]) => `(${n} : ${showKind(k)})`).join('')}. ${prettyType(forall.type)}`;
 
 export interface TypeEff {
   readonly type: Type;

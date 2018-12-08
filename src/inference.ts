@@ -8,9 +8,9 @@ import { fresh, resetId, Name } from "./names";
 import { kType, Kind, kEffs, eqKind } from "./kinds";
 
 const openFun = (type: Type): Type => {
-  console.log(`openFun ${showType(type)}`);
   const f = matchTFun(type);
   if (!f) return type;
+  console.log(`openFun ${showType(type)}`);
   const fl = flattenTEffs(f.eff);
   if (!isTEffsEmpty(fl.rest)) return type;
   const ret = TFun(f.left, teffs(fl.ts, TMeta(fresh('e'), kEffs)), openFun(f.right));
