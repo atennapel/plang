@@ -79,6 +79,13 @@ export const containsMeta = (m: Name, type: Type): boolean => caseType(type, {
   TApp: (left, right) => containsMeta(m, left) || containsMeta(m, right),
 });
 
+export type OccMap = { [key: string]: number };
+export const occTVar = (type: Type, tvs: Name[], map: OccMap = {}): OccMap => caseType(type, {
+  TVar: name => tvs.indexOf(name) >= 0 ? ((map[name] = (map[name] || 0) + 1), map) : map,
+  TMeta: name => map,
+  TApp: (left, right) => occTVar(right, tvs, occTVar(left, tvs, map)),
+});
+
 export interface Forall { tag: 'Forall', args: [Name, Kind][], type: Type };
 export const Forall = (args: [Name, Kind][], type: Type): Forall => ({ tag: 'Forall', args, type });
 

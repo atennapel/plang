@@ -1,11 +1,11 @@
 import { caseExpr, Expr, showExpr } from "./exprs";
 import { TC } from "./TC";
-import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar, TFunP, tEffsEmpty, isTEffsEmpty, showType, TypeEff, typePure, showTypeEff, typeEff, matchTEffsExtend, TEffsExtend, matchTFun, flattenTEffs, teffs, containsMeta } from "./types";
+import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar, TFunP, tEffsEmpty, isTEffsEmpty, showType, TypeEff, typePure, showTypeEff, typeEff, matchTEffsExtend, TEffsExtend, matchTFun, flattenTEffs, teffs, containsMeta, showForall, occTVar, OccMap } from "./types";
 import { Context, findVar, extendVar } from "./context";
 import { isLeft, Right, Left } from "./either";
 import { prune, unify } from "./unification";
 import { fresh, resetId, Name } from "./names";
-import { kType, Kind, kEffs } from "./kinds";
+import { kType, Kind, kEffs, eqKind } from "./kinds";
 
 const openFun = (type: Type): Type => {
   console.log(`openFun ${showType(type)}`);
@@ -13,7 +13,7 @@ const openFun = (type: Type): Type => {
   if (!f) return type;
   const fl = flattenTEffs(f.eff);
   if (!isTEffsEmpty(fl.rest)) return type;
-  const ret = TFun(openFun(f.left), teffs(fl.ts, TMeta(fresh('e'), kEffs)), openFun(f.right));
+  const ret = TFun(f.left, teffs(fl.ts, TMeta(fresh('e'), kEffs)), openFun(f.right));
   console.log(`opened ${showType(ret)}`);
   return ret;
 };
@@ -62,31 +62,39 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
   });
 };
 
-const closeFun = (type: Type): Type => {
-  console.log(`closeFun ${showType(type)}`);
-  const f = matchTFun(type);
-  if (!f) return type;
-  const fl = flattenTEffs(f.eff);
-  if (fl.rest.tag !== 'TMeta') return type;
-  const x = fl.rest.name;
-  if (containsMeta(x, f.left) || containsMeta(x, f.right)) return type;
-  const ts = fl.ts;
-  for (let i = ts.length - 1; i >= 0; i--)
-    if (containsMeta(x, ts[i])) return type;
-  const ret = TFun(f.left, teffs(fl.ts, tEffsEmpty), f.right);
-  console.log(`closed ${showType(ret)}`);
-  return ret;
+const closeFunTy = (type: Type, occ: OccMap, closed: Name[] = []): Type => {
+  const fn = matchTFun(type);
+  if (fn) {
+    const rec = closeFunTy(fn.right, occ, closed);
+    const fl = flattenTEffs(fn.eff);
+    if (fl.rest.tag === 'TVar' && occ[fl.rest.name] === 1) {
+      closed.push(fl.rest.name);
+      return TFun(fn.left, teffs(fl.ts, tEffsEmpty), rec);
+    } else return TFun(fn.left, fn.eff, rec);
+  }
+  return type;
+};
+
+const closeFun = (type: Forall): Forall => {
+  console.log(`closeFun ${showForall(type)}`);
+  const args = type.args;
+  const effs = args.filter(([n, k]) => eqKind(k, kEffs)).map(([n, _]) => n);
+  const occ = occTVar(type.type, effs);
+  const closed: Name[] = [];
+  const ret = closeFunTy(type.type, occ, closed);
+  const retty = Forall(args.filter(([n, k]) => closed.indexOf(n) === -1), ret);
+  console.log(`closed ${showForall(retty)}`);
+  return retty;
 };
 
 const generalize = (ctx: Context, typeE: TypeEff, topLevel = false): TC<Forall> => {
   if (!isTEffsEmpty(typeE.eff) && typeE.eff.tag !== 'TMeta')
     return Left(`cannot generalize over ${showTypeEff(typeE)}`);
-  const type = closeFun(typeE.type);
+  const type = typeE.type;
   const fr = freeMeta(type);
   if (!topLevel) {
     for (let name in ctx.vars) {
       for (let k in freeMeta(ctx.vars[name].type)) {
-        console.log('remove');
         (fr[k] as any) = undefined;
       }
     }
@@ -97,7 +105,7 @@ const generalize = (ctx: Context, typeE: TypeEff, topLevel = false): TC<Forall> 
     args.push([k, fr[k].kind]);
     sub[k] = TVar(k);
   }
-  return Right(Forall(args, substMeta(sub, type)));
+  return Right(closeFun(Forall(args, substMeta(sub, type))));
 };
 
 export const inferGen = (ctx: Context, expr: Expr, topLevel = false): TC<Forall> => {
