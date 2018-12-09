@@ -101,7 +101,7 @@ export const Forall = (args: [Name, Kind][], type: Type): Forall => ({ tag: 'For
 export const showForall = (forall: Forall) =>
   forall.args.length === 0 ?
     showType(forall.type) :
-    `forall ${forall.args.map(([n, k]) => `(${n} : ${showKind(k)})`).join('')}. ${showType(forall.type)}`;
+    `forall${forall.args.map(([n, k]) => `(${n} : ${showKind(k)})`).join('')}. ${showType(forall.type)}`;
 
 export const nEffsEmpty = '{}';
 export const tEffsEmpty = TVar(nEffsEmpty);
@@ -158,7 +158,7 @@ export const prettyType = (type: Type): string => {
   const f = matchTFun(type);
   if (f) {
     const fl = flattenTFun(type);
-    return `(${fl.ts.map(prettyType).join(` ${ARR} `)}!${prettyType(fl.eff)})`;
+    return `${fl.ts.map(t => matchTFun(t) ? `(${prettyType(t)})` : prettyType(t)).join(` ${ARR} `)}!${prettyType(fl.eff)}`;
   }
   if (isTEffsEmpty(type)) return '{}';
   const m = matchTEffsExtend(type);
@@ -168,14 +168,15 @@ export const prettyType = (type: Type): string => {
   }
   if (type.tag === 'TApp') {
     const ta = flattenTApp(type);
-    return `(${ta.map(prettyType).join(' ')})`;
+    return `${ta.map(t => t.tag === 'TApp' || matchTFun(t) ? `(${prettyType(t)})` : prettyType(t)).join(' ')}`;
   }
   return showType(type);
 };
+const FORALL = 'forall';
 export const prettyForall = (forall: Forall) =>
   forall.args.length === 0 ?
     prettyType(forall.type) :
-    `forall ${forall.args.map(([n, k]) => `(${n} : ${showKind(k)})`).join('')}. ${prettyType(forall.type)}`;
+    `${FORALL}${forall.args.map(([n, k]) => `(${n} : ${showKind(k)})`).join('')}. ${prettyType(forall.type)}`;
 
 export interface TypeEff {
   readonly type: Type;

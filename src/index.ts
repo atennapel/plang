@@ -2,7 +2,7 @@ import { inferGen } from "./inference";
 import { initial, extendContextMut } from "./context";
 import { throwEither } from "./either";
 import { abs, Var, app, showExpr } from "./exprs";
-import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall } from "./types";
+import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall, prettyType } from "./types";
 import { kType, kfun, kEff, kEffs } from "./kinds";
 
 /*
@@ -80,5 +80,5 @@ console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));
 time = Date.now() - time;
-console.log(`${prettyForall(res)}`);
+console.log(`${prettyType(res.type)}`);
 console.log(`${time}ms`);
