@@ -1,4 +1,4 @@
-import { Name, namePart } from './names';
+import { Name, namePart, fresh } from './names';
 import { Kind, showKind, eqKind, kType, prettyKind } from './kinds';
 
 export type Type = TVar | TMeta | TApp;
@@ -18,6 +18,8 @@ export interface TMeta {
 };
 export const TMeta = (name: Name, kind: Kind, type: Type | null = null): Type =>
   ({ tag: 'TMeta', name, kind, type });
+export const freshMeta = (name: Name = 't', kind: Kind = kType): Type =>
+  TMeta(fresh(name), kind);
 
 export interface TApp {
   readonly tag: 'TApp';

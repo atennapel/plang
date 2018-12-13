@@ -38,8 +38,8 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
       if (isLeft(ty)) return ty;
       return Right(typeEff(instantiate(ty.val), TMeta(fresh('e'), kEffs)));
     },
-    Abs: (arg, body) => {
-      const m = TMeta(fresh(arg), kType);
+    Abs: (arg, type, body) => {
+      const m = type || TMeta(fresh(arg), kType);
       const res = infer(extendVar(ctx, arg, Forall([], m)), body);
       if (isLeft(res)) return res;
       return Right(typeEff(TFun(prune(m), res.val.eff, res.val.type), TMeta(fresh('e'), kEffs)));

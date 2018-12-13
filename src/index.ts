@@ -1,8 +1,8 @@
 import { inferGen } from "./inference";
 import { initial, extendContextMut } from "./context";
 import { throwEither } from "./either";
-import { abs, Var, app, showExpr, lets } from "./exprs";
-import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall, prettyType, TMeta, Type, TFunP, tEffsEmpty } from "./types";
+import { abs, Var, app, showExpr, lets, Abs } from "./exprs";
+import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall, prettyType, TMeta, Type, TFunP, tEffsEmpty, freshMeta } from "./types";
 import { kType, kfun, kEff, kEffs } from "./kinds";
 import { fresh } from "./names";
 import { prune } from "./unification";
@@ -76,7 +76,13 @@ const ctx = extendContextMut(initial,
     curry: Forall([['a', kType], ['b', kType], ['c', kType], ['e', kEffs]], tfun(TFun(tapp(tv('Pair'), tv('a'), tv('b')), tv('e'), tv('c')), tfun(tv('a'), TFun(tv('b'), tv('e'), tv('c'))))),
   },
 );
-// const expr = app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(Pure(app(v('rec'), v('f'))), v('t')))))));
+const expr =
+  app(v('fix'), Abs('rec', TFunP(freshMeta('a'), freshMeta('b')),
+  Abs('f', null,
+    app(
+      v('caseList'),
+      v('Nil'),
+      abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t'))))))));
 /*const expr = app(v('curry'), app(v('fix'), abs(['rec', 'p'],
   app(
     v('caseList'),
@@ -85,7 +91,7 @@ const ctx = extendContextMut(initial,
     app(v('snd'), v('p')),
   )
 )));*/
-const expr = abs(['f', 'p'], app(v('f'), app(v('fst'), v('p')), app(v('snd'), v('p'))));
+// const expr = Abs('f', TFunP(freshMeta('a'), freshMeta('b')), abs(['p'], app(v('f'), app(v('fst'), v('p')), app(v('snd'), v('p')))));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));

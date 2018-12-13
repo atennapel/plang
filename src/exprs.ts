@@ -1,4 +1,5 @@
 import { Name } from './names';
+import { Type, showType } from './types';
 
 export type Expr = Var | Abs | App;
 
@@ -12,12 +13,15 @@ export const Var = (name: Name): Expr =>
 export interface Abs {
   readonly tag: 'Abs';
   readonly arg: Name;
+  readonly type: Type | null;
   readonly body: Expr;
 };
-export const Abs = (arg: Name, body: Expr): Expr =>
-  ({ tag: 'Abs', arg, body });
+export const Abs = (arg: Name, type: Type | null, body: Expr): Expr =>
+  ({ tag: 'Abs', arg, type, body });
 export const abs = (ns: Name[], body: Expr): Expr =>
-  ns.reduceRight((a, b) => Abs(b, a), body);
+  ns.reduceRight((a, b) => Abs(b, null, a), body);
+export const abst = (ns: [Name, Type][], body: Expr): Expr =>
+  ns.reduceRight((a, [b, t]) => Abs(b, t, a), body);
 
 export interface App {
   readonly tag: 'App';
@@ -32,23 +36,25 @@ export const apps = (fn: Expr, args: Expr[]): Expr =>
 
 export type CasesExpr<R> = {
   Var: (name: Name) => R;
-  Abs: (arg: Name, body: Expr) => R;
+  Abs: (arg: Name, type: Type | null, body: Expr) => R;
   App: (left: Expr, right: Expr) => R;
 };
 export const caseExpr = <R>(val: Expr, cs: CasesExpr<R>): R => {
   switch (val.tag) {
     case 'Var': return cs.Var(val.name);
-    case 'Abs': return cs.Abs(val.arg, val.body);
+    case 'Abs': return cs.Abs(val.arg, val.type, val.body);
     case 'App': return cs.App(val.left, val.right);
   }
 };
 
 export const showExpr = (expr: Expr): string => caseExpr(expr, {
   Var: name => `${name}`,
-  Abs: (arg, body) => `(\\${arg} -> ${showExpr(body)})`,
+  Abs: (arg, type, body) =>
+    type ? `(\\(${arg} : ${showType(type)}) -> ${showExpr(body)})` :
+    `(\\${arg} -> ${showExpr(body)})`,
   App: (left, right) => `(${showExpr(left)} ${showExpr(right)})`,
 });
 
-export const Let = (x: Name, a: Expr, b: Expr) => App(Abs(x, b), a);
+export const Let = (x: Name, a: Expr, b: Expr) => App(Abs(x, null, b), a);
 export const lets = (xs: [Name, Expr][], b: Expr) =>
   apps(abs(xs.map(x => x[0]), b), xs.map(x => x[1]));
