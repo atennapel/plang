@@ -1,15 +1,12 @@
 import { inferGen } from "./inference";
 import { initial, extendContextMut } from "./context";
 import { throwEither } from "./either";
-import { abs, Var, app, showExpr } from "./exprs";
-import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall, prettyType, TMeta, Type, TFunP } from "./types";
+import { abs, Var, app, showExpr, Handler } from "./exprs";
+import { TVar, Forall, tfun, tapp, TFun, teffs, prettyForall, TMeta } from "./types";
 import { kType, kfun, kEff, kEffs } from "./kinds";
 import { fresh } from "./names";
 
 /*
-Questions:
-  - how much needs to be opened and closed?
-  - rethink closeFun (maybe after adding Forall?)
 TODO:
   - replace recursion with iteration where convenient
   - fix openFun and closeFun
@@ -20,10 +17,6 @@ TODO:
   - type recursion
   - adts
   - pretty printer exprs
-
-Bugs:
-    - app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))))
-    - app(abs(['f'], app(v('f'), v('flip'))), abs(['g'], app(v('g'), v('Unit'))))
 */
 
 const v = Var;
@@ -62,14 +55,12 @@ const ctx = extendContextMut(initial,
     get: Forall([], TFun(tv('Unit'), teffs([tv('State')]), tv('Bool'))),
 
     fix: Forall([['t', kType]], tfun(tfun(tv('t'), tv('t')), tv('t'))),
-    caseList: Forall([['t', kType], ['r', kType], ['e', kEffs]], tfun(TFun(tv('Unit'), tv('e'), tv('r')), tfun(tv('t'), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r'))), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r')))),
+    caseList: Forall([['t', kType], ['r', kType], ['e', kEffs]], tfun(tv('r'), tfun(tv('t'), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r'))), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r')))),
     
     app: Forall([['a', kType], ['b', kType]], tfun(tfun(tv('a'), tv('b')), tv('a'), tv('b'))),
   },
 );
-//const expr = app(v('fix'), abs(['rec', 'f'], app(v('caseList'), abs(['u'], v('Nil')), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))));
-//const expr = abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t'))))));
-const expr = app(abs(['f'], app(v('f'), v('flip'))), abs(['g'], app(v('g'), v('Unit'))));
+const expr = Handler({ flip: abs(['v', 'k'], app(v('k'), v('True'))) }, abs(['x'], v('x')));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));

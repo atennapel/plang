@@ -74,11 +74,10 @@ export const unify = (ctx: Context, a_: Type, b_: Type, pr = true): TC<true> => 
   // eq check & prune
   let a = a_;
   let b = b_;
-  console.log(`${showType(a)} ~ ${showType(b)}`);
   if (a === b) return ok;
   if (pr) { a = prune(a_); if (a === b_) return ok }
   if (pr) { b = prune(b_); if (a === b) return ok }
-  if (pr) console.log(`pruned ${showType(a)} ~ ${showType(b)}`);
+  console.log(`${showType(a)} ~ ${showType(b)}`);
   // kind check
   const ka = kindOf(ctx, a);
   if (isLeft(ka)) return ka;

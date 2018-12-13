@@ -42,7 +42,11 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
       const m = TMeta(fresh(arg), kType);
       const res = infer(extendVar(ctx, arg, Forall([], m)), body);
       if (isLeft(res)) return res;
-      return Right(typeEff(TFun(prune(m), res.val.eff, res.val.type), TMeta(fresh('e'), kEffs)));
+      const ty = typeEff(TFun(prune(m), res.val.eff, res.val.type), TMeta(fresh('e'), kEffs));
+      console.log(`ABS INFER DONE: ${showExpr(expr)}`);
+      console.log(`ARG: ${showType(prune(m))}`);
+      console.log(`TYPE: ${showTypeEff(ty)}`);
+      return Right(ty);
     },
     App: (left, right) => {
       const lr = infer(ctx, left);
@@ -53,11 +57,19 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
       const e = TMeta(fresh('e'), kEffs);
       const ur = unify(ctx, lr.val.type, TFun(rr.val.type, e, m), false);
       if (isLeft(ur)) return ur;
+      console.log(`unify in ${showExpr(expr)}: fn effect and left effect`);
       const ure1 = unify(ctx, e, lr.val.eff);
       if (isLeft(ure1)) return ure1;
+      console.log(`unify in ${showExpr(expr)}: fn effect and right effect`);
       const ure2 = unify(ctx, e, rr.val.eff);
       if (isLeft(ure2)) return ure2;
-      return Right(typeEff(prune(m), prune(e)));
+      const ty = typeEff(prune(m), prune(e));
+      console.log(`APP INFER DONE: ${showExpr(expr)}`);
+      console.log(`TYPE: ${showTypeEff(ty)}`);
+      return Right(ty);
+    },
+    Handler: (map, value) => {
+      return Left('unimplemented');
     },
   });
 };
