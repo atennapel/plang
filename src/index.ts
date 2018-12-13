@@ -23,8 +23,8 @@ TODO:
   - pretty printer exprs
 
 Bugs:
-    - app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))))
-    - app(abs(['f'], app(v('f'), v('flip'))), abs(['g'], app(v('g'), v('Unit'))))
+    - map: app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))))
+    - curry: abs(['f', 'p'], app(v('f'), app(v('fst'), v('p')), app(v('snd'), v('p'))))
 */
 
 const v = Var;
@@ -84,7 +84,7 @@ const ctx = extendContextMut(initial,
     app(v('snd'), v('p')),
   )
 )));*/
-const expr = lets([['a', v('True')], ['b', abs(['x'], v('x'))]], abs(['u'], app(v('pair'), v('a'), v('b'))));
+const expr = abs(['f', 'p'], app(v('f'), app(v('fst'), v('p')), app(v('snd'), v('p'))));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));
