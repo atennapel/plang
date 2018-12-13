@@ -2,37 +2,34 @@ import { inferGen } from "./inference";
 import { initial, extendContextMut } from "./context";
 import { throwEither } from "./either";
 import { abs, Var, app, showExpr } from "./exprs";
-import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall, prettyType } from "./types";
+import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall, prettyType, TMeta, Type, TFunP } from "./types";
 import { kType, kfun, kEff, kEffs } from "./kinds";
+import { fresh } from "./names";
 
 /*
 Questions:
   - how much needs to be opened and closed?
   - rethink closeFun (maybe after adding Forall?)
 TODO:
-  - pretty forall and kinds
   - replace recursion with iteration where convenient
   - fix openFun and closeFun
-  - pretty printer
   - handlers
   - polymorphic effects
   - polymorphic operations
   - row polymorphic records/variants
   - type recursion
   - adts
+  - pretty printer exprs
 
 Bugs:
-    effects dissapear:
     - app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))))
-    - abs(['f', 'x'], app(v('and'), app(v('f'), v('x')), v('True')))
-    - app(v('app'), v('flip'))
-
-    effects can be ommitted:
-    - \x y -> x
+    - app(abs(['f'], app(v('f'), v('flip'))), abs(['g'], app(v('g'), v('Unit'))))
 */
 
 const v = Var;
 const tv = TVar;
+
+const rec = TMeta(fresh('rec'), kType);
 
 const ctx = extendContextMut(initial,
   {},
@@ -65,20 +62,18 @@ const ctx = extendContextMut(initial,
     get: Forall([], TFun(tv('Unit'), teffs([tv('State')]), tv('Bool'))),
 
     fix: Forall([['t', kType]], tfun(tfun(tv('t'), tv('t')), tv('t'))),
-    caseList: Forall([['t', kType], ['r', kType], ['e', kEffs]], tfun(tv('r'), tfun(tv('t'), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r'))), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r')))),
-
+    caseList: Forall([['t', kType], ['r', kType], ['e', kEffs]], tfun(TFun(tv('Unit'), tv('e'), tv('r')), tfun(tv('t'), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r'))), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r')))),
+    
     app: Forall([['a', kType], ['b', kType]], tfun(tfun(tv('a'), tv('b')), tv('a'), tv('b'))),
   },
 );
-//const expr = app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))));
-const expr = abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t'))))));
-//const expr = abs(['f', 'x'], app(v('and'), v('True'), app(v('f'), v('x'))));
-//const expr = abs(['x', 'y'], v('x'));
-//const expr = abs(['f', 'x', 'b'], app(v('f'), v('x')));
-//const expr = app(abs(['f'], app(v('f'), v('flip'))), abs(['g'], app(v('g'), v('Unit'))));
+//const expr = app(v('fix'), abs(['rec', 'f'], app(v('caseList'), abs(['u'], v('Nil')), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t')))))));
+//const expr = abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(v('rec'), v('f'), v('t'))))));
+const expr = app(abs(['f'], app(v('f'), v('flip'))), abs(['g'], app(v('g'), v('Unit'))));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));
+//console.log(`${prettyType((rec as TMeta).type as Type)}`);
 time = Date.now() - time;
-console.log(`${prettyType(res.type)}`);
+console.log(`${prettyForall(res)}`);
 console.log(`${time}ms`);
