@@ -27,6 +27,8 @@ export interface App {
 export const App = (left: Expr, right: Expr): Expr =>
   ({ tag: 'App', left, right });
 export const app = (...es: Expr[]): Expr => es.reduce(App);
+export const apps = (fn: Expr, args: Expr[]): Expr =>
+  [fn].concat(args).reduce(App);
 
 export type CasesExpr<R> = {
   Var: (name: Name) => R;
@@ -46,3 +48,7 @@ export const showExpr = (expr: Expr): string => caseExpr(expr, {
   Abs: (arg, body) => `(\\${arg} -> ${showExpr(body)})`,
   App: (left, right) => `(${showExpr(left)} ${showExpr(right)})`,
 });
+
+export const Let = (x: Name, a: Expr, b: Expr) => App(Abs(x, b), a);
+export const lets = (xs: [Name, Expr][], b: Expr) =>
+  apps(abs(xs.map(x => x[0]), b), xs.map(x => x[1]));
