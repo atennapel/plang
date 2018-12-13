@@ -11,6 +11,7 @@ import { prune } from "./unification";
 Questions:
   - how much needs to be opened and closed?
   - rethink closeFun (maybe after adding Forall?)
+  - might have to flatten applications before typechecking
 TODO:
   - replace recursion with iteration where convenient
   - fix openFun and closeFun
