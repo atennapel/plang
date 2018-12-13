@@ -56,5 +56,10 @@ export const showExpr = (expr: Expr): string => caseExpr(expr, {
 });
 
 export const Let = (x: Name, a: Expr, b: Expr) => App(Abs(x, null, b), a);
+export const letTy = (x: Name, t: Type, a: Expr, b: Expr) => App(Abs(x, t, b), a);
 export const lets = (xs: [Name, Expr][], b: Expr) =>
   apps(abs(xs.map(x => x[0]), b), xs.map(x => x[1]));
+export const letTys = (xs: [Name, Type, Expr][], b: Expr) =>
+  apps(abst(xs.map(x => [x[0], x[1]] as [Name, Type]), b), xs.map(x => x[2]));
+
+export const Anno = (expr: Expr, type: Type) => App(Abs('x', type, Var('x')), expr);

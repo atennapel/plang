@@ -1,7 +1,7 @@
 import { inferGen } from "./inference";
 import { initial, extendContextMut } from "./context";
 import { throwEither } from "./either";
-import { abs, Var, app, showExpr, lets, Abs } from "./exprs";
+import { abs, Var, app, showExpr, lets, Abs, Anno } from "./exprs";
 import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall, prettyType, TMeta, Type, TFunP, tEffsEmpty, freshMeta } from "./types";
 import { kType, kfun, kEff, kEffs } from "./kinds";
 import { fresh } from "./names";
@@ -76,7 +76,7 @@ const ctx = extendContextMut(initial,
     curry: Forall([['a', kType], ['b', kType], ['c', kType], ['e', kEffs]], tfun(TFun(tapp(tv('Pair'), tv('a'), tv('b')), tv('e'), tv('c')), tfun(tv('a'), TFun(tv('b'), tv('e'), tv('c'))))),
   },
 );
-const expr =
+/*const expr =
   app(v('fix'), Abs('rec', TFunP(freshMeta('a'), freshMeta('b')),
   Abs('f', null,
     app(
@@ -92,6 +92,7 @@ const expr =
   )
 )));*/
 // const expr = Abs('f', TFunP(freshMeta('a'), freshMeta('b')), abs(['p'], app(v('f'), app(v('fst'), v('p')), app(v('snd'), v('p')))));
+const expr = Anno(v('not'), TFunP(tv('Bool'), freshMeta('t')));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));
