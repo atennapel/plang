@@ -45,3 +45,21 @@ export const kEff = KVar(nEff);
 
 export const nEffs = 'Effs';
 export const kEffs = KVar(nEffs);
+
+export const flattenKFun = (kind: Kind): Kind[] => {
+  let c = kind;
+  const r: Kind[] = [];
+  while (c.tag === 'KFun') {
+    r.push(c.left);
+    c = c.right;
+  }
+  r.push(c);
+  return r;
+};
+
+const KARR = '->';
+export const prettyKind = (kind: Kind): string => {
+  if (kind.tag === 'KVar') return kind.name;
+  const f = flattenKFun(kind);
+  return f.map(k => k.tag === 'KFun' ? `(${prettyKind(k)})` : prettyKind(k)).join(` ${KARR} `);
+};

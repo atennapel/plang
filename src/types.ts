@@ -1,5 +1,5 @@
-import { Name } from './names';
-import { Kind, showKind } from './kinds';
+import { Name, namePart } from './names';
+import { Kind, showKind, eqKind, kType, prettyKind } from './kinds';
 
 export type Type = TVar | TMeta | TApp;
 
@@ -158,7 +158,7 @@ export const prettyType = (type: Type): string => {
   const f = matchTFun(type);
   if (f) {
     const fl = flattenTFun(type);
-    return `${fl.ts.map(t => matchTFun(t) ? `(${prettyType(t)})` : prettyType(t)).join(` ${ARR} `)}!${prettyType(fl.eff)}`;
+    return `${fl.ts.map(t => matchTFun(t) ? `(${prettyType(t)})` : prettyType(t)).join(` ${ARR} `)}${isTEffsEmpty(fl.eff) ? '' : `!${prettyType(fl.eff)}`}`;
   }
   if (isTEffsEmpty(type)) return '{}';
   const m = matchTEffsExtend(type);
@@ -172,11 +172,24 @@ export const prettyType = (type: Type): string => {
   }
   return showType(type);
 };
+
 const FORALL = 'forall';
-export const prettyForall = (forall: Forall) =>
-  forall.args.length === 0 ?
-    prettyType(forall.type) :
-    `${FORALL}${forall.args.map(([n, k]) => `(${n} : ${showKind(k)})`).join('')}. ${prettyType(forall.type)}`;
+export const prettyForall = (forall: Forall) => {
+  if (forall.args.length === 0)
+    return prettyType(forall.type);
+  const ns = forall.args.map(x => x[0]);
+  const map: OccMap = {};
+  const sub: Subst = {};
+  for (let i = 0; i < ns.length; i++) {
+    const on = ns[i];
+    const n = namePart(on);
+    if (!map[n]) map[n] = 0;
+    const j = map[n]++;
+    sub[on] = TVar(`${n}${j > 0 ? `\$${j}` : ''}`);
+  }
+  const nargs = forall.args.map(([x, k]) => [(sub[x] as TVar).name, k] as [Name, Kind]);
+  return `${FORALL} ${nargs.map(([n, k]) => eqKind(kType, k) ? `${n}` : `(${n} : ${prettyKind(k)})`).join(' ')}. ${prettyType(substTVar(sub, forall.type))}`;
+};
 
 export interface TypeEff {
   readonly type: Type;
