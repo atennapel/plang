@@ -27,7 +27,6 @@ const ctx = extendContextMut(initial,
   {},
   {
     Void: kType,
-    Unit: kType,
     Bool: kType,
 
     Pair: kfun(kType, kType, kType),
@@ -38,8 +37,16 @@ const ctx = extendContextMut(initial,
     State: kEff,
   },
   {
+    Flip: { flip: true },
+    State: { get: true, put: true },
+  },
+  {
+    flip: { eff: 'Flip', param: tv('Unit'), ret: tv('Bool') },
+    get: { eff: 'State', param: tv('Unit'), ret: tv('Bool') },
+    put: { eff: 'State', param: tv('Bool'), ret: tv('Unit') },
+  },
+  {
     Void: Forall([['t', kType]], tfun(tv('Void'), tv('t'))),
-    Unit: Forall([], tv('Unit')),
     True: Forall([], tv('Bool')),
     False: Forall([], tv('Bool')),
 
@@ -68,8 +75,8 @@ const ctx = extendContextMut(initial,
     curry: Forall([['a', kType], ['b', kType], ['c', kType], ['e', kEffs]], tfun(TFun(tapp(tv('Pair'), tv('a'), tv('b')), tv('e'), tv('c')), tfun(tv('a'), TFun(tv('b'), tv('e'), tv('c'))))),
   },
 );
-const expr = Handler({ flip: abs(['v', 'k'], app(v('k'), v('True'))) }, abs(['x'], v('x')));
 
+const expr = Handler({ flip: abs(['v', 'k'], app(v('k'), v('True'))) }, abs(['x'], v('x')));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));

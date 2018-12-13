@@ -1,7 +1,7 @@
-import { caseExpr, Expr, showExpr } from "./exprs";
+import { caseExpr, Expr, showExpr, Abs, Var } from "./exprs";
 import { TC } from "./TC";
-import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar, TFunP, tEffsEmpty, isTEffsEmpty, showType, TypeEff, typePure, showTypeEff, typeEff, matchTEffsExtend, TEffsExtend, matchTFun, flattenTEffs, teffs, containsMeta, showForall, occTVar, OccMap } from "./types";
-import { Context, findVar, extendVar } from "./context";
+import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar, TFunP, tEffsEmpty, isTEffsEmpty, showType, TypeEff, typePure, showTypeEff, typeEff, matchTEffsExtend, TEffsExtend, matchTFun, flattenTEffs, teffs, containsMeta, showForall, occTVar, OccMap, freshMeta } from "./types";
+import { Context, findVar, extendVar, findOp } from "./context";
 import { isLeft, Right, Left } from "./either";
 import { prune, unify } from "./unification";
 import { fresh, resetId, Name } from "./names";
@@ -13,7 +13,7 @@ const openFun = (type: Type): Type => {
   console.log(`openFun ${showType(type)}`);
   const fl = flattenTEffs(f.eff);
   if (!isTEffsEmpty(fl.rest)) return type;
-  const ret = TFun(f.left, teffs(fl.ts, TMeta(fresh('e'), kEffs)), openFun(f.right));
+  const ret = TFun(f.left, teffs(fl.ts, freshMeta('e', kEffs)), openFun(f.right));
   console.log(`opened ${showType(ret)}`);
   return ret;
 };
@@ -25,7 +25,7 @@ const instantiate = (type: Forall): Type => {
     const c = args[i];
     const n = c[0];
     const k = c[1];
-    sub[n] = TMeta(fresh(n), k);
+    sub[n] = freshMeta(n, k);
   }
   return openFun(substTVar(sub, type.type));
 };
@@ -36,16 +36,13 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
     Var: name => {
       const ty = findVar(ctx, name);
       if (isLeft(ty)) return ty;
-      return Right(typeEff(instantiate(ty.val), TMeta(fresh('e'), kEffs)));
+      return Right(typeEff(instantiate(ty.val), freshMeta('e', kEffs)));
     },
     Abs: (arg, type, body) => {
-      const m = type || TMeta(fresh(arg), kType);
+      const m = type || freshMeta(arg, kType);
       const res = infer(extendVar(ctx, arg, Forall([], m)), body);
       if (isLeft(res)) return res;
-      const ty = typeEff(TFun(prune(m), res.val.eff, res.val.type), TMeta(fresh('e'), kEffs));
-      console.log(`ABS INFER DONE: ${showExpr(expr)}`);
-      console.log(`ARG: ${showType(prune(m))}`);
-      console.log(`TYPE: ${showTypeEff(ty)}`);
+      const ty = typeEff(TFun(prune(m), res.val.eff, res.val.type), freshMeta('e', kEffs));
       return Right(ty);
     },
     App: (left, right) => {
@@ -53,23 +50,42 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
       if (isLeft(lr)) return lr;
       const rr = infer(ctx, right);
       if (isLeft(rr)) return rr;
-      const m = TMeta(fresh('t'), kType);
-      const e = TMeta(fresh('e'), kEffs);
+      const m = freshMeta('t', kType);
+      const e = freshMeta('e', kEffs);
       const ur = unify(ctx, lr.val.type, TFun(rr.val.type, e, m), false);
       if (isLeft(ur)) return ur;
-      console.log(`unify in ${showExpr(expr)}: fn effect and left effect`);
       const ure1 = unify(ctx, e, lr.val.eff);
       if (isLeft(ure1)) return ure1;
-      console.log(`unify in ${showExpr(expr)}: fn effect and right effect`);
       const ure2 = unify(ctx, e, rr.val.eff);
       if (isLeft(ure2)) return ure2;
       const ty = typeEff(prune(m), prune(e));
-      console.log(`APP INFER DONE: ${showExpr(expr)}`);
-      console.log(`TYPE: ${showTypeEff(ty)}`);
       return Right(ty);
     },
     Handler: (map, value) => {
-      return Left('unimplemented');
+      const a = freshMeta('a');
+      const b = freshMeta('b');
+      const e = freshMeta('e', kEffs);
+      const te = freshMeta('e', kEffs);
+      const ret = infer(ctx, value || Abs('x', a, Var('x')));
+      if (isLeft(ret)) return ret;
+      const u1 = unify(ctx, TFun(a, e, b), ret.val.type);
+      if (isLeft(u1)) return u1;
+      const ute1 = unify(ctx, te, ret.val.eff);
+      if (isLeft(ute1)) return ute1;
+      const effs: Name[] = [];
+      for (let op in map) {
+        const opi = findOp(ctx, op);
+        if (isLeft(opi)) return opi;
+        effs.push(opi.val.eff);
+        const retop = infer(ctx, map[op]);
+        if (isLeft(retop)) return retop;
+        const u2 = unify(ctx, TFunP(opi.val.param, TFun(TFun(opi.val.ret, e, b), e, b)), retop.val.type);
+        if (isLeft(u2)) return u2;
+        const ute2 = unify(ctx, prune(te), retop.val.eff);
+        if (isLeft(ute2)) return ute2;
+      }
+      const pe = prune(e);
+      return Right(typeEff(TFun(TFun(TVar('Unit'), teffs(effs.map(TVar), pe), prune(a)), pe, prune(b)), prune(te)));
     },
   });
 };

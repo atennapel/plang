@@ -1,4 +1,4 @@
-import { Type, caseType, TMeta, TApp, showType, matchTEffsExtend, TEffsExtend } from "./types";
+import { Type, caseType, TMeta, TApp, showType, matchTEffsExtend, TEffsExtend, freshMeta } from "./types";
 import { Context, findTVar } from "./context";
 import { Kind, eqKind, showKind, kEffs } from "./kinds";
 import { TC, ok } from "./TC";
@@ -58,7 +58,7 @@ const rewriteEffs = (ctx: Context, eff: Type, type: Type): TC<Type> => {
     const u = unify(ctx, eff, ex.eff);
     if (isRight(u)) return Right(prune(rest));
     if (rest.tag === 'TMeta') {
-      const r = TMeta(fresh('e'), kEffs);
+      const r = freshMeta('e', kEffs);
       const ret = bind(rest, TEffsExtend(prune(eff), r));
       if (isLeft(ret)) return ret;
       return Right(TEffsExtend(prune(ex.eff), r));
