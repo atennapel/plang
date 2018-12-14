@@ -1,7 +1,7 @@
 import { Type, caseType, TMeta, TApp, showType, matchTEffsExtend, TEffsExtend, freshMeta } from "./types";
 import { Context, findTVar } from "./context";
 import { Kind, eqKind, showKind, kEffs } from "./kinds";
-import { TC, ok } from "./TC";
+import { TC, ok } from "./monad";
 import { isLeft, Left, Right, isRight } from "./either";
 import { Name, fresh } from "./names";
 

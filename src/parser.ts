@@ -29,7 +29,7 @@ function tokenize(s: string): Token[] {
   for (let i = 0; i <= s.length; i++) {
     const c = s[i] || ' ';
     if (state === START) {
-      if (/[a-z\:\_\?]/i.test(c)) t += c, state = NAME;
+      if (/[a-z\:\_\?\@]/i.test(c)) t += c, state = NAME;
       else if(c === '(' || c === '{' || c === '[') b.push(c), p.push(r), r = [];
       else if(c === ')' || c === '}' || c === ']') {
         if(b.length === 0) throw new SyntaxError(`unmatched bracket: ${c}`);
@@ -68,7 +68,11 @@ function createHandler(r: Token[]): Expr {
 function exprs(r: Token[], br: Bracket = '['): Expr {
   console.log('exprs', r, br);
   switch(br) {
-    case '(': return r.length === 0 ? Var('Unit') : r.length === 1 ? expr(r[0]) : apps(expr(r[0]), r.slice(1).map(expr));
+    case '(':
+      if (r.length === 0) return Var('Unit');
+      if (r.length === 1) return expr(r[0]);
+      const pure = r[0].tag === 'name' && r[0].val[0] === '@';
+      return apps(expr(pure ? { tag: 'name', val: (r[0].val as string).slice(1) } : r[0]), r.slice(1).map(expr), pure);
     case '[':
       if (r.length === 0) return Var('Nil');
       if (r.length === 1) return expr(r[0]);

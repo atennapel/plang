@@ -27,12 +27,13 @@ export interface App {
   readonly tag: 'App';
   readonly left: Expr;
   readonly right: Expr;
+  readonly pure: boolean;
 };
-export const App = (left: Expr, right: Expr): Expr =>
-  ({ tag: 'App', left, right });
-export const app = (...es: Expr[]): Expr => es.reduce(App);
-export const apps = (fn: Expr, args: Expr[]): Expr =>
-  [fn].concat(args).reduce(App);
+export const App = (left: Expr, right: Expr, pure: boolean = false): Expr =>
+  ({ tag: 'App', left, right, pure });
+export const app = (...es: Expr[]): Expr => es.reduce((x, y) => App(x, y));
+export const apps = (fn: Expr, args: Expr[], pure: boolean = false): Expr =>
+  [fn].concat(args).reduce((x, y) => App(x, y, pure));
 
 export interface Handler {
   readonly tag: 'Handler';
@@ -78,14 +79,14 @@ export const showHandler = (val: HandlerCase): string => caseHandler(val, {
 export type CasesExpr<R> = {
   Var: (name: Name) => R;
   Abs: (arg: Name, type: Type | null, body: Expr) => R;
-  App: (left: Expr, right: Expr) => R;
+  App: (left: Expr, right: Expr, pure: boolean) => R;
   Handler: (handler: HandlerCase) => R;
 };
 export const caseExpr = <R>(val: Expr, cs: CasesExpr<R>): R => {
   switch (val.tag) {
     case 'Var': return cs.Var(val.name);
     case 'Abs': return cs.Abs(val.arg, val.type, val.body);
-    case 'App': return cs.App(val.left, val.right);
+    case 'App': return cs.App(val.left, val.right, val.pure);
     case 'Handler': return cs.Handler(val.handler);
   }
 };
@@ -95,7 +96,7 @@ export const showExpr = (expr: Expr): string => caseExpr(expr, {
   Abs: (arg, type, body) =>
     type ? `(\\(${arg} : ${showType(type)}) -> ${showExpr(body)})` :
     `(\\${arg} -> ${showExpr(body)})`,
-  App: (left, right) => `(${showExpr(left)} ${showExpr(right)})`,
+  App: (left, right, pure) => `(${showExpr(left)}${pure ? ' @': ''} ${showExpr(right)})`,
   Handler: (handler) => {
     const r = [];
     let c = handler;

@@ -1,5 +1,5 @@
 import { caseExpr, Expr, showExpr, Abs, Var, HandlerCase, showHandler, caseHandler } from "./exprs";
-import { TC, ok } from "./TC";
+import { TC, ok } from "./monad";
 import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar, TFunP, tEffsEmpty, isTEffsEmpty, showType, TypeEff, typePure, showTypeEff, typeEff, matchTEffsExtend, TEffsExtend, matchTFun, flattenTEffs, teffs, containsMeta, showForall, occTVar, OccMap, freshMeta, tfun } from "./types";
 import { Context, findVar, extendVar, findOp, Map, findEff } from "./context";
 import { isLeft, Right, Left } from "./either";
@@ -42,24 +42,28 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
       const m = type || freshMeta(arg, kType);
       const res = infer(extendVar(ctx, arg, Forall([], m)), body);
       if (isLeft(res)) return res;
-      const ty = typeEff(TFun(prune(m), res.val.eff, res.val.type), freshMeta('e', kEffs));
-      return Right(ty);
+      return Right(typeEff(TFun(prune(m), res.val.eff, res.val.type), freshMeta('e', kEffs)));
     },
-    App: (left, right) => {
+    App: (left, right, pure) => {
       const lr = infer(ctx, left);
       if (isLeft(lr)) return lr;
       const rr = infer(ctx, right);
       if (isLeft(rr)) return rr;
       const m = freshMeta('t', kType);
       const e = freshMeta('e', kEffs);
-      const ur = unify(ctx, lr.val.type, TFun(rr.val.type, e, m), false);
-      if (isLeft(ur)) return ur;
-      const ure1 = unify(ctx, e, lr.val.eff);
-      if (isLeft(ure1)) return ure1;
-      const ure2 = unify(ctx, e, rr.val.eff);
-      if (isLeft(ure2)) return ure2;
-      const ty = typeEff(prune(m), prune(e));
-      return Right(ty);
+      if (pure) {
+        const ur = unify(ctx, lr.val.type, TFunP(rr.val.type, m), false);
+        if (isLeft(ur)) return ur;
+        return Right(typeEff(prune(m), e));
+      } else {
+        const ur = unify(ctx, lr.val.type, TFun(rr.val.type, e, m), false);
+        if (isLeft(ur)) return ur;
+        const ure1 = unify(ctx, e, lr.val.eff);
+        if (isLeft(ure1)) return ure1;
+        const ure2 = unify(ctx, e, rr.val.eff);
+        if (isLeft(ure2)) return ure2;
+        return Right(typeEff(prune(m), prune(e)));
+      }
     },
     Handler: (handler) => {
       const effs: Map<Map<true>> = {};

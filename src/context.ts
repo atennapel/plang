@@ -2,7 +2,7 @@ import { Forall, tFun, nFun, nEffsEmpty, nEffsExtend, Type, TVar } from "./types
 import { Kind, KFun, kfun, kType, nType, nEffs, nEff, kEffs, kEff } from "./kinds";
 import { Name } from "./names";
 import { Right, Left } from "./either";
-import { TC, ok } from "./TC";
+import { TC, ok } from "./monad";
 
 export type Map<T> = { [key: string]: T };
 export const extend = <T>(map: Map<T>, key: string, val: T): Map<T> => {

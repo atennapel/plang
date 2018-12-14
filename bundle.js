@@ -1,16 +1,10 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const either_1 = require("./either");
-exports.ok = either_1.Right(true);
-
-},{"./either":3}],2:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
 const kinds_1 = require("./kinds");
 const either_1 = require("./either");
-const TC_1 = require("./TC");
+const monad_1 = require("./monad");
 exports.extend = (map, key, val) => {
     const ret = Object.create(map);
     ret[key] = val;
@@ -34,7 +28,7 @@ exports.appendMut = (a, b) => {
     return a;
 };
 exports.Context = (kvars = {}, tvars = {}, effs = {}, ops = {}, vars = {}) => ({ tag: 'Context', kvars, tvars, effs, ops, vars });
-exports.findKVar = (ctx, name) => ctx.kvars[name] ? TC_1.ok : either_1.Left(`undefined kvar ${name}`);
+exports.findKVar = (ctx, name) => ctx.kvars[name] ? monad_1.ok : either_1.Left(`undefined kvar ${name}`);
 exports.findTVar = (ctx, name) => {
     const ret = ctx.tvars[name];
     return ret ? either_1.Right(ret) : either_1.Left(`undefined tvar ${name}`);
@@ -73,7 +67,7 @@ exports.initial = exports.Context({
     Unit: types_1.Forall([], types_1.TVar('Unit')),
 });
 
-},{"./TC":1,"./either":3,"./kinds":7,"./types":11}],3:[function(require,module,exports){
+},{"./either":2,"./kinds":6,"./monad":7,"./types":11}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 ;
@@ -96,7 +90,7 @@ exports.throwEither = (val) => exports.caseOf(val, {
     Right: val => val,
 });
 
-},{}],4:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -107,9 +101,9 @@ exports.Abs = (arg, type, body) => ({ tag: 'Abs', arg, type, body });
 exports.abs = (ns, body) => ns.reduceRight((a, b) => exports.Abs(b, null, a), body);
 exports.abst = (ns, body) => ns.reduceRight((a, [b, t]) => exports.Abs(b, t, a), body);
 ;
-exports.App = (left, right) => ({ tag: 'App', left, right });
-exports.app = (...es) => es.reduce(exports.App);
-exports.apps = (fn, args) => [fn].concat(args).reduce(exports.App);
+exports.App = (left, right, pure = false) => ({ tag: 'App', left, right, pure });
+exports.app = (...es) => es.reduce((x, y) => exports.App(x, y));
+exports.apps = (fn, args, pure = false) => [fn].concat(args).reduce((x, y) => exports.App(x, y, pure));
 exports.Handler = (handler) => ({ tag: 'Handler', handler });
 exports.HOp = (op, expr, rest) => ({ tag: 'HOp', op, expr, rest });
 exports.HReturn = (expr) => ({ tag: 'HReturn', expr });
@@ -127,7 +121,7 @@ exports.caseExpr = (val, cs) => {
     switch (val.tag) {
         case 'Var': return cs.Var(val.name);
         case 'Abs': return cs.Abs(val.arg, val.type, val.body);
-        case 'App': return cs.App(val.left, val.right);
+        case 'App': return cs.App(val.left, val.right, val.pure);
         case 'Handler': return cs.Handler(val.handler);
     }
 };
@@ -135,7 +129,7 @@ exports.showExpr = (expr) => exports.caseExpr(expr, {
     Var: name => `${name}`,
     Abs: (arg, type, body) => type ? `(\\(${arg} : ${types_1.showType(type)}) -> ${exports.showExpr(body)})` :
         `(\\${arg} -> ${exports.showExpr(body)})`,
-    App: (left, right) => `(${exports.showExpr(left)} ${exports.showExpr(right)})`,
+    App: (left, right, pure) => `(${exports.showExpr(left)}${pure ? ' @' : ''} ${exports.showExpr(right)})`,
     Handler: (handler) => {
         const r = [];
         let c = handler;
@@ -153,11 +147,11 @@ exports.lets = (xs, b) => exports.apps(exports.abs(xs.map(x => x[0]), b), xs.map
 exports.letTys = (xs, b) => exports.apps(exports.abst(xs.map(x => [x[0], x[1]]), b), xs.map(x => x[2]));
 exports.Anno = (expr, type) => exports.App(exports.Abs('x', type, exports.Var('x')), expr);
 
-},{"./types":11}],5:[function(require,module,exports){
+},{"./types":11}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
-const TC_1 = require("./TC");
+const monad_1 = require("./monad");
 const types_1 = require("./types");
 const context_1 = require("./context");
 const either_1 = require("./either");
@@ -201,10 +195,9 @@ exports.infer = (ctx, expr) => {
             const res = exports.infer(context_1.extendVar(ctx, arg, types_1.Forall([], m)), body);
             if (either_1.isLeft(res))
                 return res;
-            const ty = types_1.typeEff(types_1.TFun(unification_1.prune(m), res.val.eff, res.val.type), types_1.freshMeta('e', kinds_1.kEffs));
-            return either_1.Right(ty);
+            return either_1.Right(types_1.typeEff(types_1.TFun(unification_1.prune(m), res.val.eff, res.val.type), types_1.freshMeta('e', kinds_1.kEffs)));
         },
-        App: (left, right) => {
+        App: (left, right, pure) => {
             const lr = exports.infer(ctx, left);
             if (either_1.isLeft(lr))
                 return lr;
@@ -213,17 +206,24 @@ exports.infer = (ctx, expr) => {
                 return rr;
             const m = types_1.freshMeta('t', kinds_1.kType);
             const e = types_1.freshMeta('e', kinds_1.kEffs);
-            const ur = unification_1.unify(ctx, lr.val.type, types_1.TFun(rr.val.type, e, m), false);
-            if (either_1.isLeft(ur))
-                return ur;
-            const ure1 = unification_1.unify(ctx, e, lr.val.eff);
-            if (either_1.isLeft(ure1))
-                return ure1;
-            const ure2 = unification_1.unify(ctx, e, rr.val.eff);
-            if (either_1.isLeft(ure2))
-                return ure2;
-            const ty = types_1.typeEff(unification_1.prune(m), unification_1.prune(e));
-            return either_1.Right(ty);
+            if (pure) {
+                const ur = unification_1.unify(ctx, lr.val.type, types_1.TFunP(rr.val.type, m), false);
+                if (either_1.isLeft(ur))
+                    return ur;
+                return either_1.Right(types_1.typeEff(unification_1.prune(m), e));
+            }
+            else {
+                const ur = unification_1.unify(ctx, lr.val.type, types_1.TFun(rr.val.type, e, m), false);
+                if (either_1.isLeft(ur))
+                    return ur;
+                const ure1 = unification_1.unify(ctx, e, lr.val.eff);
+                if (either_1.isLeft(ure1))
+                    return ure1;
+                const ure2 = unification_1.unify(ctx, e, rr.val.eff);
+                if (either_1.isLeft(ure2))
+                    return ure2;
+                return either_1.Right(types_1.typeEff(unification_1.prune(m), unification_1.prune(e)));
+            }
         },
         Handler: (handler) => {
             const effs = {};
@@ -292,7 +292,7 @@ const inferHandler = (ctx, cs, a, e, b, re, effs) => {
             const u2 = unification_1.unify(ctx, re, res.val.eff, true);
             if (either_1.isLeft(u2))
                 return u2;
-            return TC_1.ok;
+            return monad_1.ok;
         },
         HReturn: expr => {
             const res = exports.infer(ctx, expr);
@@ -304,7 +304,7 @@ const inferHandler = (ctx, cs, a, e, b, re, effs) => {
             const u2 = unification_1.unify(ctx, re, unification_1.prune(res.val.eff));
             if (either_1.isLeft(u2))
                 return u2;
-            return TC_1.ok;
+            return monad_1.ok;
         },
     });
 };
@@ -365,7 +365,7 @@ exports.inferGen = (ctx, expr, topLevel = false) => {
     return either_1.Right(f.val);
 };
 
-},{"./TC":1,"./context":2,"./either":3,"./exprs":4,"./kinds":7,"./names":8,"./types":11,"./unification":12}],6:[function(require,module,exports){
+},{"./context":1,"./either":2,"./exprs":3,"./kinds":6,"./monad":7,"./names":8,"./types":11,"./unification":12}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
@@ -381,7 +381,7 @@ const compileToJS = (e) => exprs_1.caseExpr(e, {
 });
 exports.default = compileToJS;
 
-},{"./exprs":4}],7:[function(require,module,exports){
+},{"./exprs":3}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 ;
@@ -427,7 +427,13 @@ exports.prettyKind = (kind) => {
     return f.map(k => k.tag === 'KFun' ? `(${exports.prettyKind(k)})` : exports.prettyKind(k)).join(` ${KARR} `);
 };
 
-},{}],8:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const either_1 = require("./either");
+exports.ok = either_1.Right(true);
+
+},{"./either":2}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 let id = 0;
@@ -465,7 +471,7 @@ function tokenize(s) {
     for (let i = 0; i <= s.length; i++) {
         const c = s[i] || ' ';
         if (state === START) {
-            if (/[a-z\:\_\?]/i.test(c))
+            if (/[a-z\:\_\?\@]/i.test(c))
                 t += c, state = NAME;
             else if (c === '(' || c === '{' || c === '[')
                 b.push(c), p.push(r), r = [];
@@ -518,7 +524,13 @@ function createHandler(r) {
 function exprs(r, br = '[') {
     console.log('exprs', r, br);
     switch (br) {
-        case '(': return r.length === 0 ? exprs_1.Var('Unit') : r.length === 1 ? expr(r[0]) : exprs_1.apps(expr(r[0]), r.slice(1).map(expr));
+        case '(':
+            if (r.length === 0)
+                return exprs_1.Var('Unit');
+            if (r.length === 1)
+                return expr(r[0]);
+            const pure = r[0].tag === 'name' && r[0].val[0] === '@';
+            return exprs_1.apps(expr(pure ? { tag: 'name', val: r[0].val.slice(1) } : r[0]), r.slice(1).map(expr), pure);
         case '[':
             if (r.length === 0)
                 return exprs_1.Var('Nil');
@@ -600,7 +612,7 @@ function parse(s) {
 }
 exports.default = parse;
 
-},{"./exprs":4,"./types":11,"./utils":13}],10:[function(require,module,exports){
+},{"./exprs":3,"./types":11,"./utils":13}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -678,7 +690,7 @@ function _run(i, cb) {
 }
 exports.default = _run;
 
-},{"./context":2,"./either":3,"./exprs":4,"./inference":5,"./javascriptBackend":6,"./kinds":7,"./parser":9,"./types":11}],11:[function(require,module,exports){
+},{"./context":1,"./either":2,"./exprs":3,"./inference":4,"./javascriptBackend":5,"./kinds":6,"./parser":9,"./types":11}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -834,13 +846,13 @@ exports.typeEff = (type, eff) => ({ type, eff });
 exports.typePure = (type) => exports.typeEff(type, exports.tEffsEmpty);
 exports.showTypeEff = (type) => `${exports.showType(type.type)}!${exports.showType(type.eff)}`;
 
-},{"./kinds":7,"./names":8}],12:[function(require,module,exports){
+},{"./kinds":6,"./names":8}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
 const context_1 = require("./context");
 const kinds_1 = require("./kinds");
-const TC_1 = require("./TC");
+const monad_1 = require("./monad");
 const either_1 = require("./either");
 exports.prune = (type) => types_1.caseType(type, {
     TVar: name => type,
@@ -888,11 +900,11 @@ const occurs = (m, type) => types_1.caseType(type, {
 exports.bind = (meta, type) => {
     console.log(`${types_1.showType(meta)} := ${types_1.showType(type)}`);
     if (type.tag === 'TMeta' && meta.name === type.name)
-        return TC_1.ok;
+        return monad_1.ok;
     if (occurs(meta.name, type))
         return either_1.Left(`${types_1.showType(meta)} occurs in ${types_1.showType(type)}`);
     meta.type = type;
-    return TC_1.ok;
+    return monad_1.ok;
 };
 const rewriteEffs = (ctx, eff, type) => {
     console.log(`rewriteEffs ${types_1.showType(eff)} in ${types_1.showType(type)}`);
@@ -921,16 +933,16 @@ exports.unify = (ctx, a_, b_, pr = true) => {
     let a = a_;
     let b = b_;
     if (a === b)
-        return TC_1.ok;
+        return monad_1.ok;
     if (pr) {
         a = exports.prune(a_);
         if (a === b_)
-            return TC_1.ok;
+            return monad_1.ok;
     }
     if (pr) {
         b = exports.prune(b_);
         if (a === b)
-            return TC_1.ok;
+            return monad_1.ok;
     }
     console.log(`${types_1.showType(a)} ~ ${types_1.showType(b)}`);
     // kind check
@@ -948,7 +960,7 @@ exports.unify = (ctx, a_, b_, pr = true) => {
     if (b.tag === 'TMeta')
         return exports.bind(b, a);
     if (a.tag === 'TVar' && b.tag === 'TVar' && a.name === b.name)
-        return TC_1.ok;
+        return monad_1.ok;
     const ea = types_1.matchTEffsExtend(a);
     const eb = types_1.matchTEffsExtend(b);
     if (ea && eb) {
@@ -966,7 +978,7 @@ exports.unify = (ctx, a_, b_, pr = true) => {
     return either_1.Left(`cannot unify ${types_1.showType(a)} ~ ${types_1.showType(b)}`);
 };
 
-},{"./TC":1,"./context":2,"./either":3,"./kinds":7,"./types":11}],13:[function(require,module,exports){
+},{"./context":1,"./either":2,"./kinds":6,"./monad":7,"./types":11}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.impossible = () => { throw new Error('impossible'); };

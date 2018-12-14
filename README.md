@@ -1,10 +1,8 @@
 Try it out at https://atennapel.github.io/plang
 
 Goals:
-* Total functional programming language
-* System F
 * Hindley-Milner type inference
-* Higher ranked types
+* Higher kinded types
 * ADTs
 * Row-polymorphic records and variants
-* Algebraic effects handlers with effect system
+* Algebraic effects handlers with row polymorphic effects

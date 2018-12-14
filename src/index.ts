@@ -1,7 +1,7 @@
 import { inferGen } from "./inference";
 import { initial, extendContextMut } from "./context";
 import { throwEither } from "./either";
-import { abs, Var, app, showExpr, lets, Abs, Anno, Handler, HOp, HReturn } from "./exprs";
+import { abs, Var, app, showExpr, lets, Abs, Anno, Handler, HOp, HReturn, App } from "./exprs";
 import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall, prettyType, TMeta, Type, TFunP, tEffsEmpty, freshMeta } from "./types";
 import { kType, kfun, kEff, kEffs } from "./kinds";
 import { fresh } from "./names";
@@ -76,7 +76,7 @@ const ctx = extendContextMut(initial,
   },
 );
 
-const expr = Handler(HOp('flip', abs(['v', 'k'], app(v('k'), v('True'))), HOp('get', abs(['v', 'k'], app(v('flip'), v('Unit'))), HReturn(abs(['x'], v('x'))))));
+const expr = app(v('fix'), abs(['rec', 'f'], app(v('caseList'), v('Nil'), abs(['h', 't'], app(v('Cons'), app(v('f'), v('h')), app(App(v('rec'), v('f'), true), v('t')))))));
 console.log(`${showExpr(expr)}`);
 let time = Date.now();
 const res = throwEither(inferGen(ctx, expr, true));
