@@ -1,29 +1,16 @@
-import { inferGen } from "./inference";
-import { initial, extendContextMut } from "./context";
-import { throwEither } from "./either";
-import { abs, Var, app, showExpr, lets, Abs, Anno, Handler, HOp, HReturn } from "./exprs";
-import { showForall, TVar, Forall, tfun, tapp, TFun, teffs, prettyForall, prettyType, TMeta, Type, TFunP, tEffsEmpty, freshMeta } from "./types";
+import { TVar, Forall, tfun, tapp, TFun, teffs, isTEffsEmpty, showForall, prettyForall } from "./types";
+import { Var, showExpr } from "./exprs";
+import { extendContextMut, initial } from "./context";
 import { kType, kfun, kEff, kEffs } from "./kinds";
-import { fresh } from "./names";
-import { prune } from "./unification";
-
-/*
-TODO:
-  - replace recursion with iteration where convenient
-  - fix openFun and closeFun
-  - handlers
-  - polymorphic effects
-  - polymorphic operations
-  - row polymorphic records/variants
-  - type recursion
-  - adts
-  - pretty printer exprs
-*/
+import { inferGen } from "./inference";
+import compileToJS from "./javascriptBackend";
+import parse from "./parser";
+import { throwEither } from "./either";
 
 const v = Var;
 const tv = TVar;
 
-const ctx = extendContextMut(initial,
+const _context = extendContextMut(initial,
   {},
   {
     Void: kType,
@@ -50,7 +37,7 @@ const ctx = extendContextMut(initial,
     True: Forall([], tv('Bool')),
     False: Forall([], tv('Bool')),
 
-    pair: Forall([['a', kType], ['b', kType]], tfun(tv('a'), tv('b'), tapp(tv('Pair'), tv('a'), tv('b')))),
+    Pair: Forall([['a', kType], ['b', kType]], tfun(tv('a'), tv('b'), tapp(tv('Pair'), tv('a'), tv('b')))),
     fst: Forall([['a', kType], ['b', kType]], tfun(tapp(tv('Pair'), tv('a'), tv('b')), tv('a'))),
     snd: Forall([['a', kType], ['b', kType]], tfun(tapp(tv('Pair'), tv('a'), tv('b')), tv('b'))),
     
@@ -68,18 +55,34 @@ const ctx = extendContextMut(initial,
 
     fix: Forall([['t', kType]], tfun(tfun(tv('t'), tv('t')), tv('t'))),
     caseList: Forall([['t', kType], ['r', kType], ['e', kEffs]], tfun(tv('r'), tfun(tv('t'), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r'))), TFun(tapp(tv('List'), tv('t')), tv('e'), tv('r')))),
-    
-    app: Forall([['a', kType], ['b', kType]], tfun(tfun(tv('a'), tv('b')), tv('a'), tv('b'))),
-
-    uncurry: Forall([['a', kType], ['b', kType], ['c', kType], ['e', kEffs]], tfun(tfun(tv('a'), TFun(tv('b'), tv('e'), tv('c'))), TFun(tapp(tv('Pair'), tv('a'), tv('b')), tv('e'), tv('c')))),
-    curry: Forall([['a', kType], ['b', kType], ['c', kType], ['e', kEffs]], tfun(TFun(tapp(tv('Pair'), tv('a'), tv('b')), tv('e'), tv('c')), tfun(tv('a'), TFun(tv('b'), tv('e'), tv('c'))))),
   },
 );
 
-const expr = Handler(HOp('flip', abs(['v', 'k'], app(v('k'), v('True'))), HOp('get', abs(['v', 'k'], app(v('flip'), v('Unit'))), HReturn(abs(['x'], v('x'))))));
-console.log(`${showExpr(expr)}`);
-let time = Date.now();
-const res = throwEither(inferGen(ctx, expr, true));
-time = Date.now() - time;
-console.log(`${prettyForall(res)}`);
-console.log(`${time}ms`);
+function _show(x: any): string {
+  if (typeof x === 'string') return JSON.stringify(x);
+  if (typeof x === 'function') return '[Function]';
+  if (typeof x._tag === 'string')
+    return typeof x.val === 'undefined' ? x._tag :
+    Array.isArray(x.val) ? `(${x._tag} ${x.val.map(_show).join(' ')})` :
+    `(${x._tag} ${_show(x.val)})`;
+  if (x._cont) return `${x.op}(${_show(x.val)})`;
+  return '' + x;
+}
+
+let _ctx = _context;
+export default function _run(i: string, cb: (output: string, err?: boolean) => void): void {
+  try {
+    console.log(i);
+    const p = parse(i);
+    console.log(showExpr(p));
+    const result = throwEither(inferGen(_ctx, p));
+    console.log(`${showForall(result)}`);
+    const c = compileToJS(p);
+    console.log(c);
+    const res = eval(c);
+    cb(`${_show(res)} : ${prettyForall(result)}`);
+  } catch(e) {
+    console.log(e);
+    cb(''+e, true);
+  }
+}

@@ -84,11 +84,14 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
       const u2 = unify(ctx, fe, prune(e));
       if (isLeft(u2)) return u2;
 
+      const pfe = prune(fe);
+      const rest = flattenTEffs(pfe).rest;
+
       return Right(
         typeEff(
           TFun(
-            TFun(TVar('Unit'), teffs(allEffs.map(TVar), prune(e)), prune(a)),
-            prune(fe),
+            TFun(TVar('Unit'), teffs(allEffs.map(TVar), rest), prune(a)),
+            pfe,
             prune(b)
           ),
           prune(re)
