@@ -1,7 +1,7 @@
-import { caseExpr, Expr, showExpr, Abs, Var } from "./exprs";
-import { TC } from "./TC";
-import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar, TFunP, tEffsEmpty, isTEffsEmpty, showType, TypeEff, typePure, showTypeEff, typeEff, matchTEffsExtend, TEffsExtend, matchTFun, flattenTEffs, teffs, containsMeta, showForall, occTVar, OccMap, freshMeta } from "./types";
-import { Context, findVar, extendVar, findOp } from "./context";
+import { caseExpr, Expr, showExpr, Abs, Var, HandlerCase, showHandler, caseHandler } from "./exprs";
+import { TC, ok } from "./TC";
+import { Type, Forall, TMeta, TFun, Subst, substMeta, substTVar, freeMeta, TVar, TFunP, tEffsEmpty, isTEffsEmpty, showType, TypeEff, typePure, showTypeEff, typeEff, matchTEffsExtend, TEffsExtend, matchTFun, flattenTEffs, teffs, containsMeta, showForall, occTVar, OccMap, freshMeta, tfun } from "./types";
+import { Context, findVar, extendVar, findOp, Map, findEff } from "./context";
 import { isLeft, Right, Left } from "./either";
 import { prune, unify } from "./unification";
 import { fresh, resetId, Name } from "./names";
@@ -61,34 +61,97 @@ export const infer = (ctx: Context, expr: Expr): TC<TypeEff> => {
       const ty = typeEff(prune(m), prune(e));
       return Right(ty);
     },
-    Handler: (map, value) => {
+    Handler: (handler) => {
+      const effs: Map<Map<true>> = {};
       const a = freshMeta('a');
-      const b = freshMeta('b');
       const e = freshMeta('e', kEffs);
-      const te = freshMeta('e', kEffs);
-      const ret = infer(ctx, value || Abs('x', a, Var('x')));
+      const b = freshMeta('b');
+      const re = freshMeta('e', kEffs);
+      
+      const ret = inferHandler(ctx, handler, a, e, b, re, effs);
       if (isLeft(ret)) return ret;
-      const u1 = unify(ctx, TFun(a, e, b), ret.val.type);
-      if (isLeft(u1)) return u1;
-      const ute1 = unify(ctx, te, ret.val.eff);
-      if (isLeft(ute1)) return ute1;
-      const effs: Name[] = [];
-      for (let op in map) {
-        const opi = findOp(ctx, op);
-        if (isLeft(opi)) return opi;
-        effs.push(opi.val.eff);
-        const retop = infer(ctx, map[op]);
-        if (isLeft(retop)) return retop;
-        const u2 = unify(ctx, TFunP(opi.val.param, TFun(TFun(opi.val.ret, e, b), e, b)), retop.val.type);
-        if (isLeft(u2)) return u2;
-        const ute2 = unify(ctx, prune(te), retop.val.eff);
-        if (isLeft(ute2)) return ute2;
+
+      const allEffs: Name[] = [];
+      const incompleteEffs: Name[] = [];
+      for (let eff in effs) {
+        allEffs.push(eff);
+        const compl = checkEffComplete(ctx, eff, effs[eff]);
+        if (isLeft(compl)) return compl;
+        if (!compl.val) incompleteEffs.push(eff);
       }
-      const pe = prune(e);
-      return Right(typeEff(TFun(TFun(TVar('Unit'), teffs(effs.map(TVar), pe), prune(a)), pe, prune(b)), prune(te)));
+
+      const fe = teffs(incompleteEffs.map(TVar), freshMeta('e', kEffs));
+      const u2 = unify(ctx, fe, prune(e));
+      if (isLeft(u2)) return u2;
+
+      return Right(
+        typeEff(
+          TFun(
+            TFun(TVar('Unit'), teffs(allEffs.map(TVar), prune(e)), prune(a)),
+            prune(fe),
+            prune(b)
+          ),
+          prune(re)
+        )
+      );
     },
   });
 };
+
+const checkEffComplete = (ctx: Context, eff: Name, ops: Map<true>): TC<boolean> => {
+  const ret = findEff(ctx, eff);
+  if (isLeft(ret)) return ret;
+  const allops = ret.val;
+  for (let op in allops) {
+    if (!ops[op]) return Right(false);
+  }
+  return Right(true);
+};
+
+const inferHandler = (
+  ctx: Context,
+  cs: HandlerCase,
+  a: Type,
+  e: Type,
+  b: Type,
+  re: Type,
+  effs: Map<Map<true>>,
+): TC<true> => {
+  console.log(`inferHandler ${showHandler(cs)}`);
+  return caseHandler(cs, {
+    HOp: (op, expr, rest) => {
+      const info = findOp(ctx, op);
+      if (isLeft(info)) return info;
+      const eff = info.val.eff;
+      if (!effs[eff]) effs[eff] = {};
+      if (effs[eff][op]) return Left(`duplicat op in handler: ${op}`);
+      effs[eff][op] = true;
+
+      const retrest = inferHandler(ctx, rest, a, e, b, re, effs);
+      if (isLeft(retrest)) return retrest;
+
+      const res = infer(ctx, expr);
+      if (isLeft(res)) return res;
+      const pb = prune(b);
+      const pe = prune(e);
+      const u1 = unify(ctx, TFunP(info.val.param, TFun(TFun(info.val.ret, pe, pb), pe, pb)), res.val.type);
+      if (isLeft(u1)) return u1;
+      const u2 = unify(ctx, re, res.val.eff, true);
+      if (isLeft(u2)) return u2;
+
+      return ok;
+    },
+    HReturn: expr => {
+      const res = infer(ctx, expr);
+      if (isLeft(res)) return res;
+      const u1 = unify(ctx, TFun(a, e, b), res.val.type);
+      if (isLeft(u1)) return u1;
+      const u2 = unify(ctx, re, prune(res.val.eff));
+      if (isLeft(u2)) return u2;
+      return ok;
+    },
+  });
+}
 
 const closeFunTy = (type: Type, occ: OccMap, closed: Name[] = []): Type => {
   const fn = matchTFun(type);

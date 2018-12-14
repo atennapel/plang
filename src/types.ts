@@ -166,7 +166,7 @@ export const prettyType = (type: Type): string => {
   const m = matchTEffsExtend(type);
   if (m) {
     const fm = flattenTEffs(type);
-    return `{${fm.ts.map(prettyType).join(', ')}${isTEffsEmpty(fm.rest) ? '' : ` | ${prettyType(fm.rest)}`}`;
+    return `{${fm.ts.map(prettyType).join(', ')}${isTEffsEmpty(fm.rest) ? '' : ` | ${prettyType(fm.rest)}`}}`;
   }
   if (type.tag === 'TApp') {
     const ta = flattenTApp(type);

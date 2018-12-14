@@ -34,27 +34,59 @@ export const app = (...es: Expr[]): Expr => es.reduce(App);
 export const apps = (fn: Expr, args: Expr[]): Expr =>
   [fn].concat(args).reduce(App);
 
-export type HandlerOps = { [key: string]: Expr };
 export interface Handler {
   readonly tag: 'Handler';
-  readonly map: HandlerOps;
-  readonly value: Expr | null;
+  readonly handler: HandlerCase;
 }
-export const Handler = (map: HandlerOps, value: Expr | null = null): Expr =>
-  ({ tag: 'Handler', map, value });
+export const Handler = (handler: HandlerCase): Expr =>
+  ({ tag: 'Handler', handler });
+
+export type HandlerCase = HOp | HReturn;
+
+export interface HOp {
+  tag: 'HOp';
+  op: Name;
+  expr: Expr;
+  rest: HandlerCase;
+}
+export const HOp = (op: Name, expr: Expr, rest: HandlerCase): HandlerCase =>
+  ({ tag: 'HOp', op, expr, rest });
+
+export interface HReturn {
+  tag: 'HReturn';
+  expr: Expr;
+}
+export const HReturn = (expr: Expr): HandlerCase =>
+  ({ tag: 'HReturn', expr });
+
+export type CasesHandler<R> = {
+  HOp: (op: Name, expr: Expr, rest: HandlerCase) => R;
+  HReturn: (expr: Expr) => R;
+};
+export const caseHandler = <R>(val: HandlerCase, cs: CasesHandler<R>): R => {
+  switch (val.tag) {
+    case 'HOp': return cs.HOp(val.op, val.expr, val.rest);
+    case 'HReturn': return cs.HReturn(val.expr);
+  }
+};
+
+export const showHandler = (val: HandlerCase): string => caseHandler(val, {
+  HOp: (op, expr) => `${op} -> ${showExpr(expr)}`,
+  HReturn: (expr) => `return -> ${showExpr(expr)}`,
+});
 
 export type CasesExpr<R> = {
   Var: (name: Name) => R;
   Abs: (arg: Name, type: Type | null, body: Expr) => R;
   App: (left: Expr, right: Expr) => R;
-  Handler: (map: HandlerOps, value: Expr | null) => R;
+  Handler: (handler: HandlerCase) => R;
 };
 export const caseExpr = <R>(val: Expr, cs: CasesExpr<R>): R => {
   switch (val.tag) {
     case 'Var': return cs.Var(val.name);
     case 'Abs': return cs.Abs(val.arg, val.type, val.body);
     case 'App': return cs.App(val.left, val.right);
-    case 'Handler': return cs.Handler(val.map, val.value);
+    case 'Handler': return cs.Handler(val.handler);
   }
 };
 
@@ -64,12 +96,14 @@ export const showExpr = (expr: Expr): string => caseExpr(expr, {
     type ? `(\\(${arg} : ${showType(type)}) -> ${showExpr(body)})` :
     `(\\${arg} -> ${showExpr(body)})`,
   App: (left, right) => `(${showExpr(left)} ${showExpr(right)})`,
-  Handler: (map, value) => {
+  Handler: (handler) => {
     const r = [];
-    for (let k in map) {
-      r.push([k, showExpr(map[k])]);
+    let c = handler;
+    while (c.tag === 'HOp') {
+      r.push([c.op, showExpr(c.expr)]);
+      c = c.rest;
     }
-    if (value) r.push(['return', showExpr(value)]);
+    r.push(['return', showExpr(c.expr)]);
     return `(handler {${r.map(([x, e]) => `${x} -> ${e}`).join(', ')}})`;
   },
 });
