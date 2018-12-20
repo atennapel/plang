@@ -3,7 +3,9 @@ import { Type, freshTMeta, tfun, isTVar, TApp, isTApp, isTMeta, TVar } from "./t
 import { resetTName } from "./names";
 import { Env, findVar, withExtend, showEnv } from "./env";
 import { err } from "./utils";
-import { prune, unify } from "./unification";
+import { prune, unify, inferKind } from "./unification";
+import { unifyKind } from "./kindUnification";
+import { KType } from "./kinds";
 
 type Occ = { [key: number]: boolean };
 const tmetas = (type: Type, occ: Occ = {}): Occ => {
@@ -65,5 +67,6 @@ const genTop = (type: Type): Type => {
 export const inferTop = (env: Env, expr: Expr): Type => {
   resetTName();
   const ty = infer(env, expr);
+  unifyKind(KType, inferKind(ty));
   return genTop(prune(ty));
 };

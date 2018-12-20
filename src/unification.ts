@@ -1,5 +1,7 @@
-import { Type, isTMeta, isTApp, TApp, showType, TMeta } from "./types";
+import { Type, isTMeta, isTApp, TApp, showType, TMeta, isTConst } from "./types";
 import { err } from "./utils";
+import { unifyKind } from "./kindUnification";
+import { Kind, KType, freshKMeta, KFun } from "./kinds";
 
 export const prune = (type: Type): Type => {
   if (isTMeta(type)) {
@@ -22,11 +24,24 @@ const bind = (a: TMeta, b: Type): void => {
   a.type = b;
 };
 
+export const inferKind = (type: Type): Kind => {
+  if (isTApp(type)) {
+    const kf = inferKind(type.left);
+    const ka = inferKind(type.right);
+    const kr = freshKMeta();
+    unifyKind(kf, KFun(ka, kr));
+    return kr;
+  }
+  return type.kind;
+};
+
 export const unify = (a_: Type, b_: Type): void => {
   if (a_ === b_) return;
   const a = prune(a_);
   const b = prune(b_);
   if (a === b) return;
+
+  unifyKind(inferKind(a), inferKind(b));
 
   if (isTMeta(a)) return bind(a, b);
   if (isTMeta(b)) return bind(b, a);

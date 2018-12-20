@@ -1,31 +1,35 @@
 import { Name, TName, freshTName } from "./names";
 import { err } from "./utils";
+import { Kind, KType, KFun, kfun } from "./kinds";
 
 export type Type = TConst | TMeta | TVar | TApp;
 
 export interface TConst {
   readonly tag: 'TConst';
   readonly name: Name;
+  readonly kind: Kind;
 }
-export const TConst = (name: Name): TConst =>
-  ({ tag: 'TConst', name });
+export const TConst = (name: Name, kind: Kind = KType): TConst =>
+  ({ tag: 'TConst', name, kind });
 export const isTConst = (type: Type): type is TConst => type.tag === 'TConst';
 
 export interface TMeta {
   readonly tag: 'TMeta';
   readonly name: TName;
+  readonly kind: Kind;
   type: Type | null;
 }
-export const TMeta = (name: TName, type: Type | null): TMeta =>
-  ({ tag: 'TMeta', name, type });
+export const TMeta = (name: TName, kind: Kind, type: Type | null): TMeta =>
+  ({ tag: 'TMeta', name, kind, type });
 export const isTMeta = (type: Type): type is TMeta => type.tag === 'TMeta';
 
 export interface TVar {
   readonly tag: 'TVar';
   readonly name: TName;
+  readonly kind: Kind;
 }
-export const TVar = (name: TName): TVar =>
-  ({ tag: 'TVar', name });
+export const TVar = (name: TName, kind: Kind = KType): TVar =>
+  ({ tag: 'TVar', name, kind });
 export const isTVar = (type: Type): type is TVar => type.tag === 'TVar';
 
 export interface TApp {
@@ -46,8 +50,8 @@ export const showType = (type: Type): string => {
   return err('unexpected type in showType');
 };
 
-export const freshTMeta = () => TMeta(freshTName(), null);
+export const freshTMeta = (kind: Kind = KType) => TMeta(freshTName(), kind, null);
 
-export const TFun = TConst('->');
+export const TFun = TConst('->', kfun(KType, KType, KType));
 export const tfun = (a: Type, b: Type): TApp => TApp(TApp(TFun, a), b);
 export const tfuns = (...ts: Type[]): Type => ts.reduceRight((a, b) => tfun(b, a));
