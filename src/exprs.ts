@@ -1,7 +1,8 @@
 import { Name } from "./names";
 import { err } from "./utils";
+import { Type, showType } from "./types";
 
-export type Expr = Var | App | Abs | Let;
+export type Expr = Var | App | Abs | Let | Anno;
 
 export interface Var {
   readonly tag: 'Var';
@@ -38,11 +39,20 @@ export const Let = (name: Name, val: Expr, body: Expr): Let =>
   ({ tag: 'Let', name, val, body });
 export const isLet = (expr: Expr): expr is Let => expr.tag === 'Let';
 
+export interface Anno {
+  readonly tag: 'Anno';
+  readonly expr: Expr;
+  readonly type: Type;
+}
+export const Anno = (expr: Expr, type: Type): Anno => ({ tag: 'Anno', expr, type });
+export const isAnno = (expr: Expr): expr is Anno => expr.tag === 'Anno';
+
 export const showExpr = (expr: Expr): string => {
   if (isVar(expr)) return expr.name;
   if (isApp(expr)) return `(${showExpr(expr.left)} ${showExpr(expr.right)})`;
   if (isAbs(expr)) return `(\\${expr.name} -> ${showExpr(expr.body)})`;
   if (isLet(expr))
     return `(let ${expr.name} = ${showExpr(expr.val)} in ${showExpr(expr.body)})`;
+  if (isAnno(expr)) return `(${showExpr(expr.expr)} : ${showType(expr.type)})`;
   return err('unexpected expr in showExpr');
 };

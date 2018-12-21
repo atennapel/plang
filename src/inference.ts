@@ -1,4 +1,4 @@
-import { Expr, isVar, isAbs, isApp, isLet, showExpr } from "./exprs";
+import { Expr, isVar, isAbs, isApp, isLet, showExpr, isAnno } from "./exprs";
 import { Type, freshTMeta, tfun, isTVar, TApp, isTApp, isTMeta, TVar } from "./types";
 import { resetTName } from "./names";
 import { Env, findVar, withExtend, showEnv } from "./env";
@@ -7,7 +7,7 @@ import { prune, unify, inferKind } from "./unification";
 import { unifyKind } from "./kindUnification";
 import { KType } from "./kinds";
 
-type Occ = { [key: number]: boolean };
+export type Occ = { [key: number]: boolean };
 const tmetas = (type: Type, occ: Occ = {}): Occ => {
   if (isTMeta(type)) { occ[type.name] = true; return occ }
   if (isTApp(type)) return tmetas(type.right, tmetas(type.left, occ));
@@ -51,9 +51,13 @@ const infer = (env: Env, expr: Expr): Type => {
     return tv;
   }
   if (isLet(expr)) {
-    const tv_ = prune(infer(env, expr.val));
-    const tv = gen(env, tv_);
+    const tv = prune(infer(env, expr.val));
     return withExtend(env, expr.name, tv, env => infer(env, expr.body));
+  }
+  if (isAnno(expr)) {
+    const ty = infer(env, expr.expr);
+    unify(ty, expr.type, tmetasEnv(env));
+    return expr.type;
   }
   return err('unexpected expr in infer');
 };
