@@ -1,7 +1,7 @@
 import { Env } from "./env";
-import { Let, Var, showExpr, abs, app, Anno } from "./exprs";
+import { Let, Var, showExpr, abs, app, Anno, Select } from "./exprs";
 import { inferTop } from "./inference";
-import { showType, tfun, TVar, TConst, tfuns, tapp } from "./types";
+import { showType, tfun, TVar, TConst, tfuns, tapp, TRowEmpty, TRowExtend, TRecord } from "./types";
 import { KType, kfun } from "./kinds";
 
 const tv = TVar;
@@ -21,9 +21,13 @@ const env: Env = {
   k: tfuns(ta, tb, ta),
   singleton: tfuns(ta, tapp(List, ta)),
   list: List,
-  f: tfuns(Bool, Int, Bool),
+  fix: tfuns(tfuns(ta, ta), ta),
+  empty: tapp(TRecord, TRowEmpty),
+  objX: tapp(TRecord, TRowExtend('x', Bool, TRowEmpty)),
+  objY: tapp(TRecord, TRowExtend('y', Bool, TRowEmpty)),
+  objYX: tapp(TRecord, TRowExtend('y', Bool, TRowExtend('x', Int, TRowEmpty))),
 };
-const expr = Let('id', Anno(abs(['x'], v('x')), tfuns(ta, ta)), app(v('f'), app(v('id'), v('True')), app(v('id'), v('zero'))));
+const expr = app(Select('x'), v('objX'));
 console.log(showExpr(expr));
 let time = microtime.now();
 const type = inferTop(env, expr);

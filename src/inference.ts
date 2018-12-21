@@ -1,11 +1,11 @@
-import { Expr, isVar, isAbs, isApp, isLet, showExpr, isAnno } from "./exprs";
-import { Type, freshTMeta, tfun, isTVar, TApp, isTApp, isTMeta, TVar } from "./types";
+import { Expr, isVar, isAbs, isApp, isLet, showExpr, isAnno, isSelect, app } from "./exprs";
+import { Type, freshTMeta, tfun, isTVar, TApp, isTApp, isTMeta, TVar, TRecord, tapp, tfuns, TRowExtend } from "./types";
 import { resetTName } from "./names";
 import { Env, findVar, withExtend, showEnv } from "./env";
 import { err } from "./utils";
 import { prune, unify, inferKind } from "./unification";
 import { unifyKind } from "./kindUnification";
-import { KType } from "./kinds";
+import { KType, KRow } from "./kinds";
 
 export type Occ = { [key: number]: boolean };
 const tmetas = (type: Type, occ: Occ = {}): Occ => {
@@ -58,6 +58,11 @@ const infer = (env: Env, expr: Expr): Type => {
     const ty = infer(env, expr.expr);
     unify(ty, expr.type, tmetasEnv(env));
     return expr.type;
+  }
+  if (isSelect(expr)) {
+    const tt = freshTMeta();
+    const tr = freshTMeta(KRow);
+    return tfuns(tapp(TRecord, TRowExtend(expr.label, tt, tr)), tt);
   }
   return err('unexpected expr in infer');
 };

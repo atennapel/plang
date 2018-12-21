@@ -1,8 +1,9 @@
-import { Type, isTMeta, isTApp, TApp, showType, TMeta, isTConst, isTVar } from "./types";
+import { Type, isTMeta, isTApp, TApp, showType, TMeta, isTConst, isTVar, isTRowExtend, TRowExtend, trow, TRowEmpty } from "./types";
 import { err } from "./utils";
 import { unifyKind } from "./kindUnification";
-import { Kind, KType, freshKMeta, KFun } from "./kinds";
+import { Kind, KType, freshKMeta, KFun, KRow } from "./kinds";
 import { Occ } from "./inference";
+import { Name } from "./names";
 
 export const prune = (type: Type): Type => {
   if (isTMeta(type)) {
@@ -13,6 +14,18 @@ export const prune = (type: Type): Type => {
   }
   if (isTApp(type)) return TApp(prune(type.left), prune(type.right));
   return type;
+};
+
+const rewriteRow = (l: Name, ty: Type): TRowExtend => {
+  const row: [Name, Type][] = [];
+  let c = ty;
+  while (isTRowExtend(c)) {
+    if (c.label === l) {
+      return TRowExtend(l, c.type, trow(row, c.rest));
+    } else row.push([c.label, c.type]);
+  }
+  if (c === TRowEmpty) return err(`cannot rewriteRow ${l} in ${showType(c)}`);
+  return err('unimplemented tmeta in rewriteRow');
 };
 
 const occurs = (a: TMeta, b: Type): void => {
@@ -35,6 +48,13 @@ export const inferKind = (type: Type): Kind => {
     unifyKind(kf, KFun(ka, kr));
     return kr;
   }
+  if (isTRowExtend(type)) {
+    const kt = inferKind(type.type);
+    unifyKind(kt, KType);
+    const kr = inferKind(type.rest);
+    unifyKind(kr, KRow);
+    return KRow;
+  }
   return type.kind;
 };
 
@@ -50,6 +70,10 @@ export const unify = (a_: Type, b_: Type, occ?: Occ): void => {
   if (isTMeta(b)) return bind(b, a, occ);
 
   if (isTApp(a) && isTApp(b)) return unify(a.left, b.left, occ), unify(a.right, b.right, occ);
+
+  if (isTRowExtend(a) && isTRowExtend(b)) {
+    const rewritten = rewriteRow(a.label, b);
+  }
 
   return err(`cannot unify ${showType(a)} ~ ${showType(b)}`);
 };

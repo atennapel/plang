@@ -40,3 +40,4 @@ export const showKind = (type: Kind): string => {
 export const freshKMeta = () => KMeta(freshTName(), null);
 
 export const KType = KConst('Type');
+export const KRow = KConst('Row');
