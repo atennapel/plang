@@ -83,9 +83,7 @@ export const unify = (a_: Type, b_: Type, occ?: Occ): void => {
   if (isTApp(a) && isTApp(b)) return unify(a.left, b.left, occ), unify(a.right, b.right, occ);
 
   if (isTRowExtend(a) && isTRowExtend(b)) {
-    console.log(`${showType(a)} ~ ${showType(b)}`)
     const rewr = rewriteRow(a.label, b);
-    console.log(showType(rewr));
     unify(a.type, rewr.type, occ);
     unify(a.rest, rewr.rest, occ);
     return;

@@ -18,6 +18,7 @@ export interface App {
 }
 export const App = (left: Expr, right: Expr): App => ({ tag: 'App', left, right });
 export const isApp = (expr: Expr): expr is App => expr.tag === 'App';
+export const appFrom = (es: Expr[]): Expr => es.reduce(App);
 export const app = (...es: Expr[]): Expr => es.reduce(App);
 
 export interface Abs {
