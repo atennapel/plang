@@ -1,4 +1,4 @@
-import { Type, isTMeta, isTApp, TApp, showType, TMeta, isTConst, isTVar, isTRowExtend, TRowExtend, trow, TRowEmpty } from "./types";
+import { Type, isTMeta, isTApp, TApp, showType, TMeta, isTConst, isTVar, isTRowExtend, TRowExtend, trow, TRowEmpty, freshTMeta } from "./types";
 import { err } from "./utils";
 import { unifyKind } from "./kindUnification";
 import { Kind, KType, freshKMeta, KFun, KRow } from "./kinds";
@@ -13,24 +13,33 @@ export const prune = (type: Type): Type => {
     return ty;
   }
   if (isTApp(type)) return TApp(prune(type.left), prune(type.right));
+  if (isTRowExtend(type)) return TRowExtend(type.label, prune(type.type), prune(type.rest));
   return type;
 };
 
 const rewriteRow = (l: Name, ty: Type): TRowExtend => {
+  // console.log(`rewriteRow ${l} in ${showType(ty)}`);
   const row: [Name, Type][] = [];
   let c = ty;
   while (isTRowExtend(c)) {
-    if (c.label === l) {
-      return TRowExtend(l, c.type, trow(row, c.rest));
-    } else row.push([c.label, c.type]);
+    if (c.label === l) return TRowExtend(l, c.type, trow(row, c.rest));
+    row.push([c.label, c.type]);
+    c = c.rest;
   }
-  if (c === TRowEmpty) return err(`cannot rewriteRow ${l} in ${showType(c)}`);
-  return err('unimplemented tmeta in rewriteRow');
+  if (c === TRowEmpty) return err(`cannot find label ${l} in ${showType(ty)}`);
+  if (isTMeta(c)) {
+    const t = freshTMeta(KType);
+    const r = freshTMeta(KRow);
+    bind(c, TRowExtend(l, t, r));
+    return TRowExtend(l, t, trow(row, r));
+  }
+  return err(`unexpected type in rewriteRow: ${showType(c)}`);
 };
 
 const occurs = (a: TMeta, b: Type): void => {
   if (a === b) return err('occurs check failed');
   if (isTApp(b)) return occurs(a, b.left), occurs(a, b.right);
+  if (isTRowExtend(b)) return occurs(a, b.type), occurs(a, b.rest);
 }
 
 const bind = (a: TMeta, b: Type, occ?: Occ): void => {
@@ -72,7 +81,12 @@ export const unify = (a_: Type, b_: Type, occ?: Occ): void => {
   if (isTApp(a) && isTApp(b)) return unify(a.left, b.left, occ), unify(a.right, b.right, occ);
 
   if (isTRowExtend(a) && isTRowExtend(b)) {
-    const rewritten = rewriteRow(a.label, b);
+    console.log(`${showType(a)} ~ ${showType(b)}`)
+    const rewr = rewriteRow(a.label, b);
+    console.log(showType(rewr));
+    unify(a.type, rewr.type, occ);
+    unify(a.rest, rewr.rest, occ);
+    return;
   }
 
   return err(`cannot unify ${showType(a)} ~ ${showType(b)}`);

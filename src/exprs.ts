@@ -2,7 +2,7 @@ import { Name } from "./names";
 import { err } from "./utils";
 import { Type, showType } from "./types";
 
-export type Expr = Var | App | Abs | Let | Anno | Select;
+export type Expr = Var | App | Abs | Let | Anno | Select | Inject;
 
 export interface Var {
   readonly tag: 'Var';
@@ -55,6 +55,14 @@ export const Select = (label: Name): Select =>
   ({ tag: 'Select', label });
 export const isSelect = (expr: Expr): expr is Select => expr.tag === 'Select';
 
+export interface Inject {
+  readonly tag: 'Inject';
+  readonly label: Name;
+}
+export const Inject = (label: Name): Inject =>
+  ({ tag: 'Inject', label });
+export const isInject = (expr: Expr): expr is Inject => expr.tag === 'Inject';
+
 export const showExpr = (expr: Expr): string => {
   if (isVar(expr)) return expr.name;
   if (isApp(expr)) return `(${showExpr(expr.left)} ${showExpr(expr.right)})`;
@@ -63,5 +71,6 @@ export const showExpr = (expr: Expr): string => {
     return `(let ${expr.name} = ${showExpr(expr.val)} in ${showExpr(expr.body)})`;
   if (isAnno(expr)) return `(${showExpr(expr.expr)} : ${showType(expr.type)})`;
   if (isSelect(expr)) return `.${expr.label}`;
+  if (isInject(expr)) return `@${expr.label}`;
   return err('unexpected expr in showExpr');
 };

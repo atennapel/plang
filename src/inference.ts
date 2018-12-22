@@ -1,5 +1,5 @@
-import { Expr, isVar, isAbs, isApp, isLet, showExpr, isAnno, isSelect, app } from "./exprs";
-import { Type, freshTMeta, tfun, isTVar, TApp, isTApp, isTMeta, TVar, TRecord, tapp, tfuns, TRowExtend } from "./types";
+import { Expr, isVar, isAbs, isApp, isLet, showExpr, isAnno, isSelect, app, isInject } from "./exprs";
+import { Type, freshTMeta, tfun, isTVar, TApp, isTApp, isTMeta, TVar, TRecord, tapp, tfuns, TRowExtend, TVariant, isTRowExtend } from "./types";
 import { resetTName } from "./names";
 import { Env, findVar, withExtend, showEnv } from "./env";
 import { err } from "./utils";
@@ -11,6 +11,7 @@ export type Occ = { [key: number]: boolean };
 const tmetas = (type: Type, occ: Occ = {}): Occ => {
   if (isTMeta(type)) { occ[type.name] = true; return occ }
   if (isTApp(type)) return tmetas(type.right, tmetas(type.left, occ));
+  if (isTRowExtend(type)) return tmetas(type.rest, tmetas(type.type, occ));
   return occ;
 };
 const tmetasEnv = (env: Env, occ: Occ = {}): Occ => {
@@ -22,18 +23,18 @@ type Subst = { [key: number]: Type };
 const inst = (type: Type, subst: Subst = {}): Type => {
   if (isTVar(type)) return subst[type.name] || (subst[type.name] = freshTMeta());
   if (isTApp(type)) return TApp(inst(type.left, subst), inst(type.right, subst));
+  if (isTRowExtend(type)) return TRowExtend(type.label, inst(type.type, subst), inst(type.rest, subst));
   return type;
 };
 
-const genRec = (type: Type, occ: Occ): Type => {
-  if (isTMeta(type) && !occ[type.name]) return TVar(type.name);
+const genRec = (type: Type, occ: Occ | null): Type => {
+  if (isTMeta(type) && (!occ || !occ[type.name])) return TVar(type.name);
   if (isTApp(type)) return TApp(genRec(type.left, occ), genRec(type.right, occ));
+  if (isTRowExtend(type)) return TRowExtend(type.label, genRec(type.type, occ), genRec(type.rest, occ));
   return type;
 };
-const gen = (env: Env, type: Type): Type => {
-  const free = tmetasEnv(env);
-  return genRec(type, free);
-};
+const gen = (type: Type, env?: Env): Type =>
+  genRec(type, env ? tmetasEnv(env) : null);
 
 const infer = (env: Env, expr: Expr): Type => {
   // console.log('infer', showExpr(expr), showEnv(env));
@@ -64,18 +65,17 @@ const infer = (env: Env, expr: Expr): Type => {
     const tr = freshTMeta(KRow);
     return tfuns(tapp(TRecord, TRowExtend(expr.label, tt, tr)), tt);
   }
+  if (isInject(expr)) {
+    const tt = freshTMeta();
+    const tr = freshTMeta(KRow);
+    return tfuns(tt, tapp(TVariant, TRowExtend(expr.label, tt, tr)));
+  }
   return err('unexpected expr in infer');
-};
-
-const genTop = (type: Type): Type => {
-  if (isTMeta(type)) return TVar(type.name);
-  if (isTApp(type)) return TApp(genTop(type.left), genTop(type.right));
-  return type;
 };
 
 export const inferTop = (env: Env, expr: Expr): Type => {
   resetTName();
   const ty = infer(env, expr);
   unifyKind(KType, inferKind(ty));
-  return genTop(prune(ty));
+  return gen(prune(ty));
 };

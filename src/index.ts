@@ -1,5 +1,5 @@
 import { Env } from "./env";
-import { Let, Var, showExpr, abs, app, Anno, Select } from "./exprs";
+import { Let, Var, showExpr, abs, app, Anno, Select, Inject } from "./exprs";
 import { inferTop } from "./inference";
 import { showType, tfun, TVar, TConst, tfuns, tapp, TRowEmpty, TRowExtend, TRecord } from "./types";
 import { KType, kfun } from "./kinds";
@@ -27,10 +27,15 @@ const env: Env = {
   objY: tapp(TRecord, TRowExtend('y', Bool, TRowEmpty)),
   objYX: tapp(TRecord, TRowExtend('y', Bool, TRowExtend('x', Int, TRowEmpty))),
 };
-const expr = app(Select('x'), v('objX'));
+const expr = app(Inject('Just'), v('True'));
 console.log(showExpr(expr));
-let time = microtime.now();
-const type = inferTop(env, expr);
-time = microtime.now() - time;
-console.log(showType(type));
-console.log(`${time}`);
+
+try {
+  let time = microtime.now();
+  const type = inferTop(env, expr);
+  time = microtime.now() - time;
+  console.log(showType(type));
+  console.log(`${time}`);
+} catch(err) {
+  console.log('' + err);
+}
