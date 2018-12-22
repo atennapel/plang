@@ -73,6 +73,8 @@ export const unify = (a_: Type, b_: Type, occ?: Occ): void => {
   const b = prune(b_);
   if (a === b) return;
 
+  // console.log(`unify ${showType(a)} ~ ${showType(b)}`);
+
   unifyKind(inferKind(a), inferKind(b));
 
   if (isTMeta(a)) return bind(a, b, occ);
