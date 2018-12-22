@@ -1,5 +1,5 @@
 import { Env } from "./env";
-import { Let, Var, showExpr, abs, app, Anno, Select, Inject } from "./exprs";
+import { Let, Var, showExpr, abs, app, Anno, Select, Inject, Extend } from "./exprs";
 import { inferTop } from "./inference";
 import { showType, tfun, TVar, TConst, tfuns, tapp, TRowEmpty, TRowExtend, TRecord } from "./types";
 import { KType, kfun } from "./kinds";
@@ -27,7 +27,15 @@ const env: Env = {
   objY: tapp(TRecord, TRowExtend('y', Bool, TRowEmpty)),
   objYX: tapp(TRecord, TRowExtend('y', Bool, TRowExtend('x', Int, TRowEmpty))),
 };
-const expr = app(Inject('Just'), v('True'));
+const expr = app(
+  Extend('x'),
+  v('True'),
+  app(
+    Extend('y'),
+    v('zero'),
+    v('empty'),
+  ),
+);
 console.log(showExpr(expr));
 
 try {

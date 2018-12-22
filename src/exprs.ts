@@ -2,7 +2,7 @@ import { Name } from "./names";
 import { err } from "./utils";
 import { Type, showType } from "./types";
 
-export type Expr = Var | App | Abs | Let | Anno | Select | Inject;
+export type Expr = Var | App | Abs | Let | Anno | WithLabel;
 
 export interface Var {
   readonly tag: 'Var';
@@ -47,22 +47,34 @@ export interface Anno {
 export const Anno = (expr: Expr, type: Type): Anno => ({ tag: 'Anno', expr, type });
 export const isAnno = (expr: Expr): expr is Anno => expr.tag === 'Anno';
 
-export interface Select {
-  readonly tag: 'Select';
+export type LabelType
+  = 'Select'
+  | 'Extend'
+  | 'Inject'
+  | 'Case';
+export interface WithLabel {
+  readonly tag: 'WithLabel';
+  readonly type: LabelType;
   readonly label: Name;
 }
-export const Select = (label: Name): Select =>
-  ({ tag: 'Select', label });
-export const isSelect = (expr: Expr): expr is Select => expr.tag === 'Select';
+export const WithLabel = (type: LabelType, label: Name): WithLabel =>
+  ({ tag: 'WithLabel', type, label });
+export const isWithLabel = (expr: Expr): expr is WithLabel =>
+  expr.tag === 'WithLabel';
+export const isLabeled = <L extends LabelType>(type: L, expr: Expr): expr is WithLabel & { type: L } =>
+  expr.tag === 'WithLabel' && expr.type === type;
 
-export interface Inject {
-  readonly tag: 'Inject';
-  readonly label: Name;
-}
-export const Inject = (label: Name): Inject =>
-  ({ tag: 'Inject', label });
-export const isInject = (expr: Expr): expr is Inject => expr.tag === 'Inject';
+export const Select = (label: Name) => WithLabel('Select', label);
+export const Extend = (label: Name) => WithLabel('Extend', label);
+export const Inject = (label: Name) => WithLabel('Inject', label);
+export const Case = (label: Name) => WithLabel('Case', label);
 
+const withLabelPrefixes: { [key in LabelType]: string } = {
+  Select: '.',
+  Extend: '.+',
+  Inject: '@',
+  Case: '?',
+};
 export const showExpr = (expr: Expr): string => {
   if (isVar(expr)) return expr.name;
   if (isApp(expr)) return `(${showExpr(expr.left)} ${showExpr(expr.right)})`;
@@ -70,7 +82,6 @@ export const showExpr = (expr: Expr): string => {
   if (isLet(expr))
     return `(let ${expr.name} = ${showExpr(expr.val)} in ${showExpr(expr.body)})`;
   if (isAnno(expr)) return `(${showExpr(expr.expr)} : ${showType(expr.type)})`;
-  if (isSelect(expr)) return `.${expr.label}`;
-  if (isInject(expr)) return `@${expr.label}`;
+  if (isWithLabel(expr)) return `${withLabelPrefixes[expr.type]}${expr.label}`;
   return err('unexpected expr in showExpr');
 };

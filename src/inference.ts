@@ -1,4 +1,4 @@
-import { Expr, isVar, isAbs, isApp, isLet, showExpr, isAnno, isSelect, app, isInject } from "./exprs";
+import { Expr, isVar, isAbs, isApp, isLet, showExpr, isAnno, isLabeled, isWithLabel } from "./exprs";
 import { Type, freshTMeta, tfun, isTVar, TApp, isTApp, isTMeta, TVar, TRecord, tapp, tfuns, TRowExtend, TVariant, isTRowExtend } from "./types";
 import { resetTName } from "./names";
 import { Env, findVar, withExtend, showEnv } from "./env";
@@ -60,15 +60,35 @@ const infer = (env: Env, expr: Expr): Type => {
     unify(ty, expr.type, tmetasEnv(env));
     return expr.type;
   }
-  if (isSelect(expr)) {
-    const tt = freshTMeta();
-    const tr = freshTMeta(KRow);
-    return tfuns(tapp(TRecord, TRowExtend(expr.label, tt, tr)), tt);
-  }
-  if (isInject(expr)) {
-    const tt = freshTMeta();
-    const tr = freshTMeta(KRow);
-    return tfuns(tt, tapp(TVariant, TRowExtend(expr.label, tt, tr)));
+  if (isWithLabel(expr)) {
+    switch (expr.type) {
+      case 'Select': {
+        const tt = freshTMeta();
+        const tr = freshTMeta(KRow);
+        return tfuns(tapp(TRecord, TRowExtend(expr.label, tt, tr)), tt);
+      }
+      case 'Extend': {
+        const tt = freshTMeta();
+        const tr = freshTMeta(KRow);
+        return tfuns(tt, tapp(TRecord, tr), tapp(TRecord, TRowExtend(expr.label, tt, tr)));
+      }
+      case 'Inject': {
+        const tt = freshTMeta();
+        const tr = freshTMeta(KRow);
+        return tfuns(tt, tapp(TVariant, TRowExtend(expr.label, tt, tr)));
+      }
+      case 'Case': {
+        const ta = freshTMeta();
+        const tb = freshTMeta();
+        const tr = freshTMeta(KRow);
+        return tfuns(
+          tfuns(ta, tb),
+          tfuns(tapp(TVariant, tr), tb),
+          tapp(TVariant, TRowExtend(expr.label, ta, tr)),
+          tb,
+        );
+      }
+    }
   }
   return err('unexpected expr in infer');
 };
