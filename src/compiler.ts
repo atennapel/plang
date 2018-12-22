@@ -1,6 +1,7 @@
-import { Expr, isVar, isAbs, isLet, isAnno, isWithLabel, isApp, App, Abs } from "./exprs";
+import { Expr, isVar, isAbs, isLet, isAnno, isWithLabel, isApp, App, Abs, isLit } from "./exprs";
 
 export const compileToJS = (expr: Expr): string => {
+  if (isLit(expr)) return JSON.stringify(expr.val);
   if (isVar(expr)) return expr.name;
   if (isAbs(expr)) return `(${expr.name} => ${compileToJS(expr.body)})`;
   if (isApp(expr)) return `${compileToJS(expr.left)}(${compileToJS(expr.right)})`;

@@ -1,6 +1,6 @@
 import { Env } from "./env";
 import { Var, showExpr } from "./exprs";
-import { TVar, TRowEmpty, TVariant, tapp, tfuns, TRecord, TConst, showType } from "./types";
+import { TVar, TRowEmpty, TVariant, tapp, tfuns, TRecord, TConst, showType, prettyType, TStr } from "./types";
 import { KRow, kfun, KType } from "./kinds";
 import { parse } from "./parser";
 import { inferTop } from "./inference";
@@ -15,6 +15,7 @@ const _env: Env = {
   fix: tfuns(tfuns(ta, ta), ta),
   empty: tapp(TRecord, TRowEmpty),
   end: tfuns(tapp(TVariant, TRowEmpty), ta),
+  show: tfuns(ta, TStr),
 };
 
 function _show(x: any): string {
@@ -42,7 +43,7 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
     const c = compileToJS(p);
     console.log(c);
     const res = eval(c);
-    cb(`${_show(res)} : ${showType(result)}`);
+    cb(`${_show(res)} : ${prettyType(result)}`);
   } catch(e) {
     console.log(e);
     cb(''+e, true);

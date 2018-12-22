@@ -1,5 +1,5 @@
-import { Expr, isVar, isAbs, isApp, isLet, showExpr, isAnno, isLabeled, isWithLabel } from "./exprs";
-import { Type, freshTMeta, tfun, isTVar, TApp, isTApp, isTMeta, TVar, TRecord, tapp, tfuns, TRowExtend, TVariant, isTRowExtend } from "./types";
+import { Expr, isVar, isAbs, isApp, isLet, showExpr, isAnno, isLabeled, isWithLabel, isLit } from "./exprs";
+import { Type, freshTMeta, tfun, isTVar, TApp, isTApp, isTMeta, TVar, TRecord, tapp, tfuns, TRowExtend, TVariant, isTRowExtend, TFloat, TStr } from "./types";
 import { resetTName } from "./names";
 import { Env, findVar, withExtend, showEnv } from "./env";
 import { err } from "./utils";
@@ -38,6 +38,7 @@ const gen = (type: Type, env?: Env): Type =>
 
 const infer = (env: Env, expr: Expr): Type => {
   // console.log('infer', showExpr(expr), showEnv(env));
+  if (isLit(expr)) return typeof expr.val === 'string' ? TStr : TFloat;
   if (isVar(expr)) return inst(findVar(env, expr.name));
   if (isAbs(expr)) {
     const tv = freshTMeta();

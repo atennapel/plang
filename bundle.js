@@ -3,6 +3,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
 exports.compileToJS = (expr) => {
+    if (exprs_1.isLit(expr))
+        return JSON.stringify(expr.val);
     if (exprs_1.isVar(expr))
         return expr.name;
     if (exprs_1.isAbs(expr))
@@ -53,6 +55,8 @@ exports.showEnv = (env) => {
 Object.defineProperty(exports, "__esModule", { value: true });
 const utils_1 = require("./utils");
 const types_1 = require("./types");
+exports.Lit = (val) => ({ tag: 'Lit', val });
+exports.isLit = (expr) => expr.tag === 'Lit';
 exports.Var = (name) => ({ tag: 'Var', name });
 exports.isVar = (expr) => expr.tag === 'Var';
 exports.App = (left, right) => ({ tag: 'App', left, right });
@@ -80,6 +84,8 @@ const withLabelPrefixes = {
     Case: '?',
 };
 exports.showExpr = (expr) => {
+    if (exports.isLit(expr))
+        return JSON.stringify(expr.val);
     if (exports.isVar(expr))
         return expr.name;
     if (exports.isApp(expr))
@@ -143,6 +149,8 @@ const genRec = (type, occ) => {
 const gen = (type, env) => genRec(type, env ? tmetasEnv(env) : null);
 const infer = (env, expr) => {
     // console.log('infer', showExpr(expr), showEnv(env));
+    if (exprs_1.isLit(expr))
+        return typeof expr.val === 'string' ? types_1.TStr : types_1.TFloat;
     if (exprs_1.isVar(expr))
         return inst(env_1.findVar(env, expr.name));
     if (exprs_1.isAbs(expr)) {
@@ -290,17 +298,21 @@ const matchingBracket = (c) => {
 const START = 0;
 const NUM = 1;
 const NAME = 2;
+const STR = 3;
 const tokenize = (s) => {
     let state = START;
     let t = '';
-    let r = [], p = [], b = [];
+    let r = [], p = [], b = [], esc = false;
     for (let i = 0; i <= s.length; i++) {
         const c = s[i] || ' ';
+        console.log(i, c, state, t, esc);
         if (state === START) {
             if (/[a-z\.\+\?\@]/i.test(c))
                 t += c, state = NAME;
             else if (/[0-9]/.test(c))
                 t += c, state = NUM;
+            else if (c === '"')
+                state = STR;
             else if (c === '(')
                 b.push(c), p.push(r), r = [];
             else if (c === ')') {
@@ -330,7 +342,23 @@ const tokenize = (s) => {
             else
                 t += c;
         }
+        else if (state === STR) {
+            if (esc) {
+                esc = false;
+                t += c;
+            }
+            else if (c === '\\')
+                esc = true;
+            else if (c === '"')
+                r.push({ tag: 'TkStr', val: t }), t = '', state = START;
+            else
+                t += c;
+        }
     }
+    if (b.length > 0)
+        return err(`unclosed brackets: ${b.join(' ')}`);
+    if (state === STR)
+        return err('unclosed string');
     if (state !== START)
         return err(`invalid parsing end state: ${state}`);
     return r;
@@ -341,7 +369,7 @@ const parseToken = (a) => {
             const n = +a.val;
             if (isNaN(n))
                 return err(`invalid number: ${a.val}`);
-            return err(`numbers not implemented`);
+            return exprs_1.Lit(n);
         }
         case 'TkName': {
             if (a.val[0] === '.')
@@ -354,13 +382,14 @@ const parseToken = (a) => {
                 return a.val.length === 1 ? err('nothing after ?') : exprs_1.Case(a.val.slice(1));
             return exprs_1.Var(a.val);
         }
+        case 'TkStr': return exprs_1.Lit(a.val);
         case 'TkParens':
             return parseParens(a.val);
     }
 };
 const parseParens = (a) => {
     if (a.length === 0)
-        return exprs_1.Var('Unit');
+        return exprs_1.Var('empty');
     if (a.length === 1)
         return parseToken(a[0]);
     return exprs_1.appFrom(a.map(parseToken));
@@ -384,6 +413,7 @@ const _env = {
     fix: types_1.tfuns(types_1.tfuns(ta, ta), ta),
     empty: types_1.tapp(types_1.TRecord, types_1.TRowEmpty),
     end: types_1.tfuns(types_1.tapp(types_1.TVariant, types_1.TRowEmpty), ta),
+    show: types_1.tfuns(ta, types_1.TStr),
 };
 function _show(x) {
     if (typeof x === 'string')
@@ -413,7 +443,7 @@ function _run(i, cb) {
         const c = compiler_1.compileToJS(p);
         console.log(c);
         const res = eval(c);
-        cb(`${_show(res)} : ${types_1.showType(result)}`);
+        cb(`${_show(res)} : ${types_1.prettyType(result)}`);
     }
     catch (e) {
         console.log(e);
@@ -437,8 +467,27 @@ exports.isTVar = (type) => type.tag === 'TVar';
 exports.TApp = (left, right) => ({ tag: 'TApp', left, right });
 exports.isTApp = (type) => type.tag === 'TApp';
 exports.tapp = (...es) => es.reduce(exports.TApp);
+exports.flattenTApp = (type) => {
+    let c = type;
+    const r = [];
+    while (exports.isTApp(c)) {
+        r.push(c.right);
+        c = c.left;
+    }
+    r.push(c);
+    return r.reverse();
+};
 exports.TRowExtend = (label, type, rest) => ({ tag: 'TRowExtend', label, type, rest });
 exports.isTRowExtend = (type) => type.tag === 'TRowExtend';
+exports.flattenTRowExtend = (type) => {
+    let c = type;
+    const ts = [];
+    while (exports.isTRowExtend(c)) {
+        ts.push([c.label, c.type]);
+        c = c.rest;
+    }
+    return { ts, rest: c };
+};
 exports.showType = (type) => {
     if (exports.isTConst(type))
         return type.name;
@@ -456,10 +505,59 @@ exports.freshTMeta = (kind = kinds_1.KType) => exports.TMeta(names_1.freshTName(
 exports.TFun = exports.TConst('->', kinds_1.kfun(kinds_1.KType, kinds_1.KType, kinds_1.KType));
 exports.tfun = (a, b) => exports.TApp(exports.TApp(exports.TFun, a), b);
 exports.tfuns = (...ts) => ts.reduceRight((a, b) => exports.tfun(b, a));
-exports.TRowEmpty = exports.TConst('RowEmpty', kinds_1.KRow);
+exports.isTFun = (type) => exports.isTApp(type) && exports.isTApp(type.left) && type.left.left === exports.TFun ?
+    ({ left: type.left.right, right: type.right }) : null;
+exports.flattenTFun = (type) => {
+    let c = type;
+    const r = [];
+    let t = exports.isTFun(c);
+    while (t) {
+        r.push(t.left);
+        c = t.right;
+        t = exports.isTFun(c);
+    }
+    r.push(c);
+    return r;
+};
+exports.TFloat = exports.TConst('Float');
+exports.TStr = exports.TConst('Str');
+exports.TRowEmpty = exports.TConst('()', kinds_1.KRow);
 exports.TRecord = exports.TConst('Rec', kinds_1.kfun(kinds_1.KRow, kinds_1.KType));
 exports.TVariant = exports.TConst('Var', kinds_1.kfun(kinds_1.KRow, kinds_1.KType));
 exports.trow = (ts, rest = exports.TRowEmpty) => ts.reduceRight((r, [l, t]) => exports.TRowExtend(l, t, r), rest);
+const tvAlphabet = 'abcdefghijklmnopqrstuvwxyz';
+exports.prettyTypeR = (type, map, index) => {
+    if (exports.isTConst(type))
+        return type.name;
+    if (exports.isTMeta(type))
+        return `?${type.name}`;
+    if (exports.isTVar(type)) {
+        if (!map[type.name]) {
+            const l = tvAlphabet.length;
+            const ix = index.val++;
+            const rank = 0 | ix / l;
+            map[type.name] = `${tvAlphabet[ix % l]}${rank > 0 ? rank : ''}`;
+        }
+        return map[type.name];
+    }
+    if (exports.isTFun(type))
+        return exports.flattenTFun(type)
+            .map(t => exports.isTFun(t) ? `(${exports.prettyTypeR(t, map, index)})` : exports.prettyTypeR(t, map, index))
+            .join(' -> ');
+    if (exports.isTApp(type))
+        return exports.flattenTApp(type)
+            .map(t => exports.isTApp(t) ? `(${exports.prettyTypeR(t, map, index)})` : exports.prettyTypeR(t, map, index))
+            .join(' ');
+    if (exports.isTRowExtend(type)) {
+        const fl = exports.flattenTRowExtend(type);
+        const head = fl.ts.map(([l, t]) => `${l} : ${exports.prettyTypeR(t, map, index)}`).join(', ');
+        return fl.rest === exports.TRowEmpty ? `(${head})` : `(${head} | ${exports.prettyTypeR(fl.rest, map, index)})`;
+    }
+    return utils_1.err('unexpected type in prettyTypeR');
+};
+exports.prettyType = (type) => {
+    return exports.prettyTypeR(type, {}, { val: 0 });
+};
 
 },{"./kinds":6,"./names":7,"./utils":12}],11:[function(require,module,exports){
 "use strict";

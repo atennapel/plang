@@ -2,7 +2,14 @@ import { Name } from "./names";
 import { err } from "./utils";
 import { Type, showType } from "./types";
 
-export type Expr = Var | App | Abs | Let | Anno | WithLabel;
+export type Expr = Lit | Var | App | Abs | Let | Anno | WithLabel;
+
+export interface Lit {
+  readonly tag: 'Lit';
+  readonly val: number | string;
+}
+export const Lit = (val: number | string): Lit => ({ tag: 'Lit', val });
+export const isLit = (expr: Expr): expr is Lit => expr.tag === 'Lit';
 
 export interface Var {
   readonly tag: 'Var';
@@ -77,6 +84,7 @@ const withLabelPrefixes: { [key in LabelType]: string } = {
   Case: '?',
 };
 export const showExpr = (expr: Expr): string => {
+  if (isLit(expr)) return JSON.stringify(expr.val);
   if (isVar(expr)) return expr.name;
   if (isApp(expr)) return `(${showExpr(expr.left)} ${showExpr(expr.right)})`;
   if (isAbs(expr)) return `(\\${expr.name} -> ${showExpr(expr.body)})`;
