@@ -1,4 +1,4 @@
-import { Expr, Select, Var, Case, Inject, Extend, appFrom, Lit } from "./exprs";
+import { Expr, Select, Var, Case, Inject, Extend, appFrom, Lit, Abs, abs } from "./exprs";
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -27,7 +27,7 @@ const tokenize = (s: string): Token[] => {
   let r: Token[] = [], p: Token[][] = [], b: Bracket[] = [], esc = false;
   for (let i = 0; i <= s.length; i++) {
     const c = s[i] || ' ';
-    console.log(i, c, state, t, esc);
+    // console.log(i, c, state, t, esc);
     if (state === START) {
       if (/[a-z\.\+\?\@]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUM;
@@ -84,6 +84,11 @@ const parseToken = (a: Token): Expr => {
 const parseParens = (a: Token[]): Expr => {
   if (a.length === 0) return Var('empty');
   if (a.length === 1) return parseToken(a[0]);
+  if (a.length >= 2 && a[0].tag === 'TkName' && a[0].val === 'fn') {
+    const sa = a[1].val;
+    const args = Array.isArray(sa) ? sa.map(t => t.tag === 'TkName' ? t.val : err('invalid arg in fn')) : [sa];
+    return abs(args, parseParens(a.slice(2)));
+  }
   return appFrom(a.map(parseToken));
 };
 

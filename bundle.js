@@ -305,7 +305,7 @@ const tokenize = (s) => {
     let r = [], p = [], b = [], esc = false;
     for (let i = 0; i <= s.length; i++) {
         const c = s[i] || ' ';
-        console.log(i, c, state, t, esc);
+        // console.log(i, c, state, t, esc);
         if (state === START) {
             if (/[a-z\.\+\?\@]/i.test(c))
                 t += c, state = NAME;
@@ -392,6 +392,11 @@ const parseParens = (a) => {
         return exprs_1.Var('empty');
     if (a.length === 1)
         return parseToken(a[0]);
+    if (a.length >= 2 && a[0].tag === 'TkName' && a[0].val === 'fn') {
+        const sa = a[1].val;
+        const args = Array.isArray(sa) ? sa.map(t => t.tag === 'TkName' ? t.val : err('invalid arg in fn')) : [sa];
+        return exprs_1.abs(args, parseParens(a.slice(2)));
+    }
     return exprs_1.appFrom(a.map(parseToken));
 };
 exports.parse = (s) => parseParens(tokenize(s));
