@@ -40,6 +40,7 @@ export interface TApp {
 export const TApp = (left: Type, right: Type): TApp =>
   ({ tag: 'TApp', left, right });
 export const isTApp = (type: Type): type is TApp => type.tag === 'TApp';
+export const tappFrom = (es: Type[]): Type => es.reduce(TApp);
 export const tapp = (...es: Type[]): Type => es.reduce(TApp);
 export const flattenTApp = (type: Type): Type[] => {
   let c: Type = type;
@@ -84,6 +85,7 @@ export const freshTMeta = (kind: Kind = KType) => TMeta(freshTName(), kind, null
 
 export const TFun = TConst('->', kfun(KType, KType, KType));
 export const tfun = (a: Type, b: Type): TApp => TApp(TApp(TFun, a), b);
+export const tfunFrom = (ts: Type[]): Type => ts.reduceRight((a, b) => tfun(b, a));
 export const tfuns = (...ts: Type[]): Type => ts.reduceRight((a, b) => tfun(b, a));
 export const isTFun = (type: Type): { left: Type, right: Type } | null =>
   isTApp(type) && isTApp(type.left) && type.left.left === TFun ?
@@ -108,6 +110,16 @@ export const TRowEmpty = TConst('()', KRow);
 
 export const TRecord = TConst('Rec', kfun(KRow, KType));
 export const TVariant = TConst('Var', kfun(KRow, KType));
+
+export const TList = TConst('List', kfun(KType, KType));
+
+export const initialTypes: { [key: string]: Type } = {
+  Float: TFloat,
+  Str: TStr,
+  Rec: TRecord,
+  Var: TVariant,
+  List: TList,
+};
 
 export const trow = (ts: [Name, Type][], rest: Type = TRowEmpty): Type =>
   ts.reduceRight((r, [l, t]) => TRowExtend(l, t, r), rest);

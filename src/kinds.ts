@@ -29,6 +29,16 @@ export const KFun = (left: Kind, right: Kind): KFun =>
   ({ tag: 'KFun', left, right });
 export const isKFun = (kind: Kind): kind is KFun => kind.tag === 'KFun';
 export const kfun = (...ks: Kind[]): Kind => ks.reduceRight((a, b) => KFun(b, a));
+export const flattenKFun = (k: Kind): Kind[] => {
+  let c = k;
+  const r = [];
+  while (isKFun(c)) {
+    r.push(c.left);
+    c = c.right;
+  }
+  r.push(c);
+  return r;
+};
 
 export const showKind = (type: Kind): string => {
   if (isKConst(type)) return type.name;
@@ -36,8 +46,17 @@ export const showKind = (type: Kind): string => {
   if (isKFun(type)) return `(${showKind(type.left)} -> ${showKind(type.right)})`;
   return err('unexpected kind in showKind');
 };
-
 export const freshKMeta = () => KMeta(freshTName(), null);
 
 export const KType = KConst('Type');
 export const KRow = KConst('Row');
+
+export const prettyKind = (type: Kind): string => {
+  if (isKConst(type)) return type.name;
+  if (isKMeta(type)) return `?${type.name}`;
+  if (isKFun(type))
+    return flattenKFun(type)
+      .map(k => isKFun(k) ? `(${prettyKind(k)})` : prettyKind(k))
+      .join(' -> ');
+  return err('unexpected kind in prettyKind');
+};

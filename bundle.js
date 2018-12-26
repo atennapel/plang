@@ -1,4 +1,4 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
@@ -263,6 +263,16 @@ exports.isKMeta = (kind) => kind.tag === 'KMeta';
 exports.KFun = (left, right) => ({ tag: 'KFun', left, right });
 exports.isKFun = (kind) => kind.tag === 'KFun';
 exports.kfun = (...ks) => ks.reduceRight((a, b) => exports.KFun(b, a));
+exports.flattenKFun = (k) => {
+    let c = k;
+    const r = [];
+    while (exports.isKFun(c)) {
+        r.push(c.left);
+        c = c.right;
+    }
+    r.push(c);
+    return r;
+};
 exports.showKind = (type) => {
     if (exports.isKConst(type))
         return type.name;
@@ -275,6 +285,17 @@ exports.showKind = (type) => {
 exports.freshKMeta = () => exports.KMeta(names_1.freshTName(), null);
 exports.KType = exports.KConst('Type');
 exports.KRow = exports.KConst('Row');
+exports.prettyKind = (type) => {
+    if (exports.isKConst(type))
+        return type.name;
+    if (exports.isKMeta(type))
+        return `?${type.name}`;
+    if (exports.isKFun(type))
+        return exports.flattenKFun(type)
+            .map(k => exports.isKFun(k) ? `(${exports.prettyKind(k)})` : exports.prettyKind(k))
+            .join(' -> ');
+    return utils_1.err('unexpected kind in prettyKind');
+};
 
 },{"./names":7,"./utils":12}],7:[function(require,module,exports){
 "use strict";
@@ -287,6 +308,8 @@ exports.freshTName = () => exports._id++;
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
+const types_1 = require("./types");
+const kinds_1 = require("./kinds");
 const err = (msg) => { throw new SyntaxError(msg); };
 const matchingBracket = (c) => {
     if (c === '(')
@@ -305,9 +328,18 @@ const tokenize = (s) => {
     let r = [], p = [], b = [], esc = false;
     for (let i = 0; i <= s.length; i++) {
         const c = s[i] || ' ';
+        const next = s[i + 1] || ' ';
         // console.log(i, c, state, t, esc);
         if (state === START) {
-            if (/[a-z\.\+\?\@]/i.test(c))
+            if (c === '-' && next === '>')
+                r.push({ tag: 'TkName', val: '->' }), i++;
+            else if (c === ':')
+                r.push({ tag: 'TkName', val: c });
+            else if (c === '$')
+                r.push({ tag: 'TkName', val: c });
+            else if (c === '|')
+                r.push({ tag: 'TkName', val: c });
+            else if (/[a-z\.\+\?\@]/i.test(c))
                 t += c, state = NAME;
             else if (/[0-9]/.test(c))
                 t += c, state = NUM;
@@ -363,7 +395,23 @@ const tokenize = (s) => {
         return err(`invalid parsing end state: ${state}`);
     return r;
 };
-const parseToken = (a) => {
+const splitTokens = (a, fn) => {
+    const r = [];
+    let t = [];
+    for (let i = 0, l = a.length; i < l; i++) {
+        const c = a[i];
+        if (fn(c)) {
+            r.push(t);
+            t = [];
+        }
+        else
+            t.push(c);
+    }
+    if (t.length > 0)
+        r.push(t);
+    return r;
+};
+const parseToken = (a, tvMap, index) => {
     switch (a.tag) {
         case 'TkNum': {
             const n = +a.val;
@@ -380,28 +428,72 @@ const parseToken = (a) => {
                 return a.val.length === 1 ? err('nothing after @') : exprs_1.Inject(a.val.slice(1));
             if (a.val[0] === '?')
                 return a.val.length === 1 ? err('nothing after ?') : exprs_1.Case(a.val.slice(1));
-            return exprs_1.Var(a.val);
+            if (/[a-z][a-z0-9]*/i.test(a.val))
+                return exprs_1.Var(a.val);
+            return err(`invalid name: ${a.val}`);
         }
         case 'TkStr': return exprs_1.Lit(a.val);
         case 'TkParens':
-            return parseParens(a.val);
+            return parseParens(a.val, tvMap, index);
     }
 };
-const parseParens = (a) => {
+const parseParens = (a, tvMap, index) => {
     if (a.length === 0)
         return exprs_1.Var('empty');
     if (a.length === 1)
-        return parseToken(a[0]);
+        return parseToken(a[0], tvMap, index);
+    const spl = splitTokens(a, t => t.tag === 'TkName' && t.val === ':');
+    if (spl.length === 0 || spl.length > 2)
+        return err('invalid use of :');
+    if (spl.length === 2) {
+        const left = parseParens(spl[0], tvMap, index);
+        const right = parseParensType(spl[1], tvMap, index);
+        return exprs_1.Anno(left, right);
+    }
     if (a.length >= 2 && a[0].tag === 'TkName' && a[0].val === 'fn') {
         const sa = a[1].val;
         const args = Array.isArray(sa) ? sa.map(t => t.tag === 'TkName' ? t.val : err('invalid arg in fn')) : [sa];
-        return exprs_1.abs(args, parseParens(a.slice(2)));
+        return exprs_1.abs(args, parseParens(a.slice(2), tvMap, index));
     }
-    return exprs_1.appFrom(a.map(parseToken));
+    const rapps = splitTokens(a, t => t.tag === 'TkName' && t.val === '|');
+    if (rapps.length > 1)
+        return rapps.map(x => parseParens(x, tvMap, index)).reduce((x, y) => exprs_1.App(y, x));
+    const apps = splitTokens(a, t => t.tag === 'TkName' && t.val === '$');
+    if (apps.length > 1)
+        return exprs_1.appFrom(apps.map(x => parseParens(x, tvMap, index)));
+    return exprs_1.appFrom(apps[0].map(x => parseToken(x, tvMap, index)));
 };
-exports.parse = (s) => parseParens(tokenize(s));
+const parseTokenType = (a, tvMap, index) => {
+    switch (a.tag) {
+        case 'TkNum': return err('number cannot be used as a type');
+        case 'TkName': {
+            const n = a.val;
+            if (/[a-z]/.test(n[0]))
+                return types_1.TVar(typeof tvMap[n] !== 'undefined' ? tvMap[n] : tvMap[n] = index.val++, kinds_1.freshKMeta());
+            if (/[A-Z]/.test(n[0]) && types_1.initialTypes[n])
+                return types_1.initialTypes[n];
+            return err(`invalid type: ${n}`);
+        }
+        case 'TkStr': return err('string cannot be used as a type');
+        case 'TkParens':
+            return parseParensType(a.val, tvMap, index);
+    }
+};
+const parseParensType = (a, tvMap, index) => {
+    if (a.length === 0)
+        return types_1.TRowEmpty;
+    if (a.length === 1)
+        return parseTokenType(a[0], tvMap, index);
+    const spl = splitTokens(a, t => t.tag === 'TkName' && t.val === '->');
+    if (spl.length === 1)
+        return types_1.tappFrom(spl[0].map(x => parseTokenType(x, tvMap, index)));
+    if (spl.length < 2)
+        return err('invalid use of ->');
+    return types_1.tfunFrom(spl.map(x => parseParensType(x, tvMap, index)));
+};
+exports.parse = (s) => parseParens(tokenize(s), {}, { val: 0 });
 
-},{"./exprs":3}],9:[function(require,module,exports){
+},{"./exprs":3,"./kinds":6,"./types":10}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const exprs_1 = require("./exprs");
@@ -410,6 +502,7 @@ const kinds_1 = require("./kinds");
 const parser_1 = require("./parser");
 const inference_1 = require("./inference");
 const compiler_1 = require("./compiler");
+const names_1 = require("./names");
 const tv = types_1.TVar;
 const ta = tv(0);
 const tb = tv(1);
@@ -440,6 +533,8 @@ function _show(x) {
 }
 function _run(i, cb) {
     try {
+        const time = Date.now();
+        names_1.resetTName();
         console.log(i);
         const p = parser_1.parse(i);
         console.log(exprs_1.showExpr(p));
@@ -447,6 +542,7 @@ function _run(i, cb) {
         console.log(`${types_1.showType(result)}`);
         const c = compiler_1.compileToJS(p);
         console.log(c);
+        console.log(`${Date.now() - time}ms`);
         const res = eval(c);
         cb(`${_show(res)} : ${types_1.prettyType(result)}`);
     }
@@ -457,7 +553,7 @@ function _run(i, cb) {
 }
 exports.default = _run;
 
-},{"./compiler":1,"./exprs":3,"./inference":4,"./kinds":6,"./parser":8,"./types":10}],10:[function(require,module,exports){
+},{"./compiler":1,"./exprs":3,"./inference":4,"./kinds":6,"./names":7,"./parser":8,"./types":10}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -471,6 +567,7 @@ exports.TVar = (name, kind = kinds_1.KType) => ({ tag: 'TVar', name, kind });
 exports.isTVar = (type) => type.tag === 'TVar';
 exports.TApp = (left, right) => ({ tag: 'TApp', left, right });
 exports.isTApp = (type) => type.tag === 'TApp';
+exports.tappFrom = (es) => es.reduce(exports.TApp);
 exports.tapp = (...es) => es.reduce(exports.TApp);
 exports.flattenTApp = (type) => {
     let c = type;
@@ -509,6 +606,7 @@ exports.showType = (type) => {
 exports.freshTMeta = (kind = kinds_1.KType) => exports.TMeta(names_1.freshTName(), kind, null);
 exports.TFun = exports.TConst('->', kinds_1.kfun(kinds_1.KType, kinds_1.KType, kinds_1.KType));
 exports.tfun = (a, b) => exports.TApp(exports.TApp(exports.TFun, a), b);
+exports.tfunFrom = (ts) => ts.reduceRight((a, b) => exports.tfun(b, a));
 exports.tfuns = (...ts) => ts.reduceRight((a, b) => exports.tfun(b, a));
 exports.isTFun = (type) => exports.isTApp(type) && exports.isTApp(type.left) && type.left.left === exports.TFun ?
     ({ left: type.left.right, right: type.right }) : null;
@@ -529,6 +627,14 @@ exports.TStr = exports.TConst('Str');
 exports.TRowEmpty = exports.TConst('()', kinds_1.KRow);
 exports.TRecord = exports.TConst('Rec', kinds_1.kfun(kinds_1.KRow, kinds_1.KType));
 exports.TVariant = exports.TConst('Var', kinds_1.kfun(kinds_1.KRow, kinds_1.KType));
+exports.TList = exports.TConst('List', kinds_1.kfun(kinds_1.KType, kinds_1.KType));
+exports.initialTypes = {
+    Float: exports.TFloat,
+    Str: exports.TStr,
+    Rec: exports.TRecord,
+    Var: exports.TVariant,
+    List: exports.TList,
+};
 exports.trow = (ts, rest = exports.TRowEmpty) => ts.reduceRight((r, [l, t]) => exports.TRowExtend(l, t, r), rest);
 const tvAlphabet = 'abcdefghijklmnopqrstuvwxyz';
 exports.prettyTypeR = (type, map, index) => {
@@ -644,6 +750,10 @@ exports.unify = (a_, b_, occ) => {
     if (a === b)
         return;
     // console.log(`unify ${showType(a)} ~ ${showType(b)}`);
+    if (types_1.isTVar(a) && types_1.isTVar(b) && a.name === b.name)
+        return;
+    if (types_1.isTMeta(a) && types_1.isTMeta(b) && a.name === b.name)
+        return;
     kindUnification_1.unifyKind(exports.inferKind(a), exports.inferKind(b));
     if (types_1.isTMeta(a))
         return bind(a, b, occ);

@@ -1,4 +1,6 @@
-import { Expr, Select, Var, Case, Inject, Extend, appFrom, Lit, Abs, abs } from "./exprs";
+import { Expr, Select, Var, Case, Inject, Extend, appFrom, Lit, Abs, abs, Anno, App } from "./exprs";
+import { Type, TVar, initialTypes, TRowEmpty, tfuns, tfun, tfunFrom, tappFrom } from "./types";
+import { freshKMeta } from "./kinds";
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -27,9 +29,14 @@ const tokenize = (s: string): Token[] => {
   let r: Token[] = [], p: Token[][] = [], b: Bracket[] = [], esc = false;
   for (let i = 0; i <= s.length; i++) {
     const c = s[i] || ' ';
+    const next = s[i+1] || ' ';
     // console.log(i, c, state, t, esc);
     if (state === START) {
-      if (/[a-z\.\+\?\@]/i.test(c)) t += c, state = NAME;
+      if (c === '-' && next === '>') r.push({ tag: 'TkName', val: '->' }), i++;
+      else if (c === ':') r.push({ tag: 'TkName', val: c });
+      else if (c === '$') r.push({ tag: 'TkName', val: c });
+      else if (c === '|') r.push({ tag: 'TkName', val: c });
+      else if (/[a-z\.\+\?\@]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUM;
       else if(c === '"') state = STR;
       else if(c === '(') b.push(c), p.push(r), r = [];
@@ -61,7 +68,21 @@ const tokenize = (s: string): Token[] => {
   return r;
 };
 
-const parseToken = (a: Token): Expr => {
+const splitTokens = (a: Token[], fn: (t: Token) => boolean): Token[][] => {
+  const r: Token[][] = [];
+  let t: Token[] = [];
+  for (let i = 0, l = a.length; i < l; i++) {
+    const c = a[i];
+    if (fn(c)) {
+      r.push(t);
+      t = [];
+    } else t.push(c);
+  }
+  if (t.length > 0) r.push(t);
+  return r;
+};
+
+const parseToken = (a: Token, tvMap: { [key: string]: number }, index: { val: number }): Expr => {
   switch (a.tag) {
     case 'TkNum': {
       const n = +a.val;
@@ -73,23 +94,58 @@ const parseToken = (a: Token): Expr => {
       if (a.val[0] === '+') return a.val.length === 1 ? err('nothing after +') : Extend(a.val.slice(1));
       if (a.val[0] === '@') return a.val.length === 1 ? err('nothing after @') : Inject(a.val.slice(1));
       if (a.val[0] === '?') return a.val.length === 1 ? err('nothing after ?') : Case(a.val.slice(1));
-      return Var(a.val);
+      if (/[a-z][a-z0-9]*/i.test(a.val)) return Var(a.val);
+      return err(`invalid name: ${a.val}`);
     }
     case 'TkStr': return Lit(a.val);
     case 'TkParens':
-      return parseParens(a.val);
+      return parseParens(a.val, tvMap, index);
   }
 };
-
-const parseParens = (a: Token[]): Expr => {
+const parseParens = (a: Token[], tvMap: { [key: string]: number }, index: { val: number }): Expr => {
   if (a.length === 0) return Var('empty');
-  if (a.length === 1) return parseToken(a[0]);
+  if (a.length === 1) return parseToken(a[0], tvMap, index);
+
+  const spl = splitTokens(a, t => t.tag === 'TkName' && t.val === ':');
+  if (spl.length === 0 || spl.length > 2) return err('invalid use of :');
+  if (spl.length === 2) {
+    const left = parseParens(spl[0], tvMap, index);
+    const right = parseParensType(spl[1], tvMap, index);
+    return Anno(left, right);
+  }
   if (a.length >= 2 && a[0].tag === 'TkName' && a[0].val === 'fn') {
     const sa = a[1].val;
     const args = Array.isArray(sa) ? sa.map(t => t.tag === 'TkName' ? t.val : err('invalid arg in fn')) : [sa];
-    return abs(args, parseParens(a.slice(2)));
+    return abs(args, parseParens(a.slice(2), tvMap, index));
   }
-  return appFrom(a.map(parseToken));
+  const rapps = splitTokens(a, t => t.tag === 'TkName' && t.val === '|');
+  if (rapps.length > 1) return rapps.map(x => parseParens(x, tvMap, index)).reduce((x, y) => App(y, x));
+  const apps = splitTokens(a, t => t.tag === 'TkName' && t.val === '$');
+  if (apps.length > 1) return appFrom(apps.map(x => parseParens(x, tvMap, index)));
+  return appFrom(apps[0].map(x => parseToken(x, tvMap, index)));
 };
 
-export const parse = (s: string): Expr => parseParens(tokenize(s));
+const parseTokenType = (a: Token, tvMap: { [key: string]: number }, index: { val: number }): Type => {
+  switch (a.tag) {
+    case 'TkNum': return err('number cannot be used as a type');
+    case 'TkName': {
+      const n = a.val;
+      if (/[a-z]/.test(n[0])) return TVar(typeof tvMap[n] !== 'undefined' ? tvMap[n] : tvMap[n] = index.val++, freshKMeta());
+      if (/[A-Z]/.test(n[0]) && initialTypes[n]) return initialTypes[n];
+      return err(`invalid type: ${n}`);
+    }
+    case 'TkStr': return err('string cannot be used as a type');
+    case 'TkParens':
+      return parseParensType(a.val, tvMap, index);
+  }
+};
+const parseParensType = (a: Token[], tvMap: { [key: string]: number }, index: { val: number }): Type => {
+  if (a.length === 0) return TRowEmpty;
+  if (a.length === 1) return parseTokenType(a[0], tvMap, index);
+  const spl = splitTokens(a, t => t.tag === 'TkName' && t.val === '->');
+  if (spl.length === 1) return tappFrom(spl[0].map(x => parseTokenType(x, tvMap, index)));
+  if (spl.length < 2) return err('invalid use of ->');
+  return tfunFrom(spl.map(x => parseParensType(x, tvMap, index)));
+};
+
+export const parse = (s: string): Expr => parseParens(tokenize(s), {}, { val: 0 });

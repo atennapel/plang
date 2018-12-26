@@ -75,6 +75,9 @@ export const unify = (a_: Type, b_: Type, occ?: Occ): void => {
 
   // console.log(`unify ${showType(a)} ~ ${showType(b)}`);
 
+  if (isTVar(a) && isTVar(b) && a.name === b.name) return;
+  if (isTMeta(a) && isTMeta(b) && a.name === b.name) return;
+
   unifyKind(inferKind(a), inferKind(b));
 
   if (isTMeta(a)) return bind(a, b, occ);

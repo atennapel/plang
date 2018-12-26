@@ -5,6 +5,7 @@ import { KRow, kfun, KType } from "./kinds";
 import { parse } from "./parser";
 import { inferTop } from "./inference";
 import { compileToJS } from "./compiler";
+import { resetTName } from "./names";
 
 const tv = TVar;
 const ta = tv(0);
@@ -35,6 +36,8 @@ function _show(x: any): string {
 
 export default function _run(i: string, cb: (output: string, err?: boolean) => void): void {
   try {
+    const time = Date.now();
+    resetTName();
     console.log(i);
     const p = parse(i);
     console.log(showExpr(p));
@@ -42,6 +45,7 @@ export default function _run(i: string, cb: (output: string, err?: boolean) => v
     console.log(`${showType(result)}`);
     const c = compileToJS(p);
     console.log(c);
+    console.log(`${Date.now() - time}ms`);
     const res = eval(c);
     cb(`${_show(res)} : ${prettyType(result)}`);
   } catch(e) {

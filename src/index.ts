@@ -1,7 +1,7 @@
 import { Env } from "./env";
 import { Let, Var, showExpr, abs, app, Anno, Select, Inject, Extend, Case } from "./exprs";
 import { inferTop } from "./inference";
-import { showType, tfun, TVar, TConst, tfuns, tapp, TRowEmpty, TRowExtend, TRecord, TVariant } from "./types";
+import { showType, tfun, TVar, TConst, tfuns, tapp, TRowEmpty, TRowExtend, TRecord, TVariant, TList } from "./types";
 import { KType, kfun, KRow } from "./kinds";
 
 const tv = TVar;
@@ -9,7 +9,6 @@ const v = Var;
 
 const Bool = TConst('Bool');
 const Int = TConst('Int');
-const List = TConst('List', kfun(KType, KType));
 
 const ta = tv(0);
 const tb = tv(1);
@@ -21,8 +20,8 @@ const env: Env = {
   zero: Int,
   inc: tfuns(Int, Int),
   k: tfuns(ta, tb, ta),
-  singleton: tfuns(ta, tapp(List, ta)),
-  list: List,
+  singleton: tfuns(ta, tapp(TList, ta)),
+  list: TList,
   fix: tfuns(tfuns(ta, ta), ta),
   empty: tapp(TRecord, TRowEmpty),
   end: tfuns(tapp(TVariant, TRowEmpty), ta),
