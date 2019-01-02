@@ -1,24 +1,32 @@
-import { Name, TName, freshTName } from "./names";
-import { err } from "./utils";
+import { impossible } from './errors';
+import { Name, showName, eqName } from './names';
 
-export type Kind = KConst | KMeta | KFun;
+export type Kind
+  = KVar
+  | KMeta
+  | KFun;
 
-export interface KConst {
-  readonly tag: 'KConst';
+export interface KVar {
+  readonly tag: 'KVar';
   readonly name: Name;
 }
-export const KConst = (name: Name): KConst =>
-  ({ tag: 'KConst', name });
-export const isKConst = (kind: Kind): kind is KConst => kind.tag === 'KConst';
+export const KVar = (name: Name): KVar =>
+  ({ tag: 'KVar', name });
+export const isKVar = (kind: Kind): kind is KVar =>
+  kind.tag === 'KVar';
+export const matchKVar = (name: Name) => (kind: Kind): kind is KVar =>
+  isKVar(kind) && eqName(kind.name, name);
 
 export interface KMeta {
   readonly tag: 'KMeta';
-  readonly name: TName;
-  kind: Kind | null;
+  readonly name: Name;
 }
-export const KMeta = (name: TName, kind: Kind | null): KMeta =>
-  ({ tag: 'KMeta', name, kind });
-export const isKMeta = (kind: Kind): kind is KMeta => kind.tag === 'KMeta';
+export const KMeta = (name: Name): KMeta =>
+  ({ tag: 'KMeta', name });
+export const isKMeta = (kind: Kind): kind is KMeta =>
+  kind.tag === 'KMeta';
+export const matchKMeta = (name: Name) => (kind: Kind): kind is KMeta =>
+  isKMeta(kind) && eqName(kind.name, name);
 
 export interface KFun {
   readonly tag: 'KFun';
@@ -27,17 +35,16 @@ export interface KFun {
 }
 export const KFun = (left: Kind, right: Kind): KFun =>
   ({ tag: 'KFun', left, right });
-export const isKFun = (kind: Kind): kind is KFun => kind.tag === 'KFun';
-export const kfun = (...ks: Kind[]): Kind => ks.reduceRight((a, b) => KFun(b, a));
+export const isKFun = (kind: Kind): kind is KFun =>
+  kind.tag === 'KFun';
+export const kfunFrom = (ks: Kind[]): Kind =>
+  ks.reduceRight((x, y) => KFun(y, x));
+export const kfun = (...ks: Kind[]): Kind =>
+  kfunFrom(ks);
 
-export const showKind = (type: Kind): string => {
-  if (isKConst(type)) return type.name;
-  if (isKMeta(type)) return `?${type.name}`;
-  if (isKFun(type)) return `(${showKind(type.left)} -> ${showKind(type.right)})`;
-  return err('unexpected kind in showKind');
+export const showKind = (kind: Kind): string => {
+  if (isKVar(kind)) return `${showName(kind.name)}`;
+  if (isKMeta(kind)) return `?${showName(kind.name)}`;
+  if (isKFun(kind)) return `(${showKind(kind.left)} -> ${showKind(kind.right)})`;
+  return impossible('showKind');
 };
-
-export const freshKMeta = () => KMeta(freshTName(), null);
-
-export const KType = KConst('Type');
-export const KRow = KConst('Row');
