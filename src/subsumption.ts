@@ -1,11 +1,13 @@
 import { Type, isTVar, isTMeta, isTFun, isTForall, openTForall, TMeta, TVar, showType, containsTMeta, isMono, TFun } from './types';
-import { eqName, freshName, Name, showName, Plain } from './names';
-import { withElems, split, addAll, add, comesBefore, context, setContext, replace, apply } from './context';
+import { eqName, freshName, Name, showName } from './names';
+import { withElems, split, addAll, add, context, setContext, replace, apply, showContext } from './context';
 import { CTMeta, CTVar, matchCTMeta } from './elems';
 import { err, InferError } from './errors';
 import { wfType } from './wellformedness';
+import { log } from './logging';
 
 const solve = (x: Name, type: Type): void => {
+  log(`solve: ${showName(x)} := ${showType(type)}`);
   if (!isMono(type)) return err(`cannot solve with a polytype: ${showName(x)} := ${showType(type)}`);
   const right = split(matchCTMeta(x));
   wfType(type);
@@ -14,6 +16,7 @@ const solve = (x: Name, type: Type): void => {
 };
 
 const instL = (x: Name, type: Type): void => {
+  log(`instL: ${showName(x)} := ${showType(type)}`);
   const old = context.slice(0);
   try {
     solve(x, type);
@@ -43,6 +46,7 @@ const instL = (x: Name, type: Type): void => {
 };
 
 const instR = (type: Type, x: Name): void => {
+  log(`instR: ${showType(type)} =: ${showName(x)}`);
   const old = context.slice(0);
   try {
     solve(x, type);
@@ -71,13 +75,14 @@ const instR = (type: Type, x: Name): void => {
   }
 };
 
-const subsume = (t1: Type, t2: Type): void => {
+export const subsume = (t1: Type, t2: Type): void => {
+  log(`subsume: ${showType(t1)} <: ${showType(t2)}`);
   if (t1 === t2) return;
   if (isTVar(t1) && isTVar(t2) && eqName(t1.name, t2.name)) return;
   if (isTMeta(t1) && isTMeta(t2) && eqName(t1.name, t2.name)) return;
   if (isTFun(t1) && isTFun(t2)) {
     subsume(t2.left, t1.left);
-    subsume(t1.right, t2.right);
+    subsume(apply(t1.right), apply(t2.right));
     return;
   }
   if (isTForall(t1)) {

@@ -64,9 +64,9 @@ export const showType = (type: Type): string => {
 };
 
 export const isMono = (type: Type): boolean => {
-  if (isTForall(type)) return true;
+  if (isTForall(type)) return false;
   if (isTFun(type)) return isMono(type.left) && isMono(type.right);
-  return false;
+  return true;
 };
 
 export const substTVar = (tv: Name, sub: Type, type: Type): Type => {
@@ -92,4 +92,23 @@ export const containsTMeta = (tv: Name, type: Type): boolean => {
   if (isTFun(type)) return containsTMeta(tv, type.left) || containsTMeta(tv, type.right);
   if (isTForall(type)) return containsTMeta(tv, type.type);
   return impossible('containsTMeta');
+};
+
+export const freeTMeta = (type: Type, res: Name[] = []): Name[] => {
+  if (isTVar(type)) return res;
+  if (isTMeta(type)) {
+    const x = type.name;
+    for (let i = 0, l = res.length; i < l; i++) {
+      if (eqName(res[i], x)) return res;
+    }
+    res.push(x);
+    return res;
+  }
+  if (isTFun(type)) {
+    freeTMeta(type.left, res);
+    freeTMeta(type.right, res);
+    return res;
+  }
+  if (isTForall(type)) return freeTMeta(type.type, res);
+  return impossible('freeTMeta');
 };

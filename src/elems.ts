@@ -22,7 +22,7 @@ export const matchCTVar = (name: Name) => (elem: Elem): elem is CTVar =>
 export interface CTMeta {
   readonly tag: 'CTMeta';
   readonly name: Name;
-  type: Type | null;
+  readonly type: Type | null;
 }
 export const CTMeta = (name: Name, type: Type | null = null): CTMeta =>
   ({ tag: 'CTMeta', name, type });
@@ -33,10 +33,6 @@ export const matchCTMeta = (name: Name) => (elem: Elem): elem is CTMeta =>
 
 export const isUnsolved = (elem: Elem): elem is CTMeta =>
   isCTMeta(elem) && !elem.type;
-export const solveCTMeta = (elem: CTMeta, type: Type): CTMeta => {
-  elem.type = type;
-  return elem;
-};
 
 export interface CVar {
   readonly tag: 'CVar';
@@ -64,7 +60,7 @@ export const matchCMarker = (name: Name) => (elem: Elem): elem is CMarker =>
 export const showElem = (elem: Elem): string => {
   if (isCTVar(elem)) return `${showName(elem.name)}`;
   if (isCTMeta(elem)) return `?${showName(elem.name)}${elem.type ? ` = ${showType(elem.type)}` : ''}`;
-  if (isCVar(elem)) return `${showName(elem.name)} = ${showType(elem.type)})`;
+  if (isCVar(elem)) return `${showName(elem.name)} : ${showType(elem.type)}`;
   if (isCMarker(elem)) return `|>${showName(elem.name)}`;
   return impossible('showElem');
 };

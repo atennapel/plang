@@ -1,7 +1,8 @@
-import { Elem, showElem, CMarker, matchCMarker, isCTMeta, matchCTMeta } from './elems';
+import { Elem, showElem, CMarker, matchCMarker, isCTMeta, matchCTMeta, isUnsolved } from './elems';
 import { err, impossible } from './errors';
-import { freshName, Plain, Name, eqName } from './names';
-import { Type, isTVar, isTMeta, isTFun, isTForall, TFun, TForall } from './types';
+import { freshName, Plain, Name, eqName, showName } from './names';
+import { Type, isTVar, isTMeta, isTFun, isTForall, TFun, TForall, showType, freeTMeta } from './types';
+import { log } from './logging';
 
 export type Context = Elem[];
 
@@ -36,6 +37,15 @@ export const findElem = <T extends Elem>(fn: (elem: Elem) => elem is T, msg: str
   }
   return err(msg);
 };
+export const findElems = <T>(fn: (elem: Elem) => T | null, ctx: Context = context): T[] => {
+  const r: T[] = [];
+  for (let i = 0, l = ctx.length; i < l; i++) {
+    const elem = ctx[i];
+    const res = fn(elem);
+    if (res) r.push(res);
+  }
+  return r;
+};
 export const findElemNot = (fn: (elem: Elem) => boolean, msg: string = 'elem found in findElemNot'): void => {
   const i = findIndex(fn);
   if (i >= 0) return err(msg);
@@ -64,6 +74,14 @@ export const withElems = <T>(es: Elem[], fn: () => T): T => {
   split(matchCMarker(m));
   return val;
 };
+export const withElemsContext = <T>(es: Elem[], fn: () => T): [T, Context] => {
+  const m = freshName(Plain('m'));
+  add(CMarker(m));
+  addAll(es);
+  const val = fn();
+  const right = split(matchCMarker(m));
+  return [val, right];
+};
 
 export const comesBefore = (a: Name, b: Name): boolean => {
   for (let i = 0, l = context.length; i < l; i++) {
@@ -77,10 +95,33 @@ export const comesBefore = (a: Name, b: Name): boolean => {
 export const apply = (type: Type): Type => {
   if (isTVar(type)) return type;
   if (isTMeta(type)) {
-    const e = findElem(matchCTMeta(type.name));
+    const e = findElem(matchCTMeta(type.name), `apply: ${showType(type)} not found in context`);
     return e.type ? apply(e.type) : type;
   }
   if (isTFun(type)) return TFun(apply(type.left), apply(type.right));
   if (isTForall(type)) return TForall(type.name, apply(type.type));
   return impossible('apply');
+};
+
+export const isComplete = () => findIndex(isUnsolved) < 0;
+export const unsolved = (ctx: Context = context): Name[] =>
+  findElems(e => isUnsolved(e) ? e.name : null, ctx);
+
+export const unsolvedInType = (type: Type, ctx: Context = context): Name[] => {
+  const u = unsolved(ctx);
+  const f = freeTMeta(type);
+  const ret: Name[] = [];
+  for (let i = 0, l = f.length; i < l; i++) {
+    const x = f[i];
+    let found = false;
+    for (let j = 0, k = u.length; j < k; j++) {
+      const y = u[j];
+      if (eqName(x, y)) {
+        found = true;
+        break;
+      }
+    }
+    if (found) ret.push(x);
+  }
+  return ret;
 };

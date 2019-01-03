@@ -1,50 +1,35 @@
-import { Env } from "./env";
-import { Let, Var, showExpr, abs, app, Anno, Select, Inject, Extend, Case } from "./exprs";
-import { inferTop } from "./inference";
-import { showType, tfun, TVar, TConst, tfuns, tapp, TRowEmpty, TRowExtend, TRecord, TVariant } from "./types";
-import { KType, kfun, KRow } from "./kinds";
+import { setContext } from './context';
+import { Var, showExpr, abs, app } from './exprs';
+import { Plain } from './names';
+import { CTVar, CVar } from './elems';
+import { TVar, showType } from './types';
+import { infer } from './inference';
+import { setLogging } from './logging';
 
-const tv = TVar;
-const v = Var;
+/**
+TODO:
+  - pretty printing of types
+  - kind inference
+*/
 
-const Bool = TConst('Bool');
-const Int = TConst('Int');
-const List = TConst('List', kfun(KType, KType));
+const $ = Plain;
+const [x, y, z] = ['x', 'y', 'z'].map($);
 
-const ta = tv(0);
-const tb = tv(1);
-const tr = tv(1, KRow);
+const Bool = $('Bool');
+const True = $('True');
 
-const microtime = require('microtime');
-const env: Env = {
-  True: Bool,
-  zero: Int,
-  inc: tfuns(Int, Int),
-  k: tfuns(ta, tb, ta),
-  singleton: tfuns(ta, tapp(List, ta)),
-  list: List,
-  fix: tfuns(tfuns(ta, ta), ta),
-  empty: tapp(TRecord, TRowEmpty),
-  end: tfuns(tapp(TVariant, TRowEmpty), ta),
-  objX: tapp(TRecord, TRowExtend('x', Bool, TRowEmpty)),
-  objY: tapp(TRecord, TRowExtend('y', Bool, TRowEmpty)),
-  objYX: tapp(TRecord, TRowExtend('y', Bool, TRowExtend('x', Int, TRowEmpty))),
-};
+setContext([
+  CTVar(Bool),
+  CVar(True, TVar(Bool)),
+]);
 
-const expr = app(
-  Case('Just'),
-  v('inc'),
-  app(
-    Case('Nothing'),
-    app(v('k'), v('zero')),
-    v('end'),
-  ),
-);
+const expr = abs([x, y], Var(x));
 console.log(showExpr(expr));
-
+const microtime = require('microtime');
+setLogging(true, true);
 try {
   let time = microtime.now();
-  const type = inferTop(env, expr);
+  const type = infer(expr);
   time = microtime.now() - time;
   console.log(showType(type));
   console.log(`${time}`);

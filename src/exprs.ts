@@ -28,7 +28,7 @@ export const Abs = (arg: Name, body: Expr): Abs =>
   ({ tag: 'Abs', arg, body });
 export const isAbs = (expr: Expr): expr is Abs =>
   expr.tag === 'Abs';
-export const tforall = (ns: Name[], body: Expr): Expr =>
+export const abs = (ns: Name[], body: Expr): Expr =>
   ns.reduceRight((t, n) => Abs(n, t), body);
 
 export interface App {
@@ -62,3 +62,13 @@ export const showExpr = (expr: Expr): string => {
   if (isAnno(expr)) return `(${showExpr(expr.expr)} : ${showType(expr.type)})`;
   return impossible('showExpr');
 };
+
+export const substVar = (vr: Name, sub: Expr, expr: Expr): Expr => {
+  if (isVar(expr)) return eqName(expr.name, vr) ? sub: expr;
+  if (isAbs(expr)) return eqName(expr.arg, vr) ? expr : Abs(expr.arg, substVar(vr, sub, expr.body));
+  if (isApp(expr)) return App(substVar(vr, sub, expr.left), substVar(vr, sub, expr.right));
+  if (isAnno(expr)) return Anno(substVar(vr, sub, expr.expr), expr.type);
+  return impossible('substVar');
+};
+export const openAbs = (abs: Abs, sub: Expr): Expr =>
+  substVar(abs.arg, sub, abs.body);
