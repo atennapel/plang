@@ -42,6 +42,16 @@ export const tfunFrom = (ts: Type[]): Type =>
   ts.reduceRight((x, y) => TFun(y, x));
 export const tfun = (...ts: Type[]): Type =>
   tfunFrom(ts);
+export const flattenTFun = (type: Type): Type[] => {
+  const r: Type[] = [];
+  let c = type;
+  while (isTFun(c)) {
+    r.push(c.left);
+    c = c.right;
+  }
+  r.push(c);
+  return r;
+};
 
 export interface TForall {
   readonly tag: 'TForall';
@@ -54,6 +64,15 @@ export const isTForall = (type: Type): type is TForall =>
   type.tag === 'TForall';
 export const tforall = (ns: Name[], type: Type): Type =>
   ns.reduceRight((t, n) => TForall(n, t), type);
+export const flattenTForall = (type: Type): { args: Name[], type: Type } => {
+  const args: Name[] = [];
+  let c = type;
+  while (isTForall(c)) {
+    args.push(c.name);
+    c = c.type;
+  }
+  return { args, type: c };
+};
 
 export const showType = (type: Type): string => {
   if (isTVar(type)) return `${showName(type.name)}`;
@@ -61,6 +80,20 @@ export const showType = (type: Type): string => {
   if (isTFun(type)) return `(${showType(type.left)} -> ${showType(type.right)})`;
   if (isTForall(type)) return `(forall ${showName(type.name)}. ${showType(type.type)})`;
   return impossible('showType');
+};
+
+export const prettyType = (type: Type): string => {
+  if (isTVar(type)) return `${showName(type.name)}`;
+  if (isTMeta(type)) return `?${showName(type.name)}`;
+  if (isTFun(type))
+    return flattenTFun(type)
+      .map(t => isTFun(t) || isTForall(t) ? `(${prettyType(t)})` : prettyType(t))
+      .join(' -> ');
+  if (isTForall(type)) {
+    const f = flattenTForall(type);
+    return `forall ${f.args.map(showName).join(' ')}. ${prettyType(f.type)}`;
+  }
+  return impossible('prettyType');
 };
 
 export const isMono = (type: Type): boolean => {

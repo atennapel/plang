@@ -2,13 +2,12 @@ import { setContext } from './context';
 import { Var, showExpr, abs, app } from './exprs';
 import { Plain } from './names';
 import { CTVar, CVar } from './elems';
-import { TVar, showType } from './types';
+import { TVar, showType, prettyType } from './types';
 import { infer } from './inference';
 import { setLogging } from './logging';
 
 /**
 TODO:
-  - pretty printing of types
   - kind inference
 */
 
@@ -31,7 +30,7 @@ try {
   let time = microtime.now();
   const type = infer(expr);
   time = microtime.now() - time;
-  console.log(showType(type));
+  console.log(prettyType(type));
   console.log(`${time}`);
 } catch(err) {
   console.log('' + err);

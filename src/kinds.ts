@@ -41,10 +41,30 @@ export const kfunFrom = (ks: Kind[]): Kind =>
   ks.reduceRight((x, y) => KFun(y, x));
 export const kfun = (...ks: Kind[]): Kind =>
   kfunFrom(ks);
+export const flattenKFun = (kind: Kind): Kind[] => {
+  const r: Kind[] = [];
+  let c = kind;
+  while (isKFun(c)) {
+    r.push(c.left);
+    c = c.right;
+  }
+  r.push(c);
+  return r;
+};
 
 export const showKind = (kind: Kind): string => {
   if (isKVar(kind)) return `${showName(kind.name)}`;
   if (isKMeta(kind)) return `?${showName(kind.name)}`;
   if (isKFun(kind)) return `(${showKind(kind.left)} -> ${showKind(kind.right)})`;
   return impossible('showKind');
+};
+
+export const prettyKind = (kind: Kind): string => {
+  if (isKVar(kind)) return `${showName(kind.name)}`;
+  if (isKMeta(kind)) return `?${showName(kind.name)}`;
+  if (isKFun(kind))
+    return flattenKFun(kind)
+      .map(k => isKFun(k) ? `(${prettyKind(k)})` : prettyKind(k))
+      .join(' -> ');
+  return impossible('prettyKind');
 };
