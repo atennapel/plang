@@ -1,16 +1,16 @@
-import { Type, isTVar, isTMeta, isTFun, isTForall, openTForall, TVar } from './types';
+import { Type, isTVar, isTMeta, isTFun, isTForall, openTForall, TVar, showType } from './types';
 import { impossible } from './errors';
 import { context, withElems, findElem, findElemNot, setContext } from './context';
-import { freshName } from './names';
+import { freshName, showName } from './names';
 import { CTVar, matchCTVar, matchCTMeta, Elem, isCTVar, isCTMeta, isCVar, isCMarker, matchCVar, matchCMarker } from './elems';
 
 export const wfType = (type: Type): void => {
   if (isTVar(type)) {
-    findElem(matchCTVar(type.name), `undefined TVar ${type.name}`);
+    findElem(matchCTVar(type.name), `undefined TVar ${showType(type)}`);
     return;
   }
   if (isTMeta(type)) {
-    findElem(matchCTMeta(type.name), `undefined TMeta ?${type.name}`);
+    findElem(matchCTMeta(type.name), `undefined TMeta ${showType(type)}`);
     return;
   }
   if (isTFun(type)) {
@@ -27,12 +27,12 @@ export const wfType = (type: Type): void => {
 };
 
 export const wfElem = (elem: Elem): void => {
-  if (isCTVar(elem)) return findElemNot(matchCTVar(elem.name), `duplicate CTVar ${elem.name}`);
-  if (isCTMeta(elem)) return findElemNot(matchCTMeta(elem.name), `duplicate CTMeta ?${elem.name}`);
-  if (isCVar(elem)) return findElemNot(matchCVar(elem.name), `duplicate CVar ${elem.name}`);
+  if (isCTVar(elem)) return findElemNot(matchCTVar(elem.name), `duplicate CTVar ${showName(elem.name)}`);
+  if (isCTMeta(elem)) return findElemNot(matchCTMeta(elem.name), `duplicate CTMeta ?${showName(elem.name)}`);
+  if (isCVar(elem)) return findElemNot(matchCVar(elem.name), `duplicate CVar ${showName(elem.name)}`);
   if (isCMarker(elem)) {
     const x = elem.name;
-    return findElemNot(e => matchCMarker(x)(e) || matchCTMeta(x)(e), `duplicate CMarker |>${x}`);
+    return findElemNot(e => matchCMarker(x)(e) || matchCTMeta(x)(e), `duplicate CMarker |>${showName(x)}`);
   }
   return impossible('wfElem');
 };

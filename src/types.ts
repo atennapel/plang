@@ -63,6 +63,12 @@ export const showType = (type: Type): string => {
   return impossible('showType');
 };
 
+export const isMono = (type: Type): boolean => {
+  if (isTForall(type)) return true;
+  if (isTFun(type)) return isMono(type.left) && isMono(type.right);
+  return false;
+};
+
 export const substTVar = (tv: Name, sub: Type, type: Type): Type => {
   if (isTVar(type)) return eqName(type.name, tv) ? sub : type;
   if (isTMeta(type)) return type;
@@ -79,3 +85,11 @@ export const substTMeta = (tv: Name, sub: Type, type: Type): Type => {
 };
 export const openTForall = (type: TForall, sub: Type): Type =>
   substTVar(type.name, sub, type.type);
+
+export const containsTMeta = (tv: Name, type: Type): boolean => {
+  if (isTVar(type)) return false;
+  if (isTMeta(type)) return eqName(type.name, tv);
+  if (isTFun(type)) return containsTMeta(tv, type.left) || containsTMeta(tv, type.right);
+  if (isTForall(type)) return containsTMeta(tv, type.type);
+  return impossible('containsTMeta');
+};
