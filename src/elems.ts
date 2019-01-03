@@ -1,19 +1,49 @@
 import { impossible } from './errors';
 import { Name, showName, eqName } from './names';
 import { Type, showType } from './types';
+import { Kind, showKind } from './kinds';
 
 export type Elem
-  = CTVar
+  = CKVar
+  | CKMeta
+  | CTVar
   | CTMeta
   | CVar
   | CMarker;
 
+export interface CKVar {
+  readonly tag: 'CKVar';
+  readonly name: Name;
+}
+export const CKVar = (name: Name): CKVar =>
+  ({ tag: 'CKVar', name });
+export const isCKVar = (elem: Elem): elem is CKVar =>
+  elem.tag === 'CKVar';
+export const matchCKVar = (name: Name) => (elem: Elem): elem is CKVar =>
+  isCKVar(elem) && eqName(elem.name, name);
+
+export interface CKMeta {
+  readonly tag: 'CKMeta';
+  readonly name: Name;
+  readonly kind: Kind | null;
+}
+export const CKMeta = (name: Name, kind: Kind | null = null): CKMeta =>
+  ({ tag: 'CKMeta', name, kind });
+export const isCKMeta = (elem: Elem): elem is CKMeta =>
+  elem.tag === 'CKMeta';
+export const matchCKMeta = (name: Name) => (elem: Elem): elem is CKMeta =>
+  isCKMeta(elem) && eqName(elem.name, name);
+
+export const isKMetaUnsolved = (elem: Elem): elem is CKMeta =>
+  isCKMeta(elem) && !elem.kind;
+
 export interface CTVar {
   readonly tag: 'CTVar';
   readonly name: Name;
+  readonly kind: Kind;
 }
-export const CTVar = (name: Name): CTVar =>
-  ({ tag: 'CTVar', name });
+export const CTVar = (name: Name, kind: Kind): CTVar =>
+  ({ tag: 'CTVar', name, kind });
 export const isCTVar = (elem: Elem): elem is CTVar =>
   elem.tag === 'CTVar';
 export const matchCTVar = (name: Name) => (elem: Elem): elem is CTVar =>
@@ -22,17 +52,21 @@ export const matchCTVar = (name: Name) => (elem: Elem): elem is CTVar =>
 export interface CTMeta {
   readonly tag: 'CTMeta';
   readonly name: Name;
+  readonly kind: Kind;
   readonly type: Type | null;
 }
-export const CTMeta = (name: Name, type: Type | null = null): CTMeta =>
-  ({ tag: 'CTMeta', name, type });
+export const CTMeta = (name: Name, kind: Kind, type: Type | null = null): CTMeta =>
+  ({ tag: 'CTMeta', name, kind, type });
 export const isCTMeta = (elem: Elem): elem is CTMeta =>
   elem.tag === 'CTMeta';
 export const matchCTMeta = (name: Name) => (elem: Elem): elem is CTMeta =>
   isCTMeta(elem) && eqName(elem.name, name);
 
-export const isUnsolved = (elem: Elem): elem is CTMeta =>
+export const isTMetaUnsolved = (elem: Elem): elem is CTMeta =>
   isCTMeta(elem) && !elem.type;
+
+export const isUnsolved = (elem: Elem): elem is CKMeta | CTMeta =>
+  isKMetaUnsolved(elem) || isTMetaUnsolved(elem);
 
 export interface CVar {
   readonly tag: 'CVar';
@@ -58,8 +92,10 @@ export const matchCMarker = (name: Name) => (elem: Elem): elem is CMarker =>
   isCMarker(elem) && eqName(elem.name, name);
 
 export const showElem = (elem: Elem): string => {
-  if (isCTVar(elem)) return `${showName(elem.name)}`;
-  if (isCTMeta(elem)) return `?${showName(elem.name)}${elem.type ? ` = ${showType(elem.type)}` : ''}`;
+  if (isCKVar(elem)) return `kind ${showName(elem.name)}`;
+  if (isCKMeta(elem)) return `kind ?${showName(elem.name)}${elem.kind ? ` = ${showKind(elem.kind)}` : ''}`;
+  if (isCTVar(elem)) return `type ${showName(elem.name)} : ${showKind(elem.kind)}`;
+  if (isCTMeta(elem)) return `type ?${showName(elem.name)} : ${showKind(elem.kind)}${elem.type ? ` = ${showType(elem.type)}` : ''}`;
   if (isCVar(elem)) return `${showName(elem.name)} : ${showType(elem.type)}`;
   if (isCMarker(elem)) return `|>${showName(elem.name)}`;
   return impossible('showElem');

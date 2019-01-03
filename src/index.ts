@@ -1,14 +1,16 @@
-import { setContext } from './context';
+import { setContext, addAll } from './context';
 import { Var, showExpr, abs, app } from './exprs';
 import { Plain } from './names';
 import { CTVar, CVar } from './elems';
-import { TVar, showType, prettyType } from './types';
+import { TVar, prettyType } from './types';
 import { infer } from './inference';
 import { setLogging } from './logging';
+import { setupKinds, kType, kfun } from './kinds';
 
 /**
 TODO:
-  - kind inference
+  - higher kinded types
+  - constraints
 */
 
 const $ = Plain;
@@ -17,8 +19,10 @@ const [x, y, z] = ['x', 'y', 'z'].map($);
 const Bool = $('Bool');
 const True = $('True');
 
-setContext([
-  CTVar(Bool),
+setContext();
+setupKinds();
+addAll([
+  CTVar(Bool, kType),
   CVar(True, TVar(Bool)),
 ]);
 

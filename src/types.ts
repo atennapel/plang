@@ -1,5 +1,6 @@
 import { impossible } from './errors';
 import { Name, showName, eqName } from './names';
+import { Kind, showKind, prettyKind } from './kinds';
 
 export type Type
   = TVar
@@ -56,19 +57,20 @@ export const flattenTFun = (type: Type): Type[] => {
 export interface TForall {
   readonly tag: 'TForall';
   readonly name: Name;
+  readonly kind: Kind;
   readonly type: Type;
 }
-export const TForall = (name: Name, type: Type): TForall =>
-  ({ tag: 'TForall', name, type });
+export const TForall = (name: Name, kind: Kind, type: Type): TForall =>
+  ({ tag: 'TForall', name, kind, type });
 export const isTForall = (type: Type): type is TForall =>
   type.tag === 'TForall';
-export const tforall = (ns: Name[], type: Type): Type =>
-  ns.reduceRight((t, n) => TForall(n, t), type);
-export const flattenTForall = (type: Type): { args: Name[], type: Type } => {
-  const args: Name[] = [];
+export const tforall = (ns: [Name, Kind][], type: Type): Type =>
+  ns.reduceRight((t, [n, k]) => TForall(n, k, t), type);
+export const flattenTForall = (type: Type): { args: [Name, Kind][], type: Type } => {
+  const args: [Name, Kind][] = [];
   let c = type;
   while (isTForall(c)) {
-    args.push(c.name);
+    args.push([c.name, c.kind]);
     c = c.type;
   }
   return { args, type: c };
@@ -78,7 +80,7 @@ export const showType = (type: Type): string => {
   if (isTVar(type)) return `${showName(type.name)}`;
   if (isTMeta(type)) return `?${showName(type.name)}`;
   if (isTFun(type)) return `(${showType(type.left)} -> ${showType(type.right)})`;
-  if (isTForall(type)) return `(forall ${showName(type.name)}. ${showType(type.type)})`;
+  if (isTForall(type)) return `(forall(${showName(type.name)} : ${showKind(type.kind)}). ${showType(type.type)})`;
   return impossible('showType');
 };
 
@@ -91,7 +93,7 @@ export const prettyType = (type: Type): string => {
       .join(' -> ');
   if (isTForall(type)) {
     const f = flattenTForall(type);
-    return `forall ${f.args.map(showName).join(' ')}. ${prettyType(f.type)}`;
+    return `forall${f.args.map(([n, k]) => `(${showName(n)} : ${prettyKind(k)})`).join('')}. ${prettyType(f.type)}`;
   }
   return impossible('prettyType');
 };
@@ -106,14 +108,14 @@ export const substTVar = (tv: Name, sub: Type, type: Type): Type => {
   if (isTVar(type)) return eqName(type.name, tv) ? sub : type;
   if (isTMeta(type)) return type;
   if (isTFun(type)) return TFun(substTVar(tv, sub, type.left), substTVar(tv, sub, type.right));
-  if (isTForall(type)) return eqName(type.name, tv) ? type : TForall(type.name, substTVar(tv, sub, type.type));
+  if (isTForall(type)) return eqName(type.name, tv) ? type : TForall(type.name, type.kind, substTVar(tv, sub, type.type));
   return impossible('substTVar');
 };
 export const substTMeta = (tv: Name, sub: Type, type: Type): Type => {
   if (isTVar(type)) return type;
   if (isTMeta(type)) return eqName(type.name, tv) ? sub : type;
   if (isTFun(type)) return TFun(substTMeta(tv, sub, type.left), substTMeta(tv, sub, type.right));
-  if (isTForall(type)) return TForall(type.name, substTMeta(tv, sub, type.type));
+  if (isTForall(type)) return TForall(type.name, type.kind, substTMeta(tv, sub, type.type));
   return impossible('substTMeta');
 };
 export const openTForall = (type: TForall, sub: Type): Type =>

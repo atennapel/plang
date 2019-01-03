@@ -1,5 +1,7 @@
 import { impossible } from './errors';
-import { Name, showName, eqName } from './names';
+import { Name, showName, eqName, Plain } from './names';
+import { addAll } from './context';
+import { CKVar } from './elems';
 
 export type Kind
   = KVar
@@ -67,4 +69,20 @@ export const prettyKind = (kind: Kind): string => {
       .map(k => isKFun(k) ? `(${prettyKind(k)})` : prettyKind(k))
       .join(' -> ');
   return impossible('prettyKind');
+};
+
+export const containsKMeta = (kv: Name, kind: Kind): boolean => {
+  if (isKVar(kind)) return false;
+  if (isKMeta(kind)) return eqName(kind.name, kv);
+  if (isKFun(kind)) return containsKMeta(kv, kind.left) || containsKMeta(kv, kind.right);
+  return impossible('containsKMeta');
+};
+
+export const nType = Plain('Type');
+export const kType = KVar(nType);
+
+export const setupKinds = () => {
+  addAll([
+    CKVar(nType),
+  ]);
 };

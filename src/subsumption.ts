@@ -1,17 +1,20 @@
 import { Type, isTVar, isTMeta, isTFun, isTForall, openTForall, TMeta, TVar, showType, containsTMeta, isMono, TFun } from './types';
 import { eqName, freshName, Name, showName } from './names';
-import { withElems, split, addAll, add, context, setContext, replace, apply, showContext } from './context';
+import { withElems, split, addAll, add, context, setContext, replace, apply, showContext, findElem } from './context';
 import { CTMeta, CTVar, matchCTMeta } from './elems';
 import { err, InferError } from './errors';
 import { wfType } from './wellformedness';
 import { log } from './logging';
+import { kType, Kind } from './kinds';
+import { unifyKindsOfTypes } from './inferenceKinds';
 
 const solve = (x: Name, type: Type): void => {
   log(`solve: ${showName(x)} := ${showType(type)}`);
   if (!isMono(type)) return err(`cannot solve with a polytype: ${showName(x)} := ${showType(type)}`);
+  const kind = findElem(matchCTMeta(x)).kind;
   const right = split(matchCTMeta(x));
   wfType(type);
-  add(CTMeta(x, type));
+  add(CTMeta(x, kind, type));
   addAll(right);
 };
 
@@ -28,9 +31,9 @@ const instL = (x: Name, type: Type): void => {
       const a = freshName(x);
       const b = freshName(x);
       replace(matchCTMeta(x), [
-        CTMeta(b),
-        CTMeta(a),
-        CTMeta(x, TFun(TMeta(a), TMeta(b))),
+        CTMeta(b, kType),
+        CTMeta(a, kType),
+        CTMeta(x, kType, TFun(TMeta(a), TMeta(b))),
       ]);
       instR(type.left, a);
       instL(b, apply(type.right));
@@ -38,7 +41,7 @@ const instL = (x: Name, type: Type): void => {
     }
     if (isTForall(type)) {
       const a = freshName(x);
-      withElems([CTVar(a)], () => instL(x, openTForall(type, TVar(a))));
+      withElems([CTVar(a, type.kind)], () => instL(x, openTForall(type, TVar(a))));
       return;
     }
     return err(`instL failed: ${showName(x)} := ${showType(type)}`);
@@ -58,9 +61,9 @@ const instR = (type: Type, x: Name): void => {
       const a = freshName(x);
       const b = freshName(x);
       replace(matchCTMeta(x), [
-        CTMeta(b),
-        CTMeta(a),
-        CTMeta(x, TFun(TMeta(a), TMeta(b))),
+        CTMeta(b, kType),
+        CTMeta(a, kType),
+        CTMeta(x, kType, TFun(TMeta(a), TMeta(b))),
       ]);
       instL(a, type.left);
       instR(apply(type.right), b);
@@ -68,7 +71,7 @@ const instR = (type: Type, x: Name): void => {
     }
     if (isTForall(type)) {
       const a = freshName(x);
-      withElems([CTMeta(x)], () => instR(openTForall(type, TMeta(a)), x));
+      withElems([CTMeta(x, type.kind)], () => instR(openTForall(type, TMeta(a)), x));
       return;
     }
     return err(`instL failed: ${showName(x)} := ${showType(type)}`);
@@ -77,6 +80,7 @@ const instR = (type: Type, x: Name): void => {
 
 export const subsume = (t1: Type, t2: Type): void => {
   log(`subsume: ${showType(t1)} <: ${showType(t2)}`);
+  unifyKindsOfTypes(t1, t2);
   if (t1 === t2) return;
   if (isTVar(t1) && isTVar(t2) && eqName(t1.name, t2.name)) return;
   if (isTMeta(t1) && isTMeta(t2) && eqName(t1.name, t2.name)) return;
@@ -87,12 +91,12 @@ export const subsume = (t1: Type, t2: Type): void => {
   }
   if (isTForall(t1)) {
     const x = freshName(t1.name);
-    withElems([CTMeta(x)], () => subsume(openTForall(t1, TMeta(x)), t2));
+    withElems([CTMeta(x, t1.kind)], () => subsume(openTForall(t1, TMeta(x)), t2));
     return;
   }
   if (isTForall(t2)) {
     const x = freshName(t2.name);
-    withElems([CTVar(x)], () => subsume(t1, openTForall(t2, TVar(x))));
+    withElems([CTVar(x, t2.kind)], () => subsume(t1, openTForall(t2, TVar(x))));
     return;
   }
   if (isTMeta(t1)) {

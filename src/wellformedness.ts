@@ -2,7 +2,25 @@ import { Type, isTVar, isTMeta, isTFun, isTForall, openTForall, TVar, showType }
 import { impossible } from './errors';
 import { context, withElems, findElem, findElemNot, setContext } from './context';
 import { freshName, showName } from './names';
-import { CTVar, matchCTVar, matchCTMeta, Elem, isCTVar, isCTMeta, isCVar, isCMarker, matchCVar, matchCMarker } from './elems';
+import { CTVar, matchCTVar, matchCTMeta, Elem, isCTVar, isCTMeta, isCVar, isCMarker, matchCVar, matchCMarker, matchCKMeta, matchCKVar, isCKVar, isCKMeta } from './elems';
+import { isKVar, isKMeta, isKFun, showKind, Kind } from './kinds';
+
+export const wfKind = (kind: Kind): void => {
+  if (isKVar(kind)){
+    findElem(matchCKVar(kind.name), `undefined KVar ${showKind(kind)}`);
+    return;
+  }
+  if (isKMeta(kind)) {
+    findElem(matchCKMeta(kind.name), `undefined KMeta ${showKind(kind)}`);
+    return;
+  }
+  if (isKFun(kind)){
+    wfKind(kind.left);
+    wfKind(kind.right);
+    return;
+  }
+  return impossible('wfKind');
+};
 
 export const wfType = (type: Type): void => {
   if (isTVar(type)) {
@@ -19,16 +37,25 @@ export const wfType = (type: Type): void => {
     return;
   }
   if (isTForall(type)) {
+    wfKind(type.kind);
     const x = freshName(type.name);
-    withElems([CTVar(x)], () => wfType(openTForall(type, TVar(x))));
+    withElems([CTVar(x, type.kind)], () => wfType(openTForall(type, TVar(x))));
     return;
   }
   return impossible('wfType');
 };
 
 export const wfElem = (elem: Elem): void => {
-  if (isCTVar(elem)) return findElemNot(matchCTVar(elem.name), `duplicate CTVar ${showName(elem.name)}`);
-  if (isCTMeta(elem)) return findElemNot(matchCTMeta(elem.name), `duplicate CTMeta ?${showName(elem.name)}`);
+  if (isCKVar(elem)) return findElemNot(matchCKVar(elem.name), `duplicate CKVar ${showName(elem.name)}`);
+  if (isCKMeta(elem)) return findElemNot(matchCKMeta(elem.name), `duplicate CKMeta ?${showName(elem.name)}`);
+  if (isCTVar(elem)) {
+    wfKind(elem.kind);
+    return findElemNot(matchCTVar(elem.name), `duplicate CTVar ${showName(elem.name)}`);
+  }
+  if (isCTMeta(elem)) {
+    wfKind(elem.kind);
+    return findElemNot(matchCTMeta(elem.name), `duplicate CTMeta ?${showName(elem.name)}`);
+  }
   if (isCVar(elem)) return findElemNot(matchCVar(elem.name), `duplicate CVar ${showName(elem.name)}`);
   if (isCMarker(elem)) {
     const x = elem.name;

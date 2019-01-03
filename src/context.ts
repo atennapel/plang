@@ -1,8 +1,9 @@
-import { Elem, showElem, CMarker, matchCMarker, isCTMeta, matchCTMeta, isUnsolved } from './elems';
+import { Elem, showElem, CMarker, matchCMarker, isCTMeta, matchCTMeta, isUnsolved, isTMetaUnsolved, matchCKMeta } from './elems';
 import { err, impossible } from './errors';
 import { freshName, Plain, Name, eqName, showName } from './names';
 import { Type, isTVar, isTMeta, isTFun, isTForall, TFun, TForall, showType, freeTMeta } from './types';
 import { log } from './logging';
+import { isKVar, isKMeta, KFun, Kind, isKFun, showKind } from './kinds';
 
 export type Context = Elem[];
 
@@ -99,29 +100,40 @@ export const apply = (type: Type): Type => {
     return e.type ? apply(e.type) : type;
   }
   if (isTFun(type)) return TFun(apply(type.left), apply(type.right));
-  if (isTForall(type)) return TForall(type.name, apply(type.type));
+  if (isTForall(type)) return TForall(type.name, applyKind(type.kind), apply(type.type));
   return impossible('apply');
 };
 
-export const isComplete = () => findIndex(isUnsolved) < 0;
-export const unsolved = (ctx: Context = context): Name[] =>
-  findElems(e => isUnsolved(e) ? e.name : null, ctx);
+export const applyKind = (kind: Kind): Kind => {
+  if (isKVar(kind)) return kind;
+  if (isKMeta(kind)) {
+    const e = findElem(matchCKMeta(kind.name), `applyKind: ${showKind(kind)} not found in context`);
+    return e.kind ? applyKind(e.kind) : kind;
+  }
+  if (isKFun(kind)) return KFun(applyKind(kind.left), applyKind(kind.right));
+  return impossible('applyKind');
+};
 
-export const unsolvedInType = (type: Type, ctx: Context = context): Name[] => {
-  const u = unsolved(ctx);
+export const isComplete = () => findIndex(isUnsolved) < 0;
+
+export const unsolvedTMetas = (ctx: Context = context): [Name, Kind][] =>
+  findElems(e => isTMetaUnsolved(e) ? [e.name, e.kind] as [Name, Kind] : null, ctx);
+
+export const unsolvedTMetasInType = (type: Type, ctx: Context = context): [Name, Kind][] => {
+  const u = unsolvedTMetas(ctx);
   const f = freeTMeta(type);
-  const ret: Name[] = [];
+  const ret: [Name, Kind][] = [];
   for (let i = 0, l = f.length; i < l; i++) {
     const x = f[i];
-    let found = false;
+    let found: Kind | null = null;
     for (let j = 0, k = u.length; j < k; j++) {
       const y = u[j];
-      if (eqName(x, y)) {
-        found = true;
+      if (eqName(x, y[0])) {
+        found = y[1];
         break;
       }
     }
-    if (found) ret.push(x);
+    if (found) ret.push([x, found]);
   }
   return ret;
 };
