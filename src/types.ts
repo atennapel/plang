@@ -62,3 +62,20 @@ export const showType = (type: Type): string => {
   if (isTForall(type)) return `(forall ${showName(type.name)}. ${showType(type.type)})`;
   return impossible('showType');
 };
+
+export const substTVar = (tv: Name, sub: Type, type: Type): Type => {
+  if (isTVar(type)) return eqName(type.name, tv) ? sub : type;
+  if (isTMeta(type)) return type;
+  if (isTFun(type)) return TFun(substTVar(tv, sub, type.left), substTVar(tv, sub, type.right));
+  if (isTForall(type)) return eqName(type.name, tv) ? type : TForall(type.name, substTVar(tv, sub, type.type));
+  return impossible('substTVar');
+};
+export const substTMeta = (tv: Name, sub: Type, type: Type): Type => {
+  if (isTVar(type)) return type;
+  if (isTMeta(type)) return eqName(type.name, tv) ? sub : type;
+  if (isTFun(type)) return TFun(substTMeta(tv, sub, type.left), substTMeta(tv, sub, type.right));
+  if (isTForall(type)) return TForall(type.name, substTMeta(tv, sub, type.type));
+  return impossible('substTMeta');
+};
+export const openTForall = (type: TForall, sub: Type): Type =>
+  substTVar(type.name, sub, type.type);
