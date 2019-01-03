@@ -1,4 +1,4 @@
-import { Type, isTVar, isTMeta, isTFun, isTForall, openTForall, TMeta, TVar, showType, containsTMeta, isMono, TFun } from './types';
+import { Type, isTVar, isTMeta, isTFun, isTForall, openTForall, TMeta, TVar, showType, containsTMeta, isMono, TFun, isTApp } from './types';
 import { eqName, freshName, Name, showName } from './names';
 import { withElems, split, addAll, add, context, setContext, replace, apply, showContext, findElem } from './context';
 import { CTMeta, CTVar, matchCTMeta } from './elems';
@@ -7,6 +7,7 @@ import { wfType } from './wellformedness';
 import { log } from './logging';
 import { kType, Kind } from './kinds';
 import { unifyKindsOfTypes } from './inferenceKinds';
+import { unify } from './unification';
 
 const solve = (x: Name, type: Type): void => {
   log(`solve: ${showName(x)} := ${showType(type)}`);
@@ -87,6 +88,10 @@ export const subsume = (t1: Type, t2: Type): void => {
   if (isTFun(t1) && isTFun(t2)) {
     subsume(t2.left, t1.left);
     subsume(apply(t1.right), apply(t2.right));
+    return;
+  }
+  if (isTApp(t1) || isTApp(t2)) {
+    unify(t1, t2);
     return;
   }
   if (isTForall(t1)) {

@@ -6,6 +6,7 @@ export type Type
   = TVar
   | TMeta
   | TFun
+  | TApp
   | TForall;
 
 export interface TVar {
@@ -38,7 +39,7 @@ export interface TFun {
 export const TFun = (left: Type, right: Type): TFun =>
   ({ tag: 'TFun', left, right });
 export const isTFun = (type: Type): type is TFun =>
-type.tag === 'TFun';
+  type.tag === 'TFun';
 export const tfunFrom = (ts: Type[]): Type =>
   ts.reduceRight((x, y) => TFun(y, x));
 export const tfun = (...ts: Type[]): Type =>
@@ -52,6 +53,30 @@ export const flattenTFun = (type: Type): Type[] => {
   }
   r.push(c);
   return r;
+};
+
+export interface TApp {
+  readonly tag: 'TApp';
+  readonly left: Type;
+  readonly right: Type;
+}
+export const TApp = (left: Type, right: Type): TApp =>
+  ({ tag: 'TApp', left, right });
+export const isTApp = (type: Type): type is TApp =>
+  type.tag === 'TApp';
+export const tappFrom = (ts: Type[]): Type =>
+  ts.reduce(TApp);
+export const tapp = (...ts: Type[]): Type =>
+  tappFrom(ts);
+export const flattenTApp = (type: Type): Type[] => {
+  const r: Type[] = [];
+  let c = type;
+  while (isTApp(c)) {
+    r.push(c.right);
+    c = c.left;
+  }
+  r.push(c);
+  return r.reverse();
 };
 
 export interface TForall {
@@ -80,6 +105,7 @@ export const showType = (type: Type): string => {
   if (isTVar(type)) return `${showName(type.name)}`;
   if (isTMeta(type)) return `?${showName(type.name)}`;
   if (isTFun(type)) return `(${showType(type.left)} -> ${showType(type.right)})`;
+  if (isTApp(type)) return `(${showType(type.left)} ${showType(type.right)})`;
   if (isTForall(type)) return `(forall(${showName(type.name)} : ${showKind(type.kind)}). ${showType(type.type)})`;
   return impossible('showType');
 };
@@ -91,6 +117,10 @@ export const prettyType = (type: Type): string => {
     return flattenTFun(type)
       .map(t => isTFun(t) || isTForall(t) ? `(${prettyType(t)})` : prettyType(t))
       .join(' -> ');
+  if (isTApp(type))
+    return flattenTApp(type)
+      .map(t => isTFun(t) || isTForall(t) || isTApp(t) ? `(${prettyType(t)})` : prettyType(t))
+      .join(' ');
   if (isTForall(type)) {
     const f = flattenTForall(type);
     return `forall${f.args.map(([n, k]) => `(${showName(n)} : ${prettyKind(k)})`).join('')}. ${prettyType(f.type)}`;
@@ -101,6 +131,7 @@ export const prettyType = (type: Type): string => {
 export const isMono = (type: Type): boolean => {
   if (isTForall(type)) return false;
   if (isTFun(type)) return isMono(type.left) && isMono(type.right);
+  if (isTApp(type)) return isMono(type.left) && isMono(type.right);
   return true;
 };
 
@@ -108,6 +139,7 @@ export const substTVar = (tv: Name, sub: Type, type: Type): Type => {
   if (isTVar(type)) return eqName(type.name, tv) ? sub : type;
   if (isTMeta(type)) return type;
   if (isTFun(type)) return TFun(substTVar(tv, sub, type.left), substTVar(tv, sub, type.right));
+  if (isTApp(type)) return TApp(substTVar(tv, sub, type.left), substTVar(tv, sub, type.right));
   if (isTForall(type)) return eqName(type.name, tv) ? type : TForall(type.name, type.kind, substTVar(tv, sub, type.type));
   return impossible('substTVar');
 };
@@ -115,6 +147,7 @@ export const substTMeta = (tv: Name, sub: Type, type: Type): Type => {
   if (isTVar(type)) return type;
   if (isTMeta(type)) return eqName(type.name, tv) ? sub : type;
   if (isTFun(type)) return TFun(substTMeta(tv, sub, type.left), substTMeta(tv, sub, type.right));
+  if (isTApp(type)) return TApp(substTMeta(tv, sub, type.left), substTMeta(tv, sub, type.right));
   if (isTForall(type)) return TForall(type.name, type.kind, substTMeta(tv, sub, type.type));
   return impossible('substTMeta');
 };
@@ -125,6 +158,7 @@ export const containsTMeta = (tv: Name, type: Type): boolean => {
   if (isTVar(type)) return false;
   if (isTMeta(type)) return eqName(type.name, tv);
   if (isTFun(type)) return containsTMeta(tv, type.left) || containsTMeta(tv, type.right);
+  if (isTApp(type)) return containsTMeta(tv, type.left) || containsTMeta(tv, type.right);
   if (isTForall(type)) return containsTMeta(tv, type.type);
   return impossible('containsTMeta');
 };
@@ -140,6 +174,11 @@ export const freeTMeta = (type: Type, res: Name[] = []): Name[] => {
     return res;
   }
   if (isTFun(type)) {
+    freeTMeta(type.left, res);
+    freeTMeta(type.right, res);
+    return res;
+  }
+  if (isTApp(type)) {
     freeTMeta(type.left, res);
     freeTMeta(type.right, res);
     return res;

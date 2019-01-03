@@ -1,7 +1,7 @@
 import { Elem, showElem, CMarker, matchCMarker, isCTMeta, matchCTMeta, isUnsolved, isTMetaUnsolved, matchCKMeta } from './elems';
 import { err, impossible } from './errors';
 import { freshName, Plain, Name, eqName, showName } from './names';
-import { Type, isTVar, isTMeta, isTFun, isTForall, TFun, TForall, showType, freeTMeta } from './types';
+import { Type, isTVar, isTMeta, isTFun, isTForall, TFun, TForall, showType, freeTMeta, isTApp, TApp } from './types';
 import { log } from './logging';
 import { isKVar, isKMeta, KFun, Kind, isKFun, showKind } from './kinds';
 
@@ -100,6 +100,7 @@ export const apply = (type: Type): Type => {
     return e.type ? apply(e.type) : type;
   }
   if (isTFun(type)) return TFun(apply(type.left), apply(type.right));
+  if (isTApp(type)) return TApp(apply(type.left), apply(type.right));
   if (isTForall(type)) return TForall(type.name, applyKind(type.kind), apply(type.type));
   return impossible('apply');
 };

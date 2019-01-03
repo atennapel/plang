@@ -1,10 +1,10 @@
-import { isTVar, Type, isTMeta, isTFun, isTForall, openTForall, TVar } from './types';
-import { Kind, kType } from './kinds';
+import { isTVar, Type, isTMeta, isTFun, isTForall, openTForall, TVar, isTApp } from './types';
+import { Kind, kType, KFun, KMeta } from './kinds';
 import { impossible } from './errors';
-import { findElem, applyKind, withElems } from './context';
-import { matchCTVar, matchCTMeta, CTVar } from './elems';
+import { findElem, applyKind, withElems, add } from './context';
+import { matchCTVar, matchCTMeta, CTVar, CKMeta } from './elems';
 import { unifyKinds } from './unificationKinds';
-import { freshName } from './names';
+import { freshName, Plain } from './names';
 
 export const inferKind = (type: Type): Kind => {
   if (isTVar(type)) return findElem(matchCTVar(type.name)).kind;
@@ -13,6 +13,14 @@ export const inferKind = (type: Type): Kind => {
     unifyKinds(inferKind(type.left), kType);
     unifyKinds(applyKind(inferKind(type.right)), kType);
     return kType;
+  }
+  if (isTApp(type)) {
+    const k1 = inferKind(type.left);
+    const k2 = inferKind(type.right);
+    const r = freshName(Plain('r'));
+    add(CKMeta(r));
+    unifyKinds(applyKind(k1), KFun(applyKind(k2), KMeta(r)));
+    return applyKind(KMeta(r));
   }
   if (isTForall(type)) {
     const x = freshName(type.name);

@@ -1,4 +1,4 @@
-import { Type, isTVar, isTMeta, isTFun, isTForall, openTForall, TVar, showType } from './types';
+import { Type, isTVar, isTMeta, isTFun, isTForall, openTForall, TVar, showType, isTApp } from './types';
 import { impossible } from './errors';
 import { context, withElems, findElem, findElemNot, setContext } from './context';
 import { freshName, showName } from './names';
@@ -32,6 +32,11 @@ export const wfType = (type: Type): void => {
     return;
   }
   if (isTFun(type)) {
+    wfType(type.left);
+    wfType(type.right);
+    return;
+  }
+  if (isTApp(type)) {
     wfType(type.left);
     wfType(type.right);
     return;
