@@ -13,7 +13,7 @@ import { checkKindType } from './inferenceKinds';
 const generalize = (fn: () => Type): Type => {
   const [ty, right] = withElemsContext([], fn);
   const u = unsolvedTMetasInType(ty, right);
-  return tforall(u, u.reduce((t, [n, k]) => substTMeta(n, TVar(n), t), ty));
+  return tforall(u, u.reduce((t, [n]) => substTMeta(n, TVar(n), t), ty));
 };
 
 const typesynth = (expr: Expr): Type => {
@@ -24,7 +24,7 @@ const typesynth = (expr: Expr): Type => {
     const a = freshName(expr.arg);
     const b = freshName(expr.arg);
     return generalize(() => {
-      addAll([CTMeta(a, kType), CTMeta(b, kType), CVar(x, TMeta(a))]);
+      addAll([CTMeta(a, kType, []), CTMeta(b, kType, []), CVar(x, TMeta(a))]);
       typecheck(openAbs(expr, Var(x)), TMeta(b));
       return apply(TFun(TMeta(a), TMeta(b)));
     });
@@ -63,16 +63,17 @@ const typeappsynth = (type: Type, expr: Expr): Type => {
   log(`typeappsynth: ${showType(type)} @ ${showExpr(expr)}`);
   if (isTForall(type)) {
     const x = freshName(type.name);
-    add(CTMeta(x, type.kind));
+    add(CTMeta(x, type.kind, type.cs));
     return typeappsynth(openTForall(type, TMeta(x)), expr);
   }
   if (isTMeta(type)) {
     const a = freshName(type.name);
     const b = freshName(type.name);
+    const cs = findElem(matchCTMeta(type.name)).cs;
     replace(matchCTMeta(type.name), [
-      CTMeta(b, kType),
-      CTMeta(a, kType),
-      CTMeta(type.name, kType, TFun(TMeta(a), TMeta(b))),
+      CTMeta(b, kType, []),
+      CTMeta(a, kType, []),
+      CTMeta(type.name, kType, cs, TFun(TMeta(a), TMeta(b))),
     ]);
     typecheck(expr, TMeta(a));
     return TMeta(b);

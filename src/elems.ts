@@ -1,7 +1,7 @@
 import { impossible } from './errors';
 import { Name, showName, eqName } from './names';
-import { Type, showType } from './types';
-import { Kind, showKind } from './kinds';
+import { Type, showType, prettyType } from './types';
+import { Kind, showKind, prettyKind } from './kinds';
 
 export type Elem
   = CKVar
@@ -9,7 +9,8 @@ export type Elem
   | CTVar
   | CTMeta
   | CVar
-  | CMarker;
+  | CMarker
+  | CClass;
 
 export interface CKVar {
   readonly tag: 'CKVar';
@@ -53,10 +54,11 @@ export interface CTMeta {
   readonly tag: 'CTMeta';
   readonly name: Name;
   readonly kind: Kind;
+  readonly cs: Name[];
   readonly type: Type | null;
 }
-export const CTMeta = (name: Name, kind: Kind, type: Type | null = null): CTMeta =>
-  ({ tag: 'CTMeta', name, kind, type });
+export const CTMeta = (name: Name, kind: Kind, cs: Name[], type: Type | null = null): CTMeta =>
+  ({ tag: 'CTMeta', name, kind, cs, type });
 export const isCTMeta = (elem: Elem): elem is CTMeta =>
   elem.tag === 'CTMeta';
 export const matchCTMeta = (name: Name) => (elem: Elem): elem is CTMeta =>
@@ -91,12 +93,35 @@ export const isCMarker = (elem: Elem): elem is CMarker =>
 export const matchCMarker = (name: Name) => (elem: Elem): elem is CMarker =>
   isCMarker(elem) && eqName(elem.name, name);
 
+export interface CClass {
+  readonly tag: 'CClass';
+  readonly name: Name;
+}
+export const CClass = (name: Name): CClass =>
+  ({ tag: 'CClass', name });
+export const isCClass = (elem: Elem): elem is CClass =>
+  elem.tag === 'CClass';
+export const matchCClass = (name: Name) => (elem: Elem): elem is CClass =>
+  isCClass(elem) && eqName(elem.name, name);
+
 export const showElem = (elem: Elem): string => {
   if (isCKVar(elem)) return `kind ${showName(elem.name)}`;
   if (isCKMeta(elem)) return `?${showName(elem.name)}${elem.kind ? ` = ${showKind(elem.kind)}` : ''}`;
   if (isCTVar(elem)) return `${showName(elem.name)} : ${showKind(elem.kind)}`;
-  if (isCTMeta(elem)) return `?${showName(elem.name)} : ${showKind(elem.kind)}${elem.type ? ` = ${showType(elem.type)}` : ''}`;
+  if (isCTMeta(elem)) return `?${showName(elem.name)} : ${showKind(elem.kind)}${elem.cs.length > 0 ? ` with [${elem.cs.map(showName).join(', ')}]` : ''}${elem.type ? ` = ${showType(elem.type)}` : ''}`;
   if (isCVar(elem)) return `${showName(elem.name)} : ${showType(elem.type)}`;
   if (isCMarker(elem)) return `|>${showName(elem.name)}`;
+  if (isCClass(elem)) return `constraint ${showName(elem.name)}`;
   return impossible('showElem');
+};
+
+export const prettyElem = (elem: Elem): string => {
+  if (isCKVar(elem)) return `kind ${showName(elem.name)}`;
+  if (isCKMeta(elem)) return `?${showName(elem.name)}${elem.kind ? ` = ${prettyKind(elem.kind)}` : ''}`;
+  if (isCTVar(elem)) return `${showName(elem.name)} : ${prettyKind(elem.kind)}`;
+  if (isCTMeta(elem)) return `?${showName(elem.name)} : ${prettyKind(elem.kind)}${elem.cs.length > 0 ? ` with [${elem.cs.map(showName).join(', ')}]` : ''}${elem.type ? ` = ${prettyType(elem.type)}` : ''}`;
+  if (isCVar(elem)) return `${showName(elem.name)} : ${prettyType(elem.type)}`;
+  if (isCMarker(elem)) return `|>${showName(elem.name)}`;
+  if (isCClass(elem)) return `constraint ${showName(elem.name)}`;
+  return impossible('prettyElem');
 };

@@ -1,11 +1,18 @@
-import { showContext, context } from "./context";
+import { showContext, context, prettyContext } from "./context";
+
+export type LoggingOptions = {
+  showContext?: boolean;
+  prettyContext?: boolean;
+};
 
 let logging = false;
-let logContext = false;
-export const setLogging = (doLog: boolean = true, doContext: boolean = false) => { 
+let options: LoggingOptions = {};
+export const setLogging = (doLog: boolean = true, opt: LoggingOptions = {}) => { 
   logging = doLog;
-  logContext = doContext;
+  options = opt;
 };
 export const log = (msg: string, doContext: boolean | undefined = undefined) => {
-  if (logging) console.log(`${msg}${(typeof doContext === 'boolean' ? doContext : logContext) ? ` in ${showContext(context)}` : ''}`);
+  const ctx = (typeof doContext === 'boolean' ? doContext : options.showContext) ?
+    ` in ${options.prettyContext ? prettyContext(context) : showContext(context)}` : '';
+  if (logging) console.log(`${msg}${ctx}`);
 };

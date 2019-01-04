@@ -8,14 +8,26 @@ import { CTVar, matchCTMeta, CTMeta } from './elems';
 import { unifyKinds } from './unificationKinds';
 import { wfType } from './wellformedness';
 import { kType } from './kinds';
+import { solveConstraints } from './constraintSolver';
 
 const bind = (tv: Name, type: Type): void => {
   log(`bind: ${showName(tv)} := ${showType(type)}`);
   if (containsTMeta(tv, type)) return err(`infinite type: ${showName(tv)} in ${showType(type)}`);
   const kind = findElem(matchCTMeta(tv)).kind;
+  const cs = findElem(matchCTMeta(tv)).cs.slice(0);
   const right = split(matchCTMeta(tv));
   wfType(type);
-  add(CTMeta(tv, kind, type));
+  if (isTMeta(type)) {
+    const e = findElem(matchCTMeta(type.name));
+    e.cs.forEach(c => cs.push(c));
+    replace(matchCTMeta(type.name), [CTMeta(type.name, e.kind, cs, e.type)]);
+  }
+  const newcs = solveConstraints(cs, type, true);
+  if (isTMeta(type)) {
+    const e = findElem(matchCTMeta(type.name));
+    replace(matchCTMeta(type.name), [CTMeta(type.name, e.kind, newcs, e.type)]);
+  }
+  add(CTMeta(tv, kind, newcs, type));
   addAll(right);
 };
 
@@ -31,10 +43,11 @@ const inst = (x: Name, type: Type): void => {
     if (isTFun(type)) {
       const a = freshName(x);
       const b = freshName(x);
+      const cs = findElem(matchCTMeta(x)).cs;
       replace(matchCTMeta(x), [
-        CTMeta(b, kType),
-        CTMeta(a, kType),
-        CTMeta(x, kType, TFun(TMeta(a), TMeta(b))),
+        CTMeta(b, kType, []),
+        CTMeta(a, kType, []),
+        CTMeta(x, kType, cs, TFun(TMeta(a), TMeta(b))),
       ]);
       inst(a, type.left);
       inst(b, apply(type.right));

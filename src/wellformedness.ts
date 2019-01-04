@@ -2,7 +2,7 @@ import { Type, isTVar, isTMeta, isTFun, isTForall, openTForall, TVar, showType, 
 import { impossible } from './errors';
 import { context, withElems, findElem, findElemNot, setContext } from './context';
 import { freshName, showName } from './names';
-import { CTVar, matchCTVar, matchCTMeta, Elem, isCTVar, isCTMeta, isCVar, isCMarker, matchCVar, matchCMarker, matchCKMeta, matchCKVar, isCKVar, isCKMeta } from './elems';
+import { CTVar, matchCTVar, matchCTMeta, Elem, isCTVar, isCTMeta, isCVar, isCMarker, matchCVar, matchCMarker, matchCKMeta, matchCKVar, isCKVar, isCKMeta, isCClass, matchCClass } from './elems';
 import { isKVar, isKMeta, isKFun, showKind, Kind } from './kinds';
 
 export const wfKind = (kind: Kind): void => {
@@ -43,6 +43,7 @@ export const wfType = (type: Type): void => {
   }
   if (isTForall(type)) {
     wfKind(type.kind);
+    type.cs.forEach(c => findElem(matchCClass(c), `undefined class ${showName(c)} in ${showType(type)}`));
     const x = freshName(type.name);
     withElems([CTVar(x, type.kind)], () => wfType(openTForall(type, TVar(x))));
     return;
@@ -53,6 +54,7 @@ export const wfType = (type: Type): void => {
 export const wfElem = (elem: Elem): void => {
   if (isCKVar(elem)) return findElemNot(matchCKVar(elem.name), `duplicate CKVar ${showName(elem.name)}`);
   if (isCKMeta(elem)) return findElemNot(matchCKMeta(elem.name), `duplicate CKMeta ?${showName(elem.name)}`);
+  if (isCClass(elem)) return findElemNot(matchCClass(elem.name), `duplicate CClass ${showName(elem.name)}`);
   if (isCTVar(elem)) {
     wfKind(elem.kind);
     return findElemNot(matchCTVar(elem.name), `duplicate CTVar ${showName(elem.name)}`);
