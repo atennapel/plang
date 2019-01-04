@@ -1,23 +1,21 @@
 import { setContext, addAll } from './context';
 import { Var, showExpr, abs, app } from './exprs';
 import { Plain } from './names';
-import { CTVar, CVar } from './elems';
+import { CTVar, CVar, CKMeta } from './elems';
 import { TVar, prettyType, tforall, tfun, tapp } from './types';
 import { infer } from './inference';
 import { setLogging } from './logging';
-import { setupKinds, kType, kfun } from './kinds';
+import { setupKinds, kType, kfun, KMeta } from './kinds';
 
 /**
 TODO:
-  - check that metas are solved in the correct order in unification,
-    and that the to-be-bound type/kind is wellformed
   - constraints
 */
 
 const $ = Plain;
 const v = Var;
 const tv = TVar;
-const [x, y, z, t] = ['x', 'y', 'z', 't'].map($);
+const [x, y, z, t, f] = 'xyztf'.split('').map($);
 
 const Bool = $('Bool');
 const True = $('True');
@@ -33,7 +31,9 @@ addAll([
 
   CTVar(List, kfun(kType, kType)),
   CVar(single, tforall([[t, kType]], tfun(tv(t), tapp(tv(List), tv(t))))),
-  CVar(extract, tforall([[t, kType]], tfun(tapp(tv(List), tv(t)), tv(t)))),
+
+  CKMeta(x),
+  CVar(extract, tforall([[f, KMeta(x)], [t, kType]], tfun(tapp(tv(f), tv(t)), tv(t)))),
 ]);
 
 const expr = app(v(extract), app(v(single), v(True)));

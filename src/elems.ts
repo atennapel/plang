@@ -93,9 +93,9 @@ export const matchCMarker = (name: Name) => (elem: Elem): elem is CMarker =>
 
 export const showElem = (elem: Elem): string => {
   if (isCKVar(elem)) return `kind ${showName(elem.name)}`;
-  if (isCKMeta(elem)) return `kind ?${showName(elem.name)}${elem.kind ? ` = ${showKind(elem.kind)}` : ''}`;
-  if (isCTVar(elem)) return `type ${showName(elem.name)} : ${showKind(elem.kind)}`;
-  if (isCTMeta(elem)) return `type ?${showName(elem.name)} : ${showKind(elem.kind)}${elem.type ? ` = ${showType(elem.type)}` : ''}`;
+  if (isCKMeta(elem)) return `?${showName(elem.name)}${elem.kind ? ` = ${showKind(elem.kind)}` : ''}`;
+  if (isCTVar(elem)) return `${showName(elem.name)} : ${showKind(elem.kind)}`;
+  if (isCTMeta(elem)) return `?${showName(elem.name)} : ${showKind(elem.kind)}${elem.type ? ` = ${showType(elem.type)}` : ''}`;
   if (isCVar(elem)) return `${showName(elem.name)} : ${showType(elem.type)}`;
   if (isCMarker(elem)) return `|>${showName(elem.name)}`;
   return impossible('showElem');

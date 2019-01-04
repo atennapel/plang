@@ -17,7 +17,7 @@ export const inferKind = (type: Type): Kind => {
   if (isTApp(type)) {
     const k1 = inferKind(type.left);
     const k2 = inferKind(type.right);
-    const r = freshName(Plain('r'));
+    const r = freshName(Plain('k'));
     add(CKMeta(r));
     unifyKinds(applyKind(k1), KFun(applyKind(k2), KMeta(r)));
     return applyKind(KMeta(r));
