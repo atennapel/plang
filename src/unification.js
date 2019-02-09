@@ -16,12 +16,13 @@ const unify = (a_, b_) => {
   if (a === b) return;
   if (a.tag === 'TMeta') return bind(a, b);
   if (b.tag === 'TMeta') return bind(b, a);
-  if (a.tag === 'TFun' && b.tag === 'TFun') {
+  if (a.tag === 'TApp' && b.tag === 'TApp') {
     unify(a.left, b.left);
     unify(a.right, b.right);
     return;
   }
   if (a.tag === 'TVar' && b.tag === 'TVar' && a.id === b.id) return;
+  if (a.tag === 'TCon' && b.tag === 'TCon' && a.name === b.name) return;
   throw new TypeError(`cannot unify ${showType(a)} ~ ${showType(b)}`);
 };
 

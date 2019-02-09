@@ -1,6 +1,7 @@
 const {
   resetId,
   TVar,
+  TApp,
   TFun,
   freshTMeta,
   prune,
@@ -15,14 +16,14 @@ const extend = (env, x, t) => {
 const inst = (t, map = {}) => {
   if (t.tag === 'TVar')
     return map[t.id] || (map[t.id] = freshTMeta());
-  if (t.tag === 'TFun')
-    return TFun(inst(t.left, map), inst(t.right, map));
+  if (t.tag === 'TApp')
+    return TApp(inst(t.left, map), inst(t.right, map));
   return t;
 };
 const gen = t => {
   if (t.tag === 'TMeta') return TVar(t.id);
-  if (t.tag === 'TFun')
-    return TFun(gen(t.left), gen(t.right));
+  if (t.tag === 'TApp')
+    return TApp(gen(t.left), gen(t.right));
   return t;
 };
 const synth = (env, e) => {
@@ -49,8 +50,8 @@ const synth = (env, e) => {
 const simplify = (t, map = {}, next = { id: 0 }) => {
   if (t.tag === 'TVar')
     return map[t.id] || (map[t.id] = TVar(next.id++));
-  if (t.tag === 'TFun')
-    return TFun(simplify(t.left, map, next), simplify(t.right, map, next));
+  if (t.tag === 'TApp')
+    return TApp(simplify(t.left, map, next), simplify(t.right, map, next));
   return t;
 };
 const infer = (env, e) => {

@@ -5,8 +5,6 @@ const { compileDefs } = require('./compiler');
 const { inferDefs } = require('./inference');
 
 const sc = `
-  Box = 0 -> 0
-
   id = \\x. x
   const = \\x y. x
   flip = \\f x y. f y x
