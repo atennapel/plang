@@ -4,21 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
-    "index": "node build/src/index.js",
-    "buildindex": "npm run build && npm run index",
-    "buildindexlog": "npm run build && npm run index > log.txt",
-    "test": "compile test.pl && node test.pl.js",
-    "buildtest": "npm run build && npm run test",
-    "bundle": "npm run build && browserify build/src/web.js -o bundle.js"
+    "start": "node src/index"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^10.12.2",
-    "typescript": "^3.2.2"
   },
   "dependencies": {
-    "microtime": "^2.1.8"
   }
 }
