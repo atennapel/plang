@@ -49,6 +49,7 @@ module.exports = {
   TVar,
   TMeta,
   TApp,
+
   TFunC,
   TFun,
 

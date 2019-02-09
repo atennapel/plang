@@ -26,7 +26,7 @@ const gen = t => {
     return TApp(gen(t.left), gen(t.right));
   return t;
 };
-const synth = (env, e) => {
+const synth = (env, e, skol = {}) => {
   switch (e.tag) {
     case 'Var': {
       if (!env[e.name]) throw new TypeError(`undefined variable ${e.name}`);
@@ -34,14 +34,14 @@ const synth = (env, e) => {
     }
     case 'Abs': {
       const tv = freshTMeta();
-      const t = synth(extend(env, e.name, tv), e.body);
+      const t = synth(extend(env, e.name, tv), e.body, skol);
       return TFun(prune(tv), t);
     }
     case 'App': {
-      const ta = synth(env, e.left);
-      const tb = synth(env, e.right);
+      const ta = synth(env, e.left, skol);
+      const tb = synth(env, e.right, skol);
       const tv = freshTMeta();
-      unify(ta, TFun(tb, tv));
+      unify(ta, TFun(tb, tv), skol);
       return prune(tv);
     }
   }
