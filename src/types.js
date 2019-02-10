@@ -13,6 +13,7 @@ const freshTMeta = () => TMeta(fresh());
 
 const TFunC = TCon('->');
 const TFun = (left, right) => TApp(TApp(TFunC, left), right);
+const tfuns = a => a.reduceRight((x, y) => TFun(y, x));
 
 const showType = t => {
   switch (t.tag) {
@@ -63,6 +64,7 @@ module.exports = {
 
   TFunC,
   TFun,
+  tfuns,
 
   showType,
 

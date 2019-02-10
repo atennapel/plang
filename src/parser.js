@@ -5,6 +5,14 @@ const {
   Con,
   Decon,
 } = require('./exprs');
+const {
+  TCon,
+  TVar,
+  TApp,
+  TFun,
+  TFunC,
+  tfuns,
+} = require('./types');
 
 const SYMBOLS = '()\\.=';
 const START = 0;
@@ -44,6 +52,42 @@ const match = (a, x) => {
     return true;
   }
   return false;
+};
+
+const tvar = (map, x) => map[x] || (map[x] = TVar(map._id++));
+
+const parseType = (a, tvmap = { _id: 0 }) => {
+  if (a.length === 0) throw new SyntaxError('empty type');
+  if (match(a, '(')) {
+    const es = [];
+    while (true) {
+      if (a.length === 0) throw new SyntaxError('missing )');
+      if (match(a, ')')) break;
+      es.push(parseType(a, tvmap));
+    }
+    if (es.length === 0) throw new SyntaxError('empty');
+    if (es.indexOf(TFunC) === -1) return es.reduce(TApp);
+    const r = [];
+    let c = [];
+    while (es.length > 0) {
+      if (es[es.length - 1] === TFunC) {
+        es.pop();
+        r.push(c);
+        c = [];
+      } else c.push(es.pop());
+    }
+    r.push(c);
+    r.reverse();
+    if (r.length === 2 && r[0].length === 0) return TApp(TFunC, r[1].reduce(TApp));
+    return tfuns(r.map(a => {
+      if (a.length === 0) throw new SyntaxError('empty');
+      return a.reduce(TApp);
+    }));
+  } else if(match(a, '->')) return TFunC;
+  else if (matchfn(a, x => !/[a-z]/i.test(x[0])))
+    throw new SyntaxError(`unexpected ${a.pop()}`);
+  const x = a.pop();
+  return /[a-z]/.test(x[0]) ? tvar(tvmap, x) : TCon(x);
 };
 
 const parseExpr = a => {
@@ -122,5 +166,8 @@ const parseDefs = s => {
 };
 
 module.exports = {
+  tokenize,
+  parseType,
+  parseExpr,
   parseDefs,
 };
