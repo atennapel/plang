@@ -54,9 +54,13 @@ const compileName = x => keywords.indexOf(x) >= 0 ? `${x}_` : x;
 const compile = e => {
   switch (e.tag) {
     case 'Var': return compileName(e.name);
-    case 'Abs': return `(${compileName(e.name)} => ${compile(e.body)})`;
+    case 'Abs':
+      return `(${compileName(e.name)} => ${compile(e.body)})`;
     case 'App':
       return `${compile(e.left)}(${compile(e.right)})`;
+    case 'Con': return compile(e.arg);
+    case 'Decon':
+      return `(${compileName(e.name)} => ${compile(e.body)})`;
   }
 };
 

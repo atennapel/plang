@@ -2,6 +2,8 @@ const {
   Var,
   Abs,
   App,
+  Con,
+  Decon,
 } = require('./exprs');
 
 const SYMBOLS = '()\\.=';
@@ -40,16 +42,31 @@ const match = (a, x) => {
 const parseExpr = a => {
   if (a.length === 0) throw new SyntaxError('empty');
   if (match(a, '(')) {
-    let app = parseExpr(a);
+    const es = [parseExpr(a)];
     while (a.length && !match(a, ')'))
-      app = App(app, parseExpr(a));
-    return app;
+      es.push(parseExpr(a));
+    if (es.length === 0) throw new SyntaxError('empty');
+    const head = es[0];
+    if (head.tag === 'Var' && /[A-Z]/.test(head.name)) {
+      if (es.length !== 2)
+        throw new SyntaxError(`constructor ${head.name} takes 1 argument, but ${es.length - 1} given.`);
+      return Con(head.name, es[1]);
+    }
+    return es.reduce(App);
   } else if (match(a, '\\')) {
     const args = [];
     while (!match(a, '.')) args.push(parseName(a));
     if (args.length === 0)
       throw new SyntaxError('abs without parameters');
+    for (let i = 1, l = args.length; i < l; i++)
+      if (/[A-Z]/.test(args[i][0]))
+        throw new SyntaxError(`constructor in abs argument: ${args[i]}`);
     const body = parseApp(a);
+    if (/[A-Z]/.test(args[0][0])) {
+      if (args.length !== 2)
+        throw new SyntaxError(`deconstructor ${args[0]} expects 1 argument but got ${args.length - 1}`);
+      return Decon(args[0], args[1], body);
+    }
     return args.reduceRight((x, y) => Abs(y, x), body);
   } else if (match(a, '.'))
     throw new SyntaxError('unexpected .');
@@ -68,10 +85,16 @@ const parseName = ts => {
 };
 
 const parseApp = ts => {
-  const args = [];
-  while (ts.length) args.push(parseExpr(ts));
-  if (args.length === 0) throw new SyntaxError('empty');
-  return args.reduce(App);
+  const es = [];
+  while (ts.length) es.push(parseExpr(ts));
+  if (es.length === 0) throw new SyntaxError('empty');
+  const head = es[0];
+  if (head.tag === 'Var' && /[A-Z]/.test(head.name)) {
+    if (es.length !== 2)
+      throw new SyntaxError(`constructor ${head.name} takes 1 argument, but ${es.length - 1} given.`);
+    return Con(head.name, es[1]);
+  }
+  return es.reduce(App);
 };
 
 const parseDef = ts => {

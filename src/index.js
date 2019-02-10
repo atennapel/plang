@@ -1,22 +1,27 @@
 const { showExpr } = require('./exprs');
-const { showType } = require('./types');
+const { showType, TCon, TFun, TVar } = require('./types');
 const { parseDefs } = require('./parser');
 const { compileDefs } = require('./compiler');
 const { inferDefs } = require('./inference');
 
+const tenv = {
+  Id: {
+    tcon: TCon('Id'),
+    tvs: [],
+    etvs: [],
+    utvs: [0],
+    type: TFun(TVar(0), TVar(0)),
+  },
+};
+const env = {
+};
+
 const sc = `
-  id = \\x. x
-  const = \\x y. x
-  flip = \\f x y. f y x
-  compose = \\f g x. f (g x)
-  dup = \\f x. f x x
-  z = \\f x. x
-  s = \\n f x. f (n f x)
-  main = s (s (s z))
+  main = (\\Id id. id) (Id \\x. x)
 `;
 const ds = parseDefs(sc);
-const env = inferDefs(ds);
-console.log(showType(env.main));
+const tyenv = inferDefs(ds, tenv, env);
+console.log(showType(tyenv.main));
 const c = compileDefs(ds);
 console.log(c);
 console.log(eval(`() => {${c}; return main}`)()(x => x + 1)(0));

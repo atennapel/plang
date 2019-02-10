@@ -7,6 +7,8 @@ const TVar = id => ({ tag: 'TVar', id });
 const TMeta = id => ({ tag: 'TMeta', id, type: null });
 const TApp = (left, right) => ({ tag: 'TApp', left, right });
 
+const tapp = (fn, args) => args.reduce(TApp, fn);
+
 const freshTMeta = () => TMeta(fresh());
 
 const TFunC = TCon('->');
@@ -40,7 +42,12 @@ const occurs = (v, t) => {
   if (v === t) return true;
   if (t.tag === 'TApp') return occurs(v, t.left) || occurs(v, t.right);
   return false;
-}
+};
+const occursAny = (vs, t) => {
+  if (vs.indexOf(t) >= 0) return t;
+  if (t.tag === 'TApp') return occursAny(vs, t.left) || occursAny(vs, t.right);
+  return null;
+};
 
 module.exports = {
   resetId,
@@ -50,13 +57,16 @@ module.exports = {
   TMeta,
   TApp,
 
-  TFunC,
-  TFun,
+  tapp,
 
   freshTMeta,
+
+  TFunC,
+  TFun,
 
   showType,
 
   prune,
   occurs,
+  occursAny,
 };
