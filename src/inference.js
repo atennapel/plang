@@ -123,9 +123,9 @@ const inferDefs = (ds, tenv = {}, env = {}) => {
       case 'DType':
         tenv[d.name] = {
           tcon: TCon(d.name),
-          tvs: [],
-          etvs: [],
-          utvs: freeTVars(d.type),
+          tvs: d.tvs,
+          etvs: d.etvs,
+          utvs: d.utvs,
           type: d.type,
         };
         break;

@@ -12,6 +12,7 @@ const {
   TFun,
   TFunC,
   tfuns,
+  freeTVars,
 } = require('./types');
 const {
   DType,
@@ -60,14 +61,14 @@ const match = (a, x) => {
 
 const tvar = (map, x) => map[x] || (map[x] = TVar(map._id++));
 
-const parseType = (a, tvmap = { _id: 0 }) => {
+const parseType = (a, tvmap = { _id: 0 }, tvs = [], utvs = [], etvs = []) => {
   if (a.length === 0) throw new SyntaxError('empty type');
   if (match(a, '(')) {
     const es = [];
     while (true) {
       if (a.length === 0) throw new SyntaxError('missing )');
       if (match(a, ')')) break;
-      es.push(parseType(a, tvmap));
+      es.push(parseType(a, tvmap, tvs, utvs, etvs));
     }
     if (es.length === 0) throw new SyntaxError('empty');
     if (es.indexOf(TFunC) === -1) return es.reduce(TApp);
@@ -91,7 +92,40 @@ const parseType = (a, tvmap = { _id: 0 }) => {
   else if (matchfn(a, x => !/[a-z]/i.test(x[0])))
     throw new SyntaxError(`unexpected ${a.pop()}`);
   const x = a.pop();
-  return /[a-z]/.test(x[0]) ? tvar(tvmap, x) : TCon(x);
+  if (!/[a-z]/.test(x[0])) return TCon(x);
+  const tv = tvar(tvmap, x);
+  if (tvs.indexOf(tv.id) === -1) {
+    let target = x[0] === 'x' && x.length > 1 ? etvs : utvs;
+    if (target.indexOf(tv.id) === -1) target.push(tv.id);
+  }
+  return tv;
+};
+
+const parseTypeTop = (x, a) => {
+  if (match(a, '\\')) {
+    const args = [];
+    while (!match(a, '.')) args.push(parseName(a));
+    if (args.length === 0)
+      throw new SyntaxError('empty type parameter list');
+    let map = { _id: 0 };
+    const tvs = [];
+    for (let i = 0, l = args.length; i < l; i++) {
+      if (/[A-Z]/.test(args[i][0]))
+        throw new SyntaxError(`constructor in type parameter: ${args[i]}`);
+      const tv = tvar(map, args[i]);
+      tvs.push(tv.id);
+    }
+    a.push('('); a.unshift(')');
+    const utvs = [];
+    const etvs = [];
+    const ty = parseType(a, map, tvs, utvs, etvs);
+    return DType(x, tvs, utvs, etvs, ty);
+  } else {
+    const utvs = [];
+    const etvs = [];
+    const ty = parseType(a, undefined, [], utvs, etvs);
+    return DType(x, [], utvs, etvs, ty);
+  }
 };
 
 const parseExpr = a => {
@@ -155,9 +189,16 @@ const parseDef = ts => {
     body.push(ts.pop());
   }
   if (found) ts.push('=', body.pop());
-  body.unshift('('); body.push(')');
+  if (/[a-z]/.test(x[0])) {
+    body.unshift('('); body.push(')');
+    body.reverse();
+    return DValue(x, parseExpr(body));
+  }
+  if (body[0] !== '\\') {
+    body.unshift('('); body.push(')');
+  }
   body.reverse();
-  return /[a-z]/.test(x[0]) ? DValue(x, parseExpr(body)) : DType(x, parseType(body));
+  return parseTypeTop(x, body);
 };
 
 const parseDefs = s => {
