@@ -42,17 +42,9 @@ const match = (a, x) => {
 const parseExpr = a => {
   if (a.length === 0) throw new SyntaxError('empty');
   if (match(a, '(')) {
-    const es = [parseExpr(a)];
-    while (a.length && !match(a, ')'))
-      es.push(parseExpr(a));
-    if (es.length === 0) throw new SyntaxError('empty');
-    const head = es[0];
-    if (head.tag === 'Var' && /[A-Z]/.test(head.name)) {
-      if (es.length !== 2)
-        throw new SyntaxError(`constructor ${head.name} takes 1 argument, but ${es.length - 1} given.`);
-      return Con(head.name, es[1]);
-    }
-    return es.reduce(App);
+    const ts = [];
+    while (a.length && !match(a, ')')) ts.push(a.pop());
+    return parseApp(ts.reverse());
   } else if (match(a, '\\')) {
     const args = [];
     while (!match(a, '.')) args.push(parseName(a));

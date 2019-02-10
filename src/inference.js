@@ -42,7 +42,7 @@ const escapeCheckEnv = (tvs, env, expr) => {
   }
 };
 const synth = (tenv, env, e, skol = {}) => {
-  console.log(`synth ${showExpr(e)}`);
+  // console.log(`synth ${e.tag} ${showExpr(e)}`);
   switch (e.tag) {
     case 'Var': {
       if (!env[e.name]) throw new TypeError(`undefined variable ${e.name}`);
