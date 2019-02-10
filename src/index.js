@@ -17,7 +17,7 @@ const env = {
 };
 
 const sc = `
-  main = (\\Id id. id) (Id \\x. x)
+  main = (\\Id id -> id) (Id \\x -> x)
 `;
 const ds = parseDefs(sc);
 const tyenv = inferDefs(ds, tenv, env);

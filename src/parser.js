@@ -15,8 +15,10 @@ const tokenize = s => {
   let t = '';
   for (let i = 0, l = s.length; i <= l; i++) {
     const c = s[i] || ' ';
+    const next = s[i+1] || '';
     if (state === START) {
-      if (SYMBOLS.indexOf(c) >= 0) r.push(c);
+      if (c + next === '->') r.push(c + next), i++;
+      else if (SYMBOLS.indexOf(c) >= 0) r.push(c);
       else if (/[a-z]/i.test(c)) t += c, state = NAME;
       else if (/\s/.test(c)) continue;
       else throw new SyntaxError(`unexpected char ${c}`);
@@ -31,6 +33,13 @@ const tokenize = s => {
   return r;
 };
 
+const matchfn = (a, fn) => {
+  if (a.length && fn(a[a.length - 1])) {
+    a.pop();
+    return true;
+  }
+  return false;
+};
 const match = (a, x) => {
   if (a.length && a[a.length - 1] === x) {
     a.pop();
@@ -47,7 +56,7 @@ const parseExpr = a => {
     return parseApp(ts.reverse());
   } else if (match(a, '\\')) {
     const args = [];
-    while (!match(a, '.')) args.push(parseName(a));
+    while (!match(a, '->')) args.push(parseName(a));
     if (args.length === 0)
       throw new SyntaxError('abs without parameters');
     for (let i = 1, l = args.length; i < l; i++)
@@ -60,10 +69,8 @@ const parseExpr = a => {
       return Decon(args[0], args[1], body);
     }
     return args.reduceRight((x, y) => Abs(y, x), body);
-  } else if (match(a, '.'))
-    throw new SyntaxError('unexpected .');
-  else if (match(a, '='))
-    throw new SyntaxError('unexpected =');
+  } else if (matchfn(a, x => !/[a-z]/i.test(x[0])))
+    throw new SyntaxError(`unexpected ${a.pop()}`);
   return Var(a.pop());
 };
 
