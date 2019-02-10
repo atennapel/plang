@@ -65,7 +65,8 @@ const compile = e => {
 };
 
 const compileDefs = ds =>
-  ds.map(([x, e]) => `const ${compileName(x)} = ${compile(e)};`)
+  ds.map(d => d.tag === 'DType' ? null : `const ${compileName(d.name)} = ${compile(d.expr)};`)
+    .filter(x => x !== null)
     .join('\n');
 
 module.exports = {

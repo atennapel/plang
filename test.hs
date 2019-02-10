@@ -1,3 +1,6 @@
+Box = t
+
+Id = t -> t
 
 id = \x -> x
 compose = \f g x -> f (g x)
@@ -8,4 +11,4 @@ dup = \f x -> f x x
 z = \f x -> x
 s = \n f x -> f (n f x)
 
-main = s (s (s z))
+main = (\Id id -> id) (Id \x -> x)

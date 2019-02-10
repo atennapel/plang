@@ -1,24 +1,11 @@
-const { showExpr } = require('./exprs');
-const { showType, TCon, TFun, TVar } = require('./types');
+const { showType } = require('./types');
 const { parseDefs } = require('./parser');
 const { compileDefs } = require('./compiler');
 const { inferDefs } = require('./inference');
 
-const tenv = {
-  Id: {
-    tcon: TCon('Id'),
-    tvs: [],
-    etvs: [],
-    utvs: [0],
-    type: TFun(TVar(0), TVar(0)),
-  },
-};
-const env = {
-};
-
 const sc = require('fs').readFileSync(process.argv[2], 'utf8');
 const ds = parseDefs(sc);
-const tyenv = inferDefs(ds, tenv, env);
+const tyenv = inferDefs(ds);
 console.log(showType(tyenv.main));
 const c = compileDefs(ds);
 console.log(c);

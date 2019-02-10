@@ -1,5 +1,6 @@
 const {
   resetId,
+  TCon,
   TVar,
   TApp,
   TFun,
@@ -8,6 +9,7 @@ const {
   prune,
   occursAny,
   showType,
+  freeTVars,
 } = require('./types');
 const { showExpr } = require('./exprs');
 const { unify } = require('./unification');
@@ -116,9 +118,21 @@ const infer = (tenv, env, e) => {
 };
 const inferDefs = (ds, tenv = {}, env = {}) => {
   for (let i = 0, l = ds.length; i < l; i++) {
-    const [x, e] = ds[i];
-    const t = infer(tenv, env, e);
-    env[x] = t;
+    const d = ds[i];
+    switch (d.tag) {
+      case 'DType':
+        tenv[d.name] = {
+          tcon: TCon(d.name),
+          tvs: [],
+          etvs: [],
+          utvs: freeTVars(d.type),
+          type: d.type,
+        };
+        break;
+      case 'DValue':
+        env[d.name] = infer(tenv, env, d.expr);
+        break;
+    }
   }
   return env;
 };

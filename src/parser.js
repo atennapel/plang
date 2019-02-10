@@ -13,6 +13,10 @@ const {
   TFunC,
   tfuns,
 } = require('./types');
+const {
+  DType,
+  DValue,
+} = require('./defs');
 
 const SYMBOLS = '()\\.=';
 const START = 0;
@@ -152,7 +156,8 @@ const parseDef = ts => {
   }
   if (found) ts.push('=', body.pop());
   body.unshift('('); body.push(')');
-  return [x, parseExpr(body.reverse())];
+  body.reverse();
+  return /[a-z]/.test(x[0]) ? DValue(x, parseExpr(body)) : DType(x, parseType(body));
 };
 
 const parseDefs = s => {
@@ -166,8 +171,5 @@ const parseDefs = s => {
 };
 
 module.exports = {
-  tokenize,
-  parseType,
-  parseExpr,
   parseDefs,
 };

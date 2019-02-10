@@ -50,6 +50,20 @@ const occursAny = (vs, t) => {
   return null;
 };
 
+const freeTVars = (t, a = []) => {
+  if (t.tag === 'TVar') {
+    if (a.indexOf(t) >= 0) return a;
+    a.push(t);
+    return a;
+  }
+  if (t.tag === 'TApp') {
+    freeTVars(t.left, a);
+    freeTVars(t.right, a);
+    return a;
+  }
+  return a;
+};
+
 module.exports = {
   resetId,
 
@@ -71,4 +85,6 @@ module.exports = {
   prune,
   occurs,
   occursAny,
+
+  freeTVars,
 };
