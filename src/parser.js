@@ -34,10 +34,8 @@ const tokenize = s => {
 };
 
 const matchfn = (a, fn) => {
-  if (a.length && fn(a[a.length - 1])) {
-    a.pop();
+  if (a.length && fn(a[a.length - 1]))
     return true;
-  }
   return false;
 };
 const match = (a, x) => {
@@ -51,9 +49,20 @@ const match = (a, x) => {
 const parseExpr = a => {
   if (a.length === 0) throw new SyntaxError('empty');
   if (match(a, '(')) {
-    const ts = [];
-    while (a.length && !match(a, ')')) ts.push(a.pop());
-    return parseApp(ts.reverse());
+    const es = [];
+    while (true) {
+      if (a.length === 0) throw new SyntaxError('missing )');
+      if (match(a, ')')) break;
+      es.push(parseExpr(a));
+    }
+    if (es.length === 0) throw new SyntaxError('empty');
+    const head = es[0];
+    if (head.tag === 'Var' && /[A-Z]/.test(head.name)) {
+      if (es.length !== 2)
+        throw new SyntaxError(`constructor ${head.name} takes 1 argument, but ${es.length - 1} given.`);
+      return Con(head.name, es[1]);
+    }
+    return es.reduce(App);
   } else if (match(a, '\\')) {
     const args = [];
     while (!match(a, '->')) args.push(parseName(a));
@@ -62,7 +71,8 @@ const parseExpr = a => {
     for (let i = 1, l = args.length; i < l; i++)
       if (/[A-Z]/.test(args[i][0]))
         throw new SyntaxError(`constructor in abs argument: ${args[i]}`);
-    const body = parseApp(a);
+    a.push('('); a.unshift(')');
+    const body = parseExpr(a);
     if (/[A-Z]/.test(args[0][0])) {
       if (args.length !== 2)
         throw new SyntaxError(`deconstructor ${args[0]} expects 1 argument but got ${args.length - 1}`);
@@ -83,19 +93,6 @@ const parseName = ts => {
   return x;
 };
 
-const parseApp = ts => {
-  const es = [];
-  while (ts.length) es.push(parseExpr(ts));
-  if (es.length === 0) throw new SyntaxError('empty');
-  const head = es[0];
-  if (head.tag === 'Var' && /[A-Z]/.test(head.name)) {
-    if (es.length !== 2)
-      throw new SyntaxError(`constructor ${head.name} takes 1 argument, but ${es.length - 1} given.`);
-    return Con(head.name, es[1]);
-  }
-  return es.reduce(App);
-};
-
 const parseDef = ts => {
   const x = parseName(ts);
   if (!match(ts, '='))
@@ -110,7 +107,8 @@ const parseDef = ts => {
     body.push(ts.pop());
   }
   if (found) ts.push('=', body.pop());
-  return [x, parseApp(body.reverse())];
+  body.unshift('('); body.push(')');
+  return [x, parseExpr(body.reverse())];
 };
 
 const parseDefs = s => {
