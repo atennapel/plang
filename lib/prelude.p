@@ -31,3 +31,11 @@ inl = \x -> Sum \f g -> f x
 inr = \x -> Sum \f g -> g x
 caseSum = \f g s -> unSum s f g
 
+Fix = \f. f (Fix f)
+unFix = \Fix f -> f
+
+Mu = \f -> (f a -> a) -> a
+unMu = \Mu f -> f
+
+Nu = \f -> Pair xa (xa -> f xa)
+
