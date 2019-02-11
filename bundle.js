@@ -506,7 +506,22 @@ const _tenv = {};
 const _env = {};
 
 const _run = (_s, _cb) => {
-  if (_s.startsWith(':let ')) {
+  if (_s.startsWith(':nat ')) {
+    const _ss = _s.slice(4).trim();
+    try {
+      const _e = parseExprTop(_ss);
+      console.log(showExpr(_e));
+      const _t = infer(_tenv, _env, _e);
+      console.log(showType(_t));
+      const _c = compile(_e);
+      console.log(_c);
+      const _v = eval(_c);
+      console.log(_v);
+      return _cb(`${_show(_v(x => x + 1)(0))} : ${showType(_t)}`);
+    } catch (err) {
+      return _cb('' + err, true);
+    }
+  } else if (_s.startsWith(':let ')) {
     try {
       const _ss = _s.slice(4).trim();
       const _ds = parseDefs(_ss);
