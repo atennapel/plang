@@ -24,7 +24,7 @@ const unify = (a_, b_, skol = {}) => {
   if (a.tag === 'TVar' && b.tag === 'TVar' && a.id === b.id) return;
   if (a.tag === 'TCon' && b.tag === 'TCon' && a.name === b.name) return;
   if (a.tag === 'TMeta' && b.tag === 'TMeta' && a.id === b.id) return;
-  throw new TypeError(`cannot unify ${showType(a)} ~ ${showType(b)}`);
+  throw new TypeError(`cannot unify ${a.tag === 'TMeta' && skol[a.id] ? 'skolem ' : ''}${showType(a)} ~ ${b.tag === 'TMeta' && skol[b.id] ? 'skolem ' : ''}${showType(b)}`);
 };
 
 module.exports = {
