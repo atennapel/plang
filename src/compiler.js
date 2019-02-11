@@ -69,7 +69,13 @@ const compileDefs = ds =>
     .filter(x => x !== null)
     .join('\n');
 
+const compileDefsWeb = ds => '(() => {' +
+  ds.map(d => d.tag === 'DType' ? null : `window['${compileName(d.name)}'] = ${compile(d.expr)};`)
+    .filter(x => x !== null)
+    .join('\n') + '})()';
+
 module.exports = {
   compileDefs,
+  compileDefsWeb,
   compile,
 };

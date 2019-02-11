@@ -219,5 +219,6 @@ const parseExprTop = s => {
 
 module.exports = {
   parseDefs,
+  parseDef,
   parseExprTop,
 };

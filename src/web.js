@@ -12,7 +12,7 @@ function onresize() {
 }
 window.addEventListener('resize', onresize);
 onresize();
-addResult("REPL (try :help)");
+addResult("REPL");
 input.focus();
 input.onkeydown = function(keyEvent) {
 	var val = input.value;
