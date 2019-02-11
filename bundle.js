@@ -404,7 +404,7 @@ const parseExpr = a => {
     }
     if (es.length === 0) throw new SyntaxError('empty');
     const head = es[0];
-    if (head.tag === 'Var' && /[A-Z]/.test(head.name)) {
+    if (head.tag === 'Var' && /[A-Z]/.test(head.name[0])) {
       if (es.length !== 2)
         throw new SyntaxError(`constructor ${head.name} takes 1 argument, but ${es.length - 1} given.`);
       return Con(head.name, es[1]);
