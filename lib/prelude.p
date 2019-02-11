@@ -31,11 +31,30 @@ inl = \x -> Sum \f g -> f x
 inr = \x -> Sum \f g -> g x
 caseSum = \f g s -> unSum s f g
 
+Maybe = \t. Sum Unit t
+unMaybe = \Maybe s -> s
+nothing = Maybe (inl unit)
+just = \x -> Maybe (inr x)
+caseMaybe = \m -> unSum (unMaybe m)
+
 Fix = \f. f (Fix f)
 unFix = \Fix f -> f
 
-Mu = \f -> (f a -> a) -> a
+Mu = \f. (f a -> a) -> a
 unMu = \Mu f -> f
 
-Nu = \f -> Pair xa (xa -> f xa)
+Nu = \f. Pair xa (xa -> f xa)
+
+Monoid = \t. Pair t (t -> t -> t)
+unit = \Monoid p -> fst p
+append = \Monoid p -> snd p
+
+Functor = \f. (a -> b) -> f a -> f b
+map = \Functor f -> f
+
+ListF = \t r. Sum Unit (Pair t r)
+List = \t. Mu (ListF t)
+unList = \List m -> m
+nil = List (Mu (\f -> f (inl unit)))
+cons = \h t -> List (Mu (\f -> f (inr (pair h (unMu (unList t) f)))))
 
