@@ -211,6 +211,13 @@ const parseDefs = s => {
   return ds;
 };
 
+const parseExprTop = s => {
+  const ts = tokenize(s);
+  ts.unshift('('); ts.push(')');
+  return parseExpr(ts.reverse());
+};
+
 module.exports = {
   parseDefs,
+  parseExprTop,
 };

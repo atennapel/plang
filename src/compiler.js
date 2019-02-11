@@ -71,4 +71,5 @@ const compileDefs = ds =>
 
 module.exports = {
   compileDefs,
+  compile,
 };
