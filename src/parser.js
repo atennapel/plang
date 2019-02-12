@@ -130,6 +130,7 @@ const parseTypeTop = (x, a) => {
 };
 
 const parseExpr = a => {
+  // console.log(a.slice().reverse().join(' '));
   if (a.length === 0) throw new SyntaxError('empty');
   if (match(a, '(')) {
     const es = [];
@@ -155,9 +156,14 @@ const parseExpr = a => {
       if (/[A-Z]/.test(args[i][0]))
         throw new SyntaxError(`constructor in abs argument: ${args[i]}`);
     const es = [];
+    let br = 0;
     while (true) {
       if (a.length === 0) break;
-      if (a[a.length - 1] === ')') break;
+      if (a[a.length - 1] === '(') br++;
+      if (a[a.length - 1] === ')') {
+        if (br === 0) break;
+        br--;
+      }
       es.push(a.pop());
     }
     es.unshift('('); es.push(')');
@@ -184,6 +190,7 @@ const parseName = ts => {
 
 const parseDef = ts => {
   const x = parseName(ts);
+  // console.log('parseDef', x);
   if (!match(ts, '='))
     throw new SyntaxError(`= missing after definition name`);
   const body = [];
