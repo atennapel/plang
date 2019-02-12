@@ -269,6 +269,7 @@ const {
   App,
   Con,
   Decon,
+  showExpr,
 } = require('./exprs');
 const {
   TCon,
@@ -418,8 +419,13 @@ const parseExpr = a => {
     for (let i = 1, l = args.length; i < l; i++)
       if (/[A-Z]/.test(args[i][0]))
         throw new SyntaxError(`constructor in abs argument: ${args[i]}`);
-    a.push('('); a.unshift(')');
-    const body = parseExpr(a);
+    const es = [];
+    while (true) {
+      if (a.length === 0) break;
+      if (a[a.length - 1] === ')') break;
+      es.push(parseExpr(a));
+    }
+    const body = es.reduce(App);
     if (/[A-Z]/.test(args[0][0])) {
       if (args.length !== 2)
         throw new SyntaxError(`deconstructor ${args[0]} expects 1 argument but got ${args.length - 1}`);
