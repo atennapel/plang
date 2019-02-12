@@ -423,9 +423,10 @@ const parseExpr = a => {
     while (true) {
       if (a.length === 0) break;
       if (a[a.length - 1] === ')') break;
-      es.push(parseExpr(a));
+      es.push(a.pop());
     }
-    const body = es.reduce(App);
+    es.unshift('('); es.push(')');
+    const body = parseExpr(es.reverse());
     if (/[A-Z]/.test(args[0][0])) {
       if (args.length !== 2)
         throw new SyntaxError(`deconstructor ${args[0]} expects 1 argument but got ${args.length - 1}`);
