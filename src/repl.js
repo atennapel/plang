@@ -15,7 +15,30 @@ const _tenv = {};
 const _env = {};
 
 const _run = (_s, _cb) => {
-  if (_s.startsWith(':nat ')) {
+  if (_s.startsWith(':load ')) {
+    const _ss = _s.slice(5).trim();
+    try {
+      return fetch(`https://atennapel.github.io/plang/lib/${_ss}.p`)
+        .then(x => x.text())
+        .then(_ss => {
+          try {
+            const _ds = parseDefs(_ss);
+            console.log(_ds);
+            inferDefs(_ds, _tenv, _env);
+            console.log(_tenv, _env);
+            const _c = compileDefsWeb(_ds);
+            console.log(_c);
+            eval(_c);
+            return _cb('done');
+          } catch (err) {
+            return _cb('' + err, true);
+          }
+        })
+        .catch(e => _cb(''+e, true));
+    } catch (err) {
+      return _cb('' + err, true);
+    }
+  } else if (_s.startsWith(':nat ')) {
     const _ss = _s.slice(4).trim();
     try {
       const _e = parseExprTop(_ss);
