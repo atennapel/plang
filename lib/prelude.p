@@ -44,17 +44,18 @@ Mu = \f. (f a -> a) -> a
 unMu = \Mu f -> f
 
 Nu = \f. Pair xa (xa -> f xa)
+nu = \a f -> Nu (pair a f)
 
 Monoid = \t. Pair t (t -> t -> t)
-unit = \Monoid p -> fst p
-append = \Monoid p -> snd p
+munit = \Monoid p -> fst p
+mappend = \Monoid p -> snd p
 
 Functor = \f. (a -> b) -> f a -> f b
 map = \Functor f -> f
 
 ListF = \t r. Sum Unit (Pair t r)
+unListF = \ListF s -> s
 List = \t. Mu (ListF t)
 unList = \List m -> m
-nil = List (Mu (\f -> f (inl unit)))
-cons = \h t -> List (Mu (\f -> f (inr (pair h (unMu (unList t) f)))))
-
+nil = List (Mu (\f -> f (ListF (inl unit))))
+cons = \h t -> List (Mu (\f -> f (ListF (inr (pair h (unMu (unList t) f))))))

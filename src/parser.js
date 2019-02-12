@@ -86,7 +86,7 @@ const parseType = (a, tvmap = { _id: 0 }, tvs = [], utvs = [], etvs = []) => {
     if (r.length === 2 && r[0].length === 0) return TApp(TFunC, r[1].reduce(TApp));
     return tfuns(r.map(a => {
       if (a.length === 0) throw new SyntaxError('empty');
-      return a.reduce(TApp);
+      return a.reverse().reduce(TApp);
     }));
   } else if(match(a, '->')) return TFunC;
   else if (matchfn(a, x => !/[a-z]/i.test(x[0])))

@@ -13,6 +13,7 @@ const unify = (a_, b_, skol = {}) => {
   if (a_ === b_) return;
   const a = prune(a_);
   const b = prune(b_);
+  // console.log(`${a.tag === 'TMeta' && skol[a.id] ? 'skolem ' : ''}${showType(a)} ~ ${b.tag === 'TMeta' && skol[b.id] ? 'skolem ' : ''}${showType(b)}`);
   if (a === b) return;
   if (a.tag === 'TMeta' && !skol[a.id]) return bind(a, b);
   if (b.tag === 'TMeta' && !skol[b.id]) return bind(b, a);
