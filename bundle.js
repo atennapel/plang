@@ -239,7 +239,6 @@ const infer = (tenv, env, e) => {
 const inferDefs = (ds, tenv = {}, env = {}) => {
   for (let i = 0, l = ds.length; i < l; i++) {
     const d = ds[i];
-    console.log(d);
     switch (d.tag) {
       case 'DType':
         tenv[d.name] = {
@@ -352,7 +351,7 @@ const parseType = (a, tvmap = { _id: 0 }, tvs = [], utvs = [], etvs = []) => {
     if (r.length === 2 && r[0].length === 0) return TApp(TFunC, r[1].reduce(TApp));
     return tfuns(r.map(a => {
       if (a.length === 0) throw new SyntaxError('empty');
-      return a.reduce(TApp);
+      return a.reverse().reduce(TApp);
     }));
   } else if(match(a, '->')) return TFunC;
   else if (matchfn(a, x => !/[a-z]/i.test(x[0])))
@@ -665,6 +664,7 @@ const unify = (a_, b_, skol = {}) => {
   if (a_ === b_) return;
   const a = prune(a_);
   const b = prune(b_);
+  // console.log(`${a.tag === 'TMeta' && skol[a.id] ? 'skolem ' : ''}${showType(a)} ~ ${b.tag === 'TMeta' && skol[b.id] ? 'skolem ' : ''}${showType(b)}`);
   if (a === b) return;
   if (a.tag === 'TMeta' && !skol[a.id]) return bind(a, b);
   if (b.tag === 'TMeta' && !skol[b.id]) return bind(b, a);
