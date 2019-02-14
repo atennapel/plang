@@ -3,6 +3,7 @@ const { showExpr } = require('./exprs');
 const { parseDefs, parseExprTop } = require('./parser');
 const { compile, compileDefsWeb } = require('./compiler');
 const { infer, inferDefs } = require('./inference');
+const { primenv } = require('./prims');
 
 const _show = x => {
   if (typeof x === 'function') return '[Fn]';
@@ -12,7 +13,7 @@ const _show = x => {
 };
 
 const _tenv = {};
-const _env = {};
+const _env = Object.create(primenv);
 
 const _run = (_s, _cb) => {
   if (_s.startsWith(':load ')) {

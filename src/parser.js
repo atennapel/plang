@@ -39,7 +39,7 @@ const tokenize = s => {
       else if (/\s/.test(c)) continue;
       else throw new SyntaxError(`unexpected char ${c}`);
     } else if (state === NAME) {
-      if (!/[a-z]/i.test(c))
+      if (!/[a-z\.]/i.test(c))
         r.push(t), t = '', i--, state = START;
       else t += c;
     } else if (state === NUMBER) {

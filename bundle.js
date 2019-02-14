@@ -50,7 +50,8 @@ implements
 instanceof
 `.trim().split(/\s+/);
 
-const compileName = x => keywords.indexOf(x) >= 0 ? `${x}_` : /^[0-9]+$/.test(x) ? `_${x}` : x;
+const compileName = x =>
+  keywords.indexOf(x) >= 0 ? `${x}_` : /^[0-9]+$/.test(x) ? `_${x}` : x.replace(/\./g, '_');
 
 const compile = e => {
   switch (e.tag) {
@@ -262,7 +263,7 @@ module.exports = {
   inferDefs,
 };
 
-},{"./exprs":3,"./types":7,"./unification":8}],5:[function(require,module,exports){
+},{"./exprs":3,"./types":8,"./unification":9}],5:[function(require,module,exports){
 const {
   Var,
   Abs,
@@ -304,7 +305,7 @@ const tokenize = s => {
       else if (/\s/.test(c)) continue;
       else throw new SyntaxError(`unexpected char ${c}`);
     } else if (state === NAME) {
-      if (!/[a-z]/i.test(c))
+      if (!/[a-z\.]/i.test(c))
         r.push(t), t = '', i--, state = START;
       else t += c;
     } else if (state === NUMBER) {
@@ -508,12 +509,25 @@ module.exports = {
   parseExprTop,
 };
 
-},{"./defs":2,"./exprs":3,"./types":7}],6:[function(require,module,exports){
+},{"./defs":2,"./exprs":3,"./types":8}],6:[function(require,module,exports){
+const { TCon } = require('./types');
+
+const primenv = {
+  'prim.true': TCon('Prim.Bool'),
+  'prim.false': TCon('Prim.Bool'),
+};
+
+module.exports = {
+  primenv,
+};
+
+},{"./types":8}],7:[function(require,module,exports){
 const { showType } = require('./types');
 const { showExpr } = require('./exprs');
 const { parseDefs, parseExprTop } = require('./parser');
 const { compile, compileDefsWeb } = require('./compiler');
 const { infer, inferDefs } = require('./inference');
+const { primenv } = require('./prims');
 
 const _show = x => {
   if (typeof x === 'function') return '[Fn]';
@@ -523,7 +537,7 @@ const _show = x => {
 };
 
 const _tenv = {};
-const _env = {};
+const _env = Object.create(primenv);
 
 const _run = (_s, _cb) => {
   if (_s.startsWith(':load ')) {
@@ -599,7 +613,7 @@ module.exports = {
   run: _run,
 };
 
-},{"./compiler":1,"./exprs":3,"./inference":4,"./parser":5,"./types":7}],7:[function(require,module,exports){
+},{"./compiler":1,"./exprs":3,"./inference":4,"./parser":5,"./prims":6,"./types":8}],8:[function(require,module,exports){
 let _id = 0;
 const fresh = () => _id++;
 const resetId = () => { _id = 0 };
@@ -691,7 +705,7 @@ module.exports = {
   freeTVars,
 };
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 const {
   showType,
   prune,
@@ -726,7 +740,7 @@ module.exports = {
   unify,
 };
 
-},{"./types":7}],9:[function(require,module,exports){
+},{"./types":8}],10:[function(require,module,exports){
 const { run } = require('./repl');
 
 function getOutput(s, cb) {
@@ -781,4 +795,4 @@ function addResult(msg, err) {
 	return divout;
 }
 
-},{"./repl":6}]},{},[9]);
+},{"./repl":7}]},{},[10]);
