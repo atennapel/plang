@@ -12,18 +12,13 @@ void = \Void x -> x
 Unit = t -> t
 unit = Unit id
 
-Bool = t -> t -> t
-unBool = \Bool f -> f
-true = Bool \a b -> a
-false = Bool \a b -> b
-cond = \c a b -> unBool c a b
-if = \c a b -> (cond c a b) unit
-
 Pair = \a b. (a -> b -> c) -> c
 unPair = \Pair f -> f
 pair = \a b -> Pair \f -> f a b
 fst = \p -> unPair p const
 snd = \p -> unPair p constid
+curry = \f x y -> f (pair x y)
+uncurry = \f p -> unPair p f
 
 Sum = \a b. (a -> c) -> (b -> c) -> c
 unSum = \Sum f -> f
@@ -37,34 +32,17 @@ nothing = Maybe (inl unit)
 just = \x -> Maybe (inr x)
 caseMaybe = \m -> unSum (unMaybe m)
 
-Fix = \f. f (Fix f)
-unFix = \Fix f -> f
+Bool = Sum Unit Unit
+unBool = \Bool s -> s
+true = Bool (inl unit)
+false = Bool (inr unit)
+if = \c a b -> caseSum a b (unBool c)
+cond = \c a b -> if c (\x -> a) (\x -> b)
 
-Mu = \f. (f a -> a) -> a
-unMu = \Mu f -> f
-
-Nu = \f. Pair xa (xa -> f xa)
-nu = \a f -> Nu (pair a f)
-
-Monoid = \t. Pair t (t -> t -> t)
-munit = \Monoid p -> fst p
-mappend = \Monoid p -> snd p
-
-Functor = \f. (a -> b) -> f a -> f b
-map = \Functor f -> f
-
-ListF = \t r. Sum Unit (Pair t r)
-unListF = \ListF s -> s
-List = \t. Mu (ListF t)
-unList = \List m -> m
-nil = List (Mu (\f -> f (ListF (inl unit))))
-cons = \h t -> List (Mu (\f -> f (ListF (inr (pair h (unMu (unList t) f))))))
-
-Nat = (t -> t) -> t -> t
-unNat = \Nat f -> f
-foldNat = \s z n -> unNat n s z
-z = Nat \f x -> x
-s = \n -> Nat \f x -> f (foldNat f x n)
+Nat = Sum Unit Nat
+unNat = \Nat s -> s
+z = Nat (inl unit)
+s = \n -> Nat (inr n)
 0 = z
 1 = s 0
 2 = s 1
@@ -75,7 +53,12 @@ s = \n -> Nat \f x -> f (foldNat f x n)
 7 = s 6
 8 = s 7
 9 = s 8
-add = \m n -> Nat \f x -> foldNat f (foldNat f x n) m
-mul = \m n -> Nat \f x -> foldNat (unNat n f) x m
-exp = \m n -> Nat (unNat n (unNat m))
-pred = \n -> Nat \f x -> unNat n (\g h -> h (g f)) (\u -> x) id
+caseNat = \z s n -> caseSum z s (unNat n)
+iterNat = \z s n -> caseSum z (\n -> s (iterNat z s n)) (unNat n)
+recNat = \z s n -> caseSum z (\n -> s n (recNat z s n)) (unNat n)
+showNat = \n s z -> caseSum (const z) (\n -> s (showNat n s z)) (unNat n)
+isZero = caseSum (const true) (const false)
+isSucc = caseSum (const false) (const true)
+pred = caseNat (const z) id
+add = \a b -> caseSum (const b) (\n -> add n b) (unNat a)
+mul = \a b -> caseSum (const z) (\n -> add b (mul n b)) (unNat a) 

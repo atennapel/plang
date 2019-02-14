@@ -24,11 +24,11 @@ const _run = (_s, _cb) => {
         .then(_ss => {
           try {
             const _ds = parseDefs(_ss);
-            console.log(_ds);
+            // console.log(_ds);
             inferDefs(_ds, _tenv, _env);
-            console.log(_tenv, _env);
+            // console.log(_tenv, _env);
             const _c = compileDefsWeb(_ds);
-            console.log(_c);
+            // console.log(_c);
             eval(_c);
             return _cb('done');
           } catch (err) {
@@ -39,17 +39,57 @@ const _run = (_s, _cb) => {
     } catch (err) {
       return _cb('' + err, true);
     }
+  }if (_s.startsWith(':loadfull ')) {
+    const _ss = _s.slice(9).trim();
+    try {
+      return fetch(_ss)
+        .then(x => x.text())
+        .then(_ss => {
+          try {
+            const _ds = parseDefs(_ss);
+            // console.log(_ds);
+            inferDefs(_ds, _tenv, _env);
+            // console.log(_tenv, _env);
+            const _c = compileDefsWeb(_ds);
+            // console.log(_c);
+            eval(_c);
+            return _cb('done');
+          } catch (err) {
+            return _cb('' + err, true);
+          }
+        })
+        .catch(e => _cb(''+e, true));
+    } catch (err) {
+      return _cb('' + err, true);
+    }
+  } else if (_s.startsWith(':loadfile ')) {
+    const _f = _s.slice(9).trim();
+    require('fs').readFile(`./lib/${_f}.p`, 'utf8', (err, _ss) => {
+      try {
+        if (err) throw err;
+        const _ds = parseDefs(_ss);
+        // console.log(_ds);
+        inferDefs(_ds, _tenv, _env);
+        // console.log(_tenv, _env);
+        const _c = compileDefsWeb(_ds);
+        // console.log(_c);
+        eval(_c);
+        return _cb('done');
+      } catch (err) {
+        return _cb('' + err, true);
+      }
+    });
   } else if (_s.startsWith(':nat ')) {
     const _ss = _s.slice(4).trim();
     try {
       const _e = parseExprTop(_ss);
-      console.log(showExpr(_e));
+      // console.log(showExpr(_e));
       const _t = infer(_tenv, _env, _e);
-      console.log(showType(_t));
+      // console.log(showType(_t));
       const _c = compile(_e);
-      console.log(_c);
+      // console.log(_c);
       const _v = eval(_c);
-      console.log(_v);
+      // console.log(_v);
       return _cb(`${_show(_v(x => x + 1)(0))} : ${showType(_t)}`);
     } catch (err) {
       return _cb('' + err, true);
@@ -58,11 +98,11 @@ const _run = (_s, _cb) => {
     try {
       const _ss = _s.slice(4).trim();
       const _ds = parseDefs(_ss);
-      console.log(_ds);
+      // console.log(_ds);
       inferDefs(_ds, _tenv, _env);
-      console.log(_tenv, _env);
+      // console.log(_tenv, _env);
       const _c = compileDefsWeb(_ds);
-      console.log(_c);
+      // console.log(_c);
       eval(_c);
       return _cb('done');
     } catch (err) {
@@ -71,13 +111,13 @@ const _run = (_s, _cb) => {
   } else {
     try {
       const _e = parseExprTop(_s);
-      console.log(showExpr(_e));
+      // console.log(showExpr(_e));
       const _t = infer(_tenv, _env, _e);
-      console.log(showType(_t));
+      // console.log(showType(_t));
       const _c = compile(_e);
-      console.log(_c);
+      // console.log(_c);
       const _v = eval(_c);
-      console.log(_v);
+      // console.log(_v);
       return _cb(`${_show(_v)} : ${showType(_t)}`);
     } catch (err) {
       return _cb('' + err, true);

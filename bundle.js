@@ -1,4 +1,6 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+
+},{}],2:[function(require,module,exports){
 const keywords = `
 do
 if
@@ -72,7 +74,8 @@ const compileDefs = ds =>
     .join('\n');
 
 const compileDefsWeb = ds => '(() => {' +
-  ds.map(d => d.tag === 'DType' ? null : `window['${compileName(d.name)}'] = ${compile(d.expr)};`)
+  ds.map(d => d.tag === 'DType' ? null :
+      `${typeof window === 'undefined' ? 'global' : 'window'}['${compileName(d.name)}'] = ${compile(d.expr)};`)
     .filter(x => x !== null)
     .join('\n') + '})()';
 
@@ -82,7 +85,7 @@ module.exports = {
   compile,
 };
 
-},{}],2:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 const DType = (name, tvs, utvs, etvs, type) => ({ tag: 'DType', name, tvs, utvs, etvs, type });
 const DValue = (name, expr) => ({ tag: 'DValue', name, expr });
 
@@ -91,7 +94,7 @@ module.exports = {
   DValue,
 };
 
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 const Var = name => ({ tag: 'Var', name });
 const Abs = (name, body) => ({ tag: 'Abs', name, body });
 const App = (left, right) => ({ tag: 'App', left, right });
@@ -118,7 +121,7 @@ module.exports = {
   showExpr,
 };
 
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 const {
   resetId,
   TCon,
@@ -233,15 +236,14 @@ const simplify = (t, map = {}, next = { id: 0 }) => {
     return TApp(simplify(t.left, map, next), simplify(t.right, map, next));
   return t;
 };
-const infer = (tenv, env, e) => {
-  resetId();
-  return simplify(gen(synth(tenv, env, e)));
-};
+const infer = (tenv, env, e) => simplify(gen(synth(tenv, env, e)));
+
 const inferDefs = (ds, tenv = {}, env = {}) => {
   for (let i = 0, l = ds.length; i < l; i++) {
     const d = ds[i];
     switch (d.tag) {
       case 'DType':
+        if (tenv[d.name]) throw new TypeError(`trying to redefine type: ${d.name}`);
         tenv[d.name] = {
           tcon: TCon(d.name),
           tvs: d.tvs,
@@ -251,7 +253,11 @@ const inferDefs = (ds, tenv = {}, env = {}) => {
         };
         break;
       case 'DValue':
-        env[d.name] = infer(tenv, env, d.expr);
+        if (env[d.name]) throw new TypeError(`trying to redefine: ${d.name}`);
+        resetId();
+        const tv = freshTMeta();
+        const ty = infer(tenv, extend(env, d.name, tv), d.expr);
+        env[d.name] = prune(ty);
         break;
     }
   }
@@ -263,7 +269,7 @@ module.exports = {
   inferDefs,
 };
 
-},{"./exprs":3,"./types":8,"./unification":9}],5:[function(require,module,exports){
+},{"./exprs":4,"./types":9,"./unification":10}],6:[function(require,module,exports){
 const {
   Var,
   Abs,
@@ -305,7 +311,7 @@ const tokenize = s => {
       else if (/\s/.test(c)) continue;
       else throw new SyntaxError(`unexpected char ${c}`);
     } else if (state === NAME) {
-      if (!/[a-z\.]/i.test(c))
+      if (!/[a-z0-9\.]/i.test(c))
         r.push(t), t = '', i--, state = START;
       else t += c;
     } else if (state === NUMBER) {
@@ -509,7 +515,7 @@ module.exports = {
   parseExprTop,
 };
 
-},{"./defs":2,"./exprs":3,"./types":8}],6:[function(require,module,exports){
+},{"./defs":3,"./exprs":4,"./types":9}],7:[function(require,module,exports){
 const { TCon } = require('./types');
 
 const primenv = {
@@ -521,7 +527,7 @@ module.exports = {
   primenv,
 };
 
-},{"./types":8}],7:[function(require,module,exports){
+},{"./types":9}],8:[function(require,module,exports){
 const { showType } = require('./types');
 const { showExpr } = require('./exprs');
 const { parseDefs, parseExprTop } = require('./parser');
@@ -548,11 +554,11 @@ const _run = (_s, _cb) => {
         .then(_ss => {
           try {
             const _ds = parseDefs(_ss);
-            console.log(_ds);
+            // console.log(_ds);
             inferDefs(_ds, _tenv, _env);
-            console.log(_tenv, _env);
+            // console.log(_tenv, _env);
             const _c = compileDefsWeb(_ds);
-            console.log(_c);
+            // console.log(_c);
             eval(_c);
             return _cb('done');
           } catch (err) {
@@ -563,17 +569,57 @@ const _run = (_s, _cb) => {
     } catch (err) {
       return _cb('' + err, true);
     }
+  }if (_s.startsWith(':loadfull ')) {
+    const _ss = _s.slice(9).trim();
+    try {
+      return fetch(_ss)
+        .then(x => x.text())
+        .then(_ss => {
+          try {
+            const _ds = parseDefs(_ss);
+            // console.log(_ds);
+            inferDefs(_ds, _tenv, _env);
+            // console.log(_tenv, _env);
+            const _c = compileDefsWeb(_ds);
+            // console.log(_c);
+            eval(_c);
+            return _cb('done');
+          } catch (err) {
+            return _cb('' + err, true);
+          }
+        })
+        .catch(e => _cb(''+e, true));
+    } catch (err) {
+      return _cb('' + err, true);
+    }
+  } else if (_s.startsWith(':loadfile ')) {
+    const _f = _s.slice(9).trim();
+    require('fs').readFile(`./lib/${_f}.p`, 'utf8', (err, _ss) => {
+      try {
+        if (err) throw err;
+        const _ds = parseDefs(_ss);
+        // console.log(_ds);
+        inferDefs(_ds, _tenv, _env);
+        // console.log(_tenv, _env);
+        const _c = compileDefsWeb(_ds);
+        // console.log(_c);
+        eval(_c);
+        return _cb('done');
+      } catch (err) {
+        return _cb('' + err, true);
+      }
+    });
   } else if (_s.startsWith(':nat ')) {
     const _ss = _s.slice(4).trim();
     try {
       const _e = parseExprTop(_ss);
-      console.log(showExpr(_e));
+      // console.log(showExpr(_e));
       const _t = infer(_tenv, _env, _e);
-      console.log(showType(_t));
+      // console.log(showType(_t));
       const _c = compile(_e);
-      console.log(_c);
+      // console.log(_c);
       const _v = eval(_c);
-      console.log(_v);
+      // console.log(_v);
       return _cb(`${_show(_v(x => x + 1)(0))} : ${showType(_t)}`);
     } catch (err) {
       return _cb('' + err, true);
@@ -582,11 +628,11 @@ const _run = (_s, _cb) => {
     try {
       const _ss = _s.slice(4).trim();
       const _ds = parseDefs(_ss);
-      console.log(_ds);
+      // console.log(_ds);
       inferDefs(_ds, _tenv, _env);
-      console.log(_tenv, _env);
+      // console.log(_tenv, _env);
       const _c = compileDefsWeb(_ds);
-      console.log(_c);
+      // console.log(_c);
       eval(_c);
       return _cb('done');
     } catch (err) {
@@ -595,13 +641,13 @@ const _run = (_s, _cb) => {
   } else {
     try {
       const _e = parseExprTop(_s);
-      console.log(showExpr(_e));
+      // console.log(showExpr(_e));
       const _t = infer(_tenv, _env, _e);
-      console.log(showType(_t));
+      // console.log(showType(_t));
       const _c = compile(_e);
-      console.log(_c);
+      // console.log(_c);
       const _v = eval(_c);
-      console.log(_v);
+      // console.log(_v);
       return _cb(`${_show(_v)} : ${showType(_t)}`);
     } catch (err) {
       return _cb('' + err, true);
@@ -613,7 +659,7 @@ module.exports = {
   run: _run,
 };
 
-},{"./compiler":1,"./exprs":3,"./inference":4,"./parser":5,"./prims":6,"./types":8}],8:[function(require,module,exports){
+},{"./compiler":2,"./exprs":4,"./inference":5,"./parser":6,"./prims":7,"./types":9,"fs":1}],9:[function(require,module,exports){
 let _id = 0;
 const fresh = () => _id++;
 const resetId = () => { _id = 0 };
@@ -705,7 +751,7 @@ module.exports = {
   freeTVars,
 };
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 const {
   showType,
   prune,
@@ -740,7 +786,7 @@ module.exports = {
   unify,
 };
 
-},{"./types":8}],10:[function(require,module,exports){
+},{"./types":9}],11:[function(require,module,exports){
 const { run } = require('./repl');
 
 function getOutput(s, cb) {
@@ -795,4 +841,4 @@ function addResult(msg, err) {
 	return divout;
 }
 
-},{"./repl":7}]},{},[10]);
+},{"./repl":8}]},{},[11]);

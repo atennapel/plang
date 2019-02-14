@@ -112,15 +112,14 @@ const simplify = (t, map = {}, next = { id: 0 }) => {
     return TApp(simplify(t.left, map, next), simplify(t.right, map, next));
   return t;
 };
-const infer = (tenv, env, e) => {
-  resetId();
-  return simplify(gen(synth(tenv, env, e)));
-};
+const infer = (tenv, env, e) => simplify(gen(synth(tenv, env, e)));
+
 const inferDefs = (ds, tenv = {}, env = {}) => {
   for (let i = 0, l = ds.length; i < l; i++) {
     const d = ds[i];
     switch (d.tag) {
       case 'DType':
+        if (tenv[d.name]) throw new TypeError(`trying to redefine type: ${d.name}`);
         tenv[d.name] = {
           tcon: TCon(d.name),
           tvs: d.tvs,
@@ -130,7 +129,11 @@ const inferDefs = (ds, tenv = {}, env = {}) => {
         };
         break;
       case 'DValue':
-        env[d.name] = infer(tenv, env, d.expr);
+        if (env[d.name]) throw new TypeError(`trying to redefine: ${d.name}`);
+        resetId();
+        const tv = freshTMeta();
+        const ty = infer(tenv, extend(env, d.name, tv), d.expr);
+        env[d.name] = prune(ty);
         break;
     }
   }
