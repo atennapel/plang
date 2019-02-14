@@ -70,7 +70,8 @@ const compileDefs = ds =>
     .join('\n');
 
 const compileDefsWeb = ds => '(() => {' +
-  ds.map(d => d.tag === 'DType' ? null : `window['${compileName(d.name)}'] = ${compile(d.expr)};`)
+  ds.map(d => d.tag === 'DType' ? null :
+      `${typeof window === 'undefined' ? 'global' : 'window'}['${compileName(d.name)}'] = ${compile(d.expr)};`)
     .filter(x => x !== null)
     .join('\n') + '})()';
 

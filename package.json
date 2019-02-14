@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node src/index",
+    "start": "node src/cli",
     "bundle": "browserify src/web.js -o bundle.js"
   },
   "author": "",
