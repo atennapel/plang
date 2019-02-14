@@ -50,7 +50,7 @@ implements
 instanceof
 `.trim().split(/\s+/);
 
-const compileName = x => keywords.indexOf(x) >= 0 ? `${x}_` : x;
+const compileName = x => keywords.indexOf(x) >= 0 ? `${x}_` : /^[0-9]+$/.test(x) ? `_${x}` : x;
 
 const compile = e => {
   switch (e.tag) {
@@ -288,6 +288,7 @@ const {
 const SYMBOLS = '()\\.=';
 const START = 0;
 const NAME = 1;
+const NUMBER = 2;
 const tokenize = s => {
   let state = START;
   const r = [];
@@ -299,10 +300,15 @@ const tokenize = s => {
       if (c + next === '->') r.push(c + next), i++;
       else if (SYMBOLS.indexOf(c) >= 0) r.push(c);
       else if (/[a-z]/i.test(c)) t += c, state = NAME;
+      else if (/[0-9]/.test(c)) t += c, state = NUMBER;
       else if (/\s/.test(c)) continue;
       else throw new SyntaxError(`unexpected char ${c}`);
     } else if (state === NAME) {
       if (!/[a-z]/i.test(c))
+        r.push(t), t = '', i--, state = START;
+      else t += c;
+    } else if (state === NUMBER) {
+      if (!/[0-9]/.test(c))
         r.push(t), t = '', i--, state = START;
       else t += c;
     }
@@ -358,7 +364,7 @@ const parseType = (a, tvmap = { _id: 0 }, tvs = [], utvs = [], etvs = []) => {
   else if (matchfn(a, x => !/[a-z]/i.test(x[0])))
     throw new SyntaxError(`unexpected ${a.pop()}`);
   const x = a.pop();
-  if (!/[a-z]/.test(x[0])) return TCon(x);
+  if (/[A-Z]/.test(x[0])) return TCon(x);
   const tv = tvar(tvmap, x);
   if (tvs.indexOf(tv.id) === -1) {
     let target = x[0] === 'x' && x.length > 1 ? etvs : utvs;
@@ -439,7 +445,7 @@ const parseExpr = a => {
       return Decon(args[0], args[1], body);
     }
     return args.reduceRight((x, y) => Abs(y, x), body);
-  } else if (matchfn(a, x => !/[a-z]/i.test(x[0])))
+  } else if (matchfn(a, x => !/[a-z]/i.test(x[0]) && !/[0-9]/.test(x[0])))
     throw new SyntaxError(`unexpected ${a.pop()}`);
   return Var(a.pop());
 };
@@ -448,7 +454,7 @@ const parseName = ts => {
   if (ts.length === 0)
     throw new SyntaxError('name expected but got nothing');
   const x = ts.pop();
-  if (!/[a-z]/i.test(x))
+  if (!/[a-z]/i.test(x) && !/[0-9]/.test(x))
     throw new SyntaxError(`name expected but got ${x}`);
   return x;
 };
@@ -468,7 +474,7 @@ const parseDef = ts => {
     body.push(ts.pop());
   }
   if (found) ts.push('=', body.pop());
-  if (/[a-z]/.test(x[0])) {
+  if (/[a-z]/.test(x[0]) || /[0-9]/.test(x[0])) {
     body.unshift('('); body.push(')');
     body.reverse();
     return DValue(x, parseExpr(body));

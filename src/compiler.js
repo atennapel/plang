@@ -49,7 +49,7 @@ implements
 instanceof
 `.trim().split(/\s+/);
 
-const compileName = x => keywords.indexOf(x) >= 0 ? `${x}_` : x;
+const compileName = x => keywords.indexOf(x) >= 0 ? `${x}_` : /^[0-9]+$/.test(x) ? `_${x}` : x;
 
 const compile = e => {
   switch (e.tag) {
