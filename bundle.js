@@ -1,4 +1,4 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 const keywords = `
 do
 if
@@ -232,15 +232,14 @@ const simplify = (t, map = {}, next = { id: 0 }) => {
     return TApp(simplify(t.left, map, next), simplify(t.right, map, next));
   return t;
 };
-const infer = (tenv, env, e) => {
-  resetId();
-  return simplify(gen(synth(tenv, env, e)));
-};
+const infer = (tenv, env, e) => simplify(gen(synth(tenv, env, e)));
+
 const inferDefs = (ds, tenv = {}, env = {}) => {
   for (let i = 0, l = ds.length; i < l; i++) {
     const d = ds[i];
     switch (d.tag) {
       case 'DType':
+        if (tenv[d.name]) throw new TypeError(`trying to redefine type: ${d.name}`);
         tenv[d.name] = {
           tcon: TCon(d.name),
           tvs: d.tvs,
@@ -250,7 +249,11 @@ const inferDefs = (ds, tenv = {}, env = {}) => {
         };
         break;
       case 'DValue':
-        env[d.name] = infer(tenv, env, d.expr);
+        if (env[d.name]) throw new TypeError(`trying to redefine: ${d.name}`);
+        resetId();
+        const tv = freshTMeta();
+        const ty = infer(tenv, extend(env, d.name, tv), d.expr);
+        env[d.name] = prune(ty);
         break;
     }
   }
@@ -304,7 +307,7 @@ const tokenize = s => {
       else if (/\s/.test(c)) continue;
       else throw new SyntaxError(`unexpected char ${c}`);
     } else if (state === NAME) {
-      if (!/[a-z]/i.test(c))
+      if (!/[a-z0-9]/i.test(c))
         r.push(t), t = '', i--, state = START;
       else t += c;
     } else if (state === NUMBER) {
@@ -524,7 +527,6 @@ const _show = x => {
 
 const _tenv = {};
 const _env = {};
-
 const _run = (_s, _cb) => {
   if (_s.startsWith(':load ')) {
     const _ss = _s.slice(5).trim();
@@ -549,6 +551,46 @@ const _run = (_s, _cb) => {
     } catch (err) {
       return _cb('' + err, true);
     }
+  }if (_s.startsWith(':loadfull ')) {
+    const _ss = _s.slice(9).trim();
+    try {
+      return fetch(_ss)
+        .then(x => x.text())
+        .then(_ss => {
+          try {
+            const _ds = parseDefs(_ss);
+            console.log(_ds);
+            inferDefs(_ds, _tenv, _env);
+            console.log(_tenv, _env);
+            const _c = compileDefsWeb(_ds);
+            console.log(_c);
+            eval(_c);
+            return _cb('done');
+          } catch (err) {
+            return _cb('' + err, true);
+          }
+        })
+        .catch(e => _cb(''+e, true));
+    } catch (err) {
+      return _cb('' + err, true);
+    }
+  } else if (_s.startsWith(':loadfile ')) {
+    const _f = _s.slice(9).trim();
+    require('fs').readFile(`./lib/${_f}.p`, 'utf8', (err, _ss) => {
+      try {
+        if (err) throw err;
+        const _ds = parseDefs(_ss);
+        console.log(_ds);
+        inferDefs(_ds, _tenv, _env);
+        console.log(_tenv, _env);
+        const _c = compileDefsWeb(_ds);
+        console.log(_c);
+        eval(_c);
+        return _cb('done');
+      } catch (err) {
+        return _cb('' + err, true);
+      }
+    });
   } else if (_s.startsWith(':nat ')) {
     const _ss = _s.slice(4).trim();
     try {
@@ -599,7 +641,7 @@ module.exports = {
   run: _run,
 };
 
-},{"./compiler":1,"./exprs":3,"./inference":4,"./parser":5,"./types":7}],7:[function(require,module,exports){
+},{"./compiler":1,"./exprs":3,"./inference":4,"./parser":5,"./types":7,"fs":10}],7:[function(require,module,exports){
 let _id = 0;
 const fresh = () => _id++;
 const resetId = () => { _id = 0 };
@@ -781,4 +823,6 @@ function addResult(msg, err) {
 	return divout;
 }
 
-},{"./repl":6}]},{},[9]);
+},{"./repl":6}],10:[function(require,module,exports){
+
+},{}]},{},[9]);

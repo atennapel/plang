@@ -13,7 +13,6 @@ const _show = x => {
 
 const _tenv = {};
 const _env = {};
-
 const _run = (_s, _cb) => {
   if (_s.startsWith(':load ')) {
     const _ss = _s.slice(5).trim();
@@ -38,6 +37,46 @@ const _run = (_s, _cb) => {
     } catch (err) {
       return _cb('' + err, true);
     }
+  }if (_s.startsWith(':loadfull ')) {
+    const _ss = _s.slice(9).trim();
+    try {
+      return fetch(_ss)
+        .then(x => x.text())
+        .then(_ss => {
+          try {
+            const _ds = parseDefs(_ss);
+            console.log(_ds);
+            inferDefs(_ds, _tenv, _env);
+            console.log(_tenv, _env);
+            const _c = compileDefsWeb(_ds);
+            console.log(_c);
+            eval(_c);
+            return _cb('done');
+          } catch (err) {
+            return _cb('' + err, true);
+          }
+        })
+        .catch(e => _cb(''+e, true));
+    } catch (err) {
+      return _cb('' + err, true);
+    }
+  } else if (_s.startsWith(':loadfile ')) {
+    const _f = _s.slice(9).trim();
+    require('fs').readFile(`./lib/${_f}.p`, 'utf8', (err, _ss) => {
+      try {
+        if (err) throw err;
+        const _ds = parseDefs(_ss);
+        console.log(_ds);
+        inferDefs(_ds, _tenv, _env);
+        console.log(_tenv, _env);
+        const _c = compileDefsWeb(_ds);
+        console.log(_c);
+        eval(_c);
+        return _cb('done');
+      } catch (err) {
+        return _cb('' + err, true);
+      }
+    });
   } else if (_s.startsWith(':nat ')) {
     const _ss = _s.slice(4).trim();
     try {
