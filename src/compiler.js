@@ -62,22 +62,27 @@ const compile = e => {
     case 'Con': return compile(e.arg);
     case 'Decon':
       return `(${compileName(e.name)} => ${compile(e.body)})`;
+    case 'LitStr':
+      return JSON.stringify(e.val);
   }
 };
 
-const compileDefs = ds =>
-  ds.map(d => d.tag === 'DType' ? null : `const ${compileName(d.name)} = ${compile(d.expr)};`)
+const compileDef = (d, glob = null) => {
+  switch (d.tag) {
+    case 'DType': return null;
+    case 'DValue':
+      return glob ? `${glob}['${compileName(d.name)}'] = ${compile(d.expr)};` : `const ${compileName(d.name)} = ${compile(d.expr)};`;
+    case 'DDeclare': return null;
+    case 'DForeign':
+      return glob ? `${glob}['${compileName(d.name)}'] = ${d.val};` : `const ${compileName(d.name)} = ${d.val};`;
+  }
+};
+const compileDefs = (ds, glob = null) =>
+  ds.map(d => compileDef(d, glob))
     .filter(x => x !== null)
     .join('\n');
 
-const compileDefsWeb = ds => '(() => {' +
-  ds.map(d => d.tag === 'DType' ? null :
-      `${typeof window === 'undefined' ? 'global' : 'window'}['${compileName(d.name)}'] = ${compile(d.expr)};`)
-    .filter(x => x !== null)
-    .join('\n') + '})()';
-
 module.exports = {
   compileDefs,
-  compileDefsWeb,
   compile,
 };

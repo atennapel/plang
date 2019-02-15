@@ -102,6 +102,7 @@ const synth = (tenv, env, e, skol = {}) => {
         escapeCheckType(etms, t, tv => `skolem ${showType(tv)} escaped in ${showExpr(e)}`));
       return TFun(tapp(data.tcon, tms.map(prune)), tr);
     }
+    case 'LitStr': return TCon('Prim.Str');
   }
 };
 
@@ -118,6 +119,12 @@ const inferDefs = (ds, tenv = {}, env = {}) => {
   for (let i = 0, l = ds.length; i < l; i++) {
     const d = ds[i];
     switch (d.tag) {
+      case 'DDeclare':
+        if (env[d.name]) throw new TypeError(`trying to redeclare: ${d.name}`);
+        env[d.name] = d.type;
+        break;
+      case 'DForeign':
+        break;
       case 'DType':
         if (tenv[d.name]) throw new TypeError(`trying to redefine type: ${d.name}`);
         tenv[d.name] = {

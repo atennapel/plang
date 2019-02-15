@@ -1,9 +1,8 @@
 const { showType } = require('./types');
 const { showExpr } = require('./exprs');
 const { parseDefs, parseExprTop } = require('./parser');
-const { compile, compileDefsWeb } = require('./compiler');
+const { compile, compileDefs } = require('./compiler');
 const { infer, inferDefs } = require('./inference');
-const { primenv } = require('./prims');
 
 const _show = x => {
   if (typeof x === 'function') return '[Fn]';
@@ -13,8 +12,7 @@ const _show = x => {
 };
 
 const _tenv = {};
-const _env = Object.create(primenv);
-
+const _env = {};
 const _run = (_s, _cb) => {
   if (_s.startsWith(':load ')) {
     const _ss = _s.slice(5).trim();
@@ -27,7 +25,7 @@ const _run = (_s, _cb) => {
             // console.log(_ds);
             inferDefs(_ds, _tenv, _env);
             // console.log(_tenv, _env);
-            const _c = compileDefsWeb(_ds);
+            const _c = compileDefs(_ds, typeof window === 'undefined' ? 'global' : 'window');
             // console.log(_c);
             eval(_c);
             return _cb('done');
@@ -50,7 +48,7 @@ const _run = (_s, _cb) => {
             // console.log(_ds);
             inferDefs(_ds, _tenv, _env);
             // console.log(_tenv, _env);
-            const _c = compileDefsWeb(_ds);
+            const _c = compileDefs(_ds, typeof window === 'undefined' ? 'global' : 'window');
             // console.log(_c);
             eval(_c);
             return _cb('done');
@@ -71,7 +69,7 @@ const _run = (_s, _cb) => {
         // console.log(_ds);
         inferDefs(_ds, _tenv, _env);
         // console.log(_tenv, _env);
-        const _c = compileDefsWeb(_ds);
+        const _c = compileDefs(_ds, typeof window === 'undefined' ? 'global' : 'window');
         // console.log(_c);
         eval(_c);
         return _cb('done');
@@ -101,7 +99,7 @@ const _run = (_s, _cb) => {
       // console.log(_ds);
       inferDefs(_ds, _tenv, _env);
       // console.log(_tenv, _env);
-      const _c = compileDefsWeb(_ds);
+      const _c = compileDefs(_ds, typeof window === 'undefined' ? 'global' : 'window');
       // console.log(_c);
       eval(_c);
       return _cb('done');

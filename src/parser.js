@@ -4,6 +4,7 @@ const {
   App,
   Con,
   Decon,
+  LitStr,
   showExpr,
 } = require('./exprs');
 const {
@@ -14,26 +15,36 @@ const {
   TFunC,
   tfuns,
   freeTVars,
+  showType,
 } = require('./types');
 const {
   DType,
   DValue,
+  DDeclare,
+  DForeign,
 } = require('./defs');
 
 const SYMBOLS = '()\\.=';
+const SYMBOLS2 = ['->', '::', ':='];
+const SYMBOLS3 = ['::='];
 const START = 0;
 const NAME = 1;
 const NUMBER = 2;
+const STRING = 3;
 const tokenize = s => {
   let state = START;
   const r = [];
   let t = '';
+  let escape = false;
   for (let i = 0, l = s.length; i <= l; i++) {
     const c = s[i] || ' ';
     const next = s[i+1] || '';
+    const next2 = s[i+2] || '';
     if (state === START) {
-      if (c + next === '->') r.push(c + next), i++;
+      if (SYMBOLS3.indexOf(c + next + next2) >= 0) r.push(c + next + next2), i += 2;
+      else if (SYMBOLS2.indexOf(c + next) >= 0) r.push(c + next), i++;
       else if (SYMBOLS.indexOf(c) >= 0) r.push(c);
+      else if (c === '"') state = STRING;
       else if (/[a-z]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/.test(c)) t += c, state = NUMBER;
       else if (/\s/.test(c)) continue;
@@ -45,6 +56,11 @@ const tokenize = s => {
     } else if (state === NUMBER) {
       if (!/[0-9]/.test(c))
         r.push(t), t = '', i--, state = START;
+      else t += c;
+    } else if (state === STRING) {
+      if (escape) { t += c; escape = false }
+      else if (c === '\\') escape = true;
+      else if (c === '"') r.push(c + t), t = '', state = START;
       else t += c;
     }
   }
@@ -99,7 +115,7 @@ const parseType = (a, tvmap = { _id: 0 }, tvs = [], utvs = [], etvs = []) => {
   else if (matchfn(a, x => !/[a-z]/i.test(x[0])))
     throw new SyntaxError(`unexpected ${a.pop()}`);
   const x = a.pop();
-  if (/[A-Z]/.test(x[0])) return TCon(x);
+  if (isCon(x)) return TCon(x);
   const tv = tvar(tvmap, x);
   if (tvs.indexOf(tv.id) === -1) {
     let target = x[0] === 'x' && x.length > 1 ? etvs : utvs;
@@ -135,6 +151,13 @@ const parseTypeTop = (x, a) => {
   }
 };
 
+const isCon = x => {
+  if (x[0] === '"') throw new SyntaxError(`invalid name: ${JSON.stringify(x.slice(1))}`);
+  const s = x.split('.');
+  if (s.length === 0 || s.indexOf('') >= 0) throw new SyntaxError(`invalid name: ${x}`);
+  return /[A-Z]/.test(s[s.length - 1][0]);
+};
+
 const parseExpr = a => {
   // console.log(a.slice().reverse().join(' '));
   if (a.length === 0) throw new SyntaxError('empty');
@@ -146,8 +169,15 @@ const parseExpr = a => {
       es.push(parseExpr(a));
     }
     if (es.length === 0) throw new SyntaxError('empty');
+    if (es.length === 1) {
+      const e = es[0];
+      if (e.tag === 'LitStr') return e;
+      if (e.tag === 'Var' && isCon(e.name))
+        throw new SyntaxError(`constructor ${e.name} takes 1 argument, but 0 given.`);
+      return e;
+    }
     const head = es[0];
-    if (head.tag === 'Var' && /[A-Z]/.test(head.name[0])) {
+    if (head.tag === 'Var' && isCon(head.name)) {
       if (es.length !== 2)
         throw new SyntaxError(`constructor ${head.name} takes 1 argument, but ${es.length - 1} given.`);
       return Con(head.name, es[1]);
@@ -159,7 +189,7 @@ const parseExpr = a => {
     if (args.length === 0)
       throw new SyntaxError('abs without parameters');
     for (let i = 1, l = args.length; i < l; i++)
-      if (/[A-Z]/.test(args[i][0]))
+      if (isCon(args[i]))
         throw new SyntaxError(`constructor in abs argument: ${args[i]}`);
     const es = [];
     let br = 0;
@@ -174,15 +204,17 @@ const parseExpr = a => {
     }
     es.unshift('('); es.push(')');
     const body = parseExpr(es.reverse());
-    if (/[A-Z]/.test(args[0][0])) {
+    if (isCon(args[0])) {
       if (args.length !== 2)
         throw new SyntaxError(`deconstructor ${args[0]} expects 1 argument but got ${args.length - 1}`);
       return Decon(args[0], args[1], body);
     }
     return args.reduceRight((x, y) => Abs(y, x), body);
-  } else if (matchfn(a, x => !/[a-z]/i.test(x[0]) && !/[0-9]/.test(x[0])))
+  } else if (matchfn(a, x => !/[a-z]/i.test(x[0]) && !/[0-9]/.test(x[0]) && x[0] !== '"'))
     throw new SyntaxError(`unexpected ${a.pop()}`);
-  return Var(a.pop());
+  const x = a.pop();
+  if (x[0] === '"') return LitStr(x.slice(1));
+  return Var(x);
 };
 
 const parseName = ts => {
@@ -194,31 +226,51 @@ const parseName = ts => {
   return x;
 };
 
+const matchDefSymbol = ts => {
+  if (match(ts, '=')) return '=';
+  if (match(ts, '::')) return '::';
+  if (match(ts, '::=')) return '::=';
+  return null;
+};
+
 const parseDef = ts => {
   const x = parseName(ts);
   // console.log('parseDef', x);
-  if (!match(ts, '='))
-    throw new SyntaxError(`= missing after definition name`);
+  const sym = matchDefSymbol(ts);
+  if (!sym) throw SyntaxError('invalid definition, no definition symbol found');
   const body = [];
-  let found = true;
-  while (!match(ts, '=')) {
+  let found;
+  while (!(found = matchDefSymbol(ts))) {
     if (ts.length === 0) {
-      found = false;
+      found = null;
       break;
     }
     body.push(ts.pop());
   }
-  if (found) ts.push('=', body.pop());
-  if (/[a-z]/.test(x[0]) || /[0-9]/.test(x[0])) {
-    body.unshift('('); body.push(')');
+  if (found) ts.push(found, body.pop());
+  if (sym === '=') {
+    if (!isCon(x)) {
+      body.unshift('('); body.push(')');
+      body.reverse();
+      return DValue(x, parseExpr(body));
+    }
+    if (body[0] !== '\\') {
+      body.unshift('('); body.push(')');
+    }
     body.reverse();
-    return DValue(x, parseExpr(body));
-  }
-  if (body[0] !== '\\') {
+    return parseTypeTop(x, body);
+  } else if (sym === '::') {
+    if (isCon(x)) throw new SyntaxError(`cannot declare type: ${x} :: ...`);
     body.unshift('('); body.push(')');
-  }
-  body.reverse();
-  return parseTypeTop(x, body);
+    const ty = parseType(body.reverse());
+    return DDeclare(x, ty);
+  } else if (sym === '::=') {
+    if (isCon(x)) throw new SyntaxError(`cannot define foreign constructor ${x}`);
+    body.unshift('('); body.push(')');
+    const ex = parseExpr(body.reverse());
+    if (ex.tag !== 'LitStr') throw new SyntaxError(`Foreign definition ${x} should be a string`);
+    return DForeign(x, ex.val);
+  } else throw new SyntaxError(`invalid definition symbol: ${sym}`);
 };
 
 const parseDefs = s => {
