@@ -8,6 +8,10 @@ const _show = x => {
   if (typeof x === 'function') return '[Fn]';
   if (typeof x === 'string') return JSON.stringify(x);
   if (Array.isArray(x)) return `[${x.map(_show).join(', ')}]`;
+  if (typeof x === 'object' && typeof x._tag === 'string') {
+    if (x._tag === 'Pair') return `(Pair ${_show(x.val[0])} ${_show(x.val[1])})`;
+    return x.val === null ? x._tag : `(${x._tag} ${_show(x.val)})`;
+  }
   return '' + x;
 };
 
