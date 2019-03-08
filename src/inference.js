@@ -1,14 +1,52 @@
-const { freshTMeta, TFun, pruneType, resetTMeta } = require('./types');
+const {
+  TVar,
+  TApp,
+  resetTMeta,
+  freshTMeta,
+  TFun,
+  pruneType,
+} = require('./types');
 const { kType } = require('./kinds');
 const { unify } = require('./unification');
 const { checkKindType } = require('./kindInference');
 
 const err = msg => { throw new TypeError(msg) };
 
+const inst = (t, map = {}) => {
+  if (t.tag === 'TCon') return t;
+  if (t.tag === 'TVar') {
+    if (map[t.id]) return map[t.id];
+    const tv = freshTMeta(t.kind);
+    map[t.id] = tv;
+    return tv;
+  }
+  if (t.tag === 'TMeta') return t;
+  if (t.tag === 'TApp') {
+    const a = inst(t.left, map);
+    const b = inst(t.right, map);
+    return a !== t.left || b !== t.right ? TApp(a, b) : t;
+  }
+};
+const gen = (t, map = {}) => {
+  if (t.tag === 'TCon') return t;
+  if (t.tag === 'TVar') return t;
+  if (t.tag === 'TMeta') {
+    if (map[t.id]) return map[t.id];
+    const tv = TVar(t.id, t.kind);
+    map[t.id] = tv;
+    return tv;
+  }
+  if (t.tag === 'TApp') {
+    const a = gen(t.left, map);
+    const b = gen(t.right, map);
+    return a !== t.left || b !== t.right ? TApp(a, b) : t;
+  }
+};
+
 const synth = (env, e) => {
   if (e.tag === 'Var') {
     if (!env[e.name]) return err(`undefined variable: ${e.name}`);
-    return env[e.name];
+    return inst(env[e.name]);
   }
   if (e.tag === 'Abs') {
     const old = env[e.name];
@@ -33,7 +71,7 @@ const infer = (env, e) => {
   resetTMeta();
   const ty = synth(env, e);
   checkKindType(ty);
-  return ty;
+  return gen(ty);
 };
 
 module.exports = {

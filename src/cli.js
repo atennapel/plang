@@ -7,7 +7,7 @@ const { infer } = require('./inference');
 const env = { };
 
 try {
-  const script = '\\x -> x';
+  const script = '\\x y -> x';
   console.log(script);
   const expr = parse(script);
   console.log(showExpr(expr));

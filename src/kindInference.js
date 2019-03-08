@@ -3,6 +3,7 @@ const { unifyKinds } = require('./kindUnification');
 
 const inferKind = t => {
   if (t.tag === 'TCon') return t.kind;
+  if (t.tag === 'TVar') return t.kind;
   if (t.tag === 'TMeta') return t.kind;
   if (t.tag === 'TApp') {
     const ka = inferKind(t.left);

@@ -1,6 +1,7 @@
 const { KFun, kType, pruneKind } = require('./kinds');
 
 const TCon = (name, kind) => ({ tag: 'TCon', name, kind });
+const TVar = (id, kind) => ({ tag: 'TVar', id, kind });
 const TMeta = (id, kind) => ({ tag: 'TMeta', id, kind, type: null });
 const TApp = (left, right) => ({ tag: 'TApp', left, right });
 
@@ -13,12 +14,17 @@ const TFun = (left, right) => TApp(TApp(tFun, left), right);
 
 const showType = t => {
   if (t.tag === 'TCon') return t.name;
+  if (t.tag === 'TVar') return `'${t.id}`;
   if (t.tag === 'TMeta') return `?${t.id}`;
   if (t.tag === 'TApp') return `(${showType(t.left)} ${showType(t.right)})`;
 };
 
 const pruneType = t => {
   if (t.tag === 'TCon') {
+    t.kind = pruneKind(t.kind);
+    return t;
+  }
+  if (t.tag === 'TVar') {
     t.kind = pruneKind(t.kind);
     return t;
   }
@@ -38,6 +44,7 @@ const pruneType = t => {
 
 module.exports = {
   TCon,
+  TVar,
   TMeta,
   TApp,
 
