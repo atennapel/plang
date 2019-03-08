@@ -2,6 +2,8 @@ const {
   Var,
   Abs,
   App,
+  Con,
+  Decon,
 } = require('./exprs');
 
 const err = msg => { throw new SyntaxError(msg) };
