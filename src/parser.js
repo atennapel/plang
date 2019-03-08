@@ -45,6 +45,10 @@ const tokenize = sc => {
   return r;
 };
 
+// patterns
+const PVar = val => ({ tag: 'PVar', val });
+const PCon = (con, val) => ({ tag: 'PCon', con, val });
+
 // parser
 const match = (ts, tag, val = null) => {
   if (ts.length === 0) return false;
@@ -65,8 +69,16 @@ const safeMatch = (ts, tag, val = null) => {
 
 const parseArg = ts => {
   const x = ts.pop();
-  if (x.tag === 'VarT') return x.val;
-  err(`invalid arg tag: ${x.tag}`);
+  if (x.tag === 'VarT') return PVar(x.val);
+  if (x.tag === 'SymbolT' && x.val === '(') {
+    const con = ts.pop();
+    if (con.tag !== 'ConT') return err(`not a con in argument: ${con.val}`);
+    const arg = ts.pop();
+    if (arg.tag !== 'VarT') return err(`not a valid arg in (${con.val} ${arg.val})`);
+    if (!match(ts, 'SymbolT', ')')) return err(`missing ) in (${con.val} ${arg.val}`);
+    return PCon(con.val, arg.val);
+  }
+  err(`invalid arg: ${x.val}`);
 };
 
 const parseApp = ts => {
@@ -88,9 +100,15 @@ const parseExpr = ts => {
     if (args.length === 0) return err('empty args after \\');
     ts.push(SymbolT('(')); ts.unshift(SymbolT(')'));
     const body = parseExpr(ts);
-    return args.reduceRight((x, y) => Abs(y, x), body);
+    return args.reduceRight((x, y) =>
+      y.tag === 'PVar' ? Abs(y.val, x) : Decon(y.con, y.val, x), body);
   } else if (match(ts, 'SymbolT', '(')) {
     return parseApp(ts);
+  } else if (safeMatch(ts, 'ConT')) {
+    const con = ts.pop().val;
+    ts.push(SymbolT('(')); ts.unshift(SymbolT(')'));
+    const arg = parseExpr(ts);
+    return Con(con, arg);
   } else if (safeMatch(ts, 'VarT')) {
     const x = ts.pop();
     return Var(x.val);

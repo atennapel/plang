@@ -3,7 +3,7 @@ const { parse } = require('./parser');
 const { compile } = require('./compiler');
 
 try {
-  const script = '(\\x -> x) \\x -> x';
+  const script = '\\x (X x) z (A a) -> x';
   console.log(script);
   const expr = parse(script);
   console.log(showExpr(expr));
