@@ -6,6 +6,8 @@ let _idKMeta = 0;
 const resetKMeta = () => { _idKMeta = 0 };
 const freshKMeta = () => KMeta(_idKMeta++);
 
+const kType = KCon('Type');
+
 const showKind = k => {
   if (k.tag === 'KCon') return k.name;
   if (k.tag === 'KMeta') return `?${k.id}`;
@@ -34,6 +36,8 @@ module.exports = {
 
   resetKMeta,
   freshKMeta,
+
+  kType,
 
   showKind,
 

@@ -2,6 +2,8 @@ const {
   showType,
   pruneType,
 } = require('./types');
+const { inferKind } = require('./kindInference');
+const { unifyKinds } = require('./kindUnification');
 
 const err = msg => { throw new TypeError(msg) };
 
@@ -22,6 +24,7 @@ const unify = (a_, b_) => {
   const a = pruneType(a_);
   const b = pruneType(b_);
   if (a === b) return;
+  unifyKinds(inferKind(a), inferKind(b));
   if (a.tag === 'TMeta') return bind(a, b);
   if (b.tag === 'TMeta') return bind(b, a);
   if (a.tag === 'TApp' && b.tag === 'TApp') {
