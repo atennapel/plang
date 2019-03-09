@@ -14,6 +14,26 @@ const showKind = k => {
   if (k.tag === 'KFun') return `(${showKind(k.left)} -> ${showKind(k.right)})`;
 };
 
+const flattenKFun = k => {
+  let c = k;
+  const r = [];
+  while (c.tag === 'KFun') {
+    r.push(c.left)
+    c = c.right;
+  }
+  r.push(c);
+  return r;
+};
+
+const prettyKind = k => {
+  if (k.tag === 'KCon') return k.name;
+  if (k.tag === 'KMeta') return `?${k.id}`;
+  if (k.tag === 'KFun')
+    return flattenKFun(k)
+      .map(x => x.tag === 'KFun' ? `(${prettyKind(x)})` : prettyKind(x))
+      .join(' -> ');
+};
+
 const pruneKind = k => {
   if (k.tag === 'KMeta') {
     if (!k.kind) return k;
@@ -36,6 +56,9 @@ module.exports = {
 
   resetKMeta,
   freshKMeta,
+
+  flattenKFun,
+  prettyKind,
 
   kType,
 
