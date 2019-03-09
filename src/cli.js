@@ -1,5 +1,5 @@
 const { showExpr } = require('./exprs');
-const { showType } = require('./types');
+const { prettyType } = require('./types');
 const { parse } = require('./parser');
 const { compile } = require('./compiler');
 const { infer } = require('./inference');
@@ -12,7 +12,7 @@ try {
   const expr = parse(script);
   console.log(showExpr(expr));
   const ty = infer(env, expr);
-  console.log(showType(ty));
+  console.log(prettyType(ty));
   const comp = compile(expr);
   console.log(comp);
   const res = eval(comp);
