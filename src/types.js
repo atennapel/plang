@@ -38,6 +38,7 @@ const flattenTFun = t => {
     r.push(c.left.right);
     c = c.right;
   }
+  r.push(c);
   return r;
 };
 
