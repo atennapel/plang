@@ -79,6 +79,17 @@ const pruneType = t => {
   }
 };
 
+const tmetas = (t, map = {}) => {
+  if (t.tag === 'TCon') return map;
+  if (t.tag === 'TVar') return map;
+  if (t.tag === 'TMeta') {
+    map[t.id] = true;
+    return map;
+  }
+  if (t.tag === 'TApp')
+    return tmetas(t.right, tmetas(t.left, map));
+};
+
 module.exports = {
   TCon,
   TVar,
@@ -99,4 +110,6 @@ module.exports = {
   prettyType,
 
   pruneType,
+
+  tmetas,
 };

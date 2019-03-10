@@ -2,6 +2,7 @@ const {
   Var,
   Abs,
   App,
+  Let,
   Con,
   Decon,
 } = require('./exprs');
@@ -12,12 +13,14 @@ const err = msg => { throw new SyntaxError(msg) };
 const SymbolT = val => ({ tag: 'SymbolT', val });
 const VarT = val => ({ tag: 'VarT', val });
 const ConT = val => ({ tag: 'ConT', val});
+const KeywordT = val => ({ tag: 'KeywordT', val });
 
 const showTokens = ts =>
   ts.map(x => `${x.tag}#${x.val}`).join(' ');
 
-const SYM1 = ['(', ')', '\\'];
+const SYM1 = ['(', ')', '\\', '='];
 const SYM2 = ['->'];
+const KEYWORDS = ['let', 'in'];
 
 const START = 0;
 const NAME = 1;
@@ -36,9 +39,13 @@ const tokenize = sc => {
       else if (/\s/.test(c)) continue;
       else return err(`invalid char ${c} in tokenize`);
     } else if (state === NAME) {
-      if (!/[a-z0-9]/i.test(c)) 
-        r.push(/[a-z]/.test(t[0]) ? VarT(t) : ConT(t)), t = '', i--, state = START;
-      else t += c;
+      if (!/[a-z0-9]/i.test(c)) {
+        r.push(
+          KEYWORDS.indexOf(t) >= 0 ? KeywordT(t) :
+          /[a-z]/.test(t[0]) ? VarT(t) :
+          ConT(t));
+        t = '', i--, state = START;
+      } else t += c;
     }
   }
   if (state !== START) return err('invalid tokenize end state');
@@ -91,6 +98,18 @@ const parseApp = ts => {
   if (es.length === 1) return es[0];
   return es.reduce(App);
 };
+const parseAppAll = ts => {
+  ts.push(SymbolT('(')); ts.unshift(SymbolT(')'));
+  return parseExpr(ts);
+};
+const parseAppTo = (ts, tag, val = null) => {
+  const es = [];
+  while (!match(ts, tag, val))
+    es.push(parseExpr(ts));
+  if (es.length === 0) return err('empty app');
+  if (es.length === 1) return es[0];
+  return es.reduce(App);
+};
 
 const parseExpr = ts => {
   if (ts.length === 0) return err('empty expr');
@@ -98,12 +117,18 @@ const parseExpr = ts => {
     const args = [];
     while (!match(ts, 'SymbolT', '->')) args.push(parseArg(ts));
     if (args.length === 0) return err('empty args after \\');
-    ts.push(SymbolT('(')); ts.unshift(SymbolT(')'));
-    const body = parseExpr(ts);
+    const body = parseAppAll(ts);
     return args.reduceRight((x, y) =>
       y.tag === 'PVar' ? Abs(y.val, x) : Decon(y.con, y.val, x), body);
   } else if (match(ts, 'SymbolT', '(')) {
     return parseApp(ts);
+  } else if (match(ts, 'KeywordT', 'let')) {
+    if (!safeMatch(ts, 'VarT')) return err('no name after let');
+    const x = ts.pop().val;
+    if (!match(ts, 'SymbolT', '=')) return err('no = after name after let');
+    const val = parseAppTo(ts, 'KeywordT', 'in');
+    const body = parseAppAll(ts);
+    return Let(x, val, body);
   } else if (safeMatch(ts, 'ConT')) {
     const con = ts.pop().val;
     ts.push(SymbolT('(')); ts.unshift(SymbolT(')'));

@@ -5,12 +5,18 @@ const {
   freshTMeta,
   TFun,
   pruneType,
+  tmetas,
 } = require('./types');
 const { kType } = require('./kinds');
 const { unify } = require('./unification');
 const { checkKindType } = require('./kindInference');
 
 const err = msg => { throw new TypeError(msg) };
+
+const tmetasInEnv = (env, map = {}) => {
+  for (let k in env) tmetas(env[k], map);
+  return map;
+};
 
 const inst = (t, map = {}) => {
   if (t.tag === 'TCon') return t;
@@ -27,18 +33,19 @@ const inst = (t, map = {}) => {
     return a !== t.left || b !== t.right ? TApp(a, b) : t;
   }
 };
-const gen = (t, map = {}) => {
+const gen = (t, tvs = {}, map = {}) => {
   if (t.tag === 'TCon') return t;
   if (t.tag === 'TVar') return t;
   if (t.tag === 'TMeta') {
+    if (tvs[t.id]) return t;
     if (map[t.id]) return map[t.id];
     const tv = TVar(t.id, t.kind);
     map[t.id] = tv;
     return tv;
   }
   if (t.tag === 'TApp') {
-    const a = gen(t.left, map);
-    const b = gen(t.right, map);
+    const a = gen(t.left, tvs, map);
+    const b = gen(t.right, tvs, map);
     return a !== t.left || b !== t.right ? TApp(a, b) : t;
   }
 };
@@ -63,6 +70,15 @@ const synth = (env, e) => {
     const r = freshTMeta(kType);
     unify(a, TFun(b, r));
     return pruneType(r);
+  }
+  if (e.tag === 'Let') {
+    const ty = synth(env, e.val);
+    const old = env[e.name];
+    env[e.name] = gen(ty, tmetasInEnv(env));
+    const tr = synth(env, e.body);
+    if (old) env[e.name] = old;
+    else delete env[e.name];
+    return tr;
   }
   return err('unimplemented');
 };
