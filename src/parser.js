@@ -16,7 +16,7 @@ const ConT = val => ({ tag: 'ConT', val});
 const KeywordT = val => ({ tag: 'KeywordT', val });
 
 const showTokens = ts =>
-  ts.map(x => `${x.tag}#${x.val}`).join(' ');
+  ts.map(x => `${x.val}`).join(' ');
 
 const SYM1 = ['(', ')', '\\', '='];
 const SYM2 = ['->'];
@@ -88,30 +88,28 @@ const parseArg = ts => {
   err(`invalid arg: ${x.val}`);
 };
 
-const parseApp = ts => {
+const parseAppTo = (ts, fn) => {
   const es = [];
-  while (!match(ts, 'SymbolT', ')')) {
-    if (ts.length === 0) return err('unclosed (');
-    es.push(parseExpr(ts));
-  }
+  while (fn(ts)) es.push(parseExpr(ts));
   if (es.length === 0) return err('empty app');
   if (es.length === 1) return es[0];
   return es.reduce(App);
 };
-const parseAppAll = ts => {
-  ts.push(SymbolT('(')); ts.unshift(SymbolT(')'));
-  return parseExpr(ts);
-};
-const parseAppTo = (ts, tag, val = null) => {
-  const es = [];
-  while (!match(ts, tag, val))
-    es.push(parseExpr(ts));
-  if (es.length === 0) return err('empty app');
-  if (es.length === 1) return es[0];
-  return es.reduce(App);
-};
+const parseApp = ts => parseAppTo(ts, ts => {
+  if (match(ts, 'SymbolT', ')')) return false;
+  if (ts.length === 0) return err('app end');
+  return true;
+});
+const parseAppAll = ts => parseAppTo(ts, ts => {
+  if (ts.length === 0 ||
+    safeMatch(ts, 'SymbolT', ')') ||
+    safeMatch(ts, 'KeywordT', 'in'))
+    return false;
+  return true;
+});
 
 const parseExpr = ts => {
+  // console.log(showTokens(ts.slice(0).reverse()));
   if (ts.length === 0) return err('empty expr');
   if (match(ts, 'SymbolT', '\\')) {
     const args = [];
@@ -126,13 +124,16 @@ const parseExpr = ts => {
     if (!safeMatch(ts, 'VarT')) return err('no name after let');
     const x = ts.pop().val;
     if (!match(ts, 'SymbolT', '=')) return err('no = after name after let');
-    const val = parseAppTo(ts, 'KeywordT', 'in');
+    const val = parseAppTo(ts, ts => {
+      if (match(ts, 'KeywordT', 'in')) return false;
+      if (ts.length === 0) return err('no in after let');
+      return true;
+    });
     const body = parseAppAll(ts);
     return Let(x, val, body);
   } else if (safeMatch(ts, 'ConT')) {
     const con = ts.pop().val;
-    ts.push(SymbolT('(')); ts.unshift(SymbolT(')'));
-    const arg = parseExpr(ts);
+    const arg = parseAppAll(ts);
     return Con(con, arg);
   } else if (safeMatch(ts, 'VarT')) {
     const x = ts.pop();
@@ -143,8 +144,7 @@ const parseExpr = ts => {
 
 const parse = sc => {
   const ts = tokenize(sc);
-  ts.unshift(SymbolT('(')); ts.push(SymbolT(')'));
-  const ex = parseExpr(ts.reverse());
+  const ex = parseAppAll(ts.reverse());
   if (ts.length > 0) return err(`stuck on ${ts[0].val}`);
   return ex;
 };
