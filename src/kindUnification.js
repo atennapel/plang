@@ -22,6 +22,7 @@ const unifyKinds = (a_, b_) => {
   const a = pruneKind(a_);
   const b = pruneKind(b_);
   if (a === b) return;
+  // console.log(`${showKind(a)} ~k ${showKind(b)}`);
   if (a.tag === 'KMeta') return bind(a, b);
   if (b.tag === 'KMeta') return bind(b, a);
   if (a.tag === 'KFun' && b.tag === 'KFun') {

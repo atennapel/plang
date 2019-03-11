@@ -19,23 +19,20 @@ const tmetasInEnv = (env, map = {}) => {
 };
 
 const inst = (t, map = {}) => {
-  if (t.tag === 'TCon') return t;
   if (t.tag === 'TVar') {
     if (map[t.id]) return map[t.id];
     const tv = freshTMeta(t.kind);
     map[t.id] = tv;
     return tv;
   }
-  if (t.tag === 'TMeta') return t;
   if (t.tag === 'TApp') {
     const a = inst(t.left, map);
     const b = inst(t.right, map);
     return a !== t.left || b !== t.right ? TApp(a, b) : t;
   }
+  return t;
 };
 const gen = (t, tvs = {}, map = {}) => {
-  if (t.tag === 'TCon') return t;
-  if (t.tag === 'TVar') return t;
   if (t.tag === 'TMeta') {
     if (tvs[t.id]) return t;
     if (map[t.id]) return map[t.id];
@@ -48,6 +45,7 @@ const gen = (t, tvs = {}, map = {}) => {
     const b = gen(t.right, tvs, map);
     return a !== t.left || b !== t.right ? TApp(a, b) : t;
   }
+  return t;
 };
 
 const synth = (env, e) => {

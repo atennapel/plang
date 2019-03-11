@@ -1,10 +1,11 @@
-const { KFun, freshKMeta, kType, pruneKind } = require('./kinds');
+const { KFun, freshKMeta, kType, kRow, pruneKind } = require('./kinds');
+const { showType } = require('./types');
 const { unifyKinds } = require('./kindUnification');
 
+const kRowExtend = KFun(kType, KFun(kRow, kRow));
+
 const inferKind = t => {
-  if (t.tag === 'TCon') return t.kind;
-  if (t.tag === 'TVar') return t.kind;
-  if (t.tag === 'TMeta') return t.kind;
+  // console.log(`inferKind ${showType(t)}`);
   if (t.tag === 'TApp') {
     const ka = inferKind(t.left);
     const kb = inferKind(t.right);
@@ -12,6 +13,8 @@ const inferKind = t => {
     unifyKinds(ka, KFun(kb, kr));
     return pruneKind(kr);
   }
+  if (t.tag === 'TRowExtend') return kRowExtend;
+  return t.kind;
 };
 
 const checkKindType = t => unifyKinds(inferKind(t), kType);

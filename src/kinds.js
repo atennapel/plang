@@ -7,6 +7,7 @@ const resetKMeta = () => { _idKMeta = 0 };
 const freshKMeta = () => KMeta(_idKMeta++);
 
 const kType = KCon('Type');
+const kRow = KCon('Row');
 
 const showKind = k => {
   if (k.tag === 'KCon') return k.name;
@@ -61,6 +62,7 @@ module.exports = {
   prettyKind,
 
   kType,
+  kRow,
 
   showKind,
 
