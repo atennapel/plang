@@ -1,35 +1,26 @@
-const { showExpr } = require('./exprs');
-const { prettyType, TCon, TVar, TApp, makeTRowExtend, TFun, tRowEmpty, tRec } = require('./types');
-const { kType, kRow } = require('./kinds');
 const { parse } = require('./parser');
 const { compile } = require('./compiler');
 const { infer } = require('./inference');
 
-const tv = TVar('t', kType);
-const tr = TVar('r', kRow);
-
-const tBool = TCon('Bool', kType);
-
-const env = {
-  getX: TFun(TApp(tRec, makeTRowExtend('x', tv, tr)), tv),
-  objX: TApp(tRec, makeTRowExtend('x', tBool, tRowEmpty)),
-  objY: TApp(tRec, makeTRowExtend('y', tBool, tRowEmpty)),
-  objXY: TApp(tRec, makeTRowExtend('y', tBool, makeTRowExtend('x', tBool, tRowEmpty))),
-};
-
-try {
-  const script = '\\x y -> x';
-  console.log(script);
-  const expr = parse(script);
-  console.log(showExpr(expr));
-  const ty = infer(env, expr);
-  console.log(prettyType(ty));
-  const comp = compile(expr);
-  console.log(comp);
-  const res = eval(comp);
-  console.log(`${res}`);
-  console.log(res);
-} catch (err) {
-  console.log(`${err}`);
-  //console.log(err);
+if (process.argv[2]) {
+  const sc = require('fs').readFileSync(process.argv[2], 'utf8');
+  const ds = parse(sc);
+  infer({}, ds);
+  const c = compile(ds);
+  console.log(c);
+  process.exit();
 }
+
+const { run: _run } = require('./repl');
+const _readline = require('readline').createInterface(process.stdin, process.stdout);
+console.log('REPL');
+process.stdin.setEncoding('utf8');
+function _input() {
+  _readline.question('> ', function(_i) {
+    _run(_i, (s, e) => {
+      console.log(s);
+      setImmediate(_input, 0);
+    });
+  });
+};
+_input();

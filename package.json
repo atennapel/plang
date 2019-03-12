@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/cli",
+    "runindex": "node src/index",
     "bundle": "browserify src/web.js -o bundle.js"
   },
   "author": "",
