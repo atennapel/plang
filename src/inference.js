@@ -20,9 +20,9 @@ const tmetasInEnv = (env, map = {}) => {
 
 const inst = (t, map = {}) => {
   if (t.tag === 'TVar') {
-    if (map[t.id]) return map[t.id];
+    if (map[t.name]) return map[t.name];
     const tv = freshTMeta(t.kind);
-    map[t.id] = tv;
+    map[t.name] = tv;
     return tv;
   }
   if (t.tag === 'TApp') {
@@ -36,7 +36,7 @@ const gen = (t, tvs = {}, map = {}) => {
   if (t.tag === 'TMeta') {
     if (tvs[t.id]) return t;
     if (map[t.id]) return map[t.id];
-    const tv = TVar(t.id, t.kind);
+    const tv = TVar(`t${t.id}`, t.kind);
     map[t.id] = tv;
     return tv;
   }

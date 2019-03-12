@@ -5,8 +5,8 @@ const { parse } = require('./parser');
 const { compile } = require('./compiler');
 const { infer } = require('./inference');
 
-const tv = TVar(0, kType);
-const tr = TVar(1, kRow);
+const tv = TVar('t', kType);
+const tr = TVar('r', kRow);
 
 const tBool = TCon('Bool', kType);
 
@@ -18,7 +18,7 @@ const env = {
 };
 
 try {
-  const script = 'getX objXY';
+  const script = '\\x y -> x';
   console.log(script);
   const expr = parse(script);
   console.log(showExpr(expr));

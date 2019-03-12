@@ -1,7 +1,7 @@
 const { KFun, kType, kRow, pruneKind } = require('./kinds');
 
 const TCon = (name, kind) => ({ tag: 'TCon', name, kind });
-const TVar = (id, kind) => ({ tag: 'TVar', id, kind });
+const TVar = (name, kind) => ({ tag: 'TVar', name, kind });
 const TMeta = (id, kind) => ({ tag: 'TMeta', id, kind, type: null });
 const TApp = (left, right) => ({ tag: 'TApp', left, right });
 const TRowExtend = label => ({ tag: 'TRowExtend', label });
@@ -24,7 +24,7 @@ const tVar = TCon('Var', KFun(kRow, kType));
 
 const showType = t => {
   if (t.tag === 'TCon') return t.name;
-  if (t.tag === 'TVar') return `'${t.id}`;
+  if (t.tag === 'TVar') return t.name;
   if (t.tag === 'TMeta') return `?${t.id}`;
   if (t.tag === 'TApp') return `(${showType(t.left)} ${showType(t.right)})`;
   if (t.tag === 'TRowExtend') return `#${t.label}`;
@@ -54,7 +54,7 @@ const flattenTFun = t => {
 
 const prettyType = t => {
   if (t.tag === 'TCon') return t.name;
-  if (t.tag === 'TVar') return `'${t.id}`;
+  if (t.tag === 'TVar') return t.name;
   if (t.tag === 'TMeta') return `?${t.id}`;
   if (isTFun(t))
     return flattenTFun(t)
