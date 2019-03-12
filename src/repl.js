@@ -1,6 +1,6 @@
 const { prettyType } = require('./types');
 const { showExpr } = require('./exprs');
-const { parse } = require('./parser');
+const { parseExpr } = require('./parser');
 const { compile } = require('./compiler');
 const { infer } = require('./inference');
 

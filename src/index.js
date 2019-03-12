@@ -1,7 +1,7 @@
 const { showExpr } = require('./exprs');
 const { prettyType, TCon, TVar, TApp, makeTRowExtend, TFun, tRowEmpty, tRec } = require('./types');
 const { kType, kRow } = require('./kinds');
-const { parse } = require('./parser');
+const { parseExpr } = require('./parser');
 const { compile } = require('./compiler');
 const { infer } = require('./inference');
 

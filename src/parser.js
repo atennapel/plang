@@ -74,6 +74,17 @@ const safeMatch = (ts, tag, val = null) => {
   return false;
 };
 
+const parseType = ts => {
+  return err('unimplemented');
+};
+
+const parseTypeTop = sc => {
+  const ts = tokenize(sc);
+  const ex = parseType(ts.reverse());
+  if (ts.length > 0) return err(`type stuck on ${ts[0].val}`);
+  return ex;
+};
+
 const parseArg = ts => {
   const x = ts.pop();
   if (x.tag === 'VarT') return PVar(x.val);
@@ -142,7 +153,7 @@ const parseExpr = ts => {
   err(`parseExpr stuck on ${ts[ts.length - 1].val}`);
 };
 
-const parse = sc => {
+const parseExprTop = sc => {
   const ts = tokenize(sc);
   const ex = parseAppAll(ts.reverse());
   if (ts.length > 0) return err(`stuck on ${ts[0].val}`);
@@ -152,6 +163,6 @@ const parse = sc => {
 module.exports = {
   tokenize,
   showTokens,
-  parseExpr,
-  parse,
+  parseExpr: parseExprTop,
+  parseType: parseTypeTop,
 };
