@@ -4,14 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node src/cli",
-    "runindex": "node src/index",
+    "build": "tsc",
+    "start": "npm run build && node build/src/index",
     "bundle": "browserify src/web.js -o bundle.js"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/node": "^11.11.3",
+    "typescript": "^3.3.3333"
   },
-  "dependencies": {
-  }
+  "dependencies": {}
 }
