@@ -23,6 +23,7 @@ import {
   showTerm,
 } from './terms';
 import { infer } from './inference';
+import { compile } from './compiler';
 
 const a = Name('a');
 const b = Name('b');
@@ -40,6 +41,14 @@ const tv = TVar;
 const id_ =  Ann(abs([y], v(y)), tforall([t], tfun(tv(t), tv(t))));
 const const_ = abs([x, y], v(x));
 const term = app(const_, id_);
-console.log(showTerm(term));
-const ty = infer(term);
-console.log(showType(ty));
+try {
+  console.log(showTerm(term));
+  const ty = infer(term);
+  console.log(showType(ty));
+  const co = compile(term);
+  console.log(co);
+  const ev = eval(co);
+  console.log(ev);
+} catch (err) {
+  console.log(err);
+}
