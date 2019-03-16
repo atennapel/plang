@@ -5,13 +5,15 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "npm run build && node build/src/index",
-    "bundle": "browserify src/web.js -o bundle.js"
+    "runindex": "npm run build && node build/src/index",
+    "start": "node build/src/cli",
+    "bundle": "npm run build && browserify build/src/web.js -o bundle.js"
   },
-  "author": "",
+  "author": "Albert ten Napel",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^11.11.3",
+    "browserify": "^16.2.3",
     "typescript": "^3.3.3333"
   },
   "dependencies": {}
