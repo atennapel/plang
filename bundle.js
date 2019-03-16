@@ -372,6 +372,14 @@ const typecheck = (term, type) => {
         global_1.context.leave(x);
         return;
     }
+    if (terms_1.isLet(term)) {
+        const ty = typesynth(term.term);
+        const x = global_1.namestore.fresh(term.name);
+        global_1.context.enter(x, elems_1.CVar(x, ty));
+        typecheck(terms_1.openLet(term, terms_1.Var(x)), type);
+        global_1.context.leave(x);
+        return;
+    }
     const ty = typesynth(term);
     return subsumption_1.subsume(global_1.apply(ty), global_1.apply(type));
 };
@@ -647,6 +655,8 @@ exports.NameStore = NameStore;
 },{"./names":10}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const kinds_1 = require("./kinds");
+const types_1 = require("./types");
 const terms_1 = require("./terms");
 const names_1 = require("./names");
 const err = (msg) => { throw new SyntaxError(msg); };
@@ -654,7 +664,7 @@ const SymbolT = (val) => ({ tag: 'SymbolT', val });
 const VarT = (val) => ({ tag: 'VarT', val });
 const KeywordT = (val) => ({ tag: 'KeywordT', val });
 const showTokens = (ts) => ts.map(x => `${x.val}`).join(' ');
-const SYM1 = ['(', ')', '\\', '='];
+const SYM1 = ['(', ')', '\\', '=', ':', '.'];
 const SYM2 = ['->'];
 const KEYWORDS = ['let', 'in'];
 const START = 0;
@@ -712,16 +722,41 @@ const safeMatch = (ts, tag, val = null) => {
         return true;
     return false;
 };
-const parseType = (ts) => {
-    return err('unimplemented');
+// kinds
+const parseKindR = (ts) => {
+    if (ts.length === 0)
+        return err('empty kind');
+    if (safeMatch(ts, 'VarT')) {
+        const x = ts.pop();
+        return kinds_1.KVar(names_1.Name(x.val));
+    }
+    return err(`parseKindR stuck on ${ts[ts.length - 1].val}`);
 };
-const parseTypeTop = (sc) => {
+exports.parseKind = (sc) => {
     const ts = tokenize(sc);
-    const ex = parseType(ts.reverse());
+    const ex = parseKindR(ts.reverse());
+    if (ts.length > 0)
+        return err(`kind stuck on ${ts[0].val}`);
+    return ex;
+};
+// types
+const parseTypeR = (ts) => {
+    if (ts.length === 0)
+        return err('empty type');
+    if (safeMatch(ts, 'VarT')) {
+        const x = ts.pop();
+        return types_1.TVar(names_1.Name(x.val));
+    }
+    return err(`parseTypeR stuck on ${ts[ts.length - 1].val}`);
+};
+exports.parseType = (sc) => {
+    const ts = tokenize(sc);
+    const ex = parseTypeR(ts.reverse());
     if (ts.length > 0)
         return err(`type stuck on ${ts[0].val}`);
     return ex;
 };
+// terms
 const parseArg = (ts) => {
     if (ts.length === 0)
         return err(`empty in argument`);
@@ -750,6 +785,7 @@ const parseApp = (ts) => parseAppTo(ts, ts => {
 const parseAppAll = (ts) => parseAppTo(ts, ts => {
     if (ts.length === 0 ||
         safeMatch(ts, 'SymbolT', ')') ||
+        safeMatch(ts, 'SymbolT', ':') ||
         safeMatch(ts, 'KeywordT', 'in'))
         return false;
     return true;
@@ -795,12 +831,17 @@ const parseExpr = (ts) => {
 exports.parseTerm = (sc) => {
     const ts = tokenize(sc);
     const ex = parseAppAll(ts.reverse());
-    if (ts.length > 0)
+    if (ts.length > 0) {
+        if (match(ts, 'SymbolT', ':')) {
+            const ty = parseTypeR(ts);
+            return terms_1.Ann(ex, ty);
+        }
         return err(`stuck on ${ts[0].val}`);
+    }
     return ex;
 };
 
-},{"./names":10,"./terms":15}],13:[function(require,module,exports){
+},{"./kinds":9,"./names":10,"./terms":15,"./types":16}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");

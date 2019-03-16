@@ -100,6 +100,14 @@ const typecheck = (term: Term, type: Type): void => {
     context.leave(x);
     return;
   }
+  if (isLet(term)) {
+    const ty = typesynth(term.term);
+    const x = namestore.fresh(term.name);
+    context.enter(x, CVar(x, ty));
+    typecheck(openLet(term, Var(x)), type);
+    context.leave(x);
+    return;
+  }
   const ty = typesynth(term);
   return subsume(apply(ty), apply(type));
 };

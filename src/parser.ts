@@ -1,13 +1,14 @@
-import { 
+import { Kind, KVar, kfunFrom } from './kinds';
+import { Type, TVar } from './types';
+import {
   Term,
   Var,
-  Abs,
   abs,
-  App,
   appFrom,
   Let,
-} from "./terms";
-import { Name } from "./names";
+  Ann,
+} from './terms';
+import { Name } from './names';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -22,7 +23,7 @@ const KeywordT = (val: string): Token => ({ tag: 'KeywordT', val });
 
 const showTokens = (ts: Token[]) => ts.map(x => `${x.val}`).join(' ');
 
-const SYM1 = ['(', ')', '\\', '='];
+const SYM1 = ['(', ')', '\\', '=', ':', '.'];
 const SYM2 = ['->'];
 const KEYWORDS = ['let', 'in'];
 
@@ -74,17 +75,41 @@ const safeMatch = (ts: Token[], tag: string, val: string | null = null) => {
   return false;
 };
 
-const parseType = (ts: Token[]) => {
-  return err('unimplemented');
+// kinds
+const parseKindR = (ts: Token[]): Kind => {
+  if (ts.length === 0) return err('empty kind');
+  if (safeMatch(ts, 'VarT')) {
+    const x = ts.pop() as Token;
+    return KVar(Name(x.val));
+  }
+  return err(`parseKindR stuck on ${ts[ts.length - 1].val}`);
 };
 
-const parseTypeTop = (sc: string) => {
+export const parseKind = (sc: string): Kind => {
   const ts = tokenize(sc);
-  const ex = parseType(ts.reverse());
+  const ex = parseKindR(ts.reverse());
+  if (ts.length > 0) return err(`kind stuck on ${ts[0].val}`);
+  return ex;
+};
+
+// types
+const parseTypeR = (ts: Token[]): Type => {
+  if (ts.length === 0) return err('empty type');
+  if (safeMatch(ts, 'VarT')) {
+    const x = ts.pop() as Token;
+    return TVar(Name(x.val));
+  }
+  return err(`parseTypeR stuck on ${ts[ts.length - 1].val}`);
+};
+
+export const parseType = (sc: string): Type => {
+  const ts = tokenize(sc);
+  const ex = parseTypeR(ts.reverse());
   if (ts.length > 0) return err(`type stuck on ${ts[0].val}`);
   return ex;
 };
 
+// terms
 const parseArg = (ts: Token[]): string => {
   if (ts.length === 0) return err(`empty in argument`);
   const x = ts.pop() as Token;
@@ -107,6 +132,7 @@ const parseApp = (ts: Token[]) => parseAppTo(ts, ts => {
 const parseAppAll = (ts: Token[]) => parseAppTo(ts, ts => {
   if (ts.length === 0 ||
     safeMatch(ts, 'SymbolT', ')') ||
+    safeMatch(ts, 'SymbolT', ':') ||
     safeMatch(ts, 'KeywordT', 'in'))
     return false;
   return true;
@@ -144,7 +170,13 @@ const parseExpr = (ts: Token[]): Term => {
 export const parseTerm = (sc: string): Term => {
   const ts = tokenize(sc);
   const ex = parseAppAll(ts.reverse());
-  if (ts.length > 0) return err(`stuck on ${ts[0].val}`);
+  if (ts.length > 0) {
+    if (match(ts, 'SymbolT', ':')) {
+      const ty = parseTypeR(ts);
+      return Ann(ex, ty);
+    }
+    return err(`stuck on ${ts[0].val}`);
+  }
   return ex;
 };
 
