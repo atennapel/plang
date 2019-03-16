@@ -1,11 +1,11 @@
-import { showType, TVar, tfun, tforallK } from './types';
+import { showType, TVar, tfun, tforallK, tapp } from './types';
 import { compile } from './compiler';
 import { infer } from './inference';
 import { parseTerm } from './parser';
 import { context } from './global';
 import { CTVar, CVar } from './elems';
 import { Name } from './names';
-import { kType } from './kinds';
+import { kType, kfun } from './kinds';
 import { showTerm } from './terms';
 
 const _show = (x: any): string => {
@@ -21,6 +21,11 @@ const _show = (x: any): string => {
 
 const _Bool = Name('Bool');
 const _Nat = Name('Nat');
+const _List = Name('List');
+const _t = Name('t');
+const _tv = TVar(_t);
+const _r = Name('r');
+const _rv = TVar(_r);
 context.add(
   CTVar(_Bool, kType),
   CVar(Name('True'), TVar(_Bool)),
@@ -33,6 +38,13 @@ context.add(
   CVar(Name('caseNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(_Nat), TVar(Name('t'))), TVar(_Nat), TVar(Name('t'))))),
   CVar(Name('iterNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(Name('t')), TVar(Name('t'))), TVar(_Nat), TVar(Name('t'))))),
   CVar(Name('recNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(_Nat), TVar(Name('t')), TVar(Name('t'))), TVar(_Nat), TVar(Name('t'))))),
+
+  CTVar(_List, kfun(kType, kType)),
+  CVar(Name('Nil'), tforallK([[_t, kType]], tapp(TVar(_List), _tv))),
+  CVar(Name('Cons'), tforallK([[_t, kType]], tfun(_tv, tapp(TVar(_List), _tv), tapp(TVar(_List), _tv)))),
+  CVar(Name('caseNat'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, tapp(TVar(_List), _tv), _rv), tapp(TVar(_List), _tv), _rv))),
+  CVar(Name('iterNat'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, _rv, _rv), tapp(TVar(_List), _tv), _rv))),
+  CVar(Name('recNat'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, tapp(TVar(_List), _tv), _rv, _rv), tapp(TVar(_List), _tv), _rv))),
 );
 
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {

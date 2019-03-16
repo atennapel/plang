@@ -399,7 +399,7 @@ exports.infer = (term) => {
     return types_1.simplifyType(ty);
 };
 
-},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./subsumption":12,"./terms":13,"./types":14,"./wellformedness":16}],7:[function(require,module,exports){
+},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./subsumption":12,"./terms":13,"./types":14,"./wellformedness":17}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -691,7 +691,12 @@ const _show = (x) => {
 };
 const _Bool = names_1.Name('Bool');
 const _Nat = names_1.Name('Nat');
-global_1.context.add(elems_1.CTVar(_Bool, kinds_1.kType), elems_1.CVar(names_1.Name('True'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('False'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('if'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(_Bool), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))))), elems_1.CTVar(_Nat, kinds_1.kType), elems_1.CVar(names_1.Name('Z'), types_1.TVar(_Nat)), elems_1.CVar(names_1.Name('S'), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(_Nat))), elems_1.CVar(names_1.Name('caseNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CVar(names_1.Name('iterNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CVar(names_1.Name('recNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))));
+const _List = names_1.Name('List');
+const _t = names_1.Name('t');
+const _tv = types_1.TVar(_t);
+const _r = names_1.Name('r');
+const _rv = types_1.TVar(_r);
+global_1.context.add(elems_1.CTVar(_Bool, kinds_1.kType), elems_1.CVar(names_1.Name('True'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('False'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('if'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(_Bool), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))))), elems_1.CTVar(_Nat, kinds_1.kType), elems_1.CVar(names_1.Name('Z'), types_1.TVar(_Nat)), elems_1.CVar(names_1.Name('S'), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(_Nat))), elems_1.CVar(names_1.Name('caseNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CVar(names_1.Name('iterNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CVar(names_1.Name('recNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CTVar(_List, kinds_1.kfun(kinds_1.kType, kinds_1.kType)), elems_1.CVar(names_1.Name('Nil'), types_1.tforallK([[_t, kinds_1.kType]], types_1.tapp(types_1.TVar(_List), _tv))), elems_1.CVar(names_1.Name('Cons'), types_1.tforallK([[_t, kinds_1.kType]], types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), types_1.tapp(types_1.TVar(_List), _tv)))), elems_1.CVar(names_1.Name('caseNat'), types_1.tforallK([[_t, kinds_1.kType], [_r, kinds_1.kType]], types_1.tfun(_rv, types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), _rv), types_1.tapp(types_1.TVar(_List), _tv), _rv))), elems_1.CVar(names_1.Name('iterNat'), types_1.tforallK([[_t, kinds_1.kType], [_r, kinds_1.kType]], types_1.tfun(_rv, types_1.tfun(_tv, _rv, _rv), types_1.tapp(types_1.TVar(_List), _tv), _rv))), elems_1.CVar(names_1.Name('recNat'), types_1.tforallK([[_t, kinds_1.kType], [_r, kinds_1.kType]], types_1.tfun(_rv, types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), _rv, _rv), types_1.tapp(types_1.TVar(_List), _tv), _rv))));
 exports.run = (_s, _cb) => {
     try {
         const _e = parser_1.parseTerm(_s);
@@ -719,7 +724,8 @@ const elems_1 = require("./elems");
 const kinds_1 = require("./kinds");
 const wellformedness_1 = require("./wellformedness");
 const error_1 = require("./error");
-const solve = (x, type) => {
+const unification_1 = require("./unification");
+exports.solve = (x, type) => {
     if (!types_1.isMono(type))
         return error_1.infererr('solve with polytype');
     const elem = global_1.context.lookup('CTMeta', x.name);
@@ -733,7 +739,7 @@ const solve = (x, type) => {
 const instL = (x, type) => {
     global_1.storeContext();
     try {
-        solve(x, type);
+        exports.solve(x, type);
         global_1.discardContext();
     }
     catch (err) {
@@ -741,7 +747,7 @@ const instL = (x, type) => {
             throw err;
         global_1.restoreContext();
         if (types_1.isTMeta(type))
-            return solve(type, x);
+            return exports.solve(type, x);
         const f = types_1.matchTFun(type);
         if (f) {
             const y = x.name;
@@ -777,7 +783,7 @@ const instL = (x, type) => {
 const instR = (type, x) => {
     global_1.storeContext();
     try {
-        solve(x, type);
+        exports.solve(x, type);
         global_1.discardContext();
     }
     catch (err) {
@@ -785,7 +791,7 @@ const instR = (type, x) => {
             throw err;
         global_1.restoreContext();
         if (types_1.isTMeta(type))
-            return solve(type, x);
+            return exports.solve(type, x);
         const f = types_1.matchTFun(type);
         if (f) {
             const y = x.name;
@@ -831,8 +837,8 @@ exports.subsume = (a, b) => {
         exports.subsume(fb.left, fa.left);
         return exports.subsume(global_1.apply(fa.right), global_1.apply(fb.right));
     }
-    if (types_1.isTApp(a) && types_1.isTApp(b))
-        return error_1.infererr(`unification is not implemented yet`);
+    if (types_1.isTApp(a) || types_1.isTApp(b))
+        return unification_1.unify(a, b);
     if (types_1.isTForall(a)) {
         const t = global_1.namestore.fresh(a.name);
         if (a.kind) {
@@ -870,7 +876,7 @@ exports.subsume = (a, b) => {
     return error_1.infererr(`subsume failed: ${types_1.showType(a)} <: ${types_1.showType(b)}`);
 };
 
-},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./types":14,"./wellformedness":16}],13:[function(require,module,exports){
+},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./types":14,"./unification":15,"./wellformedness":17}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -1109,6 +1115,90 @@ exports.simplifyType = (type, ns = new namestore_1.NameStore()) => {
 },{"./kinds":7,"./names":8,"./namestore":9}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const types_1 = require("./types");
+const names_1 = require("./names");
+const global_1 = require("./global");
+const elems_1 = require("./elems");
+const kinds_1 = require("./kinds");
+const error_1 = require("./error");
+const subsumption_1 = require("./subsumption");
+const inst = (x, type) => {
+    global_1.storeContext();
+    try {
+        subsumption_1.solve(x, type);
+        global_1.discardContext();
+    }
+    catch (err) {
+        if (!(err instanceof error_1.InferError))
+            throw err;
+        global_1.restoreContext();
+        if (types_1.isTMeta(type))
+            return subsumption_1.solve(type, x);
+        if (types_1.isTApp(type)) {
+            const y = x.name;
+            const a = global_1.namestore.fresh(y);
+            const b = global_1.namestore.fresh(y);
+            const ta = types_1.TMeta(a);
+            const tb = types_1.TMeta(b);
+            global_1.context.replace('CTMeta', y, [
+                elems_1.CTMeta(b, kinds_1.kType),
+                elems_1.CTMeta(a, kinds_1.kType),
+                elems_1.CTMeta(y, kinds_1.kType, types_1.TApp(ta, tb)),
+            ]);
+            inst(ta, type.left);
+            inst(tb, global_1.apply(type.right));
+            return;
+        }
+        if (types_1.isTForall(type)) {
+            const y = global_1.namestore.fresh(type.name);
+            if (type.kind) {
+                global_1.context.enter(y, elems_1.CTVar(y, type.kind));
+            }
+            else {
+                const k = global_1.namestore.fresh(type.name);
+                global_1.context.enter(y, elems_1.CKMeta(k), elems_1.CTVar(y, kinds_1.KMeta(k)));
+            }
+            inst(x, types_1.openTForall(type, types_1.TVar(y)));
+            global_1.context.leave(y);
+            return;
+        }
+        return error_1.infererr(`inst failed: ${types_1.showType(x)} := ${types_1.showType(type)}`);
+    }
+};
+exports.unify = (a, b) => {
+    if (a === b)
+        return;
+    if (types_1.isTVar(a) && types_1.isTVar(b) && names_1.eqName(a.name, b.name))
+        return;
+    if (types_1.isTMeta(a) && types_1.isTMeta(b) && names_1.eqName(a.name, b.name))
+        return;
+    if (types_1.isTApp(a) && types_1.isTApp(b)) {
+        exports.unify(a.left, b.left);
+        return exports.unify(global_1.apply(a.right), global_1.apply(b.right));
+    }
+    if (types_1.isTForall(a) && types_1.isTForall(b)) {
+        const t = global_1.namestore.fresh(a.name);
+        const k = global_1.namestore.fresh(a.name);
+        global_1.context.enter(t, elems_1.CKMeta(k), elems_1.CTVar(t, kinds_1.KMeta(k)));
+        exports.unify(types_1.openTForall(a, types_1.TVar(t)), types_1.openTForall(b, types_1.TVar(t)));
+        global_1.context.leave(t);
+    }
+    if (types_1.isTMeta(a)) {
+        if (types_1.containsTMeta(a.name, b))
+            return error_1.infererr(`occurs check L failed: ${types_1.showType(a)} in ${types_1.showType(b)}`);
+        return inst(a, b);
+    }
+    if (types_1.isTMeta(b)) {
+        if (types_1.containsTMeta(b.name, a))
+            return error_1.infererr(`occurs check R failed: ${types_1.showType(b)} in ${types_1.showType(a)}`);
+        return inst(b, a);
+    }
+    return error_1.infererr(`unify failed: ${types_1.showType(a)} ~ ${types_1.showType(b)}`);
+};
+
+},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./subsumption":12,"./types":14}],16:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
 function getOutput(s, cb) {
     repl_1.run(s, cb);
@@ -1164,7 +1254,7 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":11}],16:[function(require,module,exports){
+},{"./repl":11}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -1273,4 +1363,4 @@ exports.wfContext = () => {
     global_1.restoreContext();
 };
 
-},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./types":14}]},{},[15]);
+},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./types":14}]},{},[16]);

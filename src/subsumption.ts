@@ -19,8 +19,9 @@ import { CTMeta, CKMeta, CTVar } from './elems';
 import { KMeta, kType } from './kinds';
 import { wfType } from './wellformedness';
 import { InferError, infererr } from './error';
+import { unify } from './unification';
 
-const solve = (x: TMeta, type: Type): void => {
+export const solve = (x: TMeta, type: Type): void => {
   if (!isMono(type)) return infererr('solve with polytype');
   const elem = context.lookup('CTMeta', x.name);
   if (!elem) return infererr('solve with undefined tmeta');
@@ -122,8 +123,8 @@ export const subsume = (a: Type, b: Type): void => {
     subsume(fb.left, fa.left);
     return subsume(apply(fa.right), apply(fb.right));
   }
-  if (isTApp(a) && isTApp(b))
-    return infererr(`unification is not implemented yet`);
+  if (isTApp(a) || isTApp(b))
+    return unify(a, b);
   if (isTForall(a)) {
     const t = namestore.fresh(a.name);
     if (a.kind) {
