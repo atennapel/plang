@@ -30,9 +30,9 @@ context.add(
   CTVar(_Nat, kType),
   CVar(Name('Z'), TVar(_Nat)),
   CVar(Name('S'), tfun(TVar(_Nat), TVar(_Nat))),
-  CVar(Name('caseNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(_Nat), TVar(Name('t'))), TVar(_Bool), TVar(Name('t'))))),
-  CVar(Name('iterNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(Name('t')), TVar(Name('t'))), TVar(_Bool), TVar(Name('t'))))),
-  CVar(Name('recNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(_Nat), TVar(Name('t')), TVar(Name('t'))), TVar(_Bool), TVar(Name('t'))))),
+  CVar(Name('caseNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(_Nat), TVar(Name('t'))), TVar(_Nat), TVar(Name('t'))))),
+  CVar(Name('iterNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(Name('t')), TVar(Name('t'))), TVar(_Nat), TVar(Name('t'))))),
+  CVar(Name('recNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(_Nat), TVar(Name('t')), TVar(Name('t'))), TVar(_Nat), TVar(Name('t'))))),
 );
 
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
