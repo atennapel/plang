@@ -72,6 +72,7 @@ export const unify = (a: Type, b: Type): void => {
     context.enter(t, CKMeta(k), CTVar(t, KMeta(k)));
     unify(openTForall(a, TVar(t)), openTForall(b, TVar(t)));
     context.leave(t);
+    return;
   }
   if (isTMeta(a)) {
     if (containsTMeta(a.name, b))

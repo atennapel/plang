@@ -123,7 +123,7 @@ export const subsume = (a: Type, b: Type): void => {
     subsume(fb.left, fa.left);
     return subsume(apply(fa.right), apply(fb.right));
   }
-  if (isTApp(a) || isTApp(b))
+  if (isTApp(a) && isTApp(b))
     return unify(a, b);
   if (isTForall(a)) {
     const t = namestore.fresh(a.name);
@@ -135,6 +135,7 @@ export const subsume = (a: Type, b: Type): void => {
     }
     subsume(openTForall(a, TMeta(t)), b);
     context.leave(t);
+    return;
   }
   if (isTForall(b)) {
     const t = namestore.fresh(b.name);
@@ -146,6 +147,7 @@ export const subsume = (a: Type, b: Type): void => {
     }
     subsume(a, openTForall(b, TVar(t)));
     context.leave(t);
+    return;
   }
   if (isTMeta(a)) {
     if (containsTMeta(a.name, b))

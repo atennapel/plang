@@ -1,6 +1,7 @@
 Try it out at https://atennapel.github.io/plang
 
 TODO:
+- TApp in instL, instR
 - kind unification
 - kind inference
 - check kinds in generalization, subsumption and unification

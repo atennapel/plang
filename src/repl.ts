@@ -42,9 +42,9 @@ context.add(
   CTVar(_List, kfun(kType, kType)),
   CVar(Name('Nil'), tforallK([[_t, kType]], tapp(TVar(_List), _tv))),
   CVar(Name('Cons'), tforallK([[_t, kType]], tfun(_tv, tapp(TVar(_List), _tv), tapp(TVar(_List), _tv)))),
-  CVar(Name('caseNat'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, tapp(TVar(_List), _tv), _rv), tapp(TVar(_List), _tv), _rv))),
-  CVar(Name('iterNat'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, _rv, _rv), tapp(TVar(_List), _tv), _rv))),
-  CVar(Name('recNat'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, tapp(TVar(_List), _tv), _rv, _rv), tapp(TVar(_List), _tv), _rv))),
+  CVar(Name('caseList'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, tapp(TVar(_List), _tv), _rv), tapp(TVar(_List), _tv), _rv))),
+  CVar(Name('iterList'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, _rv, _rv), tapp(TVar(_List), _tv), _rv))),
+  CVar(Name('recList'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, tapp(TVar(_List), _tv), _rv, _rv), tapp(TVar(_List), _tv), _rv))),
 );
 
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
