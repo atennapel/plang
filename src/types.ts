@@ -37,17 +37,17 @@ export interface TForall {
   readonly tag: 'TForall';
   readonly name: NameT;
   readonly kind: Kind | null;
-  readonly body: Type;
+  readonly type: Type;
 }
-export const TForall = (name: NameT, body: Type): TForall =>
-  ({ tag: 'TForall', name, kind: null, body });
-export const TForallK = (name: NameT, kind: Kind | null, body: Type): TForall =>
-  ({ tag: 'TForall', name, kind, body });
+export const TForall = (name: NameT, type: Type): TForall =>
+  ({ tag: 'TForall', name, kind: null, type });
+export const TForallK = (name: NameT, kind: Kind | null, type: Type): TForall =>
+  ({ tag: 'TForall', name, kind, type });
 export const isTForall = (type: Type): type is TForall => type.tag === 'TForall';
-export const tforall = (ns: NameT[], body: Type): Type =>
-  ns.reduceRight((t, n) => TForall(n, t), body);
-export const tforallK = (ns: [NameT, Kind | null][], body: Type): Type =>
-  ns.reduceRight((t, [n, k]) => TForallK(n, k, t), body);
+export const tforall = (ns: NameT[], type: Type): Type =>
+  ns.reduceRight((t, n) => TForall(n, t), type);
+export const tforallK = (ns: [NameT, Kind | null][], type: Type): Type =>
+  ns.reduceRight((t, [n, k]) => TForallK(n, k, t), type);
 
 export const nFun = Name('->');
 export const tFun = TVar(nFun);
@@ -69,14 +69,14 @@ export const flattenTApp = (type: Type): Type[] => {
   r.push(c);
   return r.reverse();
 };
-export const flattenTForall = (type: Type): { args: [NameT, Kind | null][], body: Type } => {
+export const flattenTForall = (type: Type): { args: [NameT, Kind | null][], type: Type } => {
   let c = type;
   const args: [NameT, Kind | null][] = [];
   while (isTForall(c)) {
     args.push([c.name, c.kind || null]);
-    c = c.body;
+    c = c.type;
   }
-  return { args, body: c };
+  return { args, type: c };
 };
 export const flattenTFun = (type: Type): Type[] => {
   let c = type;
@@ -114,8 +114,26 @@ export const showType = (type: Type): string => {
       const args = f.args
         .map(([n, k]) => k ? `(${showName(n)} : ${showKind(k)})` : showName(n))
         .join(' ');
-      return `forall ${args}. ${showType(f.body)}`;
+      return `forall ${args}. ${showType(f.type)}`;
     }
   }
 };
 
+export const substTVar = (x: NameT, s: Type, type: Type): Type => {
+  switch (type.tag) {
+    case 'TVar': return eqName(x, type.name) ? s : type;
+    case 'TMeta': return type;
+    case 'TApp': {
+      const left = substTVar(x, s, type.left);
+      const right = substTVar(x, s, type.right);
+      return type.left === left && type.right === right ? type : TApp(left, right);
+    }
+    case 'TForall': {
+      if (eqName(x, type.name)) return type;
+      const body = substTVar(x, s, type.type);
+      return type.type === body ? type : TForallK(type.name, type.kind, body);
+    }
+  }
+};
+export const openTForall = <N>(forall: TForall, s: Type): Type =>
+  substTVar(forall.name, s, forall.type);

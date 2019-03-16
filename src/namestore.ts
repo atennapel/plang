@@ -19,4 +19,9 @@ export class NameStore {
     return Gen(name, id);
   }
 
+  reset(): NameStore {
+    this.map.clear();
+    return this;
+  }
+
 }
