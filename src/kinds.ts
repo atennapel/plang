@@ -5,8 +5,6 @@ export type Kind
   | KMeta
   | KFun;
 
-export type KindTag = Kind['tag'];
-
 export interface KVar {
   readonly tag: 'KVar';
   readonly name: NameT;

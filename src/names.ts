@@ -2,8 +2,6 @@ export type NameT
   = Name
   | Gen;
 
-export type NameTag = NameT['tag'];
-
 export interface Name {
   readonly tag: 'Name';
   readonly name: string;
@@ -25,6 +23,13 @@ export const showName = (name: NameT): string => {
   switch (name.tag) {
     case 'Name': return name.name;
     case 'Gen': return `${name.name}\$${name.id}`;
+  }
+};
+
+export const simplifyName = (name: NameT): Name => {
+  switch (name.tag) {
+    case 'Name': return name;
+    case 'Gen': return Name(`${name.name}${name.id ? name.id - 1 : ''}`);
   }
 };
 

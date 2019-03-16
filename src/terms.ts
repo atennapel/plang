@@ -7,8 +7,6 @@ export type Term
   | App
   | Ann;
 
-export type TermTag = Term['tag'];
-
 export interface Var {
   readonly tag: 'Var';
   readonly name: NameT;

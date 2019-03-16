@@ -1,13 +1,12 @@
-import { NameT, showName, Name, eqName, NameMap, getNameMap } from './names';
+import { NameT, showName, Name, eqName, NameMap, getNameMap, simplifyName } from './names';
 import { Kind, showKind } from './kinds';
+import { NameStore } from './namestore';
 
 export type Type
   = TVar
   | TMeta
   | TApp
   | TForall;
-
-export type TypeTag = Type['tag'];
 
 export interface TVar {
   readonly tag: 'TVar';
@@ -169,5 +168,22 @@ export const isMono = (type: Type): boolean => {
     case 'TMeta': return true;
     case 'TApp': return isMono(type.left) && isMono(type.right);
     case 'TForall': return false;
+  }
+};
+
+export const simplifyType = (type: Type, ns: NameStore = new NameStore()): Type => {
+  switch (type.tag) {
+    case 'TVar':
+    case 'TMeta': return type;
+    case 'TApp': {
+      const left = simplifyType(type.left, ns);
+      const right = simplifyType(type.right, ns);
+      return type.left === left && type.right === right ? type : TApp(left, right);
+    }
+    case 'TForall': {
+      const x = simplifyName(ns.fresh(type.name));
+      const body = simplifyType(type.type, ns);
+      return TForallK(x, type.kind, substTVar(type.name, TVar(x), body));
+    }
   }
 };

@@ -1,5 +1,5 @@
 import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn } from './terms';
-import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall } from './types';
+import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType } from './types';
 import { namestore, context, apply } from './global';
 import { wfContext, wfType } from './wellformedness';
 import { infererr } from './error';
@@ -136,5 +136,5 @@ export const infer = (term: Term): Type => {
   context.enter(m);
   const ty = generalizeFrom(m, apply(typesynth(term)));
   if (!context.isComplete()) return infererr(`incomplete context: ${context}`);
-  return ty;
+  return simplifyType(ty);
 };

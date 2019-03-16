@@ -13,6 +13,7 @@ import {
   tforallK,
   tfun,
   showType,
+  tforall,
 } from './types';
 import {
   Var,
@@ -31,8 +32,14 @@ const y = Name('y');
 const z = Name('z');
 const f = Name('f');
 const g = Name('g');
+const t = Name('t');
 
-const term = abs([x, y], Var(x));
+const v = Var;
+const tv = TVar;
+
+const id_ =  Ann(abs([y], v(y)), tforall([t], tfun(tv(t), tv(t))));
+const const_ = abs([x, y], v(x));
+const term = app(const_, id_);
 console.log(showTerm(term));
 const ty = infer(term);
 console.log(showType(ty));
