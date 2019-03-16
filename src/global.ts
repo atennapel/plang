@@ -1,6 +1,6 @@
 import { Context } from './context';
 import { CKVar, CTVar } from './elems';
-import { nType, kfun, kType } from './kinds';
+import { nType, kfun, kType, Kind, KFun } from './kinds';
 import { nFun, Type, TApp, TForallK } from './types';
 import { NameStore } from './namestore';
 
@@ -28,6 +28,21 @@ export const discardContext = (): void => {
 
 export let namestore = new NameStore();
 
+export const applyKind = (kind: Kind, ctx_?: Context): Kind => {
+  const ctx = ctx_ || context;
+  switch (kind.tag) {
+    case 'KVar': return kind;
+    case 'KMeta': {
+      const t = ctx.lookup('CKMeta', kind.name);
+      return t && t.kind ? applyKind(t.kind, ctx): kind;
+    }
+    case 'KFun': {
+      const left = applyKind(kind.left, ctx);
+      const right = applyKind(kind.right, ctx);
+      return kind.left === left && kind.right === right ? kind : KFun(left, right);
+    }
+  }
+};
 export const apply = (type: Type, ctx_?: Context): Type => {
   const ctx = ctx_ || context;
   switch (type.tag) {
@@ -43,8 +58,10 @@ export const apply = (type: Type, ctx_?: Context): Type => {
     }
     case 'TForall': {
       const body = apply(type.type, ctx);
-      return type.type === body ? type : TForallK(type.name, type.kind, body);
+      const kind = type.kind && applyKind(type.kind, ctx);
+      return type.type === body && type.kind === kind ?
+        type :
+        TForallK(type.name, kind, body);
     }
   }
 };
-

@@ -1,4 +1,4 @@
-import { NameT, showName, Name } from './names';
+import { NameT, showName, Name, eqName } from './names';
 
 export type Kind
   = KVar
@@ -54,4 +54,12 @@ export const showKind = (kind: Kind): string => {
         })
         .join(' -> ');
    }
+};
+
+export const containsKMeta = (x: NameT, kind: Kind): boolean => {
+  switch (kind.tag) {
+    case 'KVar': return false;
+    case 'KMeta': return eqName(x, kind.name);
+    case 'KFun': return containsKMeta(x, kind.left) || containsKMeta(x, kind.right);
+  }
 };

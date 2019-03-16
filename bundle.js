@@ -230,6 +230,21 @@ exports.discardContext = () => {
     stored.pop();
 };
 exports.namestore = new namestore_1.NameStore();
+exports.applyKind = (kind, ctx_) => {
+    const ctx = ctx_ || exports.context;
+    switch (kind.tag) {
+        case 'KVar': return kind;
+        case 'KMeta': {
+            const t = ctx.lookup('CKMeta', kind.name);
+            return t && t.kind ? exports.applyKind(t.kind, ctx) : kind;
+        }
+        case 'KFun': {
+            const left = exports.applyKind(kind.left, ctx);
+            const right = exports.applyKind(kind.right, ctx);
+            return kind.left === left && kind.right === right ? kind : kinds_1.KFun(left, right);
+        }
+    }
+};
 exports.apply = (type, ctx_) => {
     const ctx = ctx_ || exports.context;
     switch (type.tag) {
@@ -245,7 +260,10 @@ exports.apply = (type, ctx_) => {
         }
         case 'TForall': {
             const body = exports.apply(type.type, ctx);
-            return type.type === body ? type : types_1.TForallK(type.name, type.kind, body);
+            const kind = type.kind && exports.applyKind(type.kind, ctx);
+            return type.type === body && type.kind === kind ?
+                type :
+                types_1.TForallK(type.name, kind, body);
         }
     }
 };
@@ -434,6 +452,13 @@ exports.showKind = (kind) => {
                 return exports.isKFun(k) ? `(${s})` : s;
             })
                 .join(' -> ');
+    }
+};
+exports.containsKMeta = (x, kind) => {
+    switch (kind.tag) {
+        case 'KVar': return false;
+        case 'KMeta': return names_1.eqName(x, kind.name);
+        case 'KFun': return exports.containsKMeta(x, kind.left) || exports.containsKMeta(x, kind.right);
     }
 };
 
