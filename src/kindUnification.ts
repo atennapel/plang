@@ -27,8 +27,11 @@ const instKind = (x: KMeta, kind: Kind): void => {
   }
 };
 
-export const unifyKinds = (a: Kind, b: Kind): void => {
-  console.log(`unifyKinds ${showKind(a)} ~ ${showKind(b)} in ${context}`);
+export const unifyKinds = (a_: Kind, b_: Kind): void => {
+  console.log(`unifyKinds ${showKind(a_)} ~ ${showKind(b_)} in ${context}`);
+  if (a_ === b_) return;
+  const a = applyKind(a_);
+  const b = applyKind(b_);
   if (a === b) return;
   if (isKVar(a) && isKVar(b) && eqName(a.name, b.name)) return;
   if (isKMeta(a) && isKMeta(b) && eqName(a.name, b.name)) return;

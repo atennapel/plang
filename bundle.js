@@ -443,7 +443,7 @@ const kindUnification_1 = require("./kindUnification");
 const global_1 = require("./global");
 const error_1 = require("./error");
 const elems_1 = require("./elems");
-const synthKind = (type) => {
+exports.inferKind = (type) => {
     switch (type.tag) {
         case 'TVar': {
             const e = global_1.context.lookup('CTVar', type.name);
@@ -458,8 +458,8 @@ const synthKind = (type) => {
             return e.kind;
         }
         case 'TApp': {
-            const l = synthKind(type.left);
-            const r = synthKind(type.right);
+            const l = exports.inferKind(type.left);
+            const r = exports.inferKind(type.right);
             const kv = global_1.namestore.fresh('k');
             const km = kinds_1.KMeta(kv);
             global_1.context.enter(kv, elems_1.CKMeta(kv));
@@ -470,31 +470,20 @@ const synthKind = (type) => {
         }
         case 'TForall': {
             const t = global_1.namestore.fresh(type.name);
+            let k;
             if (type.kind) {
-                global_1.context.enter(t, elems_1.CTVar(t, type.kind));
+                k = type.kind;
             }
             else {
-                const k = global_1.namestore.fresh(type.name);
-                global_1.context.enter(t, elems_1.CKMeta(k), elems_1.CTVar(t, kinds_1.KMeta(k)));
+                const kn = global_1.namestore.fresh(type.name);
+                global_1.context.add(elems_1.CKMeta(kn));
+                k = kinds_1.KMeta(kn);
             }
-            const ki = synthKind(types_1.openTForall(type, types_1.TVar(t)));
+            global_1.context.enter(t, elems_1.CTVar(t, k));
+            const ki = exports.inferKind(types_1.openTForall(type, types_1.TVar(t)));
             global_1.context.leave(t);
             return global_1.applyKind(ki);
         }
-    }
-};
-exports.inferKind = (type) => {
-    console.log(`inferKind ${types_1.showType(type)}`);
-    const m = global_1.namestore.fresh('m');
-    global_1.context.enter(m);
-    try {
-        const ki = synthKind(type);
-        global_1.context.leave(m);
-        return global_1.applyKind(ki);
-    }
-    catch (err) {
-        global_1.context.leave(m);
-        throw err;
     }
 };
 exports.checkKindType = (type) => kindUnification_1.unifyKinds(exports.inferKind(type), kinds_1.kType);
@@ -532,8 +521,12 @@ const instKind = (x, kind) => {
         return error_1.infererr(`inst kind failed: ${kinds_1.showKind(x)} := ${kinds_1.showKind(kind)}, ${err}`);
     }
 };
-exports.unifyKinds = (a, b) => {
-    console.log(`unifyKinds ${kinds_1.showKind(a)} ~ ${kinds_1.showKind(b)} in ${global_1.context}`);
+exports.unifyKinds = (a_, b_) => {
+    console.log(`unifyKinds ${kinds_1.showKind(a_)} ~ ${kinds_1.showKind(b_)} in ${global_1.context}`);
+    if (a_ === b_)
+        return;
+    const a = global_1.applyKind(a_);
+    const b = global_1.applyKind(b_);
     if (a === b)
         return;
     if (kinds_1.isKVar(a) && kinds_1.isKVar(b) && names_1.eqName(a.name, b.name))
@@ -1078,11 +1071,13 @@ const instR = (type, x) => {
 };
 exports.subsume = (a_, b_) => {
     console.log(`subsume ${types_1.showType(a_)} <: ${types_1.showType(b_)} in ${global_1.context}`);
+    if (a_ === b_)
+        return;
     const a = global_1.apply(a_);
     const b = global_1.apply(b_);
-    kindUnification_1.unifyKinds(kindInference_1.inferKind(a), kindInference_1.inferKind(b));
     if (a === b)
         return;
+    kindUnification_1.unifyKinds(kindInference_1.inferKind(a), kindInference_1.inferKind(b));
     if (types_1.isTVar(a) && types_1.isTVar(b) && names_1.eqName(a.name, b.name))
         return;
     if (types_1.isTMeta(a) && types_1.isTMeta(b) && names_1.eqName(a.name, b.name))
@@ -1427,8 +1422,12 @@ exports.inst = (x, type) => {
 };
 exports.unify = (a_, b_) => {
     console.log(`unify ${types_1.showType(a_)} ~ ${types_1.showType(b_)} in ${global_1.context}`);
+    if (a_ === b_)
+        return;
     const a = global_1.apply(a_);
     const b = global_1.apply(b_);
+    if (a === b)
+        return;
     kindUnification_1.unifyKinds(kindInference_1.inferKind(a), kindInference_1.inferKind(b));
     if (a === b)
         return;

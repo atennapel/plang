@@ -62,8 +62,10 @@ export const inst = (x: TMeta, type: Type): void => {
 
 export const unify = (a_: Type, b_: Type): void => {
   console.log(`unify ${showType(a_)} ~ ${showType(b_)} in ${context}`);
+  if (a_ === b_) return;
   const a = apply(a_);
   const b = apply(b_);
+  if (a === b) return;
   unifyKinds(inferKind(a), inferKind(b));
   if (a === b) return;
   if (isTVar(a) && isTVar(b) && eqName(a.name, b.name)) return;

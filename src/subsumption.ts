@@ -119,10 +119,11 @@ const instR = (type: Type, x: TMeta): void => {
 
 export const subsume = (a_: Type, b_: Type): void => {
   console.log(`subsume ${showType(a_)} <: ${showType(b_)} in ${context}`);
+  if (a_ === b_) return;
   const a = apply(a_);
   const b = apply(b_);
-  unifyKinds(inferKind(a), inferKind(b));
   if (a === b) return;
+  unifyKinds(inferKind(a), inferKind(b));
   if (isTVar(a) && isTVar(b) && eqName(a.name, b.name)) return;
   if (isTMeta(a) && isTMeta(b) && eqName(a.name, b.name)) return;
   const fa = matchTFun(a);
