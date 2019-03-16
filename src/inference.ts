@@ -2,7 +2,7 @@ import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn } from './term
 import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall } from './types';
 import { namestore, context, apply } from './global';
 import { wfContext, wfType } from './wellformedness';
-import { infererr } from './InferError';
+import { infererr } from './error';
 import { NameT } from './names';
 import { subsume } from './subsumption';
 import { CVar, CTVar, CKMeta, CTMeta } from './elems';

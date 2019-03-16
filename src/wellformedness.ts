@@ -4,7 +4,7 @@ import { Elem, CTVar, CKMeta } from './elems';
 import { Context } from './context';
 import { context, restoreContext, storeContext, namestore } from './global';
 import { showName } from './names';
-import { infererr } from './InferError';
+import { infererr } from './error';
 
 export const wfKind = (kind: Kind): void => {
   switch (kind.tag) {

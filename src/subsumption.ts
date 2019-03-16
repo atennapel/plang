@@ -18,7 +18,7 @@ import { apply, namestore, context, discardContext, storeContext, restoreContext
 import { CTMeta, CKMeta, CTVar } from './elems';
 import { KMeta, kType } from './kinds';
 import { wfType } from './wellformedness';
-import { InferError, infererr } from './InferError';
+import { InferError, infererr } from './error';
 
 const solve = (x: TMeta, type: Type): void => {
   if (!isMono(type)) return infererr('solve with polytype');
