@@ -1,7 +1,7 @@
 Try it out at https://atennapel.github.io/plang
 
 TODO:
-- context
+- well-formedness
 - subsumption
 - unification
 - kind unification

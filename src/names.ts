@@ -29,6 +29,7 @@ export const showName = (name: NameT): string => {
 };
 
 export const eqName = (a: NameT, b: NameT): boolean => {
+  if (a === b) return true;
   if (a.tag === 'Name') return b.tag === 'Name' && a.name === b.name;
   if (a.tag === 'Gen') return b.tag === 'Gen' && a.name === b.name && a.id === b.id;
   return false;
