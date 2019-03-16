@@ -3,7 +3,7 @@ import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta
 import { namestore, context, apply } from './global';
 import { wfContext, wfType } from './wellformedness';
 import { infererr } from './error';
-import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap } from './names';
+import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap, showName } from './names';
 import { subsume } from './subsumption';
 import { CVar, CTVar, CKMeta, CTMeta } from './elems';
 import { KMeta, kType } from './kinds';
@@ -43,7 +43,7 @@ const generalizeFrom = (marker: NameT, type: Type): Type =>
 const typesynth = (term: Term): Type => {
   if (isVar(term)) {
     const x = context.lookup('CVar', term.name);
-    if (!x) return infererr(`undefined var ${term.name}`);
+    if (!x) return infererr(`undefined var ${showName(term.name)}`);
     return x.type;
   }
   if (isAbs(term)) {
