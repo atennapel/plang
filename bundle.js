@@ -66,7 +66,7 @@ implements
 instanceof
 `.trim().split(/\s+/);
 
-},{"./names":8}],2:[function(require,module,exports){
+},{"./names":10}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -159,7 +159,7 @@ class Context {
 }
 exports.Context = Context;
 
-},{"./elems":3,"./names":8}],3:[function(require,module,exports){
+},{"./elems":3,"./names":10}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -194,7 +194,7 @@ exports.showElem = (elem) => {
     }
 };
 
-},{"./kinds":7,"./names":8,"./types":14}],4:[function(require,module,exports){
+},{"./kinds":9,"./names":10,"./types":16}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class InferError extends TypeError {
@@ -268,7 +268,7 @@ exports.apply = (type, ctx_) => {
     }
 };
 
-},{"./context":2,"./elems":3,"./kinds":7,"./namestore":9,"./types":14}],6:[function(require,module,exports){
+},{"./context":2,"./elems":3,"./kinds":9,"./namestore":11,"./types":16}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const terms_1 = require("./terms");
@@ -280,6 +280,7 @@ const names_1 = require("./names");
 const subsumption_1 = require("./subsumption");
 const elems_1 = require("./elems");
 const kinds_1 = require("./kinds");
+const kindInference_1 = require("./kindInference");
 const unsolvedInType = (unsolved, type, ns = []) => {
     switch (type.tag) {
         case 'TVar': return ns;
@@ -336,6 +337,7 @@ const typesynth = (term) => {
     if (terms_1.isAnn(term)) {
         const ty = term.type;
         wellformedness_1.wfType(ty);
+        kindInference_1.checkKindType(ty);
         typecheck(term.term, ty);
         return ty;
     }
@@ -412,12 +414,119 @@ exports.infer = (term) => {
     const m = global_1.namestore.fresh('m');
     global_1.context.enter(m);
     const ty = generalizeFrom(m, global_1.apply(typesynth(term)));
+    kindInference_1.checkKindType(ty);
     if (!global_1.context.isComplete())
         return error_1.infererr(`incomplete context: ${global_1.context}`);
     return types_1.simplifyType(ty);
 };
 
-},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./subsumption":12,"./terms":13,"./types":14,"./wellformedness":17}],7:[function(require,module,exports){
+},{"./elems":3,"./error":4,"./global":5,"./kindInference":7,"./kinds":9,"./names":10,"./subsumption":14,"./terms":15,"./types":16,"./wellformedness":19}],7:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const types_1 = require("./types");
+const kinds_1 = require("./kinds");
+const kindUnification_1 = require("./kindUnification");
+const global_1 = require("./global");
+const error_1 = require("./error");
+const elems_1 = require("./elems");
+exports.inferKind = (type) => {
+    switch (type.tag) {
+        case 'TVar': {
+            const e = global_1.context.lookup('CTVar', type.name);
+            if (!e)
+                return error_1.infererr(`undefined tvar ${types_1.showType(type)}`);
+            return e.kind;
+        }
+        case 'TMeta': {
+            const e = global_1.context.lookup('CTMeta', type.name);
+            if (!e)
+                return error_1.infererr(`undefined tmeta ${types_1.showType(type)}`);
+            return e.kind;
+        }
+        case 'TApp': {
+            const l = exports.inferKind(type.left);
+            const r = exports.inferKind(type.right);
+            const kv = global_1.namestore.fresh('k');
+            const km = kinds_1.KMeta(kv);
+            global_1.context.add(elems_1.CKMeta(kv));
+            kindUnification_1.unifyKinds(l, kinds_1.KFun(r, km));
+            return global_1.applyKind(km);
+        }
+        case 'TForall': {
+            const t = global_1.namestore.fresh(type.name);
+            if (type.kind) {
+                global_1.context.enter(t, elems_1.CTVar(t, type.kind));
+            }
+            else {
+                const k = global_1.namestore.fresh(type.name);
+                global_1.context.enter(t, elems_1.CKMeta(k), elems_1.CTVar(t, kinds_1.KMeta(k)));
+            }
+            const ki = exports.inferKind(types_1.openTForall(type, types_1.TVar(t)));
+            global_1.context.leave(t);
+            return global_1.applyKind(ki);
+        }
+    }
+};
+exports.checkKindType = (type) => kindUnification_1.unifyKinds(exports.inferKind(type), kinds_1.kType);
+
+},{"./elems":3,"./error":4,"./global":5,"./kindUnification":8,"./kinds":9,"./types":16}],8:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const names_1 = require("./names");
+const global_1 = require("./global");
+const elems_1 = require("./elems");
+const kinds_1 = require("./kinds");
+const error_1 = require("./error");
+const wellformedness_1 = require("./wellformedness");
+const solveKind = (x, kind) => {
+    const elem = global_1.context.lookup('CKMeta', x.name);
+    if (!elem)
+        return error_1.infererr('solve with undefined kmeta');
+    const right = global_1.context.split('CKMeta', x.name);
+    wellformedness_1.wfKind(kind);
+    global_1.context.add(elems_1.CKMeta(x.name, kind));
+    global_1.context.addAll(right);
+};
+const instKind = (x, kind) => {
+    global_1.storeContext();
+    try {
+        solveKind(x, kind);
+        global_1.discardContext();
+    }
+    catch (err) {
+        if (!(err instanceof error_1.InferError))
+            throw err;
+        global_1.restoreContext();
+        if (kinds_1.isKMeta(kind))
+            return solveKind(kind, x);
+        return error_1.infererr(`inst kind failed: ${kinds_1.showKind(x)} := ${kinds_1.showKind(kind)}`);
+    }
+};
+exports.unifyKinds = (a, b) => {
+    if (a === b)
+        return;
+    if (kinds_1.isKVar(a) && kinds_1.isKVar(b) && names_1.eqName(a.name, b.name))
+        return;
+    if (kinds_1.isKMeta(a) && kinds_1.isKMeta(b) && names_1.eqName(a.name, b.name))
+        return;
+    if (kinds_1.isKFun(a) && kinds_1.isKFun(b)) {
+        exports.unifyKinds(a.left, b.left);
+        return exports.unifyKinds(global_1.applyKind(a.right), global_1.applyKind(b.right));
+    }
+    if (kinds_1.isKMeta(a)) {
+        if (kinds_1.containsKMeta(a.name, b))
+            return error_1.infererr(`kind occurs check L failed: ${kinds_1.showKind(a)} in ${kinds_1.showKind(b)}`);
+        return instKind(a, b);
+    }
+    if (kinds_1.isKMeta(b)) {
+        if (kinds_1.containsKMeta(b.name, a))
+            return error_1.infererr(`kind occurs check R failed: ${kinds_1.showKind(b)} in ${kinds_1.showKind(a)}`);
+        return instKind(b, a);
+    }
+    return error_1.infererr(`kind unify failed: ${kinds_1.showKind(a)} ~ ${kinds_1.showKind(b)}`);
+};
+
+},{"./elems":3,"./error":4,"./global":5,"./kinds":9,"./names":10,"./wellformedness":19}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -462,7 +571,7 @@ exports.containsKMeta = (x, kind) => {
     }
 };
 
-},{"./names":8}],8:[function(require,module,exports){
+},{"./names":10}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Name = (name) => ({ tag: 'Name', name });
@@ -506,7 +615,7 @@ exports.nameContains = (ns, n) => {
     return false;
 };
 
-},{}],9:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -533,7 +642,7 @@ class NameStore {
 }
 exports.NameStore = NameStore;
 
-},{"./names":8}],10:[function(require,module,exports){
+},{"./names":10}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const terms_1 = require("./terms");
@@ -689,7 +798,7 @@ exports.parseTerm = (sc) => {
     return ex;
 };
 
-},{"./names":8,"./terms":13}],11:[function(require,module,exports){
+},{"./names":10,"./terms":15}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -739,7 +848,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./compiler":1,"./elems":3,"./global":5,"./inference":6,"./kinds":7,"./names":8,"./parser":10,"./types":14}],12:[function(require,module,exports){
+},{"./compiler":1,"./elems":3,"./global":5,"./inference":6,"./kinds":9,"./names":10,"./parser":12,"./types":16}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -750,6 +859,8 @@ const kinds_1 = require("./kinds");
 const wellformedness_1 = require("./wellformedness");
 const error_1 = require("./error");
 const unification_1 = require("./unification");
+const kindUnification_1 = require("./kindUnification");
+const kindInference_1 = require("./kindInference");
 exports.solve = (x, type) => {
     if (!types_1.isMono(type))
         return error_1.infererr('solve with polytype');
@@ -849,7 +960,10 @@ const instR = (type, x) => {
         return error_1.infererr(`instR failed: ${types_1.showType(x)} := ${types_1.showType(type)}`);
     }
 };
-exports.subsume = (a, b) => {
+exports.subsume = (a_, b_) => {
+    const a = global_1.apply(a_);
+    const b = global_1.apply(b_);
+    kindUnification_1.unifyKinds(kindInference_1.inferKind(a), kindInference_1.inferKind(b));
     if (a === b)
         return;
     if (types_1.isTVar(a) && types_1.isTVar(b) && names_1.eqName(a.name, b.name))
@@ -903,7 +1017,7 @@ exports.subsume = (a, b) => {
     return error_1.infererr(`subsume failed: ${types_1.showType(a)} <: ${types_1.showType(b)}`);
 };
 
-},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./types":14,"./unification":15,"./wellformedness":17}],13:[function(require,module,exports){
+},{"./elems":3,"./error":4,"./global":5,"./kindInference":7,"./kindUnification":8,"./kinds":9,"./names":10,"./types":16,"./unification":17,"./wellformedness":19}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -988,7 +1102,7 @@ const substVar = (x, s, term) => {
 exports.openAbs = (a, s) => substVar(a.name, s, a.body);
 exports.openLet = (a, s) => substVar(a.name, s, a.body);
 
-},{"./names":8,"./types":14}],14:[function(require,module,exports){
+},{"./names":10,"./types":16}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -1139,7 +1253,7 @@ exports.simplifyType = (type, ns = new namestore_1.NameStore()) => {
     }
 };
 
-},{"./kinds":7,"./names":8,"./namestore":9}],15:[function(require,module,exports){
+},{"./kinds":9,"./names":10,"./namestore":11}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1149,6 +1263,8 @@ const elems_1 = require("./elems");
 const kinds_1 = require("./kinds");
 const error_1 = require("./error");
 const subsumption_1 = require("./subsumption");
+const kindInference_1 = require("./kindInference");
+const kindUnification_1 = require("./kindUnification");
 const inst = (x, type) => {
     global_1.storeContext();
     try {
@@ -1192,7 +1308,10 @@ const inst = (x, type) => {
         return error_1.infererr(`inst failed: ${types_1.showType(x)} := ${types_1.showType(type)}`);
     }
 };
-exports.unify = (a, b) => {
+exports.unify = (a_, b_) => {
+    const a = global_1.apply(a_);
+    const b = global_1.apply(b_);
+    kindUnification_1.unifyKinds(kindInference_1.inferKind(a), kindInference_1.inferKind(b));
     if (a === b)
         return;
     if (types_1.isTVar(a) && types_1.isTVar(b) && names_1.eqName(a.name, b.name))
@@ -1224,7 +1343,7 @@ exports.unify = (a, b) => {
     return error_1.infererr(`unify failed: ${types_1.showType(a)} ~ ${types_1.showType(b)}`);
 };
 
-},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./subsumption":12,"./types":14}],16:[function(require,module,exports){
+},{"./elems":3,"./error":4,"./global":5,"./kindInference":7,"./kindUnification":8,"./kinds":9,"./names":10,"./subsumption":14,"./types":16}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -1282,7 +1401,7 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":11}],17:[function(require,module,exports){
+},{"./repl":13}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -1338,6 +1457,7 @@ exports.wfType = (type) => {
             }
             exports.wfType(types_1.openTForall(type, types_1.TVar(t)));
             global_1.context.leave(t);
+            return;
         }
     }
 };
@@ -1391,4 +1511,4 @@ exports.wfContext = () => {
     global_1.restoreContext();
 };
 
-},{"./elems":3,"./error":4,"./global":5,"./kinds":7,"./names":8,"./types":14}]},{},[16]);
+},{"./elems":3,"./error":4,"./global":5,"./kinds":9,"./names":10,"./types":16}]},{},[18]);

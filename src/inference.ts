@@ -7,6 +7,7 @@ import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap,
 import { subsume } from './subsumption';
 import { CVar, CTVar, CKMeta, CTMeta } from './elems';
 import { KMeta, kType } from './kinds';
+import { checkKindType } from './kindInference';
 
 const unsolvedInType = (unsolved: NameT[], type: Type, ns: NameT[] = []): NameT[] => {
   switch (type.tag) {
@@ -64,6 +65,7 @@ const typesynth = (term: Term): Type => {
   if (isAnn(term)) {
     const ty = term.type;
     wfType(ty);
+    checkKindType(ty);
     typecheck(term.term, ty);
     return ty;
   }
@@ -141,6 +143,7 @@ export const infer = (term: Term): Type => {
   const m = namestore.fresh('m');
   context.enter(m);
   const ty = generalizeFrom(m, apply(typesynth(term)));
+  checkKindType(ty);
   if (!context.isComplete()) return infererr(`incomplete context: ${context}`);
   return simplifyType(ty);
 };

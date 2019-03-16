@@ -48,6 +48,7 @@ export const wfType = (type: Type): void => {
       }
       wfType(openTForall(type, TVar(t)));
       context.leave(t);
+      return;
     }
   }
 };

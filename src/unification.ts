@@ -17,6 +17,8 @@ import { CTMeta, CKMeta, CTVar } from './elems';
 import { KMeta, kType } from './kinds';
 import { InferError, infererr } from './error';
 import { solve } from './subsumption';
+import { inferKind } from './kindInference';
+import { unifyKinds } from './kindUnification';
 
 const inst = (x: TMeta, type: Type): void => {
   storeContext();
@@ -58,7 +60,10 @@ const inst = (x: TMeta, type: Type): void => {
   }
 };
 
-export const unify = (a: Type, b: Type): void => {
+export const unify = (a_: Type, b_: Type): void => {
+  const a = apply(a_);
+  const b = apply(b_);
+  unifyKinds(inferKind(a), inferKind(b));
   if (a === b) return;
   if (isTVar(a) && isTVar(b) && eqName(a.name, b.name)) return;
   if (isTMeta(a) && isTMeta(b) && eqName(a.name, b.name)) return;

@@ -20,6 +20,8 @@ import { KMeta, kType } from './kinds';
 import { wfType } from './wellformedness';
 import { InferError, infererr } from './error';
 import { unify } from './unification';
+import { unifyKinds } from './kindUnification';
+import { inferKind } from './kindInference';
 
 export const solve = (x: TMeta, type: Type): void => {
   if (!isMono(type)) return infererr('solve with polytype');
@@ -113,7 +115,10 @@ const instR = (type: Type, x: TMeta): void => {
   }
 };
 
-export const subsume = (a: Type, b: Type): void => {
+export const subsume = (a_: Type, b_: Type): void => {
+  const a = apply(a_);
+  const b = apply(b_);
+  unifyKinds(inferKind(a), inferKind(b));
   if (a === b) return;
   if (isTVar(a) && isTVar(b) && eqName(a.name, b.name)) return;
   if (isTMeta(a) && isTMeta(b) && eqName(a.name, b.name)) return;
