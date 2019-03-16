@@ -2,8 +2,9 @@ import { Kind, KMeta } from './kinds';
 import { Type, openTForall, TVar } from './types';
 import { Elem, CTVar, CKMeta } from './elems';
 import { Context } from './context';
-import { context, infererr, restoreContext, storeContext, namestore } from './global';
+import { context, restoreContext, storeContext, namestore } from './global';
 import { showName } from './names';
+import { infererr } from './InferError';
 
 export const wfKind = (kind: Kind): void => {
   switch (kind.tag) {
@@ -38,16 +39,15 @@ export const wfType = (type: Type): void => {
     }
     case 'TForall': {
       if (type.kind) wfKind(type.kind);
-      const m = namestore.fresh('m');
       const t = namestore.fresh(type.name);
       if (type.kind) {
-        context.enter(m, CTVar(t, type.kind));
+        context.enter(t, CTVar(t, type.kind));
       } else {
         const k = namestore.fresh(type.name);
-        context.enter(m, CKMeta(k), CTVar(t, KMeta(k)));
+        context.enter(t, CKMeta(k), CTVar(t, KMeta(k)));
       }
       wfType(openTForall(type, TVar(t)));
-      context.leave(m);
+      context.leave(t);
     }
   }
 };

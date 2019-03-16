@@ -135,5 +135,23 @@ export const substTVar = (x: NameT, s: Type, type: Type): Type => {
     }
   }
 };
-export const openTForall = <N>(forall: TForall, s: Type): Type =>
+export const openTForall = (forall: TForall, s: Type): Type =>
   substTVar(forall.name, s, forall.type);
+
+export const containsTMeta = (x: NameT, type: Type): boolean => {
+  switch (type.tag) {
+    case 'TVar': return false;
+    case 'TMeta': return eqName(x, type.name);
+    case 'TApp': return containsTMeta(x, type.left) || containsTMeta(x, type.right);
+    case 'TForall': return containsTMeta(x, type.type);
+  }
+};
+
+export const isMono = (type: Type): boolean => {
+  switch (type.tag) {
+    case 'TVar': return true;
+    case 'TMeta': return true;
+    case 'TApp': return isMono(type.left) && isMono(type.right);
+    case 'TForall': return false;
+  }
+};

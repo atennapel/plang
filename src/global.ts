@@ -1,7 +1,7 @@
 import { Context } from './context';
 import { CKVar, CTVar } from './elems';
 import { nType, kfun, kType } from './kinds';
-import { nFun } from './types';
+import { nFun, Type, TApp, TForallK } from './types';
 import { NameStore } from './namestore';
 
 const initialContext = () =>
@@ -15,18 +15,36 @@ export const resetContext = () => {
   context = initialContext();
 };
 const stored: Context[] = [];
-export const storeContext = (ctx?: Context): Context => {
+export const storeContext = (ctx?: Context): void => {
   const ctx_ = ctx || context;
   stored.push(ctx_.clone());
-  return ctx_;
 };
-export const restoreContext = (): Context => {
-  context = stored.pop() as Context;
-  return context;
+export const restoreContext = (): void => {
+  context = stored.pop() || context;
+};
+export const discardContext = (): void => {
+  stored.pop();
 };
 
 export let namestore = new NameStore();
 
-export const infererr = (msg: string) => {
-  throw new TypeError(msg);
+export const apply = (type: Type, ctx_?: Context): Type => {
+  const ctx = ctx_ || context;
+  switch (type.tag) {
+    case 'TVar': return type;
+    case 'TMeta': {
+      const t = ctx.lookup('CTMeta', type.name);
+      return t && t.type ? apply(t.type, ctx): type;
+    }
+    case 'TApp': {
+      const left = apply(type.left, ctx);
+      const right = apply(type.right, ctx);
+      return type.left === left && type.right === right ? type : TApp(left, right);
+    }
+    case 'TForall': {
+      const body = apply(type.type, ctx);
+      return type.type === body ? type : TForallK(type.name, type.kind, body);
+    }
+  }
 };
+
