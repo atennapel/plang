@@ -19,7 +19,7 @@ import { CTMeta, CKMeta, CTVar } from './elems';
 import { KMeta, kType } from './kinds';
 import { wfType } from './wellformedness';
 import { InferError, infererr } from './error';
-import { unify } from './unification';
+import { unify, inst } from './unification';
 import { unifyKinds } from './kindUnification';
 import { inferKind } from './kindInference';
 
@@ -32,7 +32,7 @@ export const solve = (x: TMeta, type: Type): void => {
   context.add(CTMeta(x.name, elem.kind, type));
   context.addAll(right);
 };
-
+// x := List y
 const instL = (x: TMeta, type: Type): void => {
   storeContext();
   try {
@@ -58,6 +58,7 @@ const instL = (x: TMeta, type: Type): void => {
       instL(tb, apply(f.right));
       return;
     }
+    if (isTApp(type)) return inst(x, type);
     if (isTForall(type)) {
       const y = namestore.fresh(type.name);
       if (type.kind) {
@@ -99,6 +100,7 @@ const instR = (type: Type, x: TMeta): void => {
       instR(apply(f.right), tb);
       return;
     }
+    if (isTApp(type)) return inst(x, type);
     if (isTForall(type)) {
       const y = namestore.fresh(type.name);
       if (type.kind) {

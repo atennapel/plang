@@ -876,6 +876,7 @@ exports.solve = (x, type) => {
     global_1.context.add(elems_1.CTMeta(x.name, elem.kind, type));
     global_1.context.addAll(right);
 };
+// x := List y
 const instL = (x, type) => {
     global_1.storeContext();
     try {
@@ -904,6 +905,8 @@ const instL = (x, type) => {
             instL(tb, global_1.apply(f.right));
             return;
         }
+        if (types_1.isTApp(type))
+            return unification_1.inst(x, type);
         if (types_1.isTForall(type)) {
             const y = global_1.namestore.fresh(type.name);
             if (type.kind) {
@@ -948,6 +951,8 @@ const instR = (type, x) => {
             instR(global_1.apply(f.right), tb);
             return;
         }
+        if (types_1.isTApp(type))
+            return unification_1.inst(x, type);
         if (types_1.isTForall(type)) {
             const y = global_1.namestore.fresh(type.name);
             if (type.kind) {
@@ -1269,7 +1274,7 @@ const error_1 = require("./error");
 const subsumption_1 = require("./subsumption");
 const kindInference_1 = require("./kindInference");
 const kindUnification_1 = require("./kindUnification");
-const inst = (x, type) => {
+exports.inst = (x, type) => {
     global_1.storeContext();
     try {
         subsumption_1.solve(x, type);
@@ -1292,8 +1297,8 @@ const inst = (x, type) => {
                 elems_1.CTMeta(a, kinds_1.kType),
                 elems_1.CTMeta(y, kinds_1.kType, types_1.TApp(ta, tb)),
             ]);
-            inst(ta, type.left);
-            inst(tb, global_1.apply(type.right));
+            exports.inst(ta, type.left);
+            exports.inst(tb, global_1.apply(type.right));
             return;
         }
         if (types_1.isTForall(type)) {
@@ -1305,7 +1310,7 @@ const inst = (x, type) => {
                 const k = global_1.namestore.fresh(type.name);
                 global_1.context.enter(y, elems_1.CKMeta(k), elems_1.CTVar(y, kinds_1.KMeta(k)));
             }
-            inst(x, types_1.openTForall(type, types_1.TVar(y)));
+            exports.inst(x, types_1.openTForall(type, types_1.TVar(y)));
             global_1.context.leave(y);
             return;
         }
@@ -1337,12 +1342,12 @@ exports.unify = (a_, b_) => {
     if (types_1.isTMeta(a)) {
         if (types_1.containsTMeta(a.name, b))
             return error_1.infererr(`occurs check L failed: ${types_1.showType(a)} in ${types_1.showType(b)}`);
-        return inst(a, b);
+        return exports.inst(a, b);
     }
     if (types_1.isTMeta(b)) {
         if (types_1.containsTMeta(b.name, a))
             return error_1.infererr(`occurs check R failed: ${types_1.showType(b)} in ${types_1.showType(a)}`);
-        return inst(b, a);
+        return exports.inst(b, a);
     }
     return error_1.infererr(`unify failed: ${types_1.showType(a)} ~ ${types_1.showType(b)}`);
 };

@@ -20,7 +20,7 @@ import { solve } from './subsumption';
 import { inferKind } from './kindInference';
 import { unifyKinds } from './kindUnification';
 
-const inst = (x: TMeta, type: Type): void => {
+export const inst = (x: TMeta, type: Type): void => {
   storeContext();
   try {
     solve(x, type);
