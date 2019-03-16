@@ -28,6 +28,18 @@ export const showName = (name: NameT): string => {
   }
 };
 
+export type NameHash = string;
+export const hashName = (name: NameT): NameHash => showName(name);
+export type NameMap<T> = Map<NameHash, T>;
+export const createNameMap = <T>(): NameMap<T> => new Map<NameHash, T>();
+export const insertNameMap = <T>(k: NameT, v: T, m: NameMap<T>): NameMap<T> => {
+  m.set(hashName(k), v);
+  return m;
+};
+export const getNameMap = <T>(k: NameT, m: NameMap<T>): T | null => {
+  return m.get(hashName(k)) || null;
+};
+
 export const eqName = (a: NameT, b: NameT): boolean => {
   if (a === b) return true;
   if (a.tag === 'Name') return b.tag === 'Name' && a.name === b.name;
@@ -35,3 +47,7 @@ export const eqName = (a: NameT, b: NameT): boolean => {
   return false;
 };
 
+export const nameContains = (ns: NameT[], n: NameT): boolean => {
+  for (let i = 0, l = ns.length; i < l; i++) if (eqName(n, ns[i])) return true;
+  return false;
+};

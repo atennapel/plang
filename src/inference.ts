@@ -3,7 +3,7 @@ import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta
 import { namestore, context, apply } from './global';
 import { wfContext, wfType } from './wellformedness';
 import { infererr } from './error';
-import { NameT } from './names';
+import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap } from './names';
 import { subsume } from './subsumption';
 import { CVar, CTVar, CKMeta, CTMeta } from './elems';
 import { KMeta, kType } from './kinds';
@@ -13,7 +13,7 @@ const unsolvedInType = (unsolved: NameT[], type: Type, ns: NameT[] = []): NameT[
     case 'TVar': return ns;
     case 'TMeta': {
       const x = type.name;
-      if (unsolved.indexOf(x) >= 0 && ns.indexOf(x) < 0) ns.push(x);
+      if (nameContains(unsolved, x) && !nameContains(ns, x)) ns.push(x);
       return ns;
     }
     case 'TApp': {
@@ -26,15 +26,15 @@ const unsolvedInType = (unsolved: NameT[], type: Type, ns: NameT[] = []): NameT[
 };
 const generalize = (unsolved: NameT[], type: Type): Type => {
   const ns = unsolvedInType(unsolved, type);
-  const m: Map<NameT, TVar> = new Map();
+  const m: NameMap<TVar> = createNameMap();
   for (let i = 0, l = ns.length; i < l; i++) {
     const x = ns[i];
     const y = namestore.fresh(x);
-    m.set(x, TVar(y));
+    insertNameMap(x, TVar(y), m);
   }
   let c = substTMetas(type, m);
   for (let i = ns.length - 1; i >= 0; i--)
-    c = TForall((m.get(ns[i]) as TVar).name, c);
+    c = TForall((getNameMap(ns[i], m) as TVar).name, c);
   return c;
 };
 const generalizeFrom = (marker: NameT, type: Type): Type =>

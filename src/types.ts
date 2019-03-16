@@ -1,4 +1,4 @@
-import { NameT, showName, Name, eqName } from './names';
+import { NameT, showName, Name, eqName, NameMap, getNameMap } from './names';
 import { Kind, showKind } from './kinds';
 
 export type Type
@@ -147,10 +147,10 @@ export const containsTMeta = (x: NameT, type: Type): boolean => {
   }
 };
 
-export const substTMetas = (type: Type, m: Map<NameT, Type>): Type => {
+export const substTMetas = (type: Type, m: NameMap<Type>): Type => {
   switch (type.tag) {
     case 'TVar': return type;
-    case 'TMeta': return m.get(type.name) || type;
+    case 'TMeta': return getNameMap(type.name, m) || type;
     case 'TApp': {
       const left = substTMetas(type.left, m);
       const right = substTMetas(type.right, m);
