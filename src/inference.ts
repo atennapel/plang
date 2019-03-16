@@ -1,4 +1,4 @@
-import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn } from './terms';
+import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn, isLet, openLet } from './terms';
 import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType } from './types';
 import { namestore, context, apply } from './global';
 import { wfContext, wfType } from './wellformedness';
@@ -52,11 +52,10 @@ const typesynth = (term: Term): Type => {
     const b = namestore.fresh(term.name);
     const ta = TMeta(a);
     const tb = TMeta(b);
-    const m = namestore.fresh('m');
-    context.enter(m, CTMeta(a, kType), CTMeta(b, kType), CVar(x, ta));
+    context.enter(x, CTMeta(a, kType), CTMeta(b, kType), CVar(x, ta));
     typecheck(openAbs(term, Var(x)), tb);
     const ty = apply(TFun(ta, tb));
-    return generalizeFrom(m, ty);
+    return generalizeFrom(x, ty);
   }
   if (isApp(term)) {
     const left = typesynth(term.left);
@@ -67,6 +66,13 @@ const typesynth = (term: Term): Type => {
     wfType(ty);
     typecheck(term.term, ty);
     return ty;
+  }
+  if (isLet(term)) {
+    const ty = typesynth(term.term);
+    const x = namestore.fresh(term.name);
+    context.enter(x, CVar(x, ty));
+    const rty = apply(typesynth(openLet(term, Var(x))));
+    return generalizeFrom(x, rty);
   }
   return infererr(`cannot synth: ${showTerm(term)}`);
 };

@@ -7,5 +7,6 @@ export const compile = (term: Term): string => {
     case 'Abs': return `(${showName(term.name)} => ${compile(term.body)})`;
     case 'App': return `${compile(term.left)}(${compile(term.right)})`;
     case 'Ann': return compile(term.term);
+    case 'Let': return `(${showName(term.name)} => ${compile(term.body)})(${compile(term.term)})`;
   }
 };

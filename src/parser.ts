@@ -5,6 +5,7 @@ import {
   abs,
   App,
   appFrom,
+  Let,
 } from "./terms";
 import { Name } from "./names";
 
@@ -132,7 +133,7 @@ const parseExpr = (ts: Token[]): Term => {
       return true;
     });
     const body = parseAppAll(ts);
-    return App(Abs(Name(x), body), val);
+    return Let(Name(x), val, body)
   } else if (safeMatch(ts, 'VarT')) {
     const x = ts.pop() as Token;
     return Var(Name(x.val));

@@ -5,7 +5,8 @@ export type Term
   = Var
   | Abs
   | App
-  | Ann;
+  | Ann
+  | Let;
 
 export interface Var {
   readonly tag: 'Var';
@@ -42,6 +43,16 @@ export interface Ann {
 export const Ann = (term: Term, type: Type): Ann => ({ tag: 'Ann', term, type });
 export const isAnn = (term: Term): term is Ann => term.tag === 'Ann';
 
+export interface Let {
+  readonly tag: 'Let';
+  readonly name: NameT;
+  readonly term: Term;
+  readonly body: Term;
+}
+export const Let = (name: NameT, term: Term, body: Term): Let =>
+  ({ tag: 'Let', name, term, body });
+export const isLet = (term: Term): term is Let => term.tag === 'Let';
+
 export const flattenApp = (type: Term): Term[] => {
   let c = type;
   const r: Term[] = [];
@@ -77,6 +88,8 @@ export const showTerm = (term: Term): string => {
       return `\\${args} -> ${showTerm(f.body)}`;
     }
     case 'Ann': return `${showTerm(term.term)} : ${showType(term.type)}`;
+    case 'Let':
+      return `(let ${showName(term.name)} = ${showTerm(term.term)} in ${showTerm(term.body)})`;
   }
 };
 
@@ -97,7 +110,14 @@ const substVar = (x: NameT, s: Term, term: Term): Term => {
       const body = substVar(x, s, term.term);
       return term.term === body ? term : Ann(body, term.type);
     }
+    case 'Let': {
+      const val = substVar(x, s, term.term);
+      const body = eqName(x, term.name) ? term.body : substVar(x, s, term.body);
+      return term.term === val && term.body === body ? term : Let(term.name, val, body);
+    }
   }
 };
 export const openAbs = (a: Abs, s: Term): Term =>
+  substVar(a.name, s, a.body);
+export const openLet = (a: Let, s: Term): Term =>
   substVar(a.name, s, a.body);
