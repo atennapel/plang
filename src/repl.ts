@@ -48,6 +48,7 @@ context.add(
 );
 
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
+  if (_s === ':ctx') return _cb(`${context}`);
   try {
     const _e = parseTerm(_s);
     // console.log(showTerm(_e));

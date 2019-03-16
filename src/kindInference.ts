@@ -22,9 +22,11 @@ export const inferKind = (type: Type): Kind => {
       const r = inferKind(type.right);
       const kv = namestore.fresh('k');
       const km = KMeta(kv);
-      context.add(CKMeta(kv));
+      context.enter(kv, CKMeta(kv));
       unifyKinds(l, KFun(r, km));
-      return applyKind(km);
+      const ki = applyKind(km);
+      context.leave(kv);
+      return ki;
     }
     case 'TForall': {
       const t = namestore.fresh(type.name);

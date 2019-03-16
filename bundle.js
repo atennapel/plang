@@ -448,9 +448,11 @@ exports.inferKind = (type) => {
             const r = exports.inferKind(type.right);
             const kv = global_1.namestore.fresh('k');
             const km = kinds_1.KMeta(kv);
-            global_1.context.add(elems_1.CKMeta(kv));
+            global_1.context.enter(kv, elems_1.CKMeta(kv));
             kindUnification_1.unifyKinds(l, kinds_1.KFun(r, km));
-            return global_1.applyKind(km);
+            const ki = global_1.applyKind(km);
+            global_1.context.leave(kv);
+            return ki;
         }
         case 'TForall': {
             const t = global_1.namestore.fresh(type.name);
