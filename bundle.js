@@ -2,14 +2,69 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
+exports.compileName = (name) => {
+    const x = names_1.showName(name);
+    return keywords.indexOf(x) >= 0 ? `${x}_` : x;
+};
 exports.compile = (term) => {
     switch (term.tag) {
-        case 'Var': return names_1.showName(term.name);
-        case 'Abs': return `(${names_1.showName(term.name)} => ${exports.compile(term.body)})`;
+        case 'Var': return exports.compileName(term.name);
+        case 'Abs': return `(${exports.compileName(term.name)} => ${exports.compile(term.body)})`;
         case 'App': return `${exports.compile(term.left)}(${exports.compile(term.right)})`;
         case 'Ann': return exports.compile(term.term);
+        case 'Let': return `(${exports.compileName(term.name)} => ${exports.compile(term.body)})(${exports.compile(term.term)})`;
     }
 };
+const keywords = `
+do
+if
+in
+for
+let
+new
+try
+var
+case
+else
+enum
+eval
+null
+this
+true
+void
+with
+await
+break
+catch
+class
+const
+false
+super
+throw
+while
+yield
+delete
+export
+import
+public
+return
+static
+switch
+typeof
+default
+extends
+finally
+package
+private
+continue
+debugger
+function
+arguments
+interface
+protected
+implements
+instanceof
+`.trim().split(/\s+/);
 
 },{"./names":8}],2:[function(require,module,exports){
 "use strict";
@@ -242,7 +297,7 @@ const typesynth = (term) => {
     if (terms_1.isVar(term)) {
         const x = global_1.context.lookup('CVar', term.name);
         if (!x)
-            return error_1.infererr(`undefined var ${term.name}`);
+            return error_1.infererr(`undefined var ${names_1.showName(term.name)}`);
         return x.type;
     }
     if (terms_1.isAbs(term)) {
@@ -251,11 +306,10 @@ const typesynth = (term) => {
         const b = global_1.namestore.fresh(term.name);
         const ta = types_1.TMeta(a);
         const tb = types_1.TMeta(b);
-        const m = global_1.namestore.fresh('m');
-        global_1.context.enter(m, elems_1.CTMeta(a, kinds_1.kType), elems_1.CTMeta(b, kinds_1.kType), elems_1.CVar(x, ta));
+        global_1.context.enter(x, elems_1.CTMeta(a, kinds_1.kType), elems_1.CTMeta(b, kinds_1.kType), elems_1.CVar(x, ta));
         typecheck(terms_1.openAbs(term, terms_1.Var(x)), tb);
         const ty = global_1.apply(types_1.TFun(ta, tb));
-        return generalizeFrom(m, ty);
+        return generalizeFrom(x, ty);
     }
     if (terms_1.isApp(term)) {
         const left = typesynth(term.left);
@@ -266,6 +320,13 @@ const typesynth = (term) => {
         wellformedness_1.wfType(ty);
         typecheck(term.term, ty);
         return ty;
+    }
+    if (terms_1.isLet(term)) {
+        const ty = typesynth(term.term);
+        const x = global_1.namestore.fresh(term.name);
+        global_1.context.enter(x, elems_1.CVar(x, ty));
+        const rty = global_1.apply(typesynth(terms_1.openLet(term, terms_1.Var(x))));
+        return generalizeFrom(x, rty);
     }
     return error_1.infererr(`cannot synth: ${terms_1.showTerm(term)}`);
 };
@@ -587,7 +648,7 @@ const parseExpr = (ts) => {
             return true;
         });
         const body = parseAppAll(ts);
-        return terms_1.App(terms_1.Abs(names_1.Name(x), body), val);
+        return terms_1.Let(names_1.Name(x), val, body);
     }
     else if (safeMatch(ts, 'VarT')) {
         const x = ts.pop();
@@ -610,6 +671,10 @@ const types_1 = require("./types");
 const compiler_1 = require("./compiler");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
+const global_1 = require("./global");
+const elems_1 = require("./elems");
+const names_1 = require("./names");
+const kinds_1 = require("./kinds");
 const _show = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
@@ -624,10 +689,13 @@ const _show = (x) => {
     }
     return '' + x;
 };
+const _Bool = names_1.Name('Bool');
+const _Nat = names_1.Name('Nat');
+global_1.context.add(elems_1.CTVar(_Bool, kinds_1.kType), elems_1.CVar(names_1.Name('True'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('False'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('if'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(_Bool), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))))), elems_1.CTVar(_Nat, kinds_1.kType), elems_1.CVar(names_1.Name('Z'), types_1.TVar(_Nat)), elems_1.CVar(names_1.Name('S'), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(_Nat))), elems_1.CVar(names_1.Name('caseNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))), types_1.TVar(names_1.Name('t'))))), elems_1.CVar(names_1.Name('iterNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))), types_1.TVar(names_1.Name('t'))))), elems_1.CVar(names_1.Name('recNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))), types_1.TVar(names_1.Name('t'))))));
 exports.run = (_s, _cb) => {
     try {
         const _e = parser_1.parseTerm(_s);
-        // console.log(showExpr(_e));
+        // console.log(showTerm(_e));
         const _t = inference_1.infer(_e);
         // console.log(showType(_t));
         const _c = compiler_1.compile(_e);
@@ -641,7 +709,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./compiler":1,"./inference":6,"./parser":10,"./types":14}],12:[function(require,module,exports){
+},{"./compiler":1,"./elems":3,"./global":5,"./inference":6,"./kinds":7,"./names":8,"./parser":10,"./types":14}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -818,6 +886,8 @@ exports.appFrom = (ts) => ts.reduce(exports.App);
 exports.app = (...ts) => exports.appFrom(ts);
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.isAnn = (term) => term.tag === 'Ann';
+exports.Let = (name, term, body) => ({ tag: 'Let', name, term, body });
+exports.isLet = (term) => term.tag === 'Let';
 exports.flattenApp = (type) => {
     let c = type;
     const r = [];
@@ -853,6 +923,8 @@ exports.showTerm = (term) => {
             return `\\${args} -> ${exports.showTerm(f.body)}`;
         }
         case 'Ann': return `${exports.showTerm(term.term)} : ${types_1.showType(term.type)}`;
+        case 'Let':
+            return `(let ${names_1.showName(term.name)} = ${exports.showTerm(term.term)} in ${exports.showTerm(term.body)})`;
     }
 };
 const substVar = (x, s, term) => {
@@ -873,9 +945,15 @@ const substVar = (x, s, term) => {
             const body = substVar(x, s, term.term);
             return term.term === body ? term : exports.Ann(body, term.type);
         }
+        case 'Let': {
+            const val = substVar(x, s, term.term);
+            const body = names_1.eqName(x, term.name) ? term.body : substVar(x, s, term.body);
+            return term.term === val && term.body === body ? term : exports.Let(term.name, val, body);
+        }
     }
 };
 exports.openAbs = (a, s) => substVar(a.name, s, a.body);
+exports.openLet = (a, s) => substVar(a.name, s, a.body);
 
 },{"./names":8,"./types":14}],14:[function(require,module,exports){
 "use strict";
@@ -1146,6 +1224,7 @@ exports.wfType = (type) => {
     }
 };
 exports.wfElem = (elem) => {
+    // console.log(`wfElem ${showElem(elem)} in ${context}`);
     switch (elem.tag) {
         case 'CKVar': {
             if (!global_1.context.contains('CKVar', elem.name))

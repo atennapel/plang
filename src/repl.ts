@@ -1,7 +1,12 @@
-import { showType } from './types';
+import { showType, TVar, tfun, tforallK } from './types';
 import { compile } from './compiler';
 import { infer } from './inference';
 import { parseTerm } from './parser';
+import { context } from './global';
+import { CTVar, CVar } from './elems';
+import { Name } from './names';
+import { kType } from './kinds';
+import { showTerm } from './terms';
 
 const _show = (x: any): string => {
   if (typeof x === 'function') return '[Fn]';
@@ -14,10 +19,26 @@ const _show = (x: any): string => {
   return '' + x;
 };
 
+const _Bool = Name('Bool');
+const _Nat = Name('Nat');
+context.add(
+  CTVar(_Bool, kType),
+  CVar(Name('True'), TVar(_Bool)),
+  CVar(Name('False'), TVar(_Bool)),
+  CVar(Name('if'), tforallK([[Name('t'), kType]], tfun(TVar(_Bool), TVar(Name('t')), TVar(Name('t')), TVar(Name('t'))))),
+
+  CTVar(_Nat, kType),
+  CVar(Name('Z'), TVar(_Nat)),
+  CVar(Name('S'), tfun(TVar(_Nat), TVar(_Nat))),
+  CVar(Name('caseNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(_Nat), TVar(Name('t'))), TVar(Name('t'))))),
+  CVar(Name('iterNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(Name('t')), TVar(Name('t'))), TVar(Name('t'))))),
+  CVar(Name('recNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(_Nat), TVar(Name('t')), TVar(Name('t'))), TVar(Name('t'))))),
+);
+
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   try {
     const _e = parseTerm(_s);
-    // console.log(showExpr(_e));
+    // console.log(showTerm(_e));
     const _t = infer(_e);
     // console.log(showType(_t));
     const _c = compile(_e);

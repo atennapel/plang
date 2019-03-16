@@ -1,6 +1,6 @@
 import { Kind, KMeta } from './kinds';
 import { Type, openTForall, TVar } from './types';
-import { Elem, CTVar, CKMeta } from './elems';
+import { Elem, CTVar, CKMeta, showElem } from './elems';
 import { Context } from './context';
 import { context, restoreContext, storeContext, namestore } from './global';
 import { showName } from './names';
@@ -53,6 +53,7 @@ export const wfType = (type: Type): void => {
 };
 
 export const wfElem = (elem: Elem): void => {
+  // console.log(`wfElem ${showElem(elem)} in ${context}`);
   switch (elem.tag) {
     case 'CKVar': {
       if (!context.contains('CKVar', elem.name)) return;
