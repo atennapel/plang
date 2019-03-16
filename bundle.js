@@ -421,11 +421,17 @@ exports.infer = (term) => {
     wellformedness_1.wfContext();
     const m = global_1.namestore.fresh('m');
     global_1.context.enter(m);
-    const ty = generalizeFrom(m, global_1.apply(typesynth(term)));
-    kindInference_1.checkKindType(ty);
-    if (!global_1.context.isComplete())
-        return error_1.infererr(`incomplete context: ${global_1.context}`);
-    return types_1.simplifyType(ty);
+    try {
+        const ty = generalizeFrom(m, global_1.apply(typesynth(term)));
+        kindInference_1.checkKindType(ty);
+        if (!global_1.context.isComplete())
+            return error_1.infererr(`incomplete context: ${global_1.context}`);
+        return types_1.simplifyType(ty);
+    }
+    catch (err) {
+        global_1.context.leave(m);
+        throw err;
+    }
 };
 
 },{"./elems":3,"./error":4,"./global":5,"./kindInference":7,"./kinds":9,"./names":10,"./subsumption":14,"./terms":15,"./types":16,"./wellformedness":19}],7:[function(require,module,exports){
@@ -437,7 +443,7 @@ const kindUnification_1 = require("./kindUnification");
 const global_1 = require("./global");
 const error_1 = require("./error");
 const elems_1 = require("./elems");
-exports.inferKind = (type) => {
+const synthKind = (type) => {
     switch (type.tag) {
         case 'TVar': {
             const e = global_1.context.lookup('CTVar', type.name);
@@ -452,8 +458,8 @@ exports.inferKind = (type) => {
             return e.kind;
         }
         case 'TApp': {
-            const l = exports.inferKind(type.left);
-            const r = exports.inferKind(type.right);
+            const l = synthKind(type.left);
+            const r = synthKind(type.right);
             const kv = global_1.namestore.fresh('k');
             const km = kinds_1.KMeta(kv);
             global_1.context.enter(kv, elems_1.CKMeta(kv));
@@ -471,10 +477,24 @@ exports.inferKind = (type) => {
                 const k = global_1.namestore.fresh(type.name);
                 global_1.context.enter(t, elems_1.CKMeta(k), elems_1.CTVar(t, kinds_1.KMeta(k)));
             }
-            const ki = exports.inferKind(types_1.openTForall(type, types_1.TVar(t)));
+            const ki = synthKind(types_1.openTForall(type, types_1.TVar(t)));
             global_1.context.leave(t);
             return global_1.applyKind(ki);
         }
+    }
+};
+exports.inferKind = (type) => {
+    console.log(`inferKind ${types_1.showType(type)}`);
+    const m = global_1.namestore.fresh('m');
+    global_1.context.enter(m);
+    try {
+        const ki = synthKind(type);
+        global_1.context.leave(m);
+        return global_1.applyKind(ki);
+    }
+    catch (err) {
+        global_1.context.leave(m);
+        throw err;
     }
 };
 exports.checkKindType = (type) => kindUnification_1.unifyKinds(exports.inferKind(type), kinds_1.kType);
@@ -509,10 +529,11 @@ const instKind = (x, kind) => {
         global_1.restoreContext();
         if (kinds_1.isKMeta(kind))
             return solveKind(kind, x);
-        return error_1.infererr(`inst kind failed: ${kinds_1.showKind(x)} := ${kinds_1.showKind(kind)}`);
+        return error_1.infererr(`inst kind failed: ${kinds_1.showKind(x)} := ${kinds_1.showKind(kind)}, ${err}`);
     }
 };
 exports.unifyKinds = (a, b) => {
+    console.log(`unifyKinds ${kinds_1.showKind(a)} ~ ${kinds_1.showKind(b)} in ${global_1.context}`);
     if (a === b)
         return;
     if (kinds_1.isKVar(a) && kinds_1.isKVar(b) && names_1.eqName(a.name, b.name))
@@ -666,7 +687,7 @@ const KeywordT = (val) => ({ tag: 'KeywordT', val });
 const showTokens = (ts) => ts.map(x => `${x.val}`).join(' ');
 const SYM1 = ['(', ')', '\\', '=', ':', '.'];
 const SYM2 = ['->'];
-const KEYWORDS = ['let', 'in'];
+const KEYWORDS = ['let', 'in', 'forall'];
 const START = 0;
 const NAME = 1;
 const tokenize = (sc) => {
@@ -740,10 +761,48 @@ exports.parseKind = (sc) => {
     return ex;
 };
 // types
+const parseTAppTo = (ts, fn) => {
+    const es = [];
+    while (fn(ts))
+        es.push(parseTypeR(ts));
+    if (es.length === 0)
+        return err('empty app');
+    if (es.length === 1)
+        return es[0];
+    return types_1.tappFrom(es);
+};
+const parseTApp = (ts) => parseTAppTo(ts, ts => {
+    if (match(ts, 'SymbolT', ')'))
+        return false;
+    if (ts.length === 0)
+        return err('tapp end');
+    return true;
+});
+const parseTAppAll = (ts) => {
+    const es = [];
+    while (!(ts.length === 0 ||
+        safeMatch(ts, 'SymbolT', ')')))
+        es.push(parseTypeR(ts));
+    if (es.length === 0)
+        return err('empty app');
+    return types_1.tappFrom(es);
+};
 const parseTypeR = (ts) => {
     if (ts.length === 0)
         return err('empty type');
-    if (safeMatch(ts, 'VarT')) {
+    if (match(ts, 'KeywordT', 'forall')) {
+        const args = [];
+        while (!match(ts, 'SymbolT', '.'))
+            args.push(parseArg(ts));
+        if (args.length === 0)
+            return err('empty args after forall');
+        const body = parseTAppAll(ts);
+        return types_1.tforall(args.map(names_1.Name), body);
+    }
+    else if (match(ts, 'SymbolT', '(')) {
+        return parseTApp(ts);
+    }
+    else if (safeMatch(ts, 'VarT')) {
         const x = ts.pop();
         return types_1.TVar(names_1.Name(x.val));
     }
@@ -782,14 +841,23 @@ const parseApp = (ts) => parseAppTo(ts, ts => {
         return err('app end');
     return true;
 });
-const parseAppAll = (ts) => parseAppTo(ts, ts => {
-    if (ts.length === 0 ||
+const parseAppAll = (ts) => {
+    const es = [];
+    while (!(ts.length === 0 ||
         safeMatch(ts, 'SymbolT', ')') ||
         safeMatch(ts, 'SymbolT', ':') ||
-        safeMatch(ts, 'KeywordT', 'in'))
-        return false;
-    return true;
-});
+        safeMatch(ts, 'KeywordT', 'in')))
+        es.push(parseExpr(ts));
+    if (es.length === 0)
+        return err('empty app');
+    const ex = terms_1.appFrom(es);
+    if (safeMatch(ts, 'SymbolT', ':')) {
+        ts.pop();
+        const ty = parseTAppAll(ts);
+        return terms_1.Ann(ex, ty);
+    }
+    return ex;
+};
 const parseExpr = (ts) => {
     // console.log(showTokens(ts.slice(0).reverse()));
     if (ts.length === 0)
@@ -826,18 +894,16 @@ const parseExpr = (ts) => {
         const x = ts.pop();
         return terms_1.Var(names_1.Name(x.val));
     }
+    else if (match(ts, 'KeywordT', 'forall')) {
+        return terms_1.Var(names_1.Name('forall'));
+    }
     return err(`parseExpr stuck on ${ts[ts.length - 1].val}`);
 };
 exports.parseTerm = (sc) => {
     const ts = tokenize(sc);
     const ex = parseAppAll(ts.reverse());
-    if (ts.length > 0) {
-        if (match(ts, 'SymbolT', ':')) {
-            const ty = parseTypeR(ts);
-            return terms_1.Ann(ex, ty);
-        }
+    if (ts.length > 0)
         return err(`stuck on ${ts[0].val}`);
-    }
     return ex;
 };
 
@@ -961,7 +1027,7 @@ const instL = (x, type) => {
             global_1.context.leave(y);
             return;
         }
-        return error_1.infererr(`instL failed: ${types_1.showType(x)} := ${types_1.showType(type)}`);
+        return error_1.infererr(`instL failed: ${types_1.showType(x)} := ${types_1.showType(type)}, ${err}`);
     }
 };
 const instR = (type, x) => {
@@ -1007,10 +1073,11 @@ const instR = (type, x) => {
             global_1.context.leave(y);
             return;
         }
-        return error_1.infererr(`instR failed: ${types_1.showType(x)} := ${types_1.showType(type)}`);
+        return error_1.infererr(`instR failed: ${types_1.showType(x)} := ${types_1.showType(type)}, ${err}`);
     }
 };
 exports.subsume = (a_, b_) => {
+    console.log(`subsume ${types_1.showType(a_)} <: ${types_1.showType(b_)} in ${global_1.context}`);
     const a = global_1.apply(a_);
     const b = global_1.apply(b_);
     kindUnification_1.unifyKinds(kindInference_1.inferKind(a), kindInference_1.inferKind(b));
@@ -1355,10 +1422,11 @@ exports.inst = (x, type) => {
             global_1.context.leave(y);
             return;
         }
-        return error_1.infererr(`inst failed: ${types_1.showType(x)} := ${types_1.showType(type)}`);
+        return error_1.infererr(`inst failed: ${types_1.showType(x)} := ${types_1.showType(type)}, ${err}`);
     }
 };
 exports.unify = (a_, b_) => {
+    console.log(`unify ${types_1.showType(a_)} ~ ${types_1.showType(b_)} in ${global_1.context}`);
     const a = global_1.apply(a_);
     const b = global_1.apply(b_);
     kindUnification_1.unifyKinds(kindInference_1.inferKind(a), kindInference_1.inferKind(b));

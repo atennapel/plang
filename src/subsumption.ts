@@ -71,7 +71,7 @@ const instL = (x: TMeta, type: Type): void => {
       context.leave(y);
       return;
     }
-    return infererr(`instL failed: ${showType(x)} := ${showType(type)}`);
+    return infererr(`instL failed: ${showType(x)} := ${showType(type)}, ${err}`);
   }
 };
 
@@ -113,11 +113,12 @@ const instR = (type: Type, x: TMeta): void => {
       context.leave(y);
       return;
     }
-    return infererr(`instR failed: ${showType(x)} := ${showType(type)}`);
+    return infererr(`instR failed: ${showType(x)} := ${showType(type)}, ${err}`);
   }
 };
 
 export const subsume = (a_: Type, b_: Type): void => {
+  console.log(`subsume ${showType(a_)} <: ${showType(b_)} in ${context}`);
   const a = apply(a_);
   const b = apply(b_);
   unifyKinds(inferKind(a), inferKind(b));

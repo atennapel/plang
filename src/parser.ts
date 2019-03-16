@@ -1,5 +1,5 @@
 import { Kind, KVar, kfunFrom } from './kinds';
-import { Type, TVar } from './types';
+import { Type, TVar, tappFrom, tforall } from './types';
 import {
   Term,
   Var,
@@ -25,7 +25,7 @@ const showTokens = (ts: Token[]) => ts.map(x => `${x.val}`).join(' ');
 
 const SYM1 = ['(', ')', '\\', '=', ':', '.'];
 const SYM2 = ['->'];
-const KEYWORDS = ['let', 'in'];
+const KEYWORDS = ['let', 'in', 'forall'];
 
 const START = 0;
 const NAME = 1;
@@ -93,9 +93,37 @@ export const parseKind = (sc: string): Kind => {
 };
 
 // types
+const parseTAppTo = (ts: Token[], fn: (ts: Token[]) => boolean): Type => {
+  const es = [];
+  while (fn(ts)) es.push(parseTypeR(ts));
+  if (es.length === 0) return err('empty app');
+  if (es.length === 1) return es[0];
+  return tappFrom(es);
+};
+const parseTApp = (ts: Token[]) => parseTAppTo(ts, ts => {
+  if (match(ts, 'SymbolT', ')')) return false;
+  if (ts.length === 0) return err('tapp end');
+  return true;
+});
+const parseTAppAll = (ts: Token[]): Type => {
+  const es = [];
+  while (!(ts.length === 0 ||
+    safeMatch(ts, 'SymbolT', ')'))) es.push(parseTypeR(ts));
+  if (es.length === 0) return err('empty app');
+  return tappFrom(es);
+};
+
 const parseTypeR = (ts: Token[]): Type => {
   if (ts.length === 0) return err('empty type');
-  if (safeMatch(ts, 'VarT')) {
+  if (match(ts, 'KeywordT', 'forall')) {
+    const args = [];
+    while (!match(ts, 'SymbolT', '.')) args.push(parseArg(ts));
+    if (args.length === 0) return err('empty args after forall');
+    const body = parseTAppAll(ts);
+    return tforall(args.map(Name), body);
+  } else if (match(ts, 'SymbolT', '(')) {
+    return parseTApp(ts);
+  } else if (safeMatch(ts, 'VarT')) {
     const x = ts.pop() as Token;
     return TVar(Name(x.val));
   }
@@ -129,14 +157,21 @@ const parseApp = (ts: Token[]) => parseAppTo(ts, ts => {
   if (ts.length === 0) return err('app end');
   return true;
 });
-const parseAppAll = (ts: Token[]) => parseAppTo(ts, ts => {
-  if (ts.length === 0 ||
+const parseAppAll = (ts: Token[]): Term => {
+  const es = [];
+  while (!(ts.length === 0 ||
     safeMatch(ts, 'SymbolT', ')') ||
     safeMatch(ts, 'SymbolT', ':') ||
-    safeMatch(ts, 'KeywordT', 'in'))
-    return false;
-  return true;
-});
+    safeMatch(ts, 'KeywordT', 'in'))) es.push(parseExpr(ts));
+  if (es.length === 0) return err('empty app');
+  const ex = appFrom(es);
+  if (safeMatch(ts, 'SymbolT', ':')) {
+    ts.pop();
+    const ty = parseTAppAll(ts);
+    return Ann(ex, ty);
+  }
+  return ex;
+};
 
 const parseExpr = (ts: Token[]): Term => {
   // console.log(showTokens(ts.slice(0).reverse()));
@@ -163,6 +198,8 @@ const parseExpr = (ts: Token[]): Term => {
   } else if (safeMatch(ts, 'VarT')) {
     const x = ts.pop() as Token;
     return Var(Name(x.val));
+  } else if (match(ts, 'KeywordT', 'forall')) {
+    return Var(Name('forall'));
   }
   return err(`parseExpr stuck on ${ts[ts.length - 1].val}`);
 };
@@ -170,13 +207,7 @@ const parseExpr = (ts: Token[]): Term => {
 export const parseTerm = (sc: string): Term => {
   const ts = tokenize(sc);
   const ex = parseAppAll(ts.reverse());
-  if (ts.length > 0) {
-    if (match(ts, 'SymbolT', ':')) {
-      const ty = parseTypeR(ts);
-      return Ann(ex, ty);
-    }
-    return err(`stuck on ${ts[0].val}`);
-  }
+  if (ts.length > 0) return err(`stuck on ${ts[0].val}`);
   return ex;
 };
 

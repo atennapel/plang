@@ -23,11 +23,12 @@ const instKind = (x: KMeta, kind: Kind): void => {
     if (!(err instanceof InferError)) throw err;
     restoreContext();
     if (isKMeta(kind)) return solveKind(kind, x);
-    return infererr(`inst kind failed: ${showKind(x)} := ${showKind(kind)}`);
+    return infererr(`inst kind failed: ${showKind(x)} := ${showKind(kind)}, ${err}`);
   }
 };
 
 export const unifyKinds = (a: Kind, b: Kind): void => {
+  console.log(`unifyKinds ${showKind(a)} ~ ${showKind(b)} in ${context}`);
   if (a === b) return;
   if (isKVar(a) && isKVar(b) && eqName(a.name, b.name)) return;
   if (isKMeta(a) && isKMeta(b) && eqName(a.name, b.name)) return;

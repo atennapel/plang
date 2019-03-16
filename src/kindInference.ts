@@ -2,10 +2,11 @@ import { Type, showType, openTForall, TVar } from './types';
 import { Kind, kType, KFun, KMeta } from './kinds';
 import { unifyKinds } from './kindUnification';
 import { context, applyKind, namestore } from './global';
-import { infererr } from './error';
+import { infererr, InferError } from './error';
 import { CKMeta, CTVar } from './elems';
+import { wfContext } from './wellformedness';
 
-export const inferKind = (type: Type): Kind => {
+const synthKind = (type: Type): Kind => {
   switch (type.tag) {
     case 'TVar': {
       const e = context.lookup('CTVar', type.name);
@@ -18,8 +19,8 @@ export const inferKind = (type: Type): Kind => {
       return e.kind;
     }
     case 'TApp': {
-      const l = inferKind(type.left);
-      const r = inferKind(type.right);
+      const l = synthKind(type.left);
+      const r = synthKind(type.right);
       const kv = namestore.fresh('k');
       const km = KMeta(kv);
       context.enter(kv, CKMeta(kv));
@@ -36,10 +37,24 @@ export const inferKind = (type: Type): Kind => {
         const k = namestore.fresh(type.name);
         context.enter(t, CKMeta(k), CTVar(t, KMeta(k)));
       }
-      const ki = inferKind(openTForall(type, TVar(t)));
+      const ki = synthKind(openTForall(type, TVar(t)));
       context.leave(t);
       return applyKind(ki);
     }
+  }
+};
+
+export const inferKind = (type: Type): Kind => {
+  console.log(`inferKind ${showType(type)}`);
+  const m = namestore.fresh('m');
+  context.enter(m);
+  try {
+    const ki = synthKind(type);
+    context.leave(m);
+    return applyKind(ki);
+  } catch (err) {
+    context.leave(m);
+    throw err;
   }
 };
 

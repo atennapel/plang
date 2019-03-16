@@ -56,11 +56,12 @@ export const inst = (x: TMeta, type: Type): void => {
       context.leave(y);
       return;
     }
-    return infererr(`inst failed: ${showType(x)} := ${showType(type)}`);
+    return infererr(`inst failed: ${showType(x)} := ${showType(type)}, ${err}`);
   }
 };
 
 export const unify = (a_: Type, b_: Type): void => {
+  console.log(`unify ${showType(a_)} ~ ${showType(b_)} in ${context}`);
   const a = apply(a_);
   const b = apply(b_);
   unifyKinds(inferKind(a), inferKind(b));

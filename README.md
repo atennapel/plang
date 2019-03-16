@@ -7,3 +7,6 @@ TODO:
 - check where new kmetas are created
 - check kinds in generalization, subsumption and unification
 - clean up names in kinds
+
+PROBLEMS:
+- `\x -> x : forall t. t`
