@@ -1,51 +1,52 @@
+import { NameT, showName } from './names';
 import { Type, showType } from './types';
 
-export type Term<N>
-  = Var<N>
-  | Abs<N>
-  | App<N>
-  | Ann<N>;
+export type Term
+  = Var
+  | Abs
+  | App
+  | Ann;
 
-export type TermTag = Term<any>['tag'];
+export type TermTag = Term['tag'];
 
-export interface Var<N> {
+export interface Var {
   readonly tag: 'Var';
-  readonly name: N;
+  readonly name: NameT;
 }
-export const Var = <N>(name: N): Var<N> => ({ tag: 'Var', name });
-export const isVar = <N>(term: Term<N>): term is Var<N> => term.tag === 'Var';
+export const Var = (name: NameT): Var => ({ tag: 'Var', name });
+export const isVar = (term: Term): term is Var => term.tag === 'Var';
 
-export interface Abs<N> {
+export interface Abs {
   readonly tag: 'Abs';
-  readonly name: N;
-  readonly body: Term<N>;
+  readonly name: NameT;
+  readonly body: Term;
 }
-export const Abs = <N>(name: N, body: Term<N>): Abs<N> => ({ tag: 'Abs', name, body });
-export const isAbs = <N>(term: Term<N>): term is Abs<N> => term.tag === 'Abs';
-export const abs = <N>(ns: N[], body: Term<N>): Term<N> =>
+export const Abs = (name: NameT, body: Term): Abs => ({ tag: 'Abs', name, body });
+export const isAbs = (term: Term): term is Abs => term.tag === 'Abs';
+export const abs = (ns: NameT[], body: Term): Term =>
   ns.reduceRight((t, n) => Abs(n, t), body);
 
-export interface App<N> {
+export interface App {
   readonly tag: 'App';
-  readonly left: Term<N>;
-  readonly right: Term<N>;
+  readonly left: Term;
+  readonly right: Term;
 }
-export const App = <N>(left: Term<N>, right: Term<N>): App<N> => ({ tag: 'App', left, right });
-export const isApp = <N>(term: Term<N>): term is App<N> => term.tag === 'App';
-export const appFrom = <N>(ts: Term<N>[]): Term<N> => ts.reduce(App);
-export const app = <N>(...ts: Term<N>[]): Term<N> => appFrom(ts);
+export const App = (left: Term, right: Term): App => ({ tag: 'App', left, right });
+export const isApp = (term: Term): term is App => term.tag === 'App';
+export const appFrom = (ts: Term[]): Term => ts.reduce(App);
+export const app = (...ts: Term[]): Term => appFrom(ts);
 
-export interface Ann<N> {
+export interface Ann {
   readonly tag: 'Ann';
-  readonly term: Term<N>;
-  readonly type: Type<N>;
+  readonly term: Term;
+  readonly type: Type;
 }
-export const Ann = <N>(term: Term<N>, type: Type<N>): Ann<N> => ({ tag: 'Ann', term, type });
-export const isAnn = <N>(term: Term<N>): term is Ann<N> => term.tag === 'Ann';
+export const Ann = (term: Term, type: Type): Ann => ({ tag: 'Ann', term, type });
+export const isAnn = (term: Term): term is Ann => term.tag === 'Ann';
 
-export const flattenApp = <N>(type: Term<N>): Term<N>[] => {
+export const flattenApp = (type: Term): Term[] => {
   let c = type;
-  const r: Term<N>[] = [];
+  const r: Term[] = [];
   while (isApp(c)) {
     r.push(c.right);
     c = c.left;
@@ -53,35 +54,31 @@ export const flattenApp = <N>(type: Term<N>): Term<N>[] => {
   r.push(c);
   return r.reverse();
 };
-export const flattenAbs = <N>(type: Term<N>): { args: N[], body: Term<N> } => {
+export const flattenAbs = (type: Term): { args: NameT[], body: Term } => {
   let c = type;
-  const args: N[] = [];
+  const args: NameT[] = [];
   while (isAbs(c)) {
     args.push(c.name);
     c = c.body;
   }
   return { args, body: c };
 };
-export const showTerm = <N>(
-  term: Term<N>,
-  showName: (name: N) => string = n => `${n}`,
-  showType_: (type: Type<N>, showName: (name: N) => string) => string = showType
-): string => {
+export const showTerm = (term: Term): string => {
   switch (term.tag) {
     case 'Var': return showName(term.name);
     case 'App':
       return flattenApp(term)
         .map(t => {
-          const s = showTerm(t, showName, showType_);
+          const s = showTerm(t);
           return isApp(t) || isAbs(t) || isAnn(t) ? `(${s})` : s;
         })
         .join(' ');
     case 'Abs': {
       const f = flattenAbs(term);
       const args = f.args.map(showName).join(' ');
-      return `\\${args} -> ${showTerm(f.body, showName, showType_)}`;
+      return `\\${args} -> ${showTerm(f.body)}`;
     }
-    case 'Ann': return `${showTerm(term.term, showName, showType_)} : ${showType_(term.type, showName)}`;
+    case 'Ann': return `${showTerm(term.term)} : ${showType(term.type)}`;
   }
 };
 

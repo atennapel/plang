@@ -1,37 +1,39 @@
-export type Kind<N>
-  = KVar<N>
-  | KMeta<N>
-  | KFun<N>;
+import { NameT, showName } from './names';
 
-export type KindTag = Kind<any>['tag'];
+export type Kind
+  = KVar
+  | KMeta
+  | KFun;
 
-export interface KVar<N> {
+export type KindTag = Kind['tag'];
+
+export interface KVar {
   readonly tag: 'KVar';
-  readonly name: N;
+  readonly name: NameT;
 }
-export const KVar = <N>(name: N): KVar<N> => ({ tag: 'KVar', name });
-export const isKVar = <N>(kind: Kind<N>): kind is KVar<N> => kind.tag === 'KVar';
+export const KVar = (name: NameT): KVar => ({ tag: 'KVar', name });
+export const isKVar = (kind: Kind): kind is KVar => kind.tag === 'KVar';
 
-export interface KMeta<N> {
+export interface KMeta {
   readonly tag: 'KMeta';
-  readonly name: N;
+  readonly name: NameT;
 }
-export const KMeta = <N>(name: N): KMeta<N> => ({ tag: 'KMeta', name });
-export const isKMeta = <N>(kind: Kind<N>): kind is KMeta<N> => kind.tag === 'KMeta';
+export const KMeta = (name: NameT): KMeta => ({ tag: 'KMeta', name });
+export const isKMeta = (kind: Kind): kind is KMeta => kind.tag === 'KMeta';
 
-export interface KFun<N> {
+export interface KFun {
   readonly tag: 'KFun';
-  readonly left: Kind<N>;
-  readonly right: Kind<N>;
+  readonly left: Kind;
+  readonly right: Kind;
 }
-export const KFun = <N>(left: Kind<N>, right: Kind<N>): KFun<N> => ({ tag: 'KFun', left, right });
-export const isKFun = <N>(kind: Kind<N>): kind is KFun<N> => kind.tag === 'KFun';
-export const kfunFrom = <N>(ks: Kind<N>[]): Kind<N> => ks.reduceRight((x, y) => KFun(y, x));
-export const kfun = <N>(...ks: Kind<N>[]): Kind<N> => kfunFrom(ks);
+export const KFun = (left: Kind, right: Kind): KFun => ({ tag: 'KFun', left, right });
+export const isKFun = (kind: Kind): kind is KFun => kind.tag === 'KFun';
+export const kfunFrom = (ks: Kind[]): Kind => ks.reduceRight((x, y) => KFun(y, x));
+export const kfun = (...ks: Kind[]): Kind => kfunFrom(ks);
 
-export const flattenKFun = <N>(kind: Kind<N>): Kind<N>[] => {
+export const flattenKFun = (kind: Kind): Kind[] => {
   let c = kind;
-  const r: Kind<N>[] = [];
+  const r: Kind[] = [];
   while (isKFun(c)) {
     r.push(c.left);
     c = c.right;
@@ -39,14 +41,14 @@ export const flattenKFun = <N>(kind: Kind<N>): Kind<N>[] => {
   r.push(c);
   return r;
 };
-export const showKind = <N>(kind: Kind<N>, showName: (name: N) => string = n => `${n}`): string => {
+export const showKind = (kind: Kind): string => {
    switch (kind.tag) {
      case 'KVar': return showName(kind.name);
      case 'KMeta': return `?${showName(kind.name)}`;
      case 'KFun':
       return flattenKFun(kind)
         .map(k => {
-          const s = showKind(k, showName);
+          const s = showKind(k);
           return isKFun(k) ? `(${s})` : s;
         })
         .join(' -> ');
