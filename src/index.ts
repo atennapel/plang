@@ -3,6 +3,7 @@ import {
   KVar,
   KMeta,
   kfun,
+  kType,
   showKind,
 } from './kinds';
 import {
@@ -10,6 +11,7 @@ import {
   TMeta,
   tapp,
   tforallK,
+  tfun,
   showType,
 } from './types';
 import {
@@ -29,7 +31,7 @@ const z = Name('z');
 const f = Name('f');
 const g = Name('g');
 
-const kind = kfun(KVar(a), KMeta(b), kfun(KVar(x), KVar(y), KMeta(z)), KVar(c));
-const type = tforallK([[a, kind], [b, null]], tapp(TVar(a), TMeta(b), TVar(c), tapp(TVar(x), TVar(y))));
+const kind = kType;
+const type = tforallK([[a, kind], [b, null]], tfun(TVar(a), TMeta(b), TVar(c), tfun(TVar(x), TVar(y)), tapp(TVar(x), TVar(y))));
 const term = abs([x, y, z], app(Var(f), abs([x], Var(x)), app(Var(g), Var(z)), Ann(Var(y), type)));
 console.log(showTerm(term));

@@ -1,4 +1,4 @@
-import { NameT, showName } from './names';
+import { NameT, showName, Name } from './names';
 
 export type Kind
   = KVar
@@ -30,6 +30,9 @@ export const KFun = (left: Kind, right: Kind): KFun => ({ tag: 'KFun', left, rig
 export const isKFun = (kind: Kind): kind is KFun => kind.tag === 'KFun';
 export const kfunFrom = (ks: Kind[]): Kind => ks.reduceRight((x, y) => KFun(y, x));
 export const kfun = (...ks: Kind[]): Kind => kfunFrom(ks);
+
+export const nType = Name('Type');
+export const kType = KVar(nType);
 
 export const flattenKFun = (kind: Kind): Kind[] => {
   let c = kind;
