@@ -87,3 +87,4 @@ export const showType = <N>(type: Type<N>, showName: (name: N) => string = n => 
     }
   }
 };
+
