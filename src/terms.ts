@@ -1,4 +1,4 @@
-import { NameT, showName } from './names';
+import { NameT, showName, eqName } from './names';
 import { Type, showType } from './types';
 
 export type Term
@@ -82,3 +82,24 @@ export const showTerm = (term: Term): string => {
   }
 };
 
+const substVar = (x: NameT, s: Term, term: Term): Term => {
+  switch (term.tag) {
+    case 'Var': return eqName(x, term.name) ? s : term;
+    case 'Abs': {
+      if (eqName(x, term.name)) return term;
+      const body = substVar(x, s, term.body);
+      return term.body === body ? term : Abs(term.name, body);
+    }
+    case 'App': {
+      const left = substVar(x, s, term.left);
+      const right = substVar(x, s, term.right);
+      return term.left === left && term.right === right ? term : App(left, right);
+    }
+    case 'Ann': {
+      const body = substVar(x, s, term.term);
+      return term.term === body ? term : Ann(body, term.type);
+    }
+  }
+};
+export const openAbs = (a: Abs, s: Term): Term =>
+  substVar(a.name, s, a.body);

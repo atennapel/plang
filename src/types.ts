@@ -147,6 +147,22 @@ export const containsTMeta = (x: NameT, type: Type): boolean => {
   }
 };
 
+export const substTMetas = (type: Type, m: Map<NameT, Type>): Type => {
+  switch (type.tag) {
+    case 'TVar': return type;
+    case 'TMeta': return m.get(type.name) || type;
+    case 'TApp': {
+      const left = substTMetas(type.left, m);
+      const right = substTMetas(type.right, m);
+      return type.left === left && type.right === right ? type : TApp(left, right);
+    }
+    case 'TForall': {
+      const body = substTMetas(type.type, m);
+      return type.type === body ? type : TForallK(type.name, type.kind, body);
+    }
+  }
+};
+
 export const isMono = (type: Type): boolean => {
   switch (type.tag) {
     case 'TVar': return true;

@@ -88,7 +88,7 @@ export const wfElem = (elem: Elem): void => {
   }
 };
 
-export const wfContext = (context: Context): void => {
+export const wfContext = (): void => {
   storeContext();
   let elem: Elem | null = context.pop();
   while (elem) {
