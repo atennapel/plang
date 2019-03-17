@@ -36,8 +36,11 @@ const matchingBracket = (c: Bracket): Bracket => {
   return err(`invalid bracket: ${c}`);
 }
 
-const SYM1 = ['\\', ':', '.'];
+const SYM1 = ['\\', ':', '.', '='];
 const SYM2 = ['->'];
+
+const KEYWORDS = ['let', 'in'];
+const KEYWORDS_TYPE = ['forall'];
 
 const START = 0;
 const NAME = 1;
@@ -136,7 +139,7 @@ const parseTokenType = (ts: Token): Type => {
   // console.log(`parseTokenType ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': {
-      if (matchVarT('forall', ts)) return err(`stuck on forall`);
+      if (KEYWORDS_TYPE.indexOf(ts.val) >= 0) return err(`stuck on ${ts.val}`);
       return TVar(Name(ts.val));
     }
     case 'SymbolT': return err(`stuck on ${ts.val}`);
@@ -159,14 +162,16 @@ const parseParensType = (ts: Token[]): Type => {
         const parts = splitTokens(c.val, t => matchSymbolT(':', t));
         if (parts.length !== 2) return err(`invalid use of : in forall argument`);
         const as = parts[0].map(t => {
-          if (t.tag !== 'VarT') return err(`not a valid arg in forall`);
+          if (t.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(t.val) >= 0)
+            return err(`not a valid arg in forall: ${t.val}`);
           return Name(t.val);
         });
         const ki = parseParensKind(parts[1]);
         for (let j = 0; j < as.length; j++) args.push([as[j], ki]);
         continue;
       }
-      if (c.tag !== 'VarT') return err(`invalid arg to forall: ${c.val}`);
+      if (c.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(c.val) >= 0)
+        return err(`invalid arg to forall: ${c.val}`);
       args.push([Name(c.val), null]);
     }
     if (args.length === 0) return err(`forall without args`);
@@ -197,7 +202,10 @@ const parseParensType = (ts: Token[]): Type => {
 const parseToken = (ts: Token): Term => {
   // console.log(`parseToken ${showToken(ts)}`);
   switch (ts.tag) {
-    case 'VarT': return Var(Name(ts.val));
+    case 'VarT': {
+      if (KEYWORDS.indexOf(ts.val) >= 0) return err(`stuck on ${ts.val}`);
+      return Var(Name(ts.val));
+    }
     case 'SymbolT': return err(`stuck on ${ts.val}`);
     case 'ParenT': return parseParens(ts.val);
   }
@@ -221,7 +229,8 @@ const parseParens = (ts: Token[]): Term => {
       const c = ts[i++];
       if (!c) return err(`no -> after \\`);
       if (matchSymbolT('->', c)) break;
-      if (c.tag !== 'VarT') return err(`invalid arg: ${c.val}`);
+      if (c.tag !== 'VarT' || KEYWORDS.indexOf(c.tag) >= 0)
+        return err(`invalid arg: ${c.val}`);
       args.push(c.val);
     }
     if (args.length === 0) return err(`\\ without args`);

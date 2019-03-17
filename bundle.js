@@ -694,8 +694,10 @@ const matchingBracket = (c) => {
         return '(';
     return err(`invalid bracket: ${c}`);
 };
-const SYM1 = ['\\', ':', '.'];
+const SYM1 = ['\\', ':', '.', '='];
 const SYM2 = ['->'];
+const KEYWORDS = ['let', 'in'];
+const KEYWORDS_TYPE = ['forall'];
 const START = 0;
 const NAME = 1;
 const tokenize = (sc) => {
@@ -808,8 +810,8 @@ const parseTokenType = (ts) => {
     // console.log(`parseTokenType ${showToken(ts)}`);
     switch (ts.tag) {
         case 'VarT': {
-            if (matchVarT('forall', ts))
-                return err(`stuck on forall`);
+            if (KEYWORDS_TYPE.indexOf(ts.val) >= 0)
+                return err(`stuck on ${ts.val}`);
             return types_1.TVar(names_1.Name(ts.val));
         }
         case 'SymbolT': return err(`stuck on ${ts.val}`);
@@ -836,8 +838,8 @@ const parseParensType = (ts) => {
                 if (parts.length !== 2)
                     return err(`invalid use of : in forall argument`);
                 const as = parts[0].map(t => {
-                    if (t.tag !== 'VarT')
-                        return err(`not a valid arg in forall`);
+                    if (t.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(t.val) >= 0)
+                        return err(`not a valid arg in forall: ${t.val}`);
                     return names_1.Name(t.val);
                 });
                 const ki = parseParensKind(parts[1]);
@@ -845,7 +847,7 @@ const parseParensType = (ts) => {
                     args.push([as[j], ki]);
                 continue;
             }
-            if (c.tag !== 'VarT')
+            if (c.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(c.val) >= 0)
                 return err(`invalid arg to forall: ${c.val}`);
             args.push([names_1.Name(c.val), null]);
         }
@@ -877,7 +879,11 @@ const parseParensType = (ts) => {
 const parseToken = (ts) => {
     // console.log(`parseToken ${showToken(ts)}`);
     switch (ts.tag) {
-        case 'VarT': return terms_1.Var(names_1.Name(ts.val));
+        case 'VarT': {
+            if (KEYWORDS.indexOf(ts.val) >= 0)
+                return err(`stuck on ${ts.val}`);
+            return terms_1.Var(names_1.Name(ts.val));
+        }
         case 'SymbolT': return err(`stuck on ${ts.val}`);
         case 'ParenT': return parseParens(ts.val);
     }
@@ -905,7 +911,7 @@ const parseParens = (ts) => {
                 return err(`no -> after \\`);
             if (matchSymbolT('->', c))
                 break;
-            if (c.tag !== 'VarT')
+            if (c.tag !== 'VarT' || KEYWORDS.indexOf(c.tag) >= 0)
                 return err(`invalid arg: ${c.val}`);
             args.push(c.val);
         }
