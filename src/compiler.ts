@@ -25,7 +25,7 @@ export const compileDef = (def: Def, prefix: (name: string) => string): string =
       return `${con}\n${uncon}`;
     }
     case 'DLet':
-      return `${prefix(showName(def.name))} = ${def.args.map(showName).join(' => ')} => ${compile(def.term)};`;
+      return `${prefix(showName(def.name))} = ${def.args.map(showName).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${compile(def.term)};`;
   }
 };
 export const compileDefs = (ds: Def[], prefix: (name: string) => string): string =>

@@ -1,10 +1,12 @@
 import { showType } from './types';
 import { showTerm } from './terms';
 import { infer } from './inference';
-import { compile } from './compiler';
-import { parse } from './parser';
+import { compile, compileDefs } from './compiler';
+import { parse, parseDefs } from './parser';
 import { context } from './global';
+import { showDef } from './definitions';
 
+/*
 const scr = '\\x -> x';
 try {
   console.log(scr);
@@ -20,3 +22,9 @@ try {
 } catch (err) {
   console.log(err);
 }
+*/
+const fs = require('fs');
+const scr = fs.readFileSync('./lib/prelude.p', 'utf8');
+const ds = parseDefs(scr);
+console.log(ds.map(showDef).join('\n'));
+console.log(compileDefs(ds, n => `const ${n}`));
