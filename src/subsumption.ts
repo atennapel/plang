@@ -118,7 +118,7 @@ const instR = (type: Type, x: TMeta): void => {
 };
 
 export const subsume = (a_: Type, b_: Type): void => {
-  console.log(`subsume ${showType(a_)} <: ${showType(b_)} in ${context}`);
+  // console.log(`subsume ${showType(a_)} <: ${showType(b_)} in ${context}`);
   if (a_ === b_) return;
   const a = apply(a_);
   const b = apply(b_);

@@ -28,7 +28,7 @@ const instKind = (x: KMeta, kind: Kind): void => {
 };
 
 export const unifyKinds = (a_: Kind, b_: Kind): void => {
-  console.log(`unifyKinds ${showKind(a_)} ~ ${showKind(b_)} in ${context}`);
+  // console.log(`unifyKinds ${showKind(a_)} ~ ${showKind(b_)} in ${context}`);
   if (a_ === b_) return;
   const a = applyKind(a_);
   const b = applyKind(b_);

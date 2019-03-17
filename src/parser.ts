@@ -1,4 +1,4 @@
-import { Term, Var, appFrom, abs, Ann } from './terms';
+import { Term, Var, appFrom, abs, Ann, Let } from './terms';
 import { Name, NameT } from './names';
 import { TVar, Type, tappFrom, tfunFrom, tforallK } from './types';
 import { Kind, KVar, kfunFrom } from './kinds';
@@ -236,6 +236,29 @@ const parseParens = (ts: Token[]): Term => {
     if (args.length === 0) return err(`\\ without args`);
     const body = parseParens(ts.slice(i));
     return abs(args.map(Name), body);
+  }
+  if (matchVarT('let', ts[0])) {
+    const args: NameT[] = [];
+    let i = 1;
+    while (true) {
+      const c = ts[i++];
+      if (!c) return err(`no = after let`);
+      if (matchSymbolT('=', c)) break;
+      if (c.tag !== 'VarT' || KEYWORDS.indexOf(c.tag) >= 0)
+        return err(`invalid arg: ${c.val}`);
+      args.push(Name(c.val));
+    }
+    if (args.length === 0) return err(`let without name`);
+    const bodyts: Token[] = [];
+    while (true) {
+      const c = ts[i++];
+      if (!c) return err(`no in after = in let`);
+      if (matchVarT('in', c)) break;
+      bodyts.push(c);
+    }
+    const body = parseParens(bodyts);
+    const rest = parseParens(ts.slice(i));
+    return Let(args[0], args.length > 1 ? abs(args.slice(1), body) : body , rest);
   }
   const args: Term[] = [];
   for (let i = 0; i < ts.length; i++) {

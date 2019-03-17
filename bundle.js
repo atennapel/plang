@@ -522,7 +522,7 @@ const instKind = (x, kind) => {
     }
 };
 exports.unifyKinds = (a_, b_) => {
-    console.log(`unifyKinds ${kinds_1.showKind(a_)} ~ ${kinds_1.showKind(b_)} in ${global_1.context}`);
+    // console.log(`unifyKinds ${showKind(a_)} ~ ${showKind(b_)} in ${context}`);
     if (a_ === b_)
         return;
     const a = global_1.applyKind(a_);
@@ -920,6 +920,34 @@ const parseParens = (ts) => {
         const body = parseParens(ts.slice(i));
         return terms_1.abs(args.map(names_1.Name), body);
     }
+    if (matchVarT('let', ts[0])) {
+        const args = [];
+        let i = 1;
+        while (true) {
+            const c = ts[i++];
+            if (!c)
+                return err(`no = after let`);
+            if (matchSymbolT('=', c))
+                break;
+            if (c.tag !== 'VarT' || KEYWORDS.indexOf(c.tag) >= 0)
+                return err(`invalid arg: ${c.val}`);
+            args.push(names_1.Name(c.val));
+        }
+        if (args.length === 0)
+            return err(`let without name`);
+        const bodyts = [];
+        while (true) {
+            const c = ts[i++];
+            if (!c)
+                return err(`no in after = in let`);
+            if (matchVarT('in', c))
+                break;
+            bodyts.push(c);
+        }
+        const body = parseParens(bodyts);
+        const rest = parseParens(ts.slice(i));
+        return terms_1.Let(args[0], args.length > 1 ? terms_1.abs(args.slice(1), body) : body, rest);
+    }
     const args = [];
     for (let i = 0; i < ts.length; i++) {
         const c = ts[i];
@@ -1108,7 +1136,7 @@ const instR = (type, x) => {
     }
 };
 exports.subsume = (a_, b_) => {
-    console.log(`subsume ${types_1.showType(a_)} <: ${types_1.showType(b_)} in ${global_1.context}`);
+    // console.log(`subsume ${showType(a_)} <: ${showType(b_)} in ${context}`);
     if (a_ === b_)
         return;
     const a = global_1.apply(a_);
@@ -1459,7 +1487,7 @@ exports.inst = (x, type) => {
     }
 };
 exports.unify = (a_, b_) => {
-    console.log(`unify ${types_1.showType(a_)} ~ ${types_1.showType(b_)} in ${global_1.context}`);
+    // console.log(`unify ${showType(a_)} ~ ${showType(b_)} in ${context}`);
     if (a_ === b_)
         return;
     const a = global_1.apply(a_);
