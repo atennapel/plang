@@ -672,6 +672,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const terms_1 = require("./terms");
 const names_1 = require("./names");
 const types_1 = require("./types");
+const kinds_1 = require("./kinds");
 const err = (msg) => { throw new SyntaxError(msg); };
 const VarT = (val) => ({ tag: 'VarT', val });
 const matchVarT = (val, t) => t.tag === 'VarT' && t.val === val;
@@ -767,6 +768,41 @@ const splitTokens = (a, fn) => {
     r.push(t);
     return r;
 };
+// kinds
+const parseTokenKind = (ts) => {
+    // console.log(`parseTokenKind ${showToken(ts)}`);
+    switch (ts.tag) {
+        case 'VarT': return kinds_1.KVar(names_1.Name(ts.val));
+        case 'SymbolT': return err(`stuck on ${ts.val}`);
+        case 'ParenT': return parseParensKind(ts.val);
+    }
+};
+const parseParensKind = (ts) => {
+    // console.log(`parseParensKind ${showTokens(ts)}`);
+    if (ts.length === 0)
+        return err('empty kind');
+    if (ts.length === 1)
+        return parseTokenKind(ts[0]);
+    let args = [];
+    const fs = [];
+    for (let i = 0; i < ts.length; i++) {
+        const c = ts[i];
+        if (matchSymbolT('->', c)) {
+            fs.push(args);
+            args = [];
+            continue;
+        }
+        args.push(c);
+    }
+    fs.push(args);
+    return kinds_1.kfunFrom(fs.map(ts => {
+        if (ts.length === 0)
+            return err(`empty kind`);
+        if (ts.length > 1)
+            return err(`kind applications unimplemented`);
+        return parseTokenKind(ts[0]);
+    }));
+};
 // types
 const parseTokenType = (ts) => {
     // console.log(`parseTokenType ${showToken(ts)}`);
@@ -795,14 +831,28 @@ const parseParensType = (ts) => {
                 return err(`no . after forall`);
             if (matchSymbolT('.', c))
                 break;
+            if (c.tag === 'ParenT') {
+                const parts = splitTokens(c.val, t => matchSymbolT(':', t));
+                if (parts.length !== 2)
+                    return err(`invalid use of : in forall argument`);
+                const as = parts[0].map(t => {
+                    if (t.tag !== 'VarT')
+                        return err(`not a valid arg in forall`);
+                    return names_1.Name(t.val);
+                });
+                const ki = parseParensKind(parts[1]);
+                for (let j = 0; j < as.length; j++)
+                    args.push([as[j], ki]);
+                continue;
+            }
             if (c.tag !== 'VarT')
                 return err(`invalid arg to forall: ${c.val}`);
-            args.push(c.val);
+            args.push([names_1.Name(c.val), null]);
         }
         if (args.length === 0)
             return err(`forall without args`);
         const body = parseParensType(ts.slice(i));
-        return types_1.tforall(args.map(names_1.Name), body);
+        return types_1.tforallK(args, body);
     }
     let args = [];
     const fs = [];
@@ -882,7 +932,7 @@ exports.parse = (sc) => {
     return ex;
 };
 
-},{"./names":10,"./terms":15,"./types":16}],13:[function(require,module,exports){
+},{"./kinds":9,"./names":10,"./terms":15,"./types":16}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");

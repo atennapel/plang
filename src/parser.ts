@@ -1,6 +1,7 @@
 import { Term, Var, appFrom, abs, Ann } from './terms';
-import { Name } from './names';
-import { TVar, Type, tappFrom, tforall, tfunFrom } from './types';
+import { Name, NameT } from './names';
+import { TVar, Type, tappFrom, tfunFrom, tforallK } from './types';
+import { Kind, KVar, kfunFrom } from './kinds';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -97,6 +98,39 @@ const splitTokens = (a: Token[], fn: (t: Token) => boolean): Token[][] => {
   return r;
 };
 
+// kinds
+const parseTokenKind = (ts: Token): Kind => {
+  // console.log(`parseTokenKind ${showToken(ts)}`);
+  switch (ts.tag) {
+    case 'VarT': return KVar(Name(ts.val));
+    case 'SymbolT': return err(`stuck on ${ts.val}`);
+    case 'ParenT': return parseParensKind(ts.val);
+  }
+};
+
+const parseParensKind = (ts: Token[]): Kind => {
+  // console.log(`parseParensKind ${showTokens(ts)}`);
+  if (ts.length === 0) return err('empty kind');
+  if (ts.length === 1) return parseTokenKind(ts[0]);
+  let args: Token[] = [];
+  const fs: Token[][] = [];
+  for (let i = 0; i < ts.length; i++) {
+    const c = ts[i];
+    if (matchSymbolT('->', c)) {
+      fs.push(args);
+      args = [];
+      continue;
+    }
+    args.push(c);
+  }
+  fs.push(args);
+  return kfunFrom(fs.map(ts => {
+    if (ts.length === 0) return err(`empty kind`);
+    if (ts.length > 1) return err(`kind applications unimplemented`);
+    return parseTokenKind(ts[0]);
+  }));
+};
+
 // types
 const parseTokenType = (ts: Token): Type => {
   // console.log(`parseTokenType ${showToken(ts)}`);
@@ -115,18 +149,29 @@ const parseParensType = (ts: Token[]): Type => {
   if (ts.length === 0) return err('empty type');
   if (ts.length === 1) return parseTokenType(ts[0]);
   if (matchVarT('forall', ts[0])) {
-    const args: string[] = [];
+    const args: [NameT, Kind | null][] = [];
     let i = 1;
     while (true) {
       const c = ts[i++];
       if (!c) return err(`no . after forall`);
       if (matchSymbolT('.', c)) break;
+      if (c.tag === 'ParenT') {
+        const parts = splitTokens(c.val, t => matchSymbolT(':', t));
+        if (parts.length !== 2) return err(`invalid use of : in forall argument`);
+        const as = parts[0].map(t => {
+          if (t.tag !== 'VarT') return err(`not a valid arg in forall`);
+          return Name(t.val);
+        });
+        const ki = parseParensKind(parts[1]);
+        for (let j = 0; j < as.length; j++) args.push([as[j], ki]);
+        continue;
+      }
       if (c.tag !== 'VarT') return err(`invalid arg to forall: ${c.val}`);
-      args.push(c.val);
+      args.push([Name(c.val), null]);
     }
     if (args.length === 0) return err(`forall without args`);
     const body = parseParensType(ts.slice(i));
-    return tforall(args.map(Name), body);
+    return tforallK(args, body);
   }
   let args: Token[] = [];
   const fs: Token[][] = [];
