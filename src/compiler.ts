@@ -28,6 +28,7 @@ export const compileDef = (def: Def, prefix: (name: string) => string): string =
       return `${prefix(compileName(def.name))} = ${def.args.map(compileName).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${compile(def.term)};`;
     case 'DDeclType': return '';
     case 'DDeclare': return '';
+    case 'DForeign': return `${prefix(compileName(def.name))} = ${def.val};`;
   }
 };
 export const compileDefs = (ds: Def[], prefix: (name: string) => string): string =>

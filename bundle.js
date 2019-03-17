@@ -26,6 +26,7 @@ exports.compileDef = (def, prefix) => {
             return `${prefix(exports.compileName(def.name))} = ${def.args.map(exports.compileName).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${exports.compile(def.term)};`;
         case 'DDeclType': return '';
         case 'DDeclare': return '';
+        case 'DForeign': return `${prefix(exports.compileName(def.name))} = ${def.val};`;
     }
 };
 exports.compileDefs = (ds, prefix) => ds.map(d => exports.compileDef(d, prefix)).join('\n') + '\n';
@@ -188,6 +189,8 @@ exports.DDeclType = (name, kind) => ({ tag: 'DDeclType', name, kind });
 exports.isDDeclType = (def) => def.tag === 'DDeclType';
 exports.DDeclare = (name, type) => ({ tag: 'DDeclare', name, type });
 exports.isDDeclare = (def) => def.tag === 'DDeclare';
+exports.DForeign = (name, val) => ({ tag: 'DForeign', name, val });
+exports.isDForeign = (def) => def.tag === 'DForeign';
 exports.showDef = (def) => {
     switch (def.tag) {
         case 'DType': {
@@ -202,6 +205,7 @@ exports.showDef = (def) => {
         }
         case 'DDeclType': return `decltype ${names_1.showName(def.name)} : ${kinds_1.showKind(def.kind)}`;
         case 'DDeclare': return `declare ${names_1.showName(def.name)} : ${types_1.showType(def.type)}`;
+        case 'DForeign': return `foreign ${names_1.showName(def.name)} ${JSON.stringify(def.val)}`;
     }
 };
 
@@ -524,6 +528,7 @@ exports.inferDef = (def) => {
             global_1.context.add(elems_1.CVar(name, def.type));
             return;
         }
+        case 'DForeign': return;
     }
 };
 exports.inferDefs = (ds) => ds.forEach(exports.inferDef);
@@ -774,11 +779,13 @@ const VarT = (val) => ({ tag: 'VarT', val });
 const matchVarT = (val, t) => t.tag === 'VarT' && t.val === val;
 const SymbolT = (val) => ({ tag: 'SymbolT', val });
 const matchSymbolT = (val, t) => t.tag === 'SymbolT' && t.val === val;
+const StringT = (val) => ({ tag: 'StringT', val });
 const ParenT = (val) => ({ tag: 'ParenT', val });
 const showToken = (t) => {
     switch (t.tag) {
         case 'SymbolT':
         case 'VarT': return t.val;
+        case 'StringT': return JSON.stringify(t.val);
         case 'ParenT': return `(${t.val.map(showToken).join(' ')})`;
     }
 };
@@ -794,9 +801,10 @@ const SYM1 = ['\\', ':', '.', '='];
 const SYM2 = ['->'];
 const KEYWORDS = ['let', 'in', 'type'];
 const KEYWORDS_TYPE = ['forall', 'type', 'let'];
-const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare'];
+const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare', 'foreign'];
 const START = 0;
 const NAME = 1;
+const STRING = 2;
 const tokenize = (sc) => {
     let state = START;
     let r = [];
@@ -811,6 +819,8 @@ const tokenize = (sc) => {
                 r.push(SymbolT(c + next)), i++;
             else if (SYM1.indexOf(c) >= 0)
                 r.push(SymbolT(c));
+            else if (c === '"')
+                state = STRING;
             else if (/[a-z]/i.test(c))
                 t += c, state = NAME;
             else if (c === '(')
@@ -834,6 +844,14 @@ const tokenize = (sc) => {
             if (!/[a-z0-9]/i.test(c)) {
                 r.push(VarT(t));
                 t = '', i--, state = START;
+            }
+            else
+                t += c;
+        }
+        else if (state === STRING) {
+            if (c === '"') {
+                r.push(StringT(t));
+                t = '', state = START;
             }
             else
                 t += c;
@@ -874,6 +892,7 @@ const parseTokenKind = (ts) => {
         case 'VarT': return kinds_1.KVar(names_1.Name(ts.val));
         case 'SymbolT': return err(`stuck on ${ts.val}`);
         case 'ParenT': return parseParensKind(ts.val);
+        case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
     }
 };
 const parseParensKind = (ts) => {
@@ -913,6 +932,7 @@ const parseTokenType = (ts) => {
         }
         case 'SymbolT': return err(`stuck on ${ts.val}`);
         case 'ParenT': return parseParensType(ts.val);
+        case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
     }
 };
 const parseParensType = (ts) => {
@@ -983,6 +1003,7 @@ const parseToken = (ts) => {
         }
         case 'SymbolT': return err(`stuck on ${ts.val}`);
         case 'ParenT': return parseParens(ts.val);
+        case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
     }
 };
 const parseParens = (ts) => {
@@ -1163,6 +1184,16 @@ const parseParensDefs = (ts) => {
         const rest = parseParensDefs(ts.slice(i - 1));
         return [definitions_1.DDeclare(names_1.Name(name), body)].concat(rest);
     }
+    if (matchVarT('foreign', ts[0])) {
+        if (ts[1].tag !== 'VarT')
+            return err(`invalid foreign name: ${ts[1].val}`);
+        const name = ts[1].val;
+        if (ts[2].tag !== 'StringT')
+            return err(`string literal expected for foreign ${name} but got ${ts[2].val}`);
+        const body = ts[2].val;
+        const rest = parseParensDefs(ts.slice(3));
+        return [definitions_1.DForeign(names_1.Name(name), body)].concat(rest);
+    }
     return err(`def stuck on ${ts[0].val}`);
 };
 // parsing
@@ -1211,7 +1242,7 @@ const _show = (x) => {
     }
     return '' + x;
 };
-const _prelude = "decltype BoolP : Type\r\ndeclare trueP : BoolP\r\n\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n";
+const _prelude = "decltype PrimBool : Type\r\ndeclare primTrue : PrimBool\r\nforeign primTrue \"true\"\r\ndeclare primFalse : PrimBool\r\nforeign primFalse \"false\"\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n";
 const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     if (_s === ':c' || _s === ':ctx' || _s === ':context')

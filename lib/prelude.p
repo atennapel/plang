@@ -1,5 +1,20 @@
-decltype BoolP : Type
-declare trueP : BoolP
+decltype PrimBool : Type
+declare primTrue : PrimBool
+foreign primTrue "true"
+declare primFalse : PrimBool
+foreign primFalse "false"
+
+decltype PrimNat : Type
+declare primZ : PrimNat
+foreign primZ "0"
+declare primS : PrimNat -> PrimNat
+foreign primS "x => x + 1"
+
+decltype PrimList : Type -> Type
+declare primNil : forall t. PrimList t
+foreign primNil "[]"
+declare primCons : forall t. t -> PrimList t -> PrimList t
+foreign primCons "h => t => [h].concat(t)"
 
 type Void = forall t. t
 

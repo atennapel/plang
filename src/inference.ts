@@ -211,6 +211,7 @@ export const inferDef = (def: Def): void => {
       context.add(CVar(name, def.type));
       return;
     }
+    case 'DForeign': return;
   }
 };
 

@@ -7,7 +7,8 @@ export type Def
   = DType
   | DLet
   | DDeclType
-  | DDeclare;
+  | DDeclare
+  | DForeign;
 
 export interface DType {
   readonly tag: 'DType';
@@ -47,6 +48,15 @@ export const DDeclare = (name: NameT, type: Type): DDeclare =>
   ({ tag: 'DDeclare', name, type });
 export const isDDeclare = (def: Def): def is DDeclare => def.tag === 'DDeclare';
 
+export interface DForeign {
+  readonly tag: 'DForeign';
+  readonly name: NameT;
+  readonly val: string;
+}
+export const DForeign = (name: NameT, val: string): DForeign =>
+  ({ tag: 'DForeign', name, val });
+export const isDForeign = (def: Def): def is DForeign => def.tag === 'DForeign';
+
 export const showDef = (def: Def): string => {
   switch (def.tag) {
     case 'DType': {
@@ -61,5 +71,6 @@ export const showDef = (def: Def): string => {
     }
     case 'DDeclType': return `decltype ${showName(def.name)} : ${showKind(def.kind)}`;
     case 'DDeclare': return `declare ${showName(def.name)} : ${showType(def.type)}`;
+    case 'DForeign': return `foreign ${showName(def.name)} ${JSON.stringify(def.val)}`;
   }
 };

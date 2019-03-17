@@ -2,7 +2,7 @@ import { Term, Var, appFrom, abs, Ann, Let } from './terms';
 import { Name, NameT } from './names';
 import { TVar, Type, tappFrom, tfunFrom, tforallK } from './types';
 import { Kind, KVar, kfunFrom, kType } from './kinds';
-import { Def, DLet, DType, DDeclType, DDeclare } from './definitions';
+import { Def, DLet, DType, DDeclType, DDeclare, DForeign } from './definitions';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -10,6 +10,7 @@ const err = (msg: string) => { throw new SyntaxError(msg) };
 type Token
   = VarT
   | SymbolT
+  | StringT
   | ParenT;
 
 interface VarT { readonly tag: 'VarT'; readonly val: string }
@@ -18,6 +19,8 @@ const matchVarT = (val: string, t: Token): boolean => t.tag === 'VarT' && t.val 
 interface SymbolT { readonly tag: 'SymbolT'; readonly val: string }
 const SymbolT = (val: string): SymbolT => ({ tag: 'SymbolT', val });
 const matchSymbolT = (val: string, t: Token): boolean => t.tag === 'SymbolT' && t.val === val;
+interface StringT { readonly tag: 'StringT'; readonly val: string }
+const StringT = (val: string): StringT => ({ tag: 'StringT', val });
 interface ParenT { readonly tag: 'ParenT'; readonly val: Token[] }
 const ParenT = (val: Token[]): ParenT => ({ tag: 'ParenT', val });
 
@@ -25,6 +28,7 @@ const showToken = (t: Token): string => {
   switch (t.tag) {
     case 'SymbolT':
     case 'VarT': return t.val;
+    case 'StringT': return JSON.stringify(t.val);
     case 'ParenT': return `(${t.val.map(showToken).join(' ')})`;
   }
 };
@@ -42,10 +46,11 @@ const SYM2 = ['->'];
 
 const KEYWORDS = ['let', 'in', 'type'];
 const KEYWORDS_TYPE = ['forall', 'type', 'let'];
-const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare'];
+const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare', 'foreign'];
 
 const START = 0;
 const NAME = 1;
+const STRING = 2;
 const tokenize = (sc: string): Token[] => {
   let state = START;
   let r: Token[] = [];
@@ -58,6 +63,7 @@ const tokenize = (sc: string): Token[] => {
     if (state === START) {
       if (SYM2.indexOf(c + next) >= 0) r.push(SymbolT(c + next)), i++;
       else if (SYM1.indexOf(c) >= 0) r.push(SymbolT(c));
+      else if (c === '"') state = STRING;
       else if (/[a-z]/i.test(c)) t += c, state = NAME;
       else if(c === '(') b.push(c), p.push(r), r = [];
       else if(c === ')') {
@@ -74,6 +80,11 @@ const tokenize = (sc: string): Token[] => {
       if (!/[a-z0-9]/i.test(c)) {
         r.push(VarT(t));
         t = '', i--, state = START;
+      } else t += c;
+    } else if (state === STRING) {
+      if (c === '"') {
+        r.push(StringT(t));
+        t = '', state = START;
       } else t += c;
     }
   }
@@ -110,6 +121,7 @@ const parseTokenKind = (ts: Token): Kind => {
     case 'VarT': return KVar(Name(ts.val));
     case 'SymbolT': return err(`stuck on ${ts.val}`);
     case 'ParenT': return parseParensKind(ts.val);
+    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
   }
 };
 
@@ -146,6 +158,7 @@ const parseTokenType = (ts: Token): Type => {
     }
     case 'SymbolT': return err(`stuck on ${ts.val}`);
     case 'ParenT': return parseParensType(ts.val);
+    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
   }
 };
 
@@ -210,6 +223,7 @@ const parseToken = (ts: Token): Term => {
     }
     case 'SymbolT': return err(`stuck on ${ts.val}`);
     case 'ParenT': return parseParens(ts.val);
+    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
   }
 };
 
@@ -365,6 +379,15 @@ const parseParensDefs = (ts: Token[]): Def[] => {
     const body = parseParensType(bodyts);
     const rest = parseParensDefs(ts.slice(i - 1));
     return [DDeclare(Name(name), body) as Def].concat(rest);
+  }
+  if (matchVarT('foreign', ts[0])) {
+    if (ts[1].tag !== 'VarT') return err(`invalid foreign name: ${ts[1].val}`);
+    const name = ts[1].val as string;
+    if (ts[2].tag !== 'StringT')
+      return err(`string literal expected for foreign ${name} but got ${ts[2].val}`);
+    const body = ts[2].val as string;
+    const rest = parseParensDefs(ts.slice(3));
+    return [DForeign(Name(name), body) as Def].concat(rest);
   }
   return err(`def stuck on ${ts[0].val}`);
 };
