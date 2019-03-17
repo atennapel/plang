@@ -1,5 +1,6 @@
 import { Term } from './terms';
 import { showName, NameT } from './names';
+import { Def } from './definitions';
 
 export const compileName = (name: NameT) => {
   const x = showName(name);
@@ -15,6 +16,20 @@ export const compile = (term: Term): string => {
     case 'Let': return `(${compileName(term.name)} => ${compile(term.body)})(${compile(term.term)})`;
   }
 };
+
+export const compileDef = (def: Def, prefix: (name: string) => string): string => {
+  switch (def.tag) {
+    case 'DType': {
+      const con = `${prefix(showName(def.name))} = x => x;`;
+      const uncon = `${prefix(`un${showName(def.name)}`)} = x => x;`;
+      return `${con}\n${uncon}`;
+    }
+    case 'DLet':
+      return `${prefix(showName(def.name))} = ${def.args.map(showName).join(' => ')} => ${compile(def.term)};`;
+  }
+};
+export const compileDefs = (ds: Def[], prefix: (name: string) => string): string =>
+  ds.map(d => compileDef(d, prefix)).join('\n') + '\n';
 
 const keywords = `
 do

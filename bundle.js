@@ -15,6 +15,18 @@ exports.compile = (term) => {
         case 'Let': return `(${exports.compileName(term.name)} => ${exports.compile(term.body)})(${exports.compile(term.term)})`;
     }
 };
+exports.compileDef = (def, prefix) => {
+    switch (def.tag) {
+        case 'DType': {
+            const con = `${prefix(names_1.showName(def.name))} = x => x;`;
+            const uncon = `${prefix(`un${names_1.showName(def.name)}`)} = x => x;`;
+            return `${con}\n${uncon}`;
+        }
+        case 'DLet':
+            return `${prefix(names_1.showName(def.name))} = ${def.args.map(names_1.showName).join(' => ')} => ${exports.compile(def.term)};`;
+    }
+};
+exports.compileDefs = (ds, prefix) => ds.map(d => exports.compileDef(d, prefix)).join('\n') + '\n';
 const keywords = `
 do
 if
@@ -420,10 +432,13 @@ exports.infer = (term) => {
     global_1.namestore.reset();
     wellformedness_1.wfContext();
     const m = global_1.namestore.fresh('m');
+    const m2 = global_1.namestore.fresh('m');
     global_1.context.enter(m);
+    global_1.context.enter(m2);
     try {
-        const ty = generalizeFrom(m, global_1.apply(typesynth(term)));
+        const ty = generalizeFrom(m2, global_1.apply(typesynth(term)));
         kindInference_1.checkKindType(ty);
+        global_1.context.leave(m);
         if (!global_1.context.isComplete())
             return error_1.infererr(`incomplete context: ${global_1.context}`);
         return types_1.simplifyType(ty);
@@ -444,6 +459,7 @@ const global_1 = require("./global");
 const error_1 = require("./error");
 const elems_1 = require("./elems");
 exports.inferKind = (type) => {
+    // console.log(`inferKind ${showType(type)}`);
     switch (type.tag) {
         case 'TVar': {
             const e = global_1.context.lookup('CTVar', type.name);
