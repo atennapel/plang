@@ -149,10 +149,13 @@ export const infer = (term: Term): Type => {
   namestore.reset();
   wfContext();
   const m = namestore.fresh('m');
+  const m2 = namestore.fresh('m');
   context.enter(m);
+  context.enter(m2);
   try {
-    const ty = generalizeFrom(m, apply(typesynth(term)));
+    const ty = generalizeFrom(m2, apply(typesynth(term)));
     checkKindType(ty);
+    context.leave(m);
     if (!context.isComplete()) return infererr(`incomplete context: ${context}`);
     return simplifyType(ty);
   } catch (err) {

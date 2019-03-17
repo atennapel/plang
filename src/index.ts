@@ -3,6 +3,7 @@ import { showTerm } from './terms';
 import { infer } from './inference';
 import { compile } from './compiler';
 import { parse } from './parser';
+import { context } from './global';
 
 const scr = '\\x -> x';
 try {
@@ -11,6 +12,7 @@ try {
   console.log(showTerm(term));
   const ty = infer(term);
   console.log(showType(ty));
+  console.log(`${context}`);
   const co = compile(term);
   console.log(co);
   const ev = eval(co);

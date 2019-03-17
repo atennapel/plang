@@ -6,6 +6,7 @@ import { infererr } from './error';
 import { CKMeta, CTVar } from './elems';
 
 export const inferKind = (type: Type): Kind => {
+  // console.log(`inferKind ${showType(type)}`);
   switch (type.tag) {
     case 'TVar': {
       const e = context.lookup('CTVar', type.name);
