@@ -272,7 +272,19 @@ const parseParens = (ts: Token[]): Term => {
   return appFrom(args);
 };
 
-export const parse = (sc: string) => {
+export const parseKind = (sc: string): Kind => {
+  const ts = tokenize(sc);
+  // console.log(showTokens(ts));
+  const ex = parseParensKind(ts);
+  return ex;
+};
+export const parseType = (sc: string): Type => {
+  const ts = tokenize(sc);
+  // console.log(showTokens(ts));
+  const ex = parseParensType(ts);
+  return ex;
+};
+export const parse = (sc: string): Term => {
   const ts = tokenize(sc);
   // console.log(showTokens(ts));
   const ex = parseParens(ts);

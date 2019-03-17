@@ -959,6 +959,18 @@ const parseParens = (ts) => {
     }
     return terms_1.appFrom(args);
 };
+exports.parseKind = (sc) => {
+    const ts = tokenize(sc);
+    // console.log(showTokens(ts));
+    const ex = parseParensKind(ts);
+    return ex;
+};
+exports.parseType = (sc) => {
+    const ts = tokenize(sc);
+    // console.log(showTokens(ts));
+    const ex = parseParensType(ts);
+    return ex;
+};
 exports.parse = (sc) => {
     const ts = tokenize(sc);
     // console.log(showTokens(ts));
@@ -967,6 +979,7 @@ exports.parse = (sc) => {
 };
 
 },{"./kinds":9,"./names":10,"./terms":15,"./types":16}],13:[function(require,module,exports){
+(function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -999,9 +1012,32 @@ const _tv = types_1.TVar(_t);
 const _r = names_1.Name('r');
 const _rv = types_1.TVar(_r);
 global_1.context.add(elems_1.CTVar(_Bool, kinds_1.kType), elems_1.CVar(names_1.Name('True'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('False'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('if'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(_Bool), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))))), elems_1.CTVar(_Nat, kinds_1.kType), elems_1.CVar(names_1.Name('Z'), types_1.TVar(_Nat)), elems_1.CVar(names_1.Name('S'), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(_Nat))), elems_1.CVar(names_1.Name('caseNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CVar(names_1.Name('iterNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CVar(names_1.Name('recNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CTVar(_List, kinds_1.kfun(kinds_1.kType, kinds_1.kType)), elems_1.CVar(names_1.Name('Nil'), types_1.tforallK([[_t, kinds_1.kType]], types_1.tapp(types_1.TVar(_List), _tv))), elems_1.CVar(names_1.Name('Cons'), types_1.tforallK([[_t, kinds_1.kType]], types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), types_1.tapp(types_1.TVar(_List), _tv)))), elems_1.CVar(names_1.Name('caseList'), types_1.tforallK([[_t, kinds_1.kType], [_r, kinds_1.kType]], types_1.tfun(_rv, types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), _rv), types_1.tapp(types_1.TVar(_List), _tv), _rv))), elems_1.CVar(names_1.Name('iterList'), types_1.tforallK([[_t, kinds_1.kType], [_r, kinds_1.kType]], types_1.tfun(_rv, types_1.tfun(_tv, _rv, _rv), types_1.tapp(types_1.TVar(_List), _tv), _rv))), elems_1.CVar(names_1.Name('recList'), types_1.tforallK([[_t, kinds_1.kType], [_r, kinds_1.kType]], types_1.tfun(_rv, types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), _rv, _rv), types_1.tapp(types_1.TVar(_List), _tv), _rv))));
+const _env = typeof global === 'undefined' ? window : global;
+const _id = (x) => x;
 exports.run = (_s, _cb) => {
     if (_s === ':ctx')
         return _cb(`${global_1.context}`);
+    if (_s.startsWith(':newtype ')) {
+        try {
+            const _parts = _s.slice(8).trim().split('=');
+            const _args = _parts[0].split(/\s+/g).filter(_id);
+            const _ty = parser_1.parseType(_parts.slice(1).join('='));
+            const _tname = _args[0];
+            const _targs = _args.slice(1).map(names_1.Name);
+            if (global_1.context.lookup('CTVar', names_1.Name(_tname)))
+                throw new TypeError(`type ${_tname} is already defined`);
+            if (global_1.context.lookup('CVar', names_1.Name(_tname)))
+                throw new TypeError(`${_tname} is already defined`);
+            if (global_1.context.lookup('CVar', names_1.Name(`un${_tname}`)))
+                throw new TypeError(`un${_tname} is already defined`);
+            global_1.context.add(elems_1.CTVar(names_1.Name(_tname), kinds_1.kfunFrom(_targs.map(_ => kinds_1.kType).concat([kinds_1.kType]))), elems_1.CVar(names_1.Name(_tname), types_1.tforallK(_targs.map(n => [n, kinds_1.kType]), types_1.tfun(_ty, types_1.tappFrom([types_1.TVar(names_1.Name(_tname))].concat(_targs.map(types_1.TVar)))))), elems_1.CVar(names_1.Name(`un${_tname}`), types_1.tforallK(_targs.map(n => [n, kinds_1.kType]), types_1.tfun(types_1.tappFrom([types_1.TVar(names_1.Name(_tname))].concat(_targs.map(types_1.TVar))), _ty))));
+            _env[_tname] = _env[`un${_tname}`] = _id;
+            return _cb(`defined ${_tname} and un${_tname}`);
+        }
+        catch (err) {
+            return _cb(`${err}`, true);
+        }
+    }
     try {
         const _e = parser_1.parse(_s);
         // console.log(showTerm(_e));
@@ -1018,6 +1054,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"./compiler":1,"./elems":3,"./global":5,"./inference":6,"./kinds":9,"./names":10,"./parser":12,"./types":16}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });

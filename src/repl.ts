@@ -1,11 +1,11 @@
-import { showType, TVar, tfun, tforallK, tapp } from './types';
+import { showType, TVar, tfun, tforallK, tapp, tappFrom } from './types';
 import { compile } from './compiler';
 import { infer } from './inference';
-import { parse } from './parser';
+import { parse, parseType } from './parser';
 import { context } from './global';
 import { CTVar, CVar } from './elems';
 import { Name } from './names';
-import { kType, kfun } from './kinds';
+import { kType, kfun, kfunFrom, Kind } from './kinds';
 import { showTerm } from './terms';
 
 const _show = (x: any): string => {
@@ -47,8 +47,34 @@ context.add(
   CVar(Name('recList'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, tapp(TVar(_List), _tv), _rv, _rv), tapp(TVar(_List), _tv), _rv))),
 );
 
+const _env: any = typeof global === 'undefined' ? window : global;
+const _id = <T>(x: T) => x;
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   if (_s === ':ctx') return _cb(`${context}`);
+  if (_s.startsWith(':newtype ')) {
+    try {
+      const _parts = _s.slice(8).trim().split('=');
+      const _args = _parts[0].split(/\s+/g).filter(_id);
+      const _ty = parseType(_parts.slice(1).join('='));
+      const _tname = _args[0];
+      const _targs = _args.slice(1).map(Name);
+      if (context.lookup('CTVar', Name(_tname)))
+        throw new TypeError(`type ${_tname} is already defined`);
+      if (context.lookup('CVar', Name(_tname)))
+        throw new TypeError(`${_tname} is already defined`);
+      if (context.lookup('CVar', Name(`un${_tname}`)))
+        throw new TypeError(`un${_tname} is already defined`);
+      context.add(
+        CTVar(Name(_tname), kfunFrom(_targs.map(_ => kType).concat([kType]))),
+        CVar(Name(_tname), tforallK(_targs.map(n => [n, kType] as [Name, Kind]), tfun(_ty, tappFrom([TVar(Name(_tname))].concat(_targs.map(TVar)))))),
+        CVar(Name(`un${_tname}`), tforallK(_targs.map(n => [n, kType] as [Name, Kind]), tfun(tappFrom([TVar(Name(_tname))].concat(_targs.map(TVar))), _ty))),
+      );
+      _env[_tname] = _env[`un${_tname}`] = _id;
+      return _cb(`defined ${_tname} and un${_tname}`);
+    } catch (err) {
+      return _cb(`${err}`, true);
+    }
+  }
   try {
     const _e = parse(_s);
     // console.log(showTerm(_e));
