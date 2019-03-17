@@ -1066,8 +1066,6 @@ const parseParensDefs = (ts) => {
                 return err(`invalid arg: ${c.val}`);
             args.push([names_1.Name(c.val), null]);
         }
-        if (args.length === 0)
-            return err(`type def without name`);
         const bodyts = [];
         while (true) {
             const c = ts[i++];
@@ -1138,9 +1136,7 @@ const compiler_1 = require("./compiler");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
 const global_1 = require("./global");
-const elems_1 = require("./elems");
 const names_1 = require("./names");
-const kinds_1 = require("./kinds");
 const _show = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
@@ -1155,20 +1151,27 @@ const _show = (x) => {
     }
     return '' + x;
 };
-const _Bool = names_1.Name('Bool');
-const _Nat = names_1.Name('Nat');
-const _List = names_1.Name('List');
-const _t = names_1.Name('t');
-const _tv = types_1.TVar(_t);
-global_1.context.add(elems_1.CTVar(_Bool, kinds_1.kType), elems_1.CVar(names_1.Name('primTrue'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('primFalse'), types_1.TVar(_Bool)), elems_1.CTVar(_Nat, kinds_1.kType), elems_1.CVar(names_1.Name('primZ'), types_1.TVar(_Nat)), elems_1.CVar(names_1.Name('primS'), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(_Nat))), elems_1.CTVar(_List, kinds_1.kfun(kinds_1.kType, kinds_1.kType)), elems_1.CVar(names_1.Name('primNil'), types_1.tforallK([[_t, kinds_1.kType]], types_1.tapp(types_1.TVar(_List), _tv))), elems_1.CVar(names_1.Name('primCons'), types_1.tforallK([[_t, kinds_1.kType]], types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), types_1.tapp(types_1.TVar(_List), _tv)))));
+const _prelude = "type Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n";
 const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
-    if (_s === ':ctx')
+    if (_s === ':c' || _s === ':ctx' || _s === ':context')
         return _cb(`${global_1.context}`);
     if (_s.startsWith(':def ')) {
         try {
             const _rest = _s.slice(4).trim();
             const _ds = parser_1.parseDefs(_rest);
+            inference_1.inferDefs(_ds);
+            const _c = compiler_1.compileDefs(_ds, n => `${_env}['${n}']`);
+            eval(`(() => {${_c}})()`);
+            return _cb(`defined ${_ds.map(d => names_1.showName(d.name)).join(' ')}`);
+        }
+        catch (err) {
+            return _cb(`${err}`, true);
+        }
+    }
+    if (_s === ':p' || _s === ':prelude') {
+        try {
+            const _ds = parser_1.parseDefs(_prelude);
             inference_1.inferDefs(_ds);
             const _c = compiler_1.compileDefs(_ds, n => `${_env}['${n}']`);
             eval(`(() => {${_c}})()`);
@@ -1195,7 +1198,7 @@ exports.run = (_s, _cb) => {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./compiler":1,"./elems":4,"./global":6,"./inference":7,"./kinds":10,"./names":11,"./parser":13,"./types":17}],15:[function(require,module,exports){
+},{"./compiler":1,"./global":6,"./inference":7,"./names":11,"./parser":13,"./types":17}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");

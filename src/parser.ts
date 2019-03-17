@@ -302,7 +302,6 @@ const parseParensDefs = (ts: Token[]): Def[] => {
         return err(`invalid arg: ${c.val}`);
       args.push([Name(c.val), null]);
     }
-    if (args.length === 0) return err(`type def without name`);
     const bodyts: Token[] = [];
     while (true) {
       const c = ts[i++];
