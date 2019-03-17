@@ -669,24 +669,39 @@ exports.NameStore = NameStore;
 },{"./names":10}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const kinds_1 = require("./kinds");
-const types_1 = require("./types");
 const terms_1 = require("./terms");
 const names_1 = require("./names");
+const types_1 = require("./types");
 const err = (msg) => { throw new SyntaxError(msg); };
-const SymbolT = (val) => ({ tag: 'SymbolT', val });
 const VarT = (val) => ({ tag: 'VarT', val });
-const KeywordT = (val) => ({ tag: 'KeywordT', val });
-const showTokens = (ts) => ts.map(x => `${x.val}`).join(' ');
-const SYM1 = ['(', ')', '\\', '=', ':', '.'];
+const matchVarT = (val, t) => t.tag === 'VarT' && t.val === val;
+const SymbolT = (val) => ({ tag: 'SymbolT', val });
+const matchSymbolT = (val, t) => t.tag === 'SymbolT' && t.val === val;
+const ParenT = (val) => ({ tag: 'ParenT', val });
+const showToken = (t) => {
+    switch (t.tag) {
+        case 'SymbolT':
+        case 'VarT': return t.val;
+        case 'ParenT': return `(${t.val.map(showToken).join(' ')})`;
+    }
+};
+const showTokens = (ts) => ts.map(showToken).join(' ');
+const matchingBracket = (c) => {
+    if (c === '(')
+        return ')';
+    if (c === ')')
+        return '(';
+    return err(`invalid bracket: ${c}`);
+};
+const SYM1 = ['\\', ':', '.'];
 const SYM2 = ['->'];
-const KEYWORDS = ['let', 'in', 'forall'];
 const START = 0;
 const NAME = 1;
 const tokenize = (sc) => {
     let state = START;
-    const r = [];
+    let r = [];
     let t = '';
+    let p = [], b = [];
     for (let i = 0, l = sc.length; i <= l; i++) {
         const c = sc[i] || ' ';
         const next = sc[i + 1] || '';
@@ -698,6 +713,18 @@ const tokenize = (sc) => {
                 r.push(SymbolT(c));
             else if (/[a-z]/i.test(c))
                 t += c, state = NAME;
+            else if (c === '(')
+                b.push(c), p.push(r), r = [];
+            else if (c === ')') {
+                if (b.length === 0)
+                    return err(`unmatched bracket: ${c}`);
+                const br = b.pop();
+                if (matchingBracket(br) !== c)
+                    return err(`unmatched bracket: ${br} and ${c}`);
+                const a = p.pop();
+                a.push(ParenT(r));
+                r = a;
+            }
             else if (/\s/.test(c))
                 continue;
             else
@@ -705,202 +732,157 @@ const tokenize = (sc) => {
         }
         else if (state === NAME) {
             if (!/[a-z0-9]/i.test(c)) {
-                r.push(KEYWORDS.indexOf(t) >= 0 ? KeywordT(t) :
-                    VarT(t));
+                r.push(VarT(t));
                 t = '', i--, state = START;
             }
             else
                 t += c;
         }
     }
+    if (b.length > 0)
+        return err(`unclosed brackets: ${b.join(' ')}`);
     if (state !== START)
         return err('invalid tokenize end state');
     return r;
 };
-// parser
-const match = (ts, tag, val = null) => {
-    if (ts.length === 0)
-        return false;
-    const top = ts[ts.length - 1];
-    if (top.tag === tag && (!val || top.val === val)) {
-        ts.pop();
-        return true;
+const indexOf = (a, fn) => {
+    for (let i = 0, l = a.length; i < l; i++)
+        if (fn(a[i]))
+            return i;
+    return -1;
+};
+const contains = (a, fn) => indexOf(a, fn) >= 0;
+const splitTokens = (a, fn) => {
+    const r = [];
+    let t = [];
+    for (let i = 0, l = a.length; i < l; i++) {
+        const c = a[i];
+        if (fn(c)) {
+            r.push(t);
+            t = [];
+        }
+        else
+            t.push(c);
     }
-    return false;
-};
-const safeMatch = (ts, tag, val = null) => {
-    if (ts.length === 0)
-        return false;
-    const top = ts[ts.length - 1];
-    if (top.tag === tag && (!val || top.val === val))
-        return true;
-    return false;
-};
-// kinds
-const parseKindR = (ts) => {
-    if (ts.length === 0)
-        return err('empty kind');
-    if (safeMatch(ts, 'VarT')) {
-        const x = ts.pop();
-        return kinds_1.KVar(names_1.Name(x.val));
-    }
-    return err(`parseKindR stuck on ${ts[ts.length - 1].val}`);
-};
-exports.parseKind = (sc) => {
-    const ts = tokenize(sc);
-    const ex = parseKindR(ts.reverse());
-    if (ts.length > 0)
-        return err(`kind stuck on ${ts[0].val}`);
-    return ex;
+    r.push(t);
+    return r;
 };
 // types
-const parseTAppTo = (ts, fn) => {
-    const es = [];
-    while (fn(ts))
-        es.push(parseTypeR(ts));
-    if (es.length === 0)
-        return err('empty app');
-    if (es.length === 1)
-        return es[0];
-    return types_1.tappFrom(es);
+const parseTokenType = (ts) => {
+    // console.log(`parseTokenType ${showToken(ts)}`);
+    switch (ts.tag) {
+        case 'VarT': {
+            if (matchVarT('forall', ts))
+                return err(`stuck on forall`);
+            return types_1.TVar(names_1.Name(ts.val));
+        }
+        case 'SymbolT': return err(`stuck on ${ts.val}`);
+        case 'ParenT': return parseParensType(ts.val);
+    }
 };
-const parseTApp = (ts) => parseTAppTo(ts, ts => {
-    if (match(ts, 'SymbolT', ')'))
-        return false;
-    if (ts.length === 0)
-        return err('tapp end');
-    return true;
-});
-const parseTAppAll = (ts) => {
-    const es = [];
-    while (!(ts.length === 0 ||
-        safeMatch(ts, 'SymbolT', ')')))
-        es.push(parseTypeR(ts));
-    if (es.length === 0)
-        return err('empty app');
-    return types_1.tappFrom(es);
-};
-const parseTypeR = (ts) => {
+const parseParensType = (ts) => {
+    // console.log(`parseParensType ${showTokens(ts)}`);
     if (ts.length === 0)
         return err('empty type');
-    if (match(ts, 'KeywordT', 'forall')) {
+    if (ts.length === 1)
+        return parseTokenType(ts[0]);
+    if (matchVarT('forall', ts[0])) {
         const args = [];
-        while (!match(ts, 'SymbolT', '.'))
-            args.push(parseArg(ts));
+        let i = 1;
+        while (true) {
+            const c = ts[i++];
+            if (!c)
+                return err(`no . after forall`);
+            if (matchSymbolT('.', c))
+                break;
+            if (c.tag !== 'VarT')
+                return err(`invalid arg to forall: ${c.val}`);
+            args.push(c.val);
+        }
         if (args.length === 0)
-            return err('empty args after forall');
-        const body = parseTAppAll(ts);
+            return err(`forall without args`);
+        const body = parseParensType(ts.slice(i));
         return types_1.tforall(args.map(names_1.Name), body);
     }
-    else if (match(ts, 'SymbolT', '(')) {
-        return parseTApp(ts);
+    let args = [];
+    const fs = [];
+    for (let i = 0; i < ts.length; i++) {
+        const c = ts[i];
+        if (matchVarT('forall', c)) {
+            const rest = parseParensType(ts.slice(i));
+            const app = types_1.tappFrom(args.map(parseTokenType).concat([rest]));
+            return types_1.tfunFrom(fs.map(ts => types_1.tappFrom(ts.map(parseTokenType))).concat([app]));
+        }
+        if (matchSymbolT('->', c)) {
+            fs.push(args);
+            args = [];
+            continue;
+        }
+        args.push(c);
     }
-    else if (safeMatch(ts, 'VarT')) {
-        const x = ts.pop();
-        return types_1.TVar(names_1.Name(x.val));
-    }
-    return err(`parseTypeR stuck on ${ts[ts.length - 1].val}`);
-};
-exports.parseType = (sc) => {
-    const ts = tokenize(sc);
-    const ex = parseTypeR(ts.reverse());
-    if (ts.length > 0)
-        return err(`type stuck on ${ts[0].val}`);
-    return ex;
+    fs.push(args);
+    return types_1.tfunFrom(fs.map(ts => types_1.tappFrom(ts.map(parseTokenType))));
 };
 // terms
-const parseArg = (ts) => {
-    if (ts.length === 0)
-        return err(`empty in argument`);
-    const x = ts.pop();
-    if (x.tag === 'VarT')
-        return x.val;
-    return err(`invalid arg: ${x.val}`);
-};
-const parseAppTo = (ts, fn) => {
-    const es = [];
-    while (fn(ts))
-        es.push(parseExpr(ts));
-    if (es.length === 0)
-        return err('empty app');
-    if (es.length === 1)
-        return es[0];
-    return terms_1.appFrom(es);
-};
-const parseApp = (ts) => parseAppTo(ts, ts => {
-    if (match(ts, 'SymbolT', ')'))
-        return false;
-    if (ts.length === 0)
-        return err('app end');
-    return true;
-});
-const parseAppAll = (ts) => {
-    const es = [];
-    while (!(ts.length === 0 ||
-        safeMatch(ts, 'SymbolT', ')') ||
-        safeMatch(ts, 'SymbolT', ':') ||
-        safeMatch(ts, 'KeywordT', 'in')))
-        es.push(parseExpr(ts));
-    if (es.length === 0)
-        return err('empty app');
-    const ex = terms_1.appFrom(es);
-    if (safeMatch(ts, 'SymbolT', ':')) {
-        ts.pop();
-        const ty = parseTAppAll(ts);
-        return terms_1.Ann(ex, ty);
+const parseToken = (ts) => {
+    // console.log(`parseToken ${showToken(ts)}`);
+    switch (ts.tag) {
+        case 'VarT': return terms_1.Var(names_1.Name(ts.val));
+        case 'SymbolT': return err(`stuck on ${ts.val}`);
+        case 'ParenT': return parseParens(ts.val);
     }
-    return ex;
 };
-const parseExpr = (ts) => {
-    // console.log(showTokens(ts.slice(0).reverse()));
+const parseParens = (ts) => {
+    // console.log(`parseParens ${showTokens(ts)}`);
     if (ts.length === 0)
-        return err('empty expr');
-    if (match(ts, 'SymbolT', '\\')) {
+        return err('empty');
+    if (ts.length === 1)
+        return parseToken(ts[0]);
+    if (contains(ts, t => matchSymbolT(':', t))) {
+        const parts = splitTokens(ts, t => matchSymbolT(':', t));
+        if (parts.length !== 2)
+            return err(`invalid use (${parts.length}) of :`);
+        const left = parseParens(parts[0]);
+        const right = parseParensType(parts[1]);
+        return terms_1.Ann(left, right);
+    }
+    if (matchSymbolT('\\', ts[0])) {
         const args = [];
-        while (!match(ts, 'SymbolT', '->'))
-            args.push(parseArg(ts));
+        let i = 1;
+        while (true) {
+            const c = ts[i++];
+            if (!c)
+                return err(`no -> after \\`);
+            if (matchSymbolT('->', c))
+                break;
+            if (c.tag !== 'VarT')
+                return err(`invalid arg: ${c.val}`);
+            args.push(c.val);
+        }
         if (args.length === 0)
-            return err('empty args after \\');
-        const body = parseAppAll(ts);
+            return err(`\\ without args`);
+        const body = parseParens(ts.slice(i));
         return terms_1.abs(args.map(names_1.Name), body);
     }
-    else if (match(ts, 'SymbolT', '(')) {
-        return parseApp(ts);
+    const args = [];
+    for (let i = 0; i < ts.length; i++) {
+        const c = ts[i];
+        if (matchSymbolT('\\', c)) {
+            args.push(parseParens(ts.slice(i)));
+            return terms_1.appFrom(args);
+        }
+        args.push(parseToken(c));
     }
-    else if (match(ts, 'KeywordT', 'let')) {
-        if (!safeMatch(ts, 'VarT'))
-            return err('no name after let');
-        const x = ts.pop().val;
-        if (!match(ts, 'SymbolT', '='))
-            return err('no = after name after let');
-        const val = parseAppTo(ts, ts => {
-            if (match(ts, 'KeywordT', 'in'))
-                return false;
-            if (ts.length === 0)
-                return err('no in after let');
-            return true;
-        });
-        const body = parseAppAll(ts);
-        return terms_1.Let(names_1.Name(x), val, body);
-    }
-    else if (safeMatch(ts, 'VarT')) {
-        const x = ts.pop();
-        return terms_1.Var(names_1.Name(x.val));
-    }
-    else if (match(ts, 'KeywordT', 'forall')) {
-        return terms_1.Var(names_1.Name('forall'));
-    }
-    return err(`parseExpr stuck on ${ts[ts.length - 1].val}`);
+    return terms_1.appFrom(args);
 };
-exports.parseTerm = (sc) => {
+exports.parse = (sc) => {
     const ts = tokenize(sc);
-    const ex = parseAppAll(ts.reverse());
-    if (ts.length > 0)
-        return err(`stuck on ${ts[0].val}`);
+    // console.log(showTokens(ts));
+    const ex = parseParens(ts);
     return ex;
 };
 
-},{"./kinds":9,"./names":10,"./terms":15,"./types":16}],13:[function(require,module,exports){
+},{"./names":10,"./terms":15,"./types":16}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -937,7 +919,7 @@ exports.run = (_s, _cb) => {
     if (_s === ':ctx')
         return _cb(`${global_1.context}`);
     try {
-        const _e = parser_1.parseTerm(_s);
+        const _e = parser_1.parse(_s);
         // console.log(showTerm(_e));
         const _t = inference_1.infer(_e);
         // console.log(showType(_t));

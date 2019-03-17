@@ -1,7 +1,7 @@
 import { showType, TVar, tfun, tforallK, tapp } from './types';
 import { compile } from './compiler';
 import { infer } from './inference';
-import { parseTerm } from './parser';
+import { parse } from './parser';
 import { context } from './global';
 import { CTVar, CVar } from './elems';
 import { Name } from './names';
@@ -50,7 +50,7 @@ context.add(
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   if (_s === ':ctx') return _cb(`${context}`);
   try {
-    const _e = parseTerm(_s);
+    const _e = parse(_s);
     // console.log(showTerm(_e));
     const _t = infer(_e);
     // console.log(showType(_t));

@@ -2,11 +2,12 @@ import { showType } from './types';
 import { showTerm } from './terms';
 import { infer } from './inference';
 import { compile } from './compiler';
-import { parseTerm } from './parser';
+import { parse } from './parser';
 
 const scr = '\\x -> x';
 try {
-  const term = parseTerm(scr);
+  console.log(scr);
+  const term = parse(scr);
   console.log(showTerm(term));
   const ty = infer(term);
   console.log(showType(ty));
