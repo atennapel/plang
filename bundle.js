@@ -18,12 +18,12 @@ exports.compile = (term) => {
 exports.compileDef = (def, prefix) => {
     switch (def.tag) {
         case 'DType': {
-            const con = `${prefix(names_1.showName(def.name))} = x => x;`;
-            const uncon = `${prefix(`un${names_1.showName(def.name)}`)} = x => x;`;
+            const con = `${prefix(exports.compileName(def.name))} = x => x;`;
+            const uncon = `${prefix(`un${exports.compileName(def.name)}`)} = x => x;`;
             return `${con}\n${uncon}`;
         }
         case 'DLet':
-            return `${prefix(names_1.showName(def.name))} = ${def.args.map(names_1.showName).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${exports.compile(def.term)};`;
+            return `${prefix(exports.compileName(def.name))} = ${def.args.map(exports.compileName).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${exports.compile(def.term)};`;
     }
 };
 exports.compileDefs = (ds, prefix) => ds.map(d => exports.compileDef(d, prefix)).join('\n') + '\n';
@@ -496,7 +496,7 @@ exports.inferDef = (def) => {
             if (global_1.context.lookup('CVar', name))
                 throw new TypeError(`${names_1.showName(name)} is already defined`);
             const ty = exports.infer(terms_1.abs(def.args, def.term));
-            console.log(`${names_1.showName(name)} : ${types_1.showType(ty)}`);
+            // console.log(`${showName(name)} : ${showType(ty)}`);
             global_1.context.add(elems_1.CVar(name, ty));
             return;
         }
@@ -1143,30 +1143,19 @@ const _Nat = names_1.Name('Nat');
 const _List = names_1.Name('List');
 const _t = names_1.Name('t');
 const _tv = types_1.TVar(_t);
-const _r = names_1.Name('r');
-const _rv = types_1.TVar(_r);
-global_1.context.add(elems_1.CTVar(_Bool, kinds_1.kType), elems_1.CVar(names_1.Name('True'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('False'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('if'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(_Bool), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))))), elems_1.CTVar(_Nat, kinds_1.kType), elems_1.CVar(names_1.Name('Z'), types_1.TVar(_Nat)), elems_1.CVar(names_1.Name('S'), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(_Nat))), elems_1.CVar(names_1.Name('caseNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CVar(names_1.Name('iterNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CVar(names_1.Name('recNat'), types_1.tforallK([[names_1.Name('t'), kinds_1.kType]], types_1.tfun(types_1.TVar(names_1.Name('t')), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(names_1.Name('t')), types_1.TVar(names_1.Name('t'))), types_1.TVar(_Nat), types_1.TVar(names_1.Name('t'))))), elems_1.CTVar(_List, kinds_1.kfun(kinds_1.kType, kinds_1.kType)), elems_1.CVar(names_1.Name('Nil'), types_1.tforallK([[_t, kinds_1.kType]], types_1.tapp(types_1.TVar(_List), _tv))), elems_1.CVar(names_1.Name('Cons'), types_1.tforallK([[_t, kinds_1.kType]], types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), types_1.tapp(types_1.TVar(_List), _tv)))), elems_1.CVar(names_1.Name('caseList'), types_1.tforallK([[_t, kinds_1.kType], [_r, kinds_1.kType]], types_1.tfun(_rv, types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), _rv), types_1.tapp(types_1.TVar(_List), _tv), _rv))), elems_1.CVar(names_1.Name('iterList'), types_1.tforallK([[_t, kinds_1.kType], [_r, kinds_1.kType]], types_1.tfun(_rv, types_1.tfun(_tv, _rv, _rv), types_1.tapp(types_1.TVar(_List), _tv), _rv))), elems_1.CVar(names_1.Name('recList'), types_1.tforallK([[_t, kinds_1.kType], [_r, kinds_1.kType]], types_1.tfun(_rv, types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), _rv, _rv), types_1.tapp(types_1.TVar(_List), _tv), _rv))));
-const _env = typeof global === 'undefined' ? window : global;
-const _id = (x) => x;
+global_1.context.add(elems_1.CTVar(_Bool, kinds_1.kType), elems_1.CVar(names_1.Name('primTrue'), types_1.TVar(_Bool)), elems_1.CVar(names_1.Name('primFalse'), types_1.TVar(_Bool)), elems_1.CTVar(_Nat, kinds_1.kType), elems_1.CVar(names_1.Name('primZ'), types_1.TVar(_Nat)), elems_1.CVar(names_1.Name('primS'), types_1.tfun(types_1.TVar(_Nat), types_1.TVar(_Nat))), elems_1.CTVar(_List, kinds_1.kfun(kinds_1.kType, kinds_1.kType)), elems_1.CVar(names_1.Name('primNil'), types_1.tforallK([[_t, kinds_1.kType]], types_1.tapp(types_1.TVar(_List), _tv))), elems_1.CVar(names_1.Name('primCons'), types_1.tforallK([[_t, kinds_1.kType]], types_1.tfun(_tv, types_1.tapp(types_1.TVar(_List), _tv), types_1.tapp(types_1.TVar(_List), _tv)))));
+const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     if (_s === ':ctx')
         return _cb(`${global_1.context}`);
-    if (_s.startsWith(':newtype ')) {
+    if (_s.startsWith(':def ')) {
         try {
-            const _parts = _s.slice(8).trim().split('=');
-            const _args = _parts[0].split(/\s+/g).filter(_id);
-            const _ty = parser_1.parseType(_parts.slice(1).join('='));
-            const _tname = _args[0];
-            const _targs = _args.slice(1).map(names_1.Name);
-            if (global_1.context.lookup('CTVar', names_1.Name(_tname)))
-                throw new TypeError(`type ${_tname} is already defined`);
-            if (global_1.context.lookup('CVar', names_1.Name(_tname)))
-                throw new TypeError(`${_tname} is already defined`);
-            if (global_1.context.lookup('CVar', names_1.Name(`un${_tname}`)))
-                throw new TypeError(`un${_tname} is already defined`);
-            global_1.context.add(elems_1.CTVar(names_1.Name(_tname), kinds_1.kfunFrom(_targs.map(_ => kinds_1.kType).concat([kinds_1.kType]))), elems_1.CVar(names_1.Name(_tname), types_1.tforallK(_targs.map(n => [n, kinds_1.kType]), types_1.tfun(_ty, types_1.tappFrom([types_1.TVar(names_1.Name(_tname))].concat(_targs.map(types_1.TVar)))))), elems_1.CVar(names_1.Name(`un${_tname}`), types_1.tforallK(_targs.map(n => [n, kinds_1.kType]), types_1.tfun(types_1.tappFrom([types_1.TVar(names_1.Name(_tname))].concat(_targs.map(types_1.TVar))), _ty))));
-            _env[_tname] = _env[`un${_tname}`] = _id;
-            return _cb(`defined ${_tname} and un${_tname}`);
+            const _rest = _s.slice(4).trim();
+            const _ds = parser_1.parseDefs(_rest);
+            inference_1.inferDefs(_ds);
+            const _c = compiler_1.compileDefs(_ds, n => `${_env}['${n}']`);
+            eval(`(() => {${_c}})()`);
+            return _cb(`defined ${_ds.map(d => names_1.showName(d.name)).join(' ')}`);
         }
         catch (err) {
             return _cb(`${err}`, true);

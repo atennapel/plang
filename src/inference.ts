@@ -191,7 +191,7 @@ export const inferDef = (def: Def): void => {
       if (context.lookup('CVar', name))
         throw new TypeError(`${showName(name)} is already defined`);
       const ty = infer(abs(def.args, def.term));
-      console.log(`${showName(name)} : ${showType(ty)}`);
+      // console.log(`${showName(name)} : ${showType(ty)}`);
       context.add(CVar(name, ty));
       return;
     }

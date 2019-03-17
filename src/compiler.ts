@@ -20,12 +20,12 @@ export const compile = (term: Term): string => {
 export const compileDef = (def: Def, prefix: (name: string) => string): string => {
   switch (def.tag) {
     case 'DType': {
-      const con = `${prefix(showName(def.name))} = x => x;`;
-      const uncon = `${prefix(`un${showName(def.name)}`)} = x => x;`;
+      const con = `${prefix(compileName(def.name))} = x => x;`;
+      const uncon = `${prefix(`un${compileName(def.name)}`)} = x => x;`;
       return `${con}\n${uncon}`;
     }
     case 'DLet':
-      return `${prefix(showName(def.name))} = ${def.args.map(showName).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${compile(def.term)};`;
+      return `${prefix(compileName(def.name))} = ${def.args.map(compileName).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${compile(def.term)};`;
   }
 };
 export const compileDefs = (ds: Def[], prefix: (name: string) => string): string =>

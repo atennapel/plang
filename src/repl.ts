@@ -1,10 +1,10 @@
 import { showType, TVar, tfun, tforallK, tapp, tappFrom } from './types';
-import { compile } from './compiler';
-import { infer } from './inference';
-import { parse, parseType } from './parser';
+import { compile, compileDefs } from './compiler';
+import { infer, inferDefs } from './inference';
+import { parse, parseType, parseDefs } from './parser';
 import { context } from './global';
 import { CTVar, CVar } from './elems';
-import { Name } from './names';
+import { Name, showName } from './names';
 import { kType, kfun, kfunFrom, Kind } from './kinds';
 import { showTerm } from './terms';
 
@@ -24,53 +24,31 @@ const _Nat = Name('Nat');
 const _List = Name('List');
 const _t = Name('t');
 const _tv = TVar(_t);
-const _r = Name('r');
-const _rv = TVar(_r);
 context.add(
   CTVar(_Bool, kType),
-  CVar(Name('True'), TVar(_Bool)),
-  CVar(Name('False'), TVar(_Bool)),
-  CVar(Name('if'), tforallK([[Name('t'), kType]], tfun(TVar(_Bool), TVar(Name('t')), TVar(Name('t')), TVar(Name('t'))))),
+  CVar(Name('primTrue'), TVar(_Bool)),
+  CVar(Name('primFalse'), TVar(_Bool)),
 
   CTVar(_Nat, kType),
-  CVar(Name('Z'), TVar(_Nat)),
-  CVar(Name('S'), tfun(TVar(_Nat), TVar(_Nat))),
-  CVar(Name('caseNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(_Nat), TVar(Name('t'))), TVar(_Nat), TVar(Name('t'))))),
-  CVar(Name('iterNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(Name('t')), TVar(Name('t'))), TVar(_Nat), TVar(Name('t'))))),
-  CVar(Name('recNat'), tforallK([[Name('t'), kType]], tfun(TVar(Name('t')), tfun(TVar(_Nat), TVar(Name('t')), TVar(Name('t'))), TVar(_Nat), TVar(Name('t'))))),
+  CVar(Name('primZ'), TVar(_Nat)),
+  CVar(Name('primS'), tfun(TVar(_Nat), TVar(_Nat))),
 
   CTVar(_List, kfun(kType, kType)),
-  CVar(Name('Nil'), tforallK([[_t, kType]], tapp(TVar(_List), _tv))),
-  CVar(Name('Cons'), tforallK([[_t, kType]], tfun(_tv, tapp(TVar(_List), _tv), tapp(TVar(_List), _tv)))),
-  CVar(Name('caseList'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, tapp(TVar(_List), _tv), _rv), tapp(TVar(_List), _tv), _rv))),
-  CVar(Name('iterList'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, _rv, _rv), tapp(TVar(_List), _tv), _rv))),
-  CVar(Name('recList'), tforallK([[_t, kType], [_r, kType]], tfun(_rv, tfun(_tv, tapp(TVar(_List), _tv), _rv, _rv), tapp(TVar(_List), _tv), _rv))),
+  CVar(Name('primNil'), tforallK([[_t, kType]], tapp(TVar(_List), _tv))),
+  CVar(Name('primCons'), tforallK([[_t, kType]], tfun(_tv, tapp(TVar(_List), _tv), tapp(TVar(_List), _tv)))),
 );
 
-const _env: any = typeof global === 'undefined' ? window : global;
-const _id = <T>(x: T) => x;
+const _env: string = typeof global === 'undefined' ? 'window' : 'global';
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   if (_s === ':ctx') return _cb(`${context}`);
-  if (_s.startsWith(':newtype ')) {
+  if (_s.startsWith(':def ')) {
     try {
-      const _parts = _s.slice(8).trim().split('=');
-      const _args = _parts[0].split(/\s+/g).filter(_id);
-      const _ty = parseType(_parts.slice(1).join('='));
-      const _tname = _args[0];
-      const _targs = _args.slice(1).map(Name);
-      if (context.lookup('CTVar', Name(_tname)))
-        throw new TypeError(`type ${_tname} is already defined`);
-      if (context.lookup('CVar', Name(_tname)))
-        throw new TypeError(`${_tname} is already defined`);
-      if (context.lookup('CVar', Name(`un${_tname}`)))
-        throw new TypeError(`un${_tname} is already defined`);
-      context.add(
-        CTVar(Name(_tname), kfunFrom(_targs.map(_ => kType).concat([kType]))),
-        CVar(Name(_tname), tforallK(_targs.map(n => [n, kType] as [Name, Kind]), tfun(_ty, tappFrom([TVar(Name(_tname))].concat(_targs.map(TVar)))))),
-        CVar(Name(`un${_tname}`), tforallK(_targs.map(n => [n, kType] as [Name, Kind]), tfun(tappFrom([TVar(Name(_tname))].concat(_targs.map(TVar))), _ty))),
-      );
-      _env[_tname] = _env[`un${_tname}`] = _id;
-      return _cb(`defined ${_tname} and un${_tname}`);
+      const _rest = _s.slice(4).trim();
+      const _ds = parseDefs(_rest);
+      inferDefs(_ds);
+      const _c = compileDefs(_ds, n => `${_env}['${n}']`);
+      eval(`(() => {${_c}})()`);
+      return _cb(`defined ${_ds.map(d => showName(d.name)).join(' ')}`);
     } catch (err) {
       return _cb(`${err}`, true);
     }

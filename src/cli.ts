@@ -1,12 +1,12 @@
-import { parse } from './parser';
-import { infer } from './inference';
-import { compile } from './compiler';
+import { parseDefs } from './parser';
+import { inferDefs } from './inference';
+import { compileDefs } from './compiler';
 
 if (process.argv[2]) {
   const sc = require('fs').readFileSync(process.argv[2], 'utf8');
-  const ds = parse(sc);
-  infer(ds);
-  const c = compile(ds);
+  const ds = parseDefs(sc);
+  inferDefs(ds);
+  const c = compileDefs(ds, x => `const ${x}`);
   console.log(c);
   process.exit();
 }
