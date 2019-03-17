@@ -51,6 +51,7 @@ const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare', 'foreign'];
 const START = 0;
 const NAME = 1;
 const STRING = 2;
+const COMMENT = 3;
 const tokenize = (sc: string): Token[] => {
   let state = START;
   let r: Token[] = [];
@@ -63,6 +64,7 @@ const tokenize = (sc: string): Token[] => {
     if (state === START) {
       if (SYM2.indexOf(c + next) >= 0) r.push(SymbolT(c + next)), i++;
       else if (SYM1.indexOf(c) >= 0) r.push(SymbolT(c));
+      else if (c === ';') state = COMMENT;
       else if (c === '"') state = STRING;
       else if (/[a-z]/i.test(c)) t += c, state = NAME;
       else if(c === '(') b.push(c), p.push(r), r = [];
@@ -86,6 +88,8 @@ const tokenize = (sc: string): Token[] => {
         r.push(StringT(t));
         t = '', state = START;
       } else t += c;
+    } else if (state === COMMENT) {
+      if (c === '\n') state = START;
     }
   }
   if (b.length > 0) return err(`unclosed brackets: ${b.join(' ')}`);

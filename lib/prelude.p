@@ -1,3 +1,4 @@
+; some primitives so we have some concrete values
 decltype PrimBool : Type
 declare primTrue : PrimBool
 foreign primTrue "true"
@@ -16,6 +17,7 @@ foreign primNil "[]"
 declare primCons : forall t. t -> PrimList t -> PrimList t
 foreign primCons "h => t => [h].concat(t)"
 
+; our base types
 type Void = forall t. t
 
 type Unit = forall t. t -> t

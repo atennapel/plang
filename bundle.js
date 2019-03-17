@@ -805,6 +805,7 @@ const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare', 'foreign'];
 const START = 0;
 const NAME = 1;
 const STRING = 2;
+const COMMENT = 3;
 const tokenize = (sc) => {
     let state = START;
     let r = [];
@@ -819,6 +820,8 @@ const tokenize = (sc) => {
                 r.push(SymbolT(c + next)), i++;
             else if (SYM1.indexOf(c) >= 0)
                 r.push(SymbolT(c));
+            else if (c === ';')
+                state = COMMENT;
             else if (c === '"')
                 state = STRING;
             else if (/[a-z]/i.test(c))
@@ -855,6 +858,10 @@ const tokenize = (sc) => {
             }
             else
                 t += c;
+        }
+        else if (state === COMMENT) {
+            if (c === '\n')
+                state = START;
         }
     }
     if (b.length > 0)
@@ -1242,7 +1249,7 @@ const _show = (x) => {
     }
     return '' + x;
 };
-const _prelude = "decltype PrimBool : Type\r\ndeclare primTrue : PrimBool\r\nforeign primTrue \"true\"\r\ndeclare primFalse : PrimBool\r\nforeign primFalse \"false\"\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n";
+const _prelude = "; some primitives so we have some concrete values\r\ndecltype PrimBool : Type\r\ndeclare primTrue : PrimBool\r\nforeign primTrue \"true\"\r\ndeclare primFalse : PrimBool\r\nforeign primFalse \"false\"\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\n; our base types\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n";
 const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     if (_s === ':c' || _s === ':ctx' || _s === ':context')
