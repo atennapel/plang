@@ -278,15 +278,29 @@ const parseParens = (ts: Token[]): Term => {
 const parseParensDefs = (ts: Token[]): Def[] => {
   if (ts.length === 0) return [];
   if (matchVarT('type', ts[0])) {
-    const args: NameT[] = [];
-    let i = 1;
+    if (ts[1].tag !== 'VarT') return err(`invalid type name: ${ts[1].val}`);
+    const tname = ts[1].val as string;
+    const args: [NameT, Kind | null][] = [];
+    let i = 2;
     while (true) {
       const c = ts[i++];
       if (!c) return err(`no = after type def`);
       if (matchSymbolT('=', c)) break;
+      if (c.tag === 'ParenT') {
+        const parts = splitTokens(c.val, t => matchSymbolT(':', t));
+        if (parts.length !== 2) return err(`invalid use of : in type argument`);
+        const as = parts[0].map(t => {
+          if (t.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(t.val) >= 0)
+            return err(`not a valid arg in type: ${t.val}`);
+          return Name(t.val);
+        });
+        const ki = parseParensKind(parts[1]);
+        for (let j = 0; j < as.length; j++) args.push([as[j], ki]);
+        continue;
+      }
       if (c.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(c.tag) >= 0)
         return err(`invalid arg: ${c.val}`);
-      args.push(Name(c.val));
+      args.push([Name(c.val), null]);
     }
     if (args.length === 0) return err(`type def without name`);
     const bodyts: Token[] = [];
@@ -297,7 +311,7 @@ const parseParensDefs = (ts: Token[]): Def[] => {
     }
     const body = parseParensType(bodyts);
     const rest = parseParensDefs(ts.slice(i - 1));
-    return [DType(args[0], args.slice(1).map(n => [n, kType] as [NameT, Kind | null]), body) as Def].concat(rest);
+    return [DType(Name(tname), args, body) as Def].concat(rest);
   }
   if (matchVarT('let', ts[0])) {
     const args: NameT[] = [];
