@@ -1,3 +1,6 @@
+decltype BoolP : Type
+declare trueP : BoolP
+
 type Void = forall t. t
 
 type Unit = forall t. t -> t

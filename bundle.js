@@ -24,6 +24,8 @@ exports.compileDef = (def, prefix) => {
         }
         case 'DLet':
             return `${prefix(exports.compileName(def.name))} = ${def.args.map(exports.compileName).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${exports.compile(def.term)};`;
+        case 'DDeclType': return '';
+        case 'DDeclare': return '';
     }
 };
 exports.compileDefs = (ds, prefix) => ds.map(d => exports.compileDef(d, prefix)).join('\n') + '\n';
@@ -182,6 +184,10 @@ exports.DType = (name, args, type) => ({ tag: 'DType', name, args, type });
 exports.isDType = (def) => def.tag === 'DType';
 exports.DLet = (name, args, term) => ({ tag: 'DLet', name, args, term });
 exports.isDLet = (def) => def.tag === 'DLet';
+exports.DDeclType = (name, kind) => ({ tag: 'DDeclType', name, kind });
+exports.isDDeclType = (def) => def.tag === 'DDeclType';
+exports.DDeclare = (name, type) => ({ tag: 'DDeclare', name, type });
+exports.isDDeclare = (def) => def.tag === 'DDeclare';
 exports.showDef = (def) => {
     switch (def.tag) {
         case 'DType': {
@@ -194,6 +200,8 @@ exports.showDef = (def) => {
             const args = def.args.length > 0 ? `${def.args.map(names_1.showName).join(' ')} ` : '';
             return `let ${names_1.showName(def.name)} ${args}= ${terms_1.showTerm(def.term)}`;
         }
+        case 'DDeclType': return `decltype ${names_1.showName(def.name)} : ${kinds_1.showKind(def.kind)}`;
+        case 'DDeclare': return `declare ${names_1.showName(def.name)} : ${types_1.showType(def.type)}`;
     }
 };
 
@@ -478,7 +486,6 @@ exports.inferDef = (def) => {
     // console.log(`inferDef ${showDef(def)}`);
     switch (def.tag) {
         case 'DType': {
-            wellformedness_1.wfType(types_1.tforallK(def.args, def.type));
             const tname = def.name;
             const untname = names_1.Name(`un${tname.name}`);
             const targs = def.args;
@@ -488,6 +495,7 @@ exports.inferDef = (def) => {
                 throw new TypeError(`${names_1.showName(tname)} is already defined`);
             if (global_1.context.lookup('CVar', untname))
                 throw new TypeError(`${names_1.showName(untname)} is already defined`);
+            wellformedness_1.wfType(types_1.tforallK(def.args, def.type));
             global_1.context.add(elems_1.CTVar(tname, kinds_1.kfunFrom(targs.map(([_, k]) => k || kinds_1.kType).concat([kinds_1.kType]))), elems_1.CVar(tname, types_1.tforallK(targs, types_1.tfun(def.type, types_1.tappFrom([types_1.TVar(tname)].concat(targs.map(([n]) => types_1.TVar(n))))))), elems_1.CVar(untname, types_1.tforallK(targs, types_1.tfun(types_1.tappFrom([types_1.TVar(tname)].concat(targs.map(([n]) => types_1.TVar(n)))), def.type))));
             return;
         }
@@ -498,6 +506,22 @@ exports.inferDef = (def) => {
             const ty = exports.infer(terms_1.abs(def.args, def.term));
             // console.log(`${showName(name)} : ${showType(ty)}`);
             global_1.context.add(elems_1.CVar(name, ty));
+            return;
+        }
+        case 'DDeclType': {
+            const name = def.name;
+            if (global_1.context.lookup('CTVar', name))
+                throw new TypeError(`type ${names_1.showName(name)} is already defined`);
+            wellformedness_1.wfKind(def.kind);
+            global_1.context.add(elems_1.CTVar(name, def.kind));
+            return;
+        }
+        case 'DDeclare': {
+            const name = def.name;
+            if (global_1.context.lookup('CVar', name))
+                throw new TypeError(`${names_1.showName(name)} is already defined`);
+            wellformedness_1.wfType(def.type);
+            global_1.context.add(elems_1.CVar(name, def.type));
             return;
         }
     }
@@ -770,7 +794,7 @@ const SYM1 = ['\\', ':', '.', '='];
 const SYM2 = ['->'];
 const KEYWORDS = ['let', 'in', 'type'];
 const KEYWORDS_TYPE = ['forall', 'type', 'let'];
-const KEYWORDS_DEF = ['let', 'type'];
+const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare'];
 const START = 0;
 const NAME = 1;
 const tokenize = (sc) => {
@@ -1103,6 +1127,42 @@ const parseParensDefs = (ts) => {
         const rest = parseParensDefs(ts.slice(i - 1));
         return [definitions_1.DLet(args[0], args.slice(1), body)].concat(rest);
     }
+    if (matchVarT('decltype', ts[0])) {
+        if (ts[1].tag !== 'VarT')
+            return err(`invalid type name: ${ts[1].val}`);
+        const name = ts[1].val;
+        if (ts[2].tag !== 'SymbolT' || ts[2].val !== ':')
+            return err(`: expected after declare name but got ${ts[2].val}`);
+        let i = 3;
+        const bodyts = [];
+        while (true) {
+            const c = ts[i++];
+            if (!c || (c.tag === 'VarT' && KEYWORDS_DEF.indexOf(c.val) >= 0))
+                break;
+            bodyts.push(c);
+        }
+        const body = parseParensKind(bodyts);
+        const rest = parseParensDefs(ts.slice(i - 1));
+        return [definitions_1.DDeclType(names_1.Name(name), body)].concat(rest);
+    }
+    if (matchVarT('declare', ts[0])) {
+        if (ts[1].tag !== 'VarT')
+            return err(`invalid def name: ${ts[1].val}`);
+        const name = ts[1].val;
+        if (ts[2].tag !== 'SymbolT' || ts[2].val !== ':')
+            return err(`: expected after declare name but got ${ts[2].val}`);
+        let i = 3;
+        const bodyts = [];
+        while (true) {
+            const c = ts[i++];
+            if (!c || (c.tag === 'VarT' && KEYWORDS_DEF.indexOf(c.val) >= 0))
+                break;
+            bodyts.push(c);
+        }
+        const body = parseParensType(bodyts);
+        const rest = parseParensDefs(ts.slice(i - 1));
+        return [definitions_1.DDeclare(names_1.Name(name), body)].concat(rest);
+    }
     return err(`def stuck on ${ts[0].val}`);
 };
 // parsing
@@ -1151,7 +1211,7 @@ const _show = (x) => {
     }
     return '' + x;
 };
-const _prelude = "type Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n";
+const _prelude = "decltype BoolP : Type\r\ndeclare trueP : BoolP\r\n\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n";
 const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     if (_s === ':c' || _s === ':ctx' || _s === ':context')

@@ -1,7 +1,7 @@
 import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn, isLet, openLet, abs } from './terms';
 import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType, tforallK, tfun, tappFrom } from './types';
 import { namestore, context, apply } from './global';
-import { wfContext, wfType } from './wellformedness';
+import { wfContext, wfType, wfKind } from './wellformedness';
 import { infererr } from './error';
 import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap, showName, Name } from './names';
 import { subsume } from './subsumption';
@@ -169,7 +169,6 @@ export const inferDef = (def: Def): void => {
   // console.log(`inferDef ${showDef(def)}`);
   switch (def.tag) {
     case 'DType': {
-      wfType(tforallK(def.args, def.type));
       const tname = def.name;
       const untname = Name(`un${tname.name}`);
       const targs = def.args;
@@ -179,6 +178,7 @@ export const inferDef = (def: Def): void => {
         throw new TypeError(`${showName(tname)} is already defined`);
       if (context.lookup('CVar', untname))
         throw new TypeError(`${showName(untname)} is already defined`);
+      wfType(tforallK(def.args, def.type));
       context.add(
         CTVar(tname, kfunFrom(targs.map(([_, k]) => k || kType).concat([kType]))),
         CVar(tname, tforallK(targs, tfun(def.type, tappFrom([TVar(tname)].concat(targs.map(([n]) => TVar(n))))))),
@@ -193,6 +193,22 @@ export const inferDef = (def: Def): void => {
       const ty = infer(abs(def.args, def.term));
       // console.log(`${showName(name)} : ${showType(ty)}`);
       context.add(CVar(name, ty));
+      return;
+    }
+    case 'DDeclType': {
+      const name = def.name;
+      if (context.lookup('CTVar', name))
+        throw new TypeError(`type ${showName(name)} is already defined`);
+      wfKind(def.kind);
+      context.add(CTVar(name, def.kind));
+      return;
+    }
+    case 'DDeclare': {
+      const name = def.name;
+      if (context.lookup('CVar', name))
+        throw new TypeError(`${showName(name)} is already defined`);
+      wfType(def.type);
+      context.add(CVar(name, def.type));
       return;
     }
   }

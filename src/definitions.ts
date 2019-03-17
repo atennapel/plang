@@ -5,7 +5,9 @@ import { Term, showTerm } from "./terms";
 
 export type Def
   = DType
-  | DLet;
+  | DLet
+  | DDeclType
+  | DDeclare;
 
 export interface DType {
   readonly tag: 'DType';
@@ -27,6 +29,24 @@ export const DLet = (name: NameT, args: NameT[], term: Term): DLet =>
   ({ tag: 'DLet', name, args, term });
 export const isDLet = (def: Def): def is DLet => def.tag === 'DLet';
 
+export interface DDeclType {
+  readonly tag: 'DDeclType';
+  readonly name: NameT;
+  readonly kind: Kind;
+}
+export const DDeclType = (name: NameT, kind: Kind): DDeclType =>
+  ({ tag: 'DDeclType', name, kind });
+export const isDDeclType = (def: Def): def is DDeclType => def.tag === 'DDeclType';
+
+export interface DDeclare {
+  readonly tag: 'DDeclare';
+  readonly name: NameT;
+  readonly type: Type;
+}
+export const DDeclare = (name: NameT, type: Type): DDeclare =>
+  ({ tag: 'DDeclare', name, type });
+export const isDDeclare = (def: Def): def is DDeclare => def.tag === 'DDeclare';
+
 export const showDef = (def: Def): string => {
   switch (def.tag) {
     case 'DType': {
@@ -39,5 +59,7 @@ export const showDef = (def: Def): string => {
       const args = def.args.length > 0 ? `${def.args.map(showName).join(' ')} ` : '';
       return `let ${showName(def.name)} ${args}= ${showTerm(def.term)}`;
     }
+    case 'DDeclType': return `decltype ${showName(def.name)} : ${showKind(def.kind)}`;
+    case 'DDeclare': return `declare ${showName(def.name)} : ${showType(def.type)}`;
   }
 };

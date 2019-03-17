@@ -2,7 +2,7 @@ import { Term, Var, appFrom, abs, Ann, Let } from './terms';
 import { Name, NameT } from './names';
 import { TVar, Type, tappFrom, tfunFrom, tforallK } from './types';
 import { Kind, KVar, kfunFrom, kType } from './kinds';
-import { Def, DLet, DType } from './definitions';
+import { Def, DLet, DType, DDeclType, DDeclare } from './definitions';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -42,7 +42,7 @@ const SYM2 = ['->'];
 
 const KEYWORDS = ['let', 'in', 'type'];
 const KEYWORDS_TYPE = ['forall', 'type', 'let'];
-const KEYWORDS_DEF = ['let', 'type'];
+const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare'];
 
 const START = 0;
 const NAME = 1;
@@ -333,6 +333,38 @@ const parseParensDefs = (ts: Token[]): Def[] => {
     const body = parseParens(bodyts);
     const rest = parseParensDefs(ts.slice(i - 1));
     return [DLet(args[0], args.slice(1), body) as Def].concat(rest);
+  }
+  if (matchVarT('decltype', ts[0])) {
+    if (ts[1].tag !== 'VarT') return err(`invalid type name: ${ts[1].val}`);
+    const name = ts[1].val as string;
+    if (ts[2].tag !== 'SymbolT' || ts[2].val !== ':')
+      return err(`: expected after declare name but got ${ts[2].val}`);
+    let i = 3;
+    const bodyts: Token[] = [];
+    while (true) {
+      const c = ts[i++];
+      if (!c || (c.tag === 'VarT' && KEYWORDS_DEF.indexOf(c.val) >= 0)) break;
+      bodyts.push(c);
+    }
+    const body = parseParensKind(bodyts);
+    const rest = parseParensDefs(ts.slice(i - 1));
+    return [DDeclType(Name(name), body) as Def].concat(rest);
+  }
+  if (matchVarT('declare', ts[0])) {
+    if (ts[1].tag !== 'VarT') return err(`invalid def name: ${ts[1].val}`);
+    const name = ts[1].val as string;
+    if (ts[2].tag !== 'SymbolT' || ts[2].val !== ':')
+      return err(`: expected after declare name but got ${ts[2].val}`);
+    let i = 3;
+    const bodyts: Token[] = [];
+    while (true) {
+      const c = ts[i++];
+      if (!c || (c.tag === 'VarT' && KEYWORDS_DEF.indexOf(c.val) >= 0)) break;
+      bodyts.push(c);
+    }
+    const body = parseParensType(bodyts);
+    const rest = parseParensDefs(ts.slice(i - 1));
+    return [DDeclare(Name(name), body) as Def].concat(rest);
   }
   return err(`def stuck on ${ts[0].val}`);
 };
