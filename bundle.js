@@ -464,6 +464,18 @@ const typeappsynth = (type, term) => {
         typecheck(term, f.left);
         return f.right;
     }
+    // TODO: generalize the below for all type applications
+    if (types_1.isTApp(type) && types_1.isTMeta(type.left)) {
+        const x = type.left.name;
+        const a = global_1.namestore.fresh(x);
+        const ta = types_1.TMeta(a);
+        global_1.context.replace('CTMeta', x, [
+            elems_1.CTMeta(a, kinds_1.kType),
+            elems_1.CTMeta(x, kinds_1.kfun(kinds_1.kType, kinds_1.kType), types_1.TApp(types_1.tFun, ta)),
+        ]);
+        typecheck(term, ta);
+        return type.right;
+    }
     return error_1.infererr(`cannot typeappsynth: ${types_1.showType(type)} @ ${terms_1.showTerm(term)}`);
 };
 exports.infer = (term) => {
@@ -922,7 +934,7 @@ const parseParensKind = (ts) => {
     fs.push(args);
     return kinds_1.kfunFrom(fs.map(ts => {
         if (ts.length === 0)
-            return err(`empty kind`);
+            return err(`empty kind ->`);
         if (ts.length > 1)
             return err(`kind applications unimplemented`);
         return parseTokenKind(ts[0]);
@@ -937,7 +949,11 @@ const parseTokenType = (ts) => {
                 return err(`stuck on ${ts.val}`);
             return types_1.TVar(names_1.Name(ts.val));
         }
-        case 'SymbolT': return err(`stuck on ${ts.val}`);
+        case 'SymbolT': {
+            if (ts.val === '->')
+                return types_1.tFun;
+            return err(`stuck on ${ts.val}`);
+        }
         case 'ParenT': return parseParensType(ts.val);
         case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
     }
@@ -997,7 +1013,25 @@ const parseParensType = (ts) => {
         args.push(c);
     }
     fs.push(args);
-    return types_1.tfunFrom(fs.map(ts => types_1.tappFrom(ts.map(parseTokenType))));
+    if (fs.length === 2) {
+        // special case (->)
+        if (fs[0].length === 0 && fs[1].length === 0) {
+            return types_1.tFun;
+            // special case (t ->)
+        }
+        else if (fs[1].length === 0) {
+            return types_1.TApp(types_1.tFun, types_1.tappFrom(fs[0].map(parseTokenType)));
+            // special case (-> t)
+        }
+        else if (fs[0].length === 0) {
+            return types_1.TApp(types_1.tFun, types_1.tappFrom(fs[1].map(parseTokenType)));
+        }
+    }
+    return types_1.tfunFrom(fs.map(ts => {
+        if (ts.length === 0)
+            return err(`empty type ->`);
+        return types_1.tappFrom(ts.map(parseTokenType));
+    }));
 };
 // terms
 const parseToken = (ts) => {
@@ -1249,7 +1283,7 @@ const _show = (x) => {
     }
     return '' + x;
 };
-const _prelude = "; some primitives so we have some concrete values\r\ndecltype PrimBool : Type\r\ndeclare primTrue : PrimBool\r\nforeign primTrue \"true\"\r\ndeclare primFalse : PrimBool\r\nforeign primFalse \"false\"\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\n; our base types\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n";
+const _prelude = "; some primitives so we have some concrete values\r\ndecltype PrimBool : Type\r\ndeclare primTrue : PrimBool\r\nforeign primTrue \"true\"\r\ndeclare primFalse : PrimBool\r\nforeign primFalse \"false\"\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\n; our base types\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n\r\ntype Functor (f : Type -> Type) = forall a b. (a -> b) -> f a -> f b\r\n";
 const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     if (_s === ':c' || _s === ':ctx' || _s === ':context')

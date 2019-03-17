@@ -1,6 +1,6 @@
 import { Term, Var, appFrom, abs, Ann, Let } from './terms';
 import { Name, NameT } from './names';
-import { TVar, Type, tappFrom, tfunFrom, tforallK } from './types';
+import { TVar, Type, tappFrom, tfunFrom, tforallK, tFun, TApp } from './types';
 import { Kind, KVar, kfunFrom, kType } from './kinds';
 import { Def, DLet, DType, DDeclType, DDeclare, DForeign } from './definitions';
 
@@ -146,7 +146,7 @@ const parseParensKind = (ts: Token[]): Kind => {
   }
   fs.push(args);
   return kfunFrom(fs.map(ts => {
-    if (ts.length === 0) return err(`empty kind`);
+    if (ts.length === 0) return err(`empty kind ->`);
     if (ts.length > 1) return err(`kind applications unimplemented`);
     return parseTokenKind(ts[0]);
   }));
@@ -160,7 +160,10 @@ const parseTokenType = (ts: Token): Type => {
       if (KEYWORDS_TYPE.indexOf(ts.val) >= 0) return err(`stuck on ${ts.val}`);
       return TVar(Name(ts.val));
     }
-    case 'SymbolT': return err(`stuck on ${ts.val}`);
+    case 'SymbolT': {
+      if (ts.val === '->') return tFun;
+      return err(`stuck on ${ts.val}`);
+    }
     case 'ParenT': return parseParensType(ts.val);
     case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
   }
@@ -214,7 +217,22 @@ const parseParensType = (ts: Token[]): Type => {
     args.push(c);
   }
   fs.push(args);
-  return tfunFrom(fs.map(ts => tappFrom(ts.map(parseTokenType))));
+  if (fs.length === 2) {
+    // special case (->)
+    if (fs[0].length === 0 && fs[1].length === 0) {
+      return tFun;      
+    // special case (t ->)
+    } else if (fs[1].length === 0) {
+      return TApp(tFun, tappFrom(fs[0].map(parseTokenType)));
+    // special case (-> t)
+    } else if (fs[0].length === 0) {
+      return TApp(tFun, tappFrom(fs[1].map(parseTokenType)));
+    }
+  }
+  return tfunFrom(fs.map(ts => {
+    if (ts.length === 0) return err(`empty type ->`);
+    return tappFrom(ts.map(parseTokenType))
+  }));
 };
 
 // terms

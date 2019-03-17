@@ -1,12 +1,12 @@
 import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn, isLet, openLet, abs } from './terms';
-import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType, tforallK, tfun, tappFrom } from './types';
+import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType, tforallK, tfun, tappFrom, isTApp, TApp, tFun } from './types';
 import { namestore, context, apply } from './global';
 import { wfContext, wfType, wfKind } from './wellformedness';
 import { infererr } from './error';
 import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap, showName, Name } from './names';
 import { subsume } from './subsumption';
 import { CVar, CTVar, CKMeta, CTMeta } from './elems';
-import { KMeta, kType, kfunFrom } from './kinds';
+import { KMeta, kType, kfunFrom, kfun } from './kinds';
 import { checkKindType } from './kindInference';
 import { Def, showDef } from './definitions';
 
@@ -142,6 +142,18 @@ const typeappsynth = (type: Type, term: Term): Type => {
   if (f) {
     typecheck(term, f.left);
     return f.right;
+  }
+  // TODO: generalize the below for all type applications
+  if (isTApp(type) && isTMeta(type.left)) {
+    const x = type.left.name;
+    const a = namestore.fresh(x);
+    const ta = TMeta(a);
+    context.replace('CTMeta', x, [
+      CTMeta(a, kType),
+      CTMeta(x, kfun(kType, kType), TApp(tFun, ta)),
+    ]);
+    typecheck(term, ta);
+    return type.right;
   }
   return infererr(`cannot typeappsynth: ${showType(type)} @ ${showTerm(term)}`);
 };
