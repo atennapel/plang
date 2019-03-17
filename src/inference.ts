@@ -1,13 +1,14 @@
-import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn, isLet, openLet } from './terms';
-import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType } from './types';
+import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn, isLet, openLet, abs } from './terms';
+import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType, tforallK, tfun, tappFrom } from './types';
 import { namestore, context, apply } from './global';
 import { wfContext, wfType } from './wellformedness';
 import { infererr } from './error';
-import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap, showName } from './names';
+import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap, showName, Name } from './names';
 import { subsume } from './subsumption';
 import { CVar, CTVar, CKMeta, CTMeta } from './elems';
-import { KMeta, kType } from './kinds';
+import { KMeta, kType, kfunFrom } from './kinds';
 import { checkKindType } from './kindInference';
+import { Def, showDef } from './definitions';
 
 const unsolvedInType = (unsolved: NameT[], type: Type, ns: NameT[] = []): NameT[] => {
   switch (type.tag) {
@@ -163,3 +164,39 @@ export const infer = (term: Term): Type => {
     throw err;
   }
 };
+
+export const inferDef = (def: Def): void => {
+  // console.log(`inferDef ${showDef(def)}`);
+  switch (def.tag) {
+    case 'DType': {
+      wfType(tforallK(def.args, def.type));
+      const tname = def.name;
+      const untname = Name(`un${tname.name}`);
+      const targs = def.args;
+      if (context.lookup('CTVar', tname))
+        throw new TypeError(`type ${showName(tname)} is already defined`);
+      if (context.lookup('CVar', tname))
+        throw new TypeError(`${showName(tname)} is already defined`);
+      if (context.lookup('CVar', untname))
+        throw new TypeError(`${showName(untname)} is already defined`);
+      context.add(
+        CTVar(tname, kfunFrom(targs.map(([_, k]) => k || kType).concat([kType]))),
+        CVar(tname, tforallK(targs, tfun(def.type, tappFrom([TVar(tname)].concat(targs.map(([n]) => TVar(n))))))),
+        CVar(untname, tforallK(targs, tfun(tappFrom([TVar(tname)].concat(targs.map(([n]) => TVar(n)))), def.type))),
+      );
+      return;
+    }
+    case 'DLet': {
+      const name = def.name;
+      if (context.lookup('CVar', name))
+        throw new TypeError(`${showName(name)} is already defined`);
+      const ty = infer(abs(def.args, def.term));
+      console.log(`${showName(name)} : ${showType(ty)}`);
+      context.add(CVar(name, ty));
+      return;
+    }
+  }
+};
+
+export const inferDefs = (ds: Def[]): void =>
+  ds.forEach(inferDef);

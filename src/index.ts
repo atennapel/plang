@@ -1,6 +1,6 @@
 import { showType } from './types';
 import { showTerm } from './terms';
-import { infer } from './inference';
+import { infer, inferDefs } from './inference';
 import { compile, compileDefs } from './compiler';
 import { parse, parseDefs } from './parser';
 import { context } from './global';
@@ -27,4 +27,5 @@ const fs = require('fs');
 const scr = fs.readFileSync('./lib/prelude.p', 'utf8');
 const ds = parseDefs(scr);
 console.log(ds.map(showDef).join('\n'));
+inferDefs(ds);
 console.log(compileDefs(ds, n => `const ${n}`));

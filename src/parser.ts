@@ -1,7 +1,7 @@
 import { Term, Var, appFrom, abs, Ann, Let } from './terms';
 import { Name, NameT } from './names';
 import { TVar, Type, tappFrom, tfunFrom, tforallK } from './types';
-import { Kind, KVar, kfunFrom } from './kinds';
+import { Kind, KVar, kfunFrom, kType } from './kinds';
 import { Def, DLet, DType } from './definitions';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
@@ -297,7 +297,7 @@ const parseParensDefs = (ts: Token[]): Def[] => {
     }
     const body = parseParensType(bodyts);
     const rest = parseParensDefs(ts.slice(i - 1));
-    return [DType(args[0], args.slice(1).map(n => [n, null] as [NameT, Kind | null]), body) as Def].concat(rest);
+    return [DType(args[0], args.slice(1).map(n => [n, kType] as [NameT, Kind | null]), body) as Def].concat(rest);
   }
   if (matchVarT('let', ts[0])) {
     const args: NameT[] = [];

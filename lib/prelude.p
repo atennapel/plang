@@ -16,4 +16,4 @@ type Bool = forall r. r -> r -> r
 let true = Bool \a b -> a
 let false = Bool \a b -> b
 let cond c a b = unBool c a b
-let if c a b = (cond c a b) unit
+let if c a b = cond c a b unit
