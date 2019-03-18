@@ -59,6 +59,9 @@ export const isTFun = (type: Type): type is TApp =>
 export const matchTFun = (type: Type): { left: Type, right: Type } | null =>
   isTFun(type) ? { left: (type.left as TApp).right, right: type.right } : null;
 
+export const nBool = Name('Bool');
+export const tBool = TVar(nBool);
+
 export const flattenTApp = (type: Type): Type[] => {
   let c = type;
   const r: Type[] = [];

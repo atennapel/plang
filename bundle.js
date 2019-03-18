@@ -13,6 +13,7 @@ exports.compile = (term) => {
         case 'App': return `${exports.compile(term.left)}(${exports.compile(term.right)})`;
         case 'Ann': return exports.compile(term.term);
         case 'Let': return `(${exports.compileName(term.name)} => ${exports.compile(term.body)})(${exports.compile(term.term)})`;
+        case 'If': return `(${exports.compile(term.cond)} ? ${exports.compile(term.then)} : ${exports.compile(term.else_)})`;
     }
 };
 exports.compileDef = (def, prefix) => {
@@ -275,7 +276,7 @@ const elems_1 = require("./elems");
 const kinds_1 = require("./kinds");
 const types_1 = require("./types");
 const namestore_1 = require("./namestore");
-const initialContext = () => context_1.Context.of(elems_1.CKVar(kinds_1.nType), elems_1.CTVar(types_1.nFun, kinds_1.kfun(kinds_1.kType, kinds_1.kType, kinds_1.kType)));
+const initialContext = () => context_1.Context.of(elems_1.CKVar(kinds_1.nType), elems_1.CTVar(types_1.nFun, kinds_1.kfun(kinds_1.kType, kinds_1.kType, kinds_1.kType)), elems_1.CTVar(types_1.nBool, kinds_1.kType));
 exports.context = initialContext();
 exports.resetContext = () => {
     exports.context = initialContext();
@@ -422,6 +423,12 @@ const typesynth = (term) => {
         const rty = global_1.apply(typesynth(terms_1.openLet(term, terms_1.Var(x))));
         return generalizeFrom(x, rty);
     }
+    if (terms_1.isIf(term)) {
+        typecheck(term.cond, types_1.tBool);
+        const ty = typesynth(term.then);
+        typecheck(term.else_, ty);
+        return ty;
+    }
     return error_1.infererr(`cannot synth: ${terms_1.showTerm(term)}`);
 };
 const typecheck = (term, type) => {
@@ -447,8 +454,14 @@ const typecheck = (term, type) => {
         const ty = typesynth(term.term);
         const x = global_1.namestore.fresh(term.name);
         global_1.context.enter(x, elems_1.CVar(x, ty));
-        typecheck(terms_1.openLet(term, terms_1.Var(x)), type);
+        typecheck(terms_1.openLet(term, terms_1.Var(x)), global_1.apply(type));
         global_1.context.leave(x);
+        return;
+    }
+    if (terms_1.isIf(term)) {
+        typecheck(term.cond, types_1.tBool);
+        typecheck(term.then, type);
+        typecheck(term.else_, global_1.apply(type));
         return;
     }
     const ty = typesynth(term);
@@ -927,7 +940,7 @@ const matchingBracket = (c) => {
 };
 const SYM1 = ['\\', ':', '.', '='];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
-const KEYWORDS = ['let', 'in', 'type'];
+const KEYWORDS = ['let', 'in', 'type', 'if', 'then', 'else'];
 const KEYWORDS_TYPE = ['forall', 'type', 'let'];
 const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare', 'foreign'];
 const START = 0;
@@ -1243,6 +1256,31 @@ const parseParens = (ts) => {
         const rest = parseParens(ts.slice(i));
         return terms_1.Let(args[0], args.length > 1 ? terms_1.abs(args.slice(1), body) : body, rest);
     }
+    if (matchVarT('if', ts[0])) {
+        let i = 1;
+        const condts = [];
+        while (true) {
+            const c = ts[i++];
+            if (!c)
+                return err(`no then after if`);
+            if (matchVarT('then', c))
+                break;
+            condts.push(c);
+        }
+        const truets = [];
+        while (true) {
+            const c = ts[i++];
+            if (!c)
+                return err(`no else after then after if`);
+            if (matchVarT('else', c))
+                break;
+            truets.push(c);
+        }
+        const cond = parseParens(condts);
+        const true_ = parseParens(truets);
+        const false_ = parseParens(ts.slice(i));
+        return terms_1.If(cond, true_, false_);
+    }
     if (contains(ts, t => matchSymbolT('<|', t))) {
         const split = splitTokens(ts, t => matchSymbolT('<|', t));
         // special case
@@ -1507,7 +1545,7 @@ const _show = (x) => {
     }
     return '' + x;
 };
-const _prelude = "; some primitives so we have some concrete values\r\ndecltype PrimBool : Type\r\ndeclare primTrue : PrimBool\r\nforeign primTrue \"true\"\r\ndeclare primFalse : PrimBool\r\nforeign primFalse \"false\"\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\n; our base types\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n\r\ntype List t = forall r. r -> (t -> r -> r) -> r\r\nlet Nil = List \\n c -> n\r\nlet Cons h t = List \\n c -> c h (unList t n c)\r\nlet showList l = unList l primNil primCons\r\n\r\nlet foldl f v l = unList l v f\r\nlet mapList f = foldl (\\h t -> Cons (f h) t) Nil\r\n\r\ntype Functor f = forall a b. (a -> b) -> f a -> f b\r\nlet map = unFunctor\r\n\r\nlet ArrFunctor = Functor \\f g x -> f (g x)\r\nlet ListFunctor = Functor mapList\r\n";
+const _prelude = "; some primitives so we have some concrete values\r\ndeclare True : Bool\r\nforeign True \"true\"\r\ndeclare False : Bool\r\nforeign False \"false\"\r\nlet not b = if b then False else True\r\nlet and a b = if a then b else False\r\nlet or a b = if a then True else b\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\ndecltype Pair : Type -> Type -> Type\r\ndeclare pair : forall a b. a -> b -> Pair a b\r\nforeign pair \"a => b => [a, b]\"\r\ndeclare fst : forall a b. Pair a b -> a\r\nforeign fst \"p => p[0]\"\r\ndeclare snd : forall a b. Pair a b -> b\r\nforeign snd \"p => p[1]\"\r\n\r\n; our base types\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype List t = forall r. r -> (t -> r -> r) -> r\r\nlet Nil = List \\n c -> n\r\nlet Cons h t = List \\n c -> c h (unList t n c)\r\nlet showList l = unList l primNil primCons\r\n\r\nlet foldl f v l = unList l v f\r\nlet mapList f = foldl (\\h t -> Cons (f h) t) Nil\r\n\r\ntype Functor f = forall a b. (a -> b) -> f a -> f b\r\nlet map = unFunctor\r\n\r\nlet ArrFunctor = Functor \\f g x -> f (g x)\r\nlet ListFunctor = Functor mapList\r\n";
 const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     if (_s === ':c' || _s === ':ctx' || _s === ':context')
@@ -1740,6 +1778,8 @@ exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.isAnn = (term) => term.tag === 'Ann';
 exports.Let = (name, term, body) => ({ tag: 'Let', name, term, body });
 exports.isLet = (term) => term.tag === 'Let';
+exports.If = (cond, then, else_) => ({ tag: 'If', cond, then, else_ });
+exports.isIf = (term) => term.tag === 'If';
 exports.flattenApp = (type) => {
     let c = type;
     const r = [];
@@ -1777,6 +1817,8 @@ exports.showTerm = (term) => {
         case 'Ann': return `${exports.showTerm(term.term)} : ${types_1.showType(term.type)}`;
         case 'Let':
             return `(let ${names_1.showName(term.name)} = ${exports.showTerm(term.term)} in ${exports.showTerm(term.body)})`;
+        case 'If':
+            return `(if ${exports.showTerm(term.cond)} then ${exports.showTerm(term.then)} else ${exports.showTerm(term.else_)})`;
     }
 };
 const substVar = (x, s, term) => {
@@ -1801,6 +1843,12 @@ const substVar = (x, s, term) => {
             const val = substVar(x, s, term.term);
             const body = names_1.eqName(x, term.name) ? term.body : substVar(x, s, term.body);
             return term.term === val && term.body === body ? term : exports.Let(term.name, val, body);
+        }
+        case 'If': {
+            const cond = substVar(x, s, term.cond);
+            const then = substVar(x, s, term.then);
+            const else_ = substVar(x, s, term.else_);
+            return exports.If(cond, then, else_);
         }
     }
 };
@@ -1834,6 +1882,8 @@ exports.tfunFrom = (ts) => ts.reduceRight((x, y) => exports.TFun(y, x));
 exports.tfun = (...ts) => exports.tfunFrom(ts);
 exports.isTFun = (type) => exports.isTApp(type) && exports.isTApp(type.left) && exports.isTVar(type.left.left) && names_1.eqName(type.left.left.name, exports.nFun);
 exports.matchTFun = (type) => exports.isTFun(type) ? { left: type.left.right, right: type.right } : null;
+exports.nBool = names_1.Name('Bool');
+exports.tBool = exports.TVar(exports.nBool);
 exports.flattenTApp = (type) => {
     let c = type;
     const r = [];

@@ -1,4 +1,4 @@
-import { Term, Var, appFrom, abs, Ann, Let, App } from './terms';
+import { Term, Var, appFrom, abs, Ann, Let, App, If } from './terms';
 import { Name, NameT } from './names';
 import { TVar, Type, tappFrom, tfunFrom, tforallK, tFun, TApp } from './types';
 import { Kind, KVar, kfunFrom, kType } from './kinds';
@@ -45,7 +45,7 @@ const matchingBracket = (c: Bracket): Bracket => {
 const SYM1 = ['\\', ':', '.', '='];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
 
-const KEYWORDS = ['let', 'in', 'type'];
+const KEYWORDS = ['let', 'in', 'type', 'if', 'then', 'else'];
 const KEYWORDS_TYPE = ['forall', 'type', 'let'];
 const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare', 'foreign'];
 
@@ -319,6 +319,27 @@ const parseParens = (ts: Token[]): Term => {
     const body = parseParens(bodyts);
     const rest = parseParens(ts.slice(i));
     return Let(args[0], args.length > 1 ? abs(args.slice(1), body) : body , rest);
+  }
+  if (matchVarT('if', ts[0])) {
+    let i = 1;
+    const condts: Token[] = [];
+    while (true) {
+      const c = ts[i++];
+      if (!c) return err(`no then after if`);
+      if (matchVarT('then', c)) break;
+      condts.push(c);
+    }
+    const truets: Token[] = [];
+    while (true) {
+      const c = ts[i++];
+      if (!c) return err(`no else after then after if`);
+      if (matchVarT('else', c)) break;
+      truets.push(c);
+    }
+    const cond = parseParens(condts);
+    const true_ = parseParens(truets);
+    const false_ = parseParens(ts.slice(i));
+    return If(cond, true_, false_);
   }
   if (contains(ts, t => matchSymbolT('<|', t))) {
     const split = splitTokens(ts, t => matchSymbolT('<|', t));

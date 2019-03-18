@@ -1,13 +1,14 @@
 import { Context } from './context';
 import { CKVar, CTVar } from './elems';
 import { nType, kfun, kType, Kind, KFun } from './kinds';
-import { nFun, Type, TApp, TForallK } from './types';
+import { nFun, Type, TApp, TForallK, nBool } from './types';
 import { NameStore } from './namestore';
 
 const initialContext = () =>
   Context.of(
     CKVar(nType),
     CTVar(nFun, kfun(kType, kType, kType)),
+    CTVar(nBool, kType),
   );
 
 export let context = initialContext();

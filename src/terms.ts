@@ -6,7 +6,8 @@ export type Term
   | Abs
   | App
   | Ann
-  | Let;
+  | Let
+  | If;
 
 export interface Var {
   readonly tag: 'Var';
@@ -53,6 +54,16 @@ export const Let = (name: NameT, term: Term, body: Term): Let =>
   ({ tag: 'Let', name, term, body });
 export const isLet = (term: Term): term is Let => term.tag === 'Let';
 
+export interface If {
+  readonly tag: 'If';
+  readonly cond: Term;
+  readonly then: Term;
+  readonly else_: Term;
+}
+export const If = (cond: Term, then: Term, else_: Term): If =>
+  ({ tag: 'If', cond, then, else_ });
+export const isIf = (term: Term): term is If => term.tag === 'If';
+
 export const flattenApp = (type: Term): Term[] => {
   let c = type;
   const r: Term[] = [];
@@ -90,6 +101,8 @@ export const showTerm = (term: Term): string => {
     case 'Ann': return `${showTerm(term.term)} : ${showType(term.type)}`;
     case 'Let':
       return `(let ${showName(term.name)} = ${showTerm(term.term)} in ${showTerm(term.body)})`;
+    case 'If':
+      return `(if ${showTerm(term.cond)} then ${showTerm(term.then)} else ${showTerm(term.else_)})`;
   }
 };
 
@@ -114,6 +127,12 @@ const substVar = (x: NameT, s: Term, term: Term): Term => {
       const val = substVar(x, s, term.term);
       const body = eqName(x, term.name) ? term.body : substVar(x, s, term.body);
       return term.term === val && term.body === body ? term : Let(term.name, val, body);
+    }
+    case 'If': {
+      const cond = substVar(x, s, term.cond);
+      const then = substVar(x, s, term.then);
+      const else_ = substVar(x, s, term.else_);
+      return If(cond, then, else_);
     }
   }
 };

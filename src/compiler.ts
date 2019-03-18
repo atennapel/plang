@@ -14,6 +14,7 @@ export const compile = (term: Term): string => {
     case 'App': return `${compile(term.left)}(${compile(term.right)})`;
     case 'Ann': return compile(term.term);
     case 'Let': return `(${compileName(term.name)} => ${compile(term.body)})(${compile(term.term)})`;
+    case 'If': return `(${compile(term.cond)} ? ${compile(term.then)} : ${compile(term.else_)})`;
   }
 };
 

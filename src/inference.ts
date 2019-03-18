@@ -1,5 +1,5 @@
-import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn, isLet, openLet, abs } from './terms';
-import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType, tforallK, tfun, tappFrom, isTApp, TApp, tFun, TForallK, flattenTForall } from './types';
+import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn, isLet, openLet, abs, isIf } from './terms';
+import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType, tforallK, tfun, tappFrom, isTApp, TApp, tFun, TForallK, flattenTForall, tBool } from './types';
 import { namestore, context, apply } from './global';
 import { wfContext, wfType, wfKind } from './wellformedness';
 import { infererr } from './error';
@@ -88,6 +88,12 @@ const typesynth = (term: Term): Type => {
     const rty = apply(typesynth(openLet(term, Var(x))));
     return generalizeFrom(x, rty);
   }
+  if (isIf(term)) {
+    typecheck(term.cond, tBool);
+    const ty = typesynth(term.then);
+    typecheck(term.else_, ty);
+    return ty;
+  }
   return infererr(`cannot synth: ${showTerm(term)}`);
 };
 
@@ -113,8 +119,14 @@ const typecheck = (term: Term, type: Type): void => {
     const ty = typesynth(term.term);
     const x = namestore.fresh(term.name);
     context.enter(x, CVar(x, ty));
-    typecheck(openLet(term, Var(x)), type);
+    typecheck(openLet(term, Var(x)), apply(type));
     context.leave(x);
+    return;
+  }
+  if (isIf(term)) {
+    typecheck(term.cond, tBool);
+    typecheck(term.then, type);
+    typecheck(term.else_, apply(type));
     return;
   }
   const ty = typesynth(term);
