@@ -6,7 +6,7 @@ import { parse, parseDefs, parseType } from './parser';
 import { context } from './global';
 import { showDef } from './definitions';
 
-const scr = '\\x -> x : forall f t. f t -> f t';
+const scr = '\\x -> x';
 try {
   console.log(scr);
   const term = parse(scr);

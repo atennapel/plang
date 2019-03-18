@@ -3,6 +3,7 @@ import { compile, compileDefs } from './compiler';
 import { infer, inferDefs } from './inference';
 import { parse, parseDefs } from './parser';
 import { context } from './global';
+import { config } from './config';
 import { showName } from './names';
 
 const _show = (x: any): string => {
@@ -21,6 +22,10 @@ const _prelude = require('fs').readFileSync(__dirname + '/../../lib/prelude.p', 
 const _env: string = typeof global === 'undefined' ? 'window' : 'global';
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   if (_s === ':c' || _s === ':ctx' || _s === ':context') return _cb(`${context}`);
+  if (_s === ':showkinds' || _s === ':k') {
+    config.showKinds = !config.showKinds;
+    return _cb(`showKinds: ${config.showKinds}`);
+  }
   if (_s.startsWith(':def ')) {
     try {
       const _rest = _s.slice(4).trim();

@@ -1,6 +1,7 @@
 import { NameT, showName, Name, eqName, NameMap, getNameMap, simplifyName } from './names';
 import { Kind, showKind } from './kinds';
 import { NameStore } from './namestore';
+import { config } from './config';
 
 export type Type
   = TVar
@@ -111,7 +112,7 @@ export const showType = (type: Type): string => {
     case 'TForall': {
       const f = flattenTForall(type);
       const args = f.args
-        .map(([n, k]) => k ? `(${showName(n)} : ${showKind(k)})` : showName(n))
+        .map(([n, k]) => k && config.showKinds ? `(${showName(n)} : ${showKind(k)})` : showName(n))
         .join(' ');
       return `forall ${args}. ${showType(f.type)}`;
     }

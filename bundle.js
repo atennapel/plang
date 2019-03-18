@@ -81,7 +81,14 @@ implements
 instanceof
 `.trim().split(/\s+/);
 
-},{"./names":11}],2:[function(require,module,exports){
+},{"./names":12}],2:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.config = {
+    showKinds: false,
+};
+
+},{}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -174,7 +181,7 @@ class Context {
 }
 exports.Context = Context;
 
-},{"./elems":4,"./names":11}],3:[function(require,module,exports){
+},{"./elems":5,"./names":12}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -209,7 +216,7 @@ exports.showDef = (def) => {
     }
 };
 
-},{"./kinds":10,"./names":11,"./terms":16,"./types":17}],4:[function(require,module,exports){
+},{"./kinds":11,"./names":12,"./terms":17,"./types":18}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -244,7 +251,7 @@ exports.showElem = (elem) => {
     }
 };
 
-},{"./kinds":10,"./names":11,"./types":17}],5:[function(require,module,exports){
+},{"./kinds":11,"./names":12,"./types":18}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 class InferError extends TypeError {
@@ -255,7 +262,7 @@ exports.infererr = (msg) => {
     throw new InferError(msg);
 };
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const context_1 = require("./context");
@@ -318,7 +325,7 @@ exports.apply = (type, ctx_) => {
     }
 };
 
-},{"./context":2,"./elems":4,"./kinds":10,"./namestore":12,"./types":17}],7:[function(require,module,exports){
+},{"./context":3,"./elems":5,"./kinds":11,"./namestore":13,"./types":18}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const terms_1 = require("./terms");
@@ -550,7 +557,7 @@ exports.inferDef = (def) => {
 };
 exports.inferDefs = (ds) => ds.forEach(exports.inferDef);
 
-},{"./elems":4,"./error":5,"./global":6,"./kindInference":8,"./kinds":10,"./names":11,"./subsumption":15,"./terms":16,"./types":17,"./wellformedness":20}],8:[function(require,module,exports){
+},{"./elems":5,"./error":6,"./global":7,"./kindInference":9,"./kinds":11,"./names":12,"./subsumption":16,"./terms":17,"./types":18,"./wellformedness":21}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -668,7 +675,7 @@ exports.checkKindType = (type) => {
         return error_1.infererr(`expected ${kinds_1.showKind(kinds_1.kType)} but got ${kinds_1.showKind(k)} in ${types_1.showType(type)}`);
 };
 
-},{"./elems":4,"./error":5,"./global":6,"./kindUnification":9,"./kinds":10,"./names":11,"./types":17}],9:[function(require,module,exports){
+},{"./elems":5,"./error":6,"./global":7,"./kindUnification":10,"./kinds":11,"./names":12,"./types":18}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -742,7 +749,7 @@ exports.unifyKinds = (a, b) => {
     return error_1.infererr(`kind unify failed: ${kinds_1.showKind(a)} ~ ${kinds_1.showKind(b)}`);
 };
 
-},{"./elems":4,"./error":5,"./global":6,"./kinds":10,"./names":11,"./wellformedness":20}],10:[function(require,module,exports){
+},{"./elems":5,"./error":6,"./global":7,"./kinds":11,"./names":12,"./wellformedness":21}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -794,7 +801,7 @@ exports.containsKMeta = (x, kind) => {
     }
 };
 
-},{"./names":11}],11:[function(require,module,exports){
+},{"./names":12}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Name = (name) => ({ tag: 'Name', name });
@@ -838,7 +845,7 @@ exports.nameContains = (ns, n) => {
     return false;
 };
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -865,7 +872,7 @@ class NameStore {
 }
 exports.NameStore = NameStore;
 
-},{"./names":11}],13:[function(require,module,exports){
+},{"./names":12}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const terms_1 = require("./terms");
@@ -1346,7 +1353,7 @@ exports.parseDefs = (sc) => {
     return ex;
 };
 
-},{"./definitions":3,"./kinds":10,"./names":11,"./terms":16,"./types":17}],14:[function(require,module,exports){
+},{"./definitions":4,"./kinds":11,"./names":12,"./terms":17,"./types":18}],15:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -1355,6 +1362,7 @@ const compiler_1 = require("./compiler");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
 const global_1 = require("./global");
+const config_1 = require("./config");
 const names_1 = require("./names");
 const _show = (x) => {
     if (typeof x === 'function')
@@ -1375,6 +1383,10 @@ const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     if (_s === ':c' || _s === ':ctx' || _s === ':context')
         return _cb(`${global_1.context}`);
+    if (_s === ':showkinds' || _s === ':k') {
+        config_1.config.showKinds = !config_1.config.showKinds;
+        return _cb(`showKinds: ${config_1.config.showKinds}`);
+    }
     if (_s.startsWith(':def ')) {
         try {
             const _rest = _s.slice(4).trim();
@@ -1417,7 +1429,7 @@ exports.run = (_s, _cb) => {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./compiler":1,"./global":6,"./inference":7,"./names":11,"./parser":13,"./types":17}],15:[function(require,module,exports){
+},{"./compiler":1,"./config":2,"./global":7,"./inference":8,"./names":12,"./parser":14,"./types":18}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1574,7 +1586,7 @@ exports.subsume = (a, b) => {
     return error_1.infererr(`subsume failed: ${types_1.showType(a)} <: ${types_1.showType(b)}`);
 };
 
-},{"./elems":4,"./error":5,"./global":6,"./kindInference":8,"./kinds":10,"./names":11,"./types":17,"./unification":18,"./wellformedness":20}],16:[function(require,module,exports){
+},{"./elems":5,"./error":6,"./global":7,"./kindInference":9,"./kinds":11,"./names":12,"./types":18,"./unification":19,"./wellformedness":21}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -1659,12 +1671,13 @@ const substVar = (x, s, term) => {
 exports.openAbs = (a, s) => substVar(a.name, s, a.body);
 exports.openLet = (a, s) => substVar(a.name, s, a.body);
 
-},{"./names":11,"./types":17}],17:[function(require,module,exports){
+},{"./names":12,"./types":18}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
 const kinds_1 = require("./kinds");
 const namestore_1 = require("./namestore");
+const config_1 = require("./config");
 exports.TVar = (name) => ({ tag: 'TVar', name });
 exports.isTVar = (type) => type.tag === 'TVar';
 exports.TMeta = (name) => ({ tag: 'TMeta', name });
@@ -1738,7 +1751,7 @@ exports.showType = (type) => {
         case 'TForall': {
             const f = exports.flattenTForall(type);
             const args = f.args
-                .map(([n, k]) => k ? `(${names_1.showName(n)} : ${kinds_1.showKind(k)})` : names_1.showName(n))
+                .map(([n, k]) => k && config_1.config.showKinds ? `(${names_1.showName(n)} : ${kinds_1.showKind(k)})` : names_1.showName(n))
                 .join(' ');
             return `forall ${args}. ${exports.showType(f.type)}`;
         }
@@ -1810,7 +1823,7 @@ exports.simplifyType = (type, ns = new namestore_1.NameStore()) => {
     }
 };
 
-},{"./kinds":10,"./names":11,"./namestore":12}],18:[function(require,module,exports){
+},{"./config":2,"./kinds":11,"./names":12,"./namestore":13}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1902,7 +1915,7 @@ exports.unify = (a, b) => {
     return error_1.infererr(`unify failed: ${types_1.showType(a)} ~ ${types_1.showType(b)}`);
 };
 
-},{"./elems":4,"./error":5,"./global":6,"./kindInference":8,"./kinds":10,"./names":11,"./subsumption":15,"./types":17}],19:[function(require,module,exports){
+},{"./elems":5,"./error":6,"./global":7,"./kindInference":9,"./kinds":11,"./names":12,"./subsumption":16,"./types":18}],20:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -1960,7 +1973,7 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":14}],20:[function(require,module,exports){
+},{"./repl":15}],21:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -2070,4 +2083,4 @@ exports.wfContext = () => {
     global_1.restoreContext();
 };
 
-},{"./elems":4,"./error":5,"./global":6,"./kinds":10,"./names":11,"./types":17}]},{},[19]);
+},{"./elems":5,"./error":6,"./global":7,"./kinds":11,"./names":12,"./types":18}]},{},[20]);
