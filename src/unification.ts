@@ -14,12 +14,14 @@ import {
 import { eqName } from './names';
 import { apply, namestore, context, discardContext, storeContext, restoreContext } from './global';
 import { CTMeta, CTVar } from './elems';
-import { kType, eqKind } from './kinds';
+import { eqKind, KFun } from './kinds';
 import { InferError, infererr } from './error';
 import { solve } from './subsumption';
 import { deriveKind } from './kindInference';
+import { log } from './config';
 
 export const inst = (x: TMeta, type: Type): void => {
+  log(`inst ${showType(x)} := ${showType(type)}`);
   storeContext();
   try {
     solve(x, type);
@@ -29,15 +31,18 @@ export const inst = (x: TMeta, type: Type): void => {
     restoreContext();
     if (isTMeta(type)) return solve(type, x);
     if (isTApp(type)) {
+      const ka = deriveKind(type.left);
+      const kb = deriveKind(type.right);
+      const kr = (ka as KFun).right;
       const y = x.name;
       const a = namestore.fresh(y);
       const b = namestore.fresh(y);
       const ta = TMeta(a);
       const tb = TMeta(b);
       context.replace('CTMeta', y, [
-        CTMeta(b, kType),
-        CTMeta(a, kType),
-        CTMeta(y, kType, TApp(ta, tb)),
+        CTMeta(b, kb),
+        CTMeta(a, ka),
+        CTMeta(y, kr, TApp(ta, tb)),
       ]);
       inst(ta, type.left);
       inst(tb, apply(type.right));
@@ -56,7 +61,7 @@ export const inst = (x: TMeta, type: Type): void => {
 };
 
 export const unify = (a: Type, b: Type): void => {
-  // console.log(`unify ${showType(a_)} ~ ${showType(b_)} in ${context}`);
+  log(`unify ${showType(a)} ~ ${showType(b)} in ${context}`);
   if (a === b) return;
   if (!eqKind(deriveKind(a), deriveKind(b)))
     return infererr(`kind mismatch in ${showType(a)} ~ ${showType(b)}`);

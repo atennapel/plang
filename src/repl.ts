@@ -3,8 +3,9 @@ import { compile, compileDefs } from './compiler';
 import { infer, inferDefs } from './inference';
 import { parse, parseDefs } from './parser';
 import { context } from './global';
-import { config } from './config';
+import { config, log } from './config';
 import { showName } from './names';
+import { showTerm } from './terms';
 
 const _show = (x: any): string => {
   if (typeof x === 'function') return '[Fn]';
@@ -25,6 +26,10 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   if (_s === ':showkinds' || _s === ':k') {
     config.showKinds = !config.showKinds;
     return _cb(`showKinds: ${config.showKinds}`);
+  }
+  if (_s === ':logging' || _s === ':l') {
+    config.logging = !config.logging;
+    return _cb(`logging: ${config.logging}`);
   }
   if (_s.startsWith(':def ')) {
     try {
@@ -51,13 +56,13 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   }
   try {
     const _e = parse(_s);
-    // console.log(showTerm(_e));
+    log(showTerm(_e));
     const _t = infer(_e);
-    // console.log(showType(_t));
+    log(showType(_t));
     const _c = compile(_e);
-    // console.log(_c);
+    log(_c);
     const _v = eval(_c);
-    // console.log(_v);
+    log(_v);
     return _cb(`${_show(_v)} : ${showType(_t)}`);
   } catch (err) {
     return _cb('' + err, true);

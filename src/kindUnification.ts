@@ -4,6 +4,7 @@ import { CKMeta } from './elems';
 import { KMeta, Kind, isKVar, isKMeta, isKFun, containsKMeta, showKind, KFun } from './kinds';
 import { InferError, infererr } from './error';
 import { wfKind } from './wellformedness';
+import { log } from './config';
 
 const solveKind = (x: KMeta, kind: Kind): void => {
   const elem = context.lookup('CKMeta', x.name);
@@ -15,7 +16,7 @@ const solveKind = (x: KMeta, kind: Kind): void => {
 };
 
 const instKind = (x: KMeta, kind: Kind): void => {
-  // console.log(`instKind ${showKind(x)} ~ ${showKind(kind)} in ${context}`);
+  log(`instKind ${showKind(x)} ~ ${showKind(kind)} in ${context}`);
   storeContext();
   try {
     solveKind(x, kind);
@@ -44,7 +45,7 @@ const instKind = (x: KMeta, kind: Kind): void => {
 };
 
 export const unifyKinds = (a: Kind, b: Kind): void => {
-  // console.log(`unifyKinds ${showKind(a)} ~ ${showKind(b)} in ${context}`);
+  log(`unifyKinds ${showKind(a)} ~ ${showKind(b)} in ${context}`);
   if (a === b) return;
   if (isKVar(a) && isKVar(b) && eqName(a.name, b.name)) return;
   if (isKMeta(a) && isKMeta(b) && eqName(a.name, b.name)) return;

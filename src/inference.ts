@@ -5,10 +5,11 @@ import { wfContext, wfType, wfKind } from './wellformedness';
 import { infererr } from './error';
 import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap, showName, Name, eqName } from './names';
 import { subsume } from './subsumption';
-import { CVar, CTVar, CKMeta, CTMeta } from './elems';
-import { KMeta, kType, kfunFrom, kfun, Kind } from './kinds';
+import { CVar, CTVar, CTMeta } from './elems';
+import { kType, kfunFrom, kfun, Kind } from './kinds';
 import { checkKindType, elaborateType } from './kindInference';
 import { Def, showDef } from './definitions';
+import { log } from './config';
 
 const getByName = (cs: CTMeta[], x: NameT): CTMeta | null => {
   for (let i = 0, l = cs.length; i < l; i++) 
@@ -52,6 +53,7 @@ const generalizeFrom = (marker: NameT, type: Type): Type =>
   generalize(context.leaveWithUnsolved(marker), type);
 
 const typesynth = (term: Term): Type => {
+  log(`typesynth ${showTerm(term)}`);
   if (isVar(term)) {
     const x = context.lookup('CVar', term.name);
     if (!x) return infererr(`undefined var ${showName(term.name)}`);
@@ -90,6 +92,7 @@ const typesynth = (term: Term): Type => {
 };
 
 const typecheck = (term: Term, type: Type): void => {
+  log(`typecheck ${showTerm(term)} : ${showType(type)}`);
   if (isTForall(type)) {
     if (!type.kind) return infererr(`forall lacks kind: ${showType(type)}`);
     const x = namestore.fresh(type.name);
@@ -119,6 +122,7 @@ const typecheck = (term: Term, type: Type): void => {
 };
 
 const typeappsynth = (type: Type, term: Term): Type => {
+  log(`typeappsynth ${showType(type)} @ ${showTerm(term)}`);
   if (isTForall(type)) {
     if (!type.kind) return infererr(`forall lacks kind: ${showType(type)}`);
     const x = namestore.fresh(type.name);
@@ -156,6 +160,14 @@ const typeappsynth = (type: Type, term: Term): Type => {
     typecheck(term, ta);
     return type.right;
   }
+  if (isTApp(type) && isTApp(type.left) && isTMeta(type.left.left)) {
+    const x = type.left.left.name;
+    context.replace('CTMeta', x, [
+      CTMeta(x, kfun(kType, kType, kType), tFun),
+    ]);
+    typecheck(term, type.left.right);
+    return type.right;
+  }
   return infererr(`cannot typeappsynth: ${showType(type)} @ ${showTerm(term)}`);
 };
 
@@ -176,7 +188,7 @@ export const infer = (term: Term): Type => {
 };
 
 export const inferDef = (def: Def): void => {
-  // console.log(`inferDef ${showDef(def)}`);
+  log(`inferDef ${showDef(def)}`);
   switch (def.tag) {
     case 'DType': {
       const tname = def.name;
@@ -206,7 +218,6 @@ export const inferDef = (def: Def): void => {
       if (context.lookup('CVar', name))
         throw new TypeError(`${showName(name)} is already defined`);
       const ty = infer(abs(def.args, def.term));
-      // console.log(`${showName(name)} : ${showType(ty)}`);
       context.add(CVar(name, ty));
       return;
     }

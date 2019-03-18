@@ -1,12 +1,13 @@
-import { Kind, KMeta } from './kinds';
-import { Type, openTForall, TVar } from './types';
+import { Kind, KMeta, showKind } from './kinds';
+import { Type, openTForall, TVar, showType } from './types';
 import { Elem, CTVar, CKMeta, showElem } from './elems';
-import { Context } from './context';
 import { context, restoreContext, storeContext, namestore } from './global';
 import { showName } from './names';
 import { infererr } from './error';
+import { log } from './config';
 
 export const wfKind = (kind: Kind): void => {
+  log(`wfKind ${showKind(kind)} in ${context}`);
   switch (kind.tag) {
     case 'KVar': {
       if (context.contains('CKVar', kind.name)) return;
@@ -24,6 +25,7 @@ export const wfKind = (kind: Kind): void => {
 };
 
 export const wfType = (type: Type): void => {
+  log(`wfType ${showType(type)} in ${context}`);
   switch (type.tag) {
     case 'TVar': {
       if (context.contains('CTVar', type.name)) return;
@@ -54,7 +56,7 @@ export const wfType = (type: Type): void => {
 };
 
 export const wfElem = (elem: Elem): void => {
-  // console.log(`wfElem ${showElem(elem)} in ${context}`);
+  log(`wfElem ${showElem(elem)} in ${context}`);
   switch (elem.tag) {
     case 'CKVar': {
       if (!context.contains('CKVar', elem.name)) return;
@@ -91,6 +93,7 @@ export const wfElem = (elem: Elem): void => {
 };
 
 export const wfContext = (): void => {
+  log(`wfContext ${context}`);
   storeContext();
   let elem: Elem | null = context.pop();
   while (elem) {

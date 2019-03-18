@@ -3,6 +3,7 @@ import { Name, NameT } from './names';
 import { TVar, Type, tappFrom, tfunFrom, tforallK, tFun, TApp } from './types';
 import { Kind, KVar, kfunFrom, kType } from './kinds';
 import { Def, DLet, DType, DDeclType, DDeclare, DForeign } from './definitions';
+import { log } from './config';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -60,7 +61,7 @@ const tokenize = (sc: string): Token[] => {
   for (let i = 0, l = sc.length; i <= l; i++) {
     const c = sc[i] || ' ';
     const next = sc[i + 1] || '';
-    // console.log(`${i};${c};${next};${state}`, r);
+    log(`${i};${c};${next};${state};${showTokens(r)}`);
     if (state === START) {
       if (SYM2.indexOf(c + next) >= 0) r.push(SymbolT(c + next)), i++;
       else if (SYM1.indexOf(c) >= 0) r.push(SymbolT(c));
@@ -120,7 +121,7 @@ const splitTokens = (a: Token[], fn: (t: Token) => boolean): Token[][] => {
 
 // kinds
 const parseTokenKind = (ts: Token): Kind => {
-  // console.log(`parseTokenKind ${showToken(ts)}`);
+  log(`parseTokenKind ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': return KVar(Name(ts.val));
     case 'SymbolT': return err(`stuck on ${ts.val}`);
@@ -130,7 +131,7 @@ const parseTokenKind = (ts: Token): Kind => {
 };
 
 const parseParensKind = (ts: Token[]): Kind => {
-  // console.log(`parseParensKind ${showTokens(ts)}`);
+  log(`parseParensKind ${showTokens(ts)}`);
   if (ts.length === 0) return err('empty kind');
   if (ts.length === 1) return parseTokenKind(ts[0]);
   let args: Token[] = [];
@@ -154,7 +155,7 @@ const parseParensKind = (ts: Token[]): Kind => {
 
 // types
 const parseTokenType = (ts: Token): Type => {
-  // console.log(`parseTokenType ${showToken(ts)}`);
+  log(`parseTokenType ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': {
       if (KEYWORDS_TYPE.indexOf(ts.val) >= 0) return err(`stuck on ${ts.val}`);
@@ -170,7 +171,7 @@ const parseTokenType = (ts: Token): Type => {
 };
 
 const parseParensType = (ts: Token[]): Type => {
-  // console.log(`parseParensType ${showTokens(ts)}`);
+  log(`parseParensType ${showTokens(ts)}`);
   if (ts.length === 0) return err('empty type');
   if (ts.length === 1) return parseTokenType(ts[0]);
   if (matchVarT('forall', ts[0])) {
@@ -237,7 +238,7 @@ const parseParensType = (ts: Token[]): Type => {
 
 // terms
 const parseToken = (ts: Token): Term => {
-  // console.log(`parseToken ${showToken(ts)}`);
+  log(`parseToken ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': {
       if (KEYWORDS.indexOf(ts.val) >= 0) return err(`stuck on ${ts.val}`);
@@ -250,7 +251,7 @@ const parseToken = (ts: Token): Term => {
 };
 
 const parseParens = (ts: Token[]): Term => {
-  // console.log(`parseParens ${showTokens(ts)}`);
+  log(`parseParens ${showTokens(ts)}`);
   if (ts.length === 0) return err('empty');
   if (ts.length === 1) return parseToken(ts[0]);
   if (contains(ts, t => matchSymbolT(':', t))) {

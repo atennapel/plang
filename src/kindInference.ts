@@ -5,9 +5,10 @@ import { context, applyKind, namestore } from './global';
 import { infererr } from './error';
 import { CKMeta, CTVar } from './elems';
 import { showName } from './names';
+import { log } from './config';
 
 const elaborateTypeR = (type: Type): [Kind, Type] => {
-  // console.log(`elaborateTypeR ${showType(type)}`);
+  log(`elaborateTypeR ${showType(type)}`);
   switch (type.tag) {
     case 'TVar': {
       const e = context.lookup('CTVar', type.name);
@@ -67,12 +68,14 @@ const instKMeta = (type: Type): Type => {
 };
 
 export const elaborateType = (type: Type): Type => {
-  // console.log(`elaborateType ${showType(type)}`);
+  log(`elaborateType ${showType(type)}`);
   const m = namestore.fresh('m');
   context.enter(m);
   const [_, ty] = elaborateTypeR(type);
   context.leave(m);
-  return instKMeta(ty);
+  const ti = instKMeta(ty);
+  log(`result ${showType(ti)}`);
+  return ti;
 };
 
 export const deriveKind = (type: Type): Kind => {

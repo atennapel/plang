@@ -21,8 +21,10 @@ import { wfType } from './wellformedness';
 import { InferError, infererr } from './error';
 import { unify, inst } from './unification';
 import { deriveKind } from './kindInference';
+import { log } from './config';
 
 export const solve = (x: TMeta, type: Type): void => {
+  log(`solve ${showType(x)} := ${showType(type)}`);
   if (!isMono(type)) return infererr('solve with polytype');
   const elem = context.lookup('CTMeta', x.name);
   if (!elem) return infererr('solve with undefined tmeta');
@@ -31,8 +33,9 @@ export const solve = (x: TMeta, type: Type): void => {
   context.add(CTMeta(x.name, elem.kind, type));
   context.addAll(right);
 };
-// x := List y
+
 const instL = (x: TMeta, type: Type): void => {
+  log(`instL ${showType(x)} := ${showType(type)}`);
   storeContext();
   try {
     solve(x, type);
@@ -71,6 +74,7 @@ const instL = (x: TMeta, type: Type): void => {
 };
 
 const instR = (type: Type, x: TMeta): void => {
+  log(`instR ${showType(x)} =: ${showType(type)}`);
   storeContext();
   try {
     solve(x, type);
@@ -109,7 +113,7 @@ const instR = (type: Type, x: TMeta): void => {
 };
 
 export const subsume = (a: Type, b: Type): void => {
-  // console.log(`subsume ${showType(a_)} <: ${showType(b_)} in ${context}`);
+  log(`subsume ${showType(a)} <: ${showType(b)} in ${context}`);
   if (a === b) return;
   if (!eqKind(deriveKind(a), deriveKind(b)))
     return infererr(`kind mismatch in ${showType(a)} <: ${showType(b)}`);
