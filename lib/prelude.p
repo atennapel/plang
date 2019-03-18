@@ -38,4 +38,16 @@ let false = Bool \a b -> b
 let cond c a b = unBool c a b
 let if c a b = cond c a b unit
 
+type List t = forall r. r -> (t -> r -> r) -> r
+let Nil = List \n c -> n
+let Cons h t = List \n c -> c h (unList t n c)
+let showList l = unList l primNil primCons
+
+let foldl f v l = unList l v f
+let mapList f = foldl (\h t -> Cons (f h) t) Nil
+
 type Functor f = forall a b. (a -> b) -> f a -> f b
+let map = unFunctor
+
+let ArrFunctor = Functor \f g x -> f (g x)
+let ListFunctor = Functor mapList

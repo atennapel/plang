@@ -1,4 +1,4 @@
-import { Term, Var, appFrom, abs, Ann, Let } from './terms';
+import { Term, Var, appFrom, abs, Ann, Let, App } from './terms';
 import { Name, NameT } from './names';
 import { TVar, Type, tappFrom, tfunFrom, tforallK, tFun, TApp } from './types';
 import { Kind, KVar, kfunFrom, kType } from './kinds';
@@ -43,7 +43,7 @@ const matchingBracket = (c: Bracket): Bracket => {
 }
 
 const SYM1 = ['\\', ':', '.', '='];
-const SYM2 = ['->'];
+const SYM2 = ['->', '<|', '|>', '<<', '>>'];
 
 const KEYWORDS = ['let', 'in', 'type'];
 const KEYWORDS_TYPE = ['forall', 'type', 'let'];
@@ -218,12 +218,9 @@ const parseParensType = (ts: Token[]): Type => {
     args.push(c);
   }
   fs.push(args);
-  if (fs.length === 2) {
-    // special case (->)
-    if (fs[0].length === 0 && fs[1].length === 0) {
-      return tFun;      
+  if (fs.length === 2) {     
     // special case (t ->)
-    } else if (fs[1].length === 0) {
+    if (fs[1].length === 0) {
       return TApp(tFun, tappFrom(fs[0].map(parseTokenType)));
     // special case (-> t)
     } else if (fs[0].length === 0) {
@@ -244,7 +241,31 @@ const parseToken = (ts: Token): Term => {
       if (KEYWORDS.indexOf(ts.val) >= 0) return err(`stuck on ${ts.val}`);
       return Var(Name(ts.val));
     }
-    case 'SymbolT': return err(`stuck on ${ts.val}`);
+    case 'SymbolT': {
+      if (ts.val === '<|') {
+        const f = Name('f');
+        const x = Name('x');
+        return abs([f, x], appFrom([Var(f), Var(x)]));
+      }
+      if (ts.val === '|>') {
+        const f = Name('f');
+        const x = Name('x');
+        return abs([x, f], appFrom([Var(f), Var(x)]));
+      }
+      if (ts.val === '<<') {
+        const f = Name('f');
+        const g = Name('g');
+        const x = Name('x');
+        return abs([f, g, x], App(Var(f), App(Var(g), Var(x))));
+      }
+      if (ts.val === '>>') {
+        const f = Name('f');
+        const g = Name('g');
+        const x = Name('x');
+        return abs([g, f, x], App(Var(f), App(Var(g), Var(x))));
+      }
+      return err(`stuck on ${ts.val}`);
+    }
     case 'ParenT': return parseParens(ts.val);
     case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
   }
@@ -298,6 +319,88 @@ const parseParens = (ts: Token[]): Term => {
     const body = parseParens(bodyts);
     const rest = parseParens(ts.slice(i));
     return Let(args[0], args.length > 1 ? abs(args.slice(1), body) : body , rest);
+  }
+  if (contains(ts, t => matchSymbolT('<|', t))) {
+    const split = splitTokens(ts, t => matchSymbolT('<|', t));
+    // special case
+    if (split.length === 2) {
+      // (f <|) = \x -> f x
+      if (split[1].length === 0) {
+        const f = parseParens(split[0]);
+        const x = Name('_x');
+        return abs([x], App(f, Var(x)));
+      // (<| x) = \f -> f x
+      } else if (split[0].length === 0) {
+        const f = Name('_f');
+        const x = parseParens(split[1]);
+        return abs([f], App(Var(f), x));
+      }
+    }
+    const terms = split.map(parseParens);
+    return terms.reduceRight((x, y) => App(y, x));
+  }
+  if (contains(ts, t => matchSymbolT('|>', t))) {
+    const split = splitTokens(ts, t => matchSymbolT('|>', t));
+    // special case
+    if (split.length === 2) {
+      // (x |>) = \f -> f x
+      if (split[1].length === 0) {
+        const f = Name('_f');
+        const x = parseParens(split[0]);
+        return abs([f], App(Var(f), x));
+      // (|> f) = \x -> f x
+      } else if (split[0].length === 0) {
+        const f = parseParens(split[1]);
+        const x = Name('_x');
+        return abs([x], App(f, Var(x)));
+      }
+    }
+    const terms = split.map(parseParens);
+    return terms.reverse().reduceRight((x, y) => App(y, x));
+  }
+  if (contains(ts, t => matchSymbolT('<<', t))) {
+    const split = splitTokens(ts, t => matchSymbolT('<<', t));
+    // special case
+    if (split.length === 2) {
+      // (f <<) = \g x -> f (g x)
+      if (split[1].length === 0) {
+        const f = parseParens(split[0]);
+        const g = Name('_g');
+        const x = Name('_x');
+        return abs([g, x], App(f, App(Var(g), Var(x))));
+      // (<< g) = \f x -> f (g x)
+      } else if (split[0].length === 0) {
+        const f = Name('_f');
+        const g = parseParens(split[1]);
+        const x = Name('_x');
+        return abs([f, x], App(Var(f), App(g, Var(x))));
+      }
+    }
+    const terms = split.map(parseParens);
+    const x = Name('_x');
+    return abs([x], terms.reduceRight((x, y) => App(y, x), Var(x)));
+  }
+  if (contains(ts, t => matchSymbolT('>>', t))) {
+    const split = splitTokens(ts, t => matchSymbolT('>>', t));
+    // special case
+    if (split.length === 2) {
+      // (f >>) = \g x -> g (f x)
+      if (split[1].length === 0) {
+        const f = parseParens(split[0]);
+        const g = Name('_g');
+        const x = Name('_x');
+        return abs([g, x], App(Var(g), App(f, Var(x))));
+      // (>> g) = \f x -> g (f x)
+      } else if (split[0].length === 0) {
+        const f = Name('_f');
+        const g = parseParens(split[1]);
+        const x = Name('_x');
+        return abs([f, x], App(g, App(Var(f), Var(x))));
+      }
+    }
+    const terms = split.map(parseParens);
+    const x = Name('_x');
+    return abs([x], terms.reverse().reduceRight((x, y) => App(y, x), Var(x)));
   }
   const args: Term[] = [];
   for (let i = 0; i < ts.length; i++) {

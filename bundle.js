@@ -926,7 +926,7 @@ const matchingBracket = (c) => {
     return err(`invalid bracket: ${c}`);
 };
 const SYM1 = ['\\', ':', '.', '='];
-const SYM2 = ['->'];
+const SYM2 = ['->', '<|', '|>', '<<', '>>'];
 const KEYWORDS = ['let', 'in', 'type'];
 const KEYWORDS_TYPE = ['forall', 'type', 'let'];
 const KEYWORDS_DEF = ['let', 'type', 'decltype', 'declare', 'foreign'];
@@ -1130,12 +1130,8 @@ const parseParensType = (ts) => {
     }
     fs.push(args);
     if (fs.length === 2) {
-        // special case (->)
-        if (fs[0].length === 0 && fs[1].length === 0) {
-            return types_1.tFun;
-            // special case (t ->)
-        }
-        else if (fs[1].length === 0) {
+        // special case (t ->)
+        if (fs[1].length === 0) {
             return types_1.TApp(types_1.tFun, types_1.tappFrom(fs[0].map(parseTokenType)));
             // special case (-> t)
         }
@@ -1158,7 +1154,31 @@ const parseToken = (ts) => {
                 return err(`stuck on ${ts.val}`);
             return terms_1.Var(names_1.Name(ts.val));
         }
-        case 'SymbolT': return err(`stuck on ${ts.val}`);
+        case 'SymbolT': {
+            if (ts.val === '<|') {
+                const f = names_1.Name('f');
+                const x = names_1.Name('x');
+                return terms_1.abs([f, x], terms_1.appFrom([terms_1.Var(f), terms_1.Var(x)]));
+            }
+            if (ts.val === '|>') {
+                const f = names_1.Name('f');
+                const x = names_1.Name('x');
+                return terms_1.abs([x, f], terms_1.appFrom([terms_1.Var(f), terms_1.Var(x)]));
+            }
+            if (ts.val === '<<') {
+                const f = names_1.Name('f');
+                const g = names_1.Name('g');
+                const x = names_1.Name('x');
+                return terms_1.abs([f, g, x], terms_1.App(terms_1.Var(f), terms_1.App(terms_1.Var(g), terms_1.Var(x))));
+            }
+            if (ts.val === '>>') {
+                const f = names_1.Name('f');
+                const g = names_1.Name('g');
+                const x = names_1.Name('x');
+                return terms_1.abs([g, f, x], terms_1.App(terms_1.Var(f), terms_1.App(terms_1.Var(g), terms_1.Var(x))));
+            }
+            return err(`stuck on ${ts.val}`);
+        }
         case 'ParenT': return parseParens(ts.val);
         case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
     }
@@ -1222,6 +1242,92 @@ const parseParens = (ts) => {
         const body = parseParens(bodyts);
         const rest = parseParens(ts.slice(i));
         return terms_1.Let(args[0], args.length > 1 ? terms_1.abs(args.slice(1), body) : body, rest);
+    }
+    if (contains(ts, t => matchSymbolT('<|', t))) {
+        const split = splitTokens(ts, t => matchSymbolT('<|', t));
+        // special case
+        if (split.length === 2) {
+            // (f <|) = \x -> f x
+            if (split[1].length === 0) {
+                const f = parseParens(split[0]);
+                const x = names_1.Name('_x');
+                return terms_1.abs([x], terms_1.App(f, terms_1.Var(x)));
+                // (<| x) = \f -> f x
+            }
+            else if (split[0].length === 0) {
+                const f = names_1.Name('_f');
+                const x = parseParens(split[1]);
+                return terms_1.abs([f], terms_1.App(terms_1.Var(f), x));
+            }
+        }
+        const terms = split.map(parseParens);
+        return terms.reduceRight((x, y) => terms_1.App(y, x));
+    }
+    if (contains(ts, t => matchSymbolT('|>', t))) {
+        const split = splitTokens(ts, t => matchSymbolT('|>', t));
+        // special case
+        if (split.length === 2) {
+            // (x |>) = \f -> f x
+            if (split[1].length === 0) {
+                const f = names_1.Name('_f');
+                const x = parseParens(split[0]);
+                return terms_1.abs([f], terms_1.App(terms_1.Var(f), x));
+                // (|> f) = \x -> f x
+            }
+            else if (split[0].length === 0) {
+                const f = parseParens(split[1]);
+                const x = names_1.Name('_x');
+                return terms_1.abs([x], terms_1.App(f, terms_1.Var(x)));
+            }
+        }
+        const terms = split.map(parseParens);
+        return terms.reverse().reduceRight((x, y) => terms_1.App(y, x));
+    }
+    if (contains(ts, t => matchSymbolT('<<', t))) {
+        const split = splitTokens(ts, t => matchSymbolT('<<', t));
+        // special case
+        if (split.length === 2) {
+            // (f <<) = \g x -> f (g x)
+            if (split[1].length === 0) {
+                const f = parseParens(split[0]);
+                const g = names_1.Name('_g');
+                const x = names_1.Name('_x');
+                return terms_1.abs([g, x], terms_1.App(f, terms_1.App(terms_1.Var(g), terms_1.Var(x))));
+                // (<< g) = \f x -> f (g x)
+            }
+            else if (split[0].length === 0) {
+                const f = names_1.Name('_f');
+                const g = parseParens(split[1]);
+                const x = names_1.Name('_x');
+                return terms_1.abs([f, x], terms_1.App(terms_1.Var(f), terms_1.App(g, terms_1.Var(x))));
+            }
+        }
+        const terms = split.map(parseParens);
+        const x = names_1.Name('_x');
+        return terms_1.abs([x], terms.reduceRight((x, y) => terms_1.App(y, x), terms_1.Var(x)));
+    }
+    if (contains(ts, t => matchSymbolT('>>', t))) {
+        const split = splitTokens(ts, t => matchSymbolT('>>', t));
+        // special case
+        if (split.length === 2) {
+            // (f >>) = \g x -> g (f x)
+            if (split[1].length === 0) {
+                const f = parseParens(split[0]);
+                const g = names_1.Name('_g');
+                const x = names_1.Name('_x');
+                return terms_1.abs([g, x], terms_1.App(terms_1.Var(g), terms_1.App(f, terms_1.Var(x))));
+                // (>> g) = \f x -> g (f x)
+            }
+            else if (split[0].length === 0) {
+                const f = names_1.Name('_f');
+                const g = parseParens(split[1]);
+                const x = names_1.Name('_x');
+                return terms_1.abs([f, x], terms_1.App(g, terms_1.App(terms_1.Var(f), terms_1.Var(x))));
+            }
+        }
+        const terms = split.map(parseParens);
+        const x = names_1.Name('_x');
+        return terms_1.abs([x], terms.reverse().reduceRight((x, y) => terms_1.App(y, x), terms_1.Var(x)));
     }
     const args = [];
     for (let i = 0; i < ts.length; i++) {
@@ -1401,7 +1507,7 @@ const _show = (x) => {
     }
     return '' + x;
 };
-const _prelude = "; some primitives so we have some concrete values\r\ndecltype PrimBool : Type\r\ndeclare primTrue : PrimBool\r\nforeign primTrue \"true\"\r\ndeclare primFalse : PrimBool\r\nforeign primFalse \"false\"\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\n; our base types\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n\r\ntype Functor f = forall a b. (a -> b) -> f a -> f b\r\n";
+const _prelude = "; some primitives so we have some concrete values\r\ndecltype PrimBool : Type\r\ndeclare primTrue : PrimBool\r\nforeign primTrue \"true\"\r\ndeclare primFalse : PrimBool\r\nforeign primFalse \"false\"\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\n; our base types\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n\r\ntype List t = forall r. r -> (t -> r -> r) -> r\r\nlet Nil = List \\n c -> n\r\nlet Cons h t = List \\n c -> c h (unList t n c)\r\nlet showList l = unList l primNil primCons\r\n\r\nlet foldl f v l = unList l v f\r\nlet mapList f = foldl (\\h t -> Cons (f h) t) Nil\r\n\r\ntype Functor f = forall a b. (a -> b) -> f a -> f b\r\nlet map = unFunctor\r\n\r\nlet ArrFunctor = Functor \\f g x -> f (g x)\r\nlet ListFunctor = Functor mapList\r\n";
 const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     if (_s === ':c' || _s === ':ctx' || _s === ':context')
