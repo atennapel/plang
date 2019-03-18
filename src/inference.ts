@@ -1,21 +1,28 @@
 import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn, isLet, openLet, abs } from './terms';
-import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType, tforallK, tfun, tappFrom, isTApp, TApp, tFun } from './types';
+import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType, tforallK, tfun, tappFrom, isTApp, TApp, tFun, TForallK, flattenTForall } from './types';
 import { namestore, context, apply } from './global';
 import { wfContext, wfType, wfKind } from './wellformedness';
 import { infererr } from './error';
-import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap, showName, Name } from './names';
+import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap, showName, Name, eqName } from './names';
 import { subsume } from './subsumption';
 import { CVar, CTVar, CKMeta, CTMeta } from './elems';
-import { KMeta, kType, kfunFrom, kfun } from './kinds';
-import { checkKindType } from './kindInference';
+import { KMeta, kType, kfunFrom, kfun, Kind } from './kinds';
+import { checkKindType, elaborateType } from './kindInference';
 import { Def, showDef } from './definitions';
 
-const unsolvedInType = (unsolved: NameT[], type: Type, ns: NameT[] = []): NameT[] => {
+const getByName = (cs: CTMeta[], x: NameT): CTMeta | null => {
+  for (let i = 0, l = cs.length; i < l; i++) 
+    if (eqName(cs[i].name, x)) return cs[i];
+  return null;
+};
+
+const unsolvedInType = (unsolved: CTMeta[], type: Type, ns: CTMeta[] = []): CTMeta[] => {
   switch (type.tag) {
     case 'TVar': return ns;
     case 'TMeta': {
       const x = type.name;
-      if (nameContains(unsolved, x) && !nameContains(ns, x)) ns.push(x);
+      const c = getByName(unsolved, x);
+      if (c && !getByName(ns, x)) ns.push(c);
       return ns;
     }
     case 'TApp': {
@@ -26,17 +33,19 @@ const unsolvedInType = (unsolved: NameT[], type: Type, ns: NameT[] = []): NameT[
       return unsolvedInType(unsolved, type.type, ns);
   }
 };
-const generalize = (unsolved: NameT[], type: Type): Type => {
+const generalize = (unsolved: CTMeta[], type: Type): Type => {
   const ns = unsolvedInType(unsolved, type);
   const m: NameMap<TVar> = createNameMap();
   for (let i = 0, l = ns.length; i < l; i++) {
-    const x = ns[i];
+    const x = ns[i].name;
     const y = namestore.fresh(x);
     insertNameMap(x, TVar(y), m);
   }
   let c = substTMetas(type, m);
-  for (let i = ns.length - 1; i >= 0; i--)
-    c = TForall((getNameMap(ns[i], m) as TVar).name, c);
+  for (let i = ns.length - 1; i >= 0; i--) {
+    const e = ns[i];
+    c = TForallK((getNameMap(e.name, m) as TVar).name, e.kind, c);
+  }
   return c;
 };
 const generalizeFrom = (marker: NameT, type: Type): Type =>
@@ -64,8 +73,8 @@ const typesynth = (term: Term): Type => {
     return typeappsynth(apply(left), term.right);
   }
   if (isAnn(term)) {
-    const ty = term.type;
-    wfType(ty);
+    wfType(term.type);
+    const ty = elaborateType(term.type);
     checkKindType(ty);
     typecheck(term.term, ty);
     return ty;
@@ -82,13 +91,9 @@ const typesynth = (term: Term): Type => {
 
 const typecheck = (term: Term, type: Type): void => {
   if (isTForall(type)) {
+    if (!type.kind) return infererr(`forall lacks kind: ${showType(type)}`);
     const x = namestore.fresh(type.name);
-    if (type.kind) {
-      context.enter(x, CTVar(x, type.kind));
-    } else {
-      const k = namestore.fresh(type.name);
-      context.enter(x, CKMeta(k), CTVar(x, KMeta(k)));
-    }
+    context.enter(x, CTVar(x, type.kind));
     typecheck(term, openTForall(type, TVar(x)));
     context.leave(x);
     return;
@@ -115,13 +120,9 @@ const typecheck = (term: Term, type: Type): void => {
 
 const typeappsynth = (type: Type, term: Term): Type => {
   if (isTForall(type)) {
+    if (!type.kind) return infererr(`forall lacks kind: ${showType(type)}`);
     const x = namestore.fresh(type.name);
-    if (type.kind) {
-      context.add(CTMeta(x, type.kind));
-    } else {
-      const k = namestore.fresh(type.name);
-      context.add(CKMeta(k), CTMeta(x, KMeta(k)));
-    }
+    context.add(CTMeta(x, type.kind));
     return typeappsynth(openTForall(type, TMeta(x)), term);
   }
   if (isTMeta(type)) {
@@ -162,13 +163,10 @@ export const infer = (term: Term): Type => {
   namestore.reset();
   wfContext();
   const m = namestore.fresh('m');
-  const m2 = namestore.fresh('m');
   context.enter(m);
-  context.enter(m2);
   try {
-    const ty = generalizeFrom(m2, apply(typesynth(term)));
+    const ty = generalizeFrom(m, apply(typesynth(term)));
     checkKindType(ty);
-    context.leave(m);
     if (!context.isComplete()) return infererr(`incomplete context: ${context}`);
     return simplifyType(ty);
   } catch (err) {
@@ -183,18 +181,23 @@ export const inferDef = (def: Def): void => {
     case 'DType': {
       const tname = def.name;
       const untname = Name(`un${tname.name}`);
-      const targs = def.args;
       if (context.lookup('CTVar', tname))
         throw new TypeError(`type ${showName(tname)} is already defined`);
       if (context.lookup('CVar', tname))
         throw new TypeError(`${showName(tname)} is already defined`);
       if (context.lookup('CVar', untname))
         throw new TypeError(`${showName(untname)} is already defined`);
-      wfType(tforallK(def.args, def.type));
+      const ty = tforallK(def.args, def.type);
+      wfType(ty);
+      const ety = elaborateType(ty);
+      checkKindType(ety);
+      const fl = flattenTForall(ety);
+      const nargs = fl.args.slice(0, def.args.length);
+      const ntype = tforallK(fl.args.slice(def.args.length), fl.type);
       context.add(
-        CTVar(tname, kfunFrom(targs.map(([_, k]) => k || kType).concat([kType]))),
-        CVar(tname, tforallK(targs, tfun(def.type, tappFrom([TVar(tname)].concat(targs.map(([n]) => TVar(n))))))),
-        CVar(untname, tforallK(targs, tfun(tappFrom([TVar(tname)].concat(targs.map(([n]) => TVar(n)))), def.type))),
+        CTVar(tname, kfunFrom(nargs.map(([_, k]) => k || kType).concat([kType]))),
+        CVar(tname, tforallK(nargs, tfun(ntype, tappFrom([TVar(tname)].concat(nargs.map(([n]) => TVar(n))))))),
+        CVar(untname, tforallK(nargs, tfun(tappFrom([TVar(tname)].concat(nargs.map(([n]) => TVar(n)))), ntype))),
       );
       return;
     }
@@ -220,7 +223,9 @@ export const inferDef = (def: Def): void => {
       if (context.lookup('CVar', name))
         throw new TypeError(`${showName(name)} is already defined`);
       wfType(def.type);
-      context.add(CVar(name, def.type));
+      const type = elaborateType(def.type);
+      checkKindType(type);
+      context.add(CVar(name, type));
       return;
     }
     case 'DForeign': return;

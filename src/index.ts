@@ -6,8 +6,7 @@ import { parse, parseDefs, parseType } from './parser';
 import { context } from './global';
 import { showDef } from './definitions';
 
-/*
-const scr = '\\x -> x';
+const scr = '\\x -> x : forall f t. f t -> f t';
 try {
   console.log(scr);
   const term = parse(scr);
@@ -22,7 +21,3 @@ try {
 } catch (err) {
   console.log(err);
 }
-*/
-const s = '->';
-const t = parseType(s);
-console.log(showType(t));

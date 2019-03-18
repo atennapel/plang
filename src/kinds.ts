@@ -56,6 +56,14 @@ export const showKind = (kind: Kind): string => {
    }
 };
 
+export const eqKind = (a: Kind, b: Kind): boolean => {
+  switch (a.tag) {
+    case 'KVar': return isKVar(b) && eqName(a.name, b.name);
+    case 'KMeta': return isKMeta(b) && eqName(a.name, b.name);
+    case 'KFun': return isKFun(b) && eqKind(a.left, b.left) && eqKind(a.right, b.right);
+  }
+};
+
 export const containsKMeta = (x: NameT, kind: Kind): boolean => {
   switch (kind.tag) {
     case 'KVar': return false;

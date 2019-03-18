@@ -13,12 +13,11 @@ import {
 } from './types';
 import { eqName } from './names';
 import { apply, namestore, context, discardContext, storeContext, restoreContext } from './global';
-import { CTMeta, CKMeta, CTVar } from './elems';
-import { KMeta, kType } from './kinds';
+import { CTMeta, CTVar } from './elems';
+import { kType, eqKind } from './kinds';
 import { InferError, infererr } from './error';
 import { solve } from './subsumption';
-import { inferKind } from './kindInference';
-import { unifyKinds } from './kindUnification';
+import { deriveKind } from './kindInference';
 
 export const inst = (x: TMeta, type: Type): void => {
   storeContext();
@@ -45,13 +44,9 @@ export const inst = (x: TMeta, type: Type): void => {
       return;
     }
     if (isTForall(type)) {
+      if (!type.kind) return infererr(`forall lacks kind: ${showType(type)}`);
       const y = namestore.fresh(type.name);
-      if (type.kind) {
-        context.enter(y, CTVar(y, type.kind));
-      } else {
-        const k = namestore.fresh(type.name);
-        context.enter(y, CKMeta(k), CTVar(y, KMeta(k)));
-      }
+      context.enter(y, CTVar(y, type.kind));
       inst(x, openTForall(type, TVar(y)));
       context.leave(y);
       return;
@@ -60,13 +55,11 @@ export const inst = (x: TMeta, type: Type): void => {
   }
 };
 
-export const unify = (a_: Type, b_: Type): void => {
+export const unify = (a: Type, b: Type): void => {
   // console.log(`unify ${showType(a_)} ~ ${showType(b_)} in ${context}`);
-  if (a_ === b_) return;
-  const a = apply(a_);
-  const b = apply(b_);
   if (a === b) return;
-  unifyKinds(inferKind(a), inferKind(b));
+  if (!eqKind(deriveKind(a), deriveKind(b)))
+    return infererr(`kind mismatch in ${showType(a)} ~ ${showType(b)}`);
   if (a === b) return;
   if (isTVar(a) && isTVar(b) && eqName(a.name, b.name)) return;
   if (isTMeta(a) && isTMeta(b) && eqName(a.name, b.name)) return;
@@ -75,9 +68,12 @@ export const unify = (a_: Type, b_: Type): void => {
     return unify(apply(a.right), apply(b.right));
   }
   if (isTForall(a) && isTForall(b)) {
+    if (!a.kind) return infererr(`forall lacks kind: ${showType(a)}`);
+    if (!b.kind) return infererr(`forall lacks kind: ${showType(b)}`);
+    if (!eqKind(a.kind, b.kind))
+      return infererr(`kind does not match in foralls: ${showType(a)} ~ ${showType(b)}`);
     const t = namestore.fresh(a.name);
-    const k = namestore.fresh(a.name);
-    context.enter(t, CKMeta(k), CTVar(t, KMeta(k)));
+    context.enter(t, CTVar(t, a.kind));
     unify(openTForall(a, TVar(t)), openTForall(b, TVar(t)));
     context.leave(t);
     return;

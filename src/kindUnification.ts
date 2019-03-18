@@ -1,7 +1,7 @@
 import { eqName } from './names';
-import { context, discardContext, storeContext, restoreContext, applyKind } from './global';
+import { context, discardContext, storeContext, restoreContext, applyKind, namestore } from './global';
 import { CKMeta } from './elems';
-import { KMeta, Kind, isKVar, isKMeta, isKFun, containsKMeta, showKind } from './kinds';
+import { KMeta, Kind, isKVar, isKMeta, isKFun, containsKMeta, showKind, KFun } from './kinds';
 import { InferError, infererr } from './error';
 import { wfKind } from './wellformedness';
 
@@ -15,6 +15,7 @@ const solveKind = (x: KMeta, kind: Kind): void => {
 };
 
 const instKind = (x: KMeta, kind: Kind): void => {
+  // console.log(`instKind ${showKind(x)} ~ ${showKind(kind)} in ${context}`);
   storeContext();
   try {
     solveKind(x, kind);
@@ -23,15 +24,27 @@ const instKind = (x: KMeta, kind: Kind): void => {
     if (!(err instanceof InferError)) throw err;
     restoreContext();
     if (isKMeta(kind)) return solveKind(kind, x);
+    if (isKFun(kind)) {
+      const y = x.name;
+      const a = namestore.fresh(y);
+      const b = namestore.fresh(y);
+      const ta = KMeta(a);
+      const tb = KMeta(b);
+      context.replace('CKMeta', y, [
+        CKMeta(b),
+        CKMeta(a),
+        CKMeta(y, KFun(ta, tb)),
+      ]);
+      instKind(ta, kind.left);
+      instKind(tb, applyKind(kind.right));
+      return;
+    }
     return infererr(`inst kind failed: ${showKind(x)} := ${showKind(kind)}, ${err}`);
   }
 };
 
-export const unifyKinds = (a_: Kind, b_: Kind): void => {
-  // console.log(`unifyKinds ${showKind(a_)} ~ ${showKind(b_)} in ${context}`);
-  if (a_ === b_) return;
-  const a = applyKind(a_);
-  const b = applyKind(b_);
+export const unifyKinds = (a: Kind, b: Kind): void => {
+  // console.log(`unifyKinds ${showKind(a)} ~ ${showKind(b)} in ${context}`);
   if (a === b) return;
   if (isKVar(a) && isKVar(b) && eqName(a.name, b.name)) return;
   if (isKMeta(a) && isKMeta(b) && eqName(a.name, b.name)) return;

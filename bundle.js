@@ -167,7 +167,7 @@ class Context {
         for (let i = 0, l = ret.length; i < l; i++) {
             const c = ret[i];
             if (elems_1.isCTMeta(c) && !c.type)
-                ns.push(c.name);
+                ns.push(c);
         }
         return ns;
     }
@@ -331,13 +331,20 @@ const subsumption_1 = require("./subsumption");
 const elems_1 = require("./elems");
 const kinds_1 = require("./kinds");
 const kindInference_1 = require("./kindInference");
+const getByName = (cs, x) => {
+    for (let i = 0, l = cs.length; i < l; i++)
+        if (names_1.eqName(cs[i].name, x))
+            return cs[i];
+    return null;
+};
 const unsolvedInType = (unsolved, type, ns = []) => {
     switch (type.tag) {
         case 'TVar': return ns;
         case 'TMeta': {
             const x = type.name;
-            if (names_1.nameContains(unsolved, x) && !names_1.nameContains(ns, x))
-                ns.push(x);
+            const c = getByName(unsolved, x);
+            if (c && !getByName(ns, x))
+                ns.push(c);
             return ns;
         }
         case 'TApp': {
@@ -352,13 +359,15 @@ const generalize = (unsolved, type) => {
     const ns = unsolvedInType(unsolved, type);
     const m = names_1.createNameMap();
     for (let i = 0, l = ns.length; i < l; i++) {
-        const x = ns[i];
+        const x = ns[i].name;
         const y = global_1.namestore.fresh(x);
         names_1.insertNameMap(x, types_1.TVar(y), m);
     }
     let c = types_1.substTMetas(type, m);
-    for (let i = ns.length - 1; i >= 0; i--)
-        c = types_1.TForall(names_1.getNameMap(ns[i], m).name, c);
+    for (let i = ns.length - 1; i >= 0; i--) {
+        const e = ns[i];
+        c = types_1.TForallK(names_1.getNameMap(e.name, m).name, e.kind, c);
+    }
     return c;
 };
 const generalizeFrom = (marker, type) => generalize(global_1.context.leaveWithUnsolved(marker), type);
@@ -385,8 +394,8 @@ const typesynth = (term) => {
         return typeappsynth(global_1.apply(left), term.right);
     }
     if (terms_1.isAnn(term)) {
-        const ty = term.type;
-        wellformedness_1.wfType(ty);
+        wellformedness_1.wfType(term.type);
+        const ty = kindInference_1.elaborateType(term.type);
         kindInference_1.checkKindType(ty);
         typecheck(term.term, ty);
         return ty;
@@ -402,14 +411,10 @@ const typesynth = (term) => {
 };
 const typecheck = (term, type) => {
     if (types_1.isTForall(type)) {
+        if (!type.kind)
+            return error_1.infererr(`forall lacks kind: ${types_1.showType(type)}`);
         const x = global_1.namestore.fresh(type.name);
-        if (type.kind) {
-            global_1.context.enter(x, elems_1.CTVar(x, type.kind));
-        }
-        else {
-            const k = global_1.namestore.fresh(type.name);
-            global_1.context.enter(x, elems_1.CKMeta(k), elems_1.CTVar(x, kinds_1.KMeta(k)));
-        }
+        global_1.context.enter(x, elems_1.CTVar(x, type.kind));
         typecheck(term, types_1.openTForall(type, types_1.TVar(x)));
         global_1.context.leave(x);
         return;
@@ -435,14 +440,10 @@ const typecheck = (term, type) => {
 };
 const typeappsynth = (type, term) => {
     if (types_1.isTForall(type)) {
+        if (!type.kind)
+            return error_1.infererr(`forall lacks kind: ${types_1.showType(type)}`);
         const x = global_1.namestore.fresh(type.name);
-        if (type.kind) {
-            global_1.context.add(elems_1.CTMeta(x, type.kind));
-        }
-        else {
-            const k = global_1.namestore.fresh(type.name);
-            global_1.context.add(elems_1.CKMeta(k), elems_1.CTMeta(x, kinds_1.KMeta(k)));
-        }
+        global_1.context.add(elems_1.CTMeta(x, type.kind));
         return typeappsynth(types_1.openTForall(type, types_1.TMeta(x)), term);
     }
     if (types_1.isTMeta(type)) {
@@ -482,13 +483,10 @@ exports.infer = (term) => {
     global_1.namestore.reset();
     wellformedness_1.wfContext();
     const m = global_1.namestore.fresh('m');
-    const m2 = global_1.namestore.fresh('m');
     global_1.context.enter(m);
-    global_1.context.enter(m2);
     try {
-        const ty = generalizeFrom(m2, global_1.apply(typesynth(term)));
+        const ty = generalizeFrom(m, global_1.apply(typesynth(term)));
         kindInference_1.checkKindType(ty);
-        global_1.context.leave(m);
         if (!global_1.context.isComplete())
             return error_1.infererr(`incomplete context: ${global_1.context}`);
         return types_1.simplifyType(ty);
@@ -504,15 +502,20 @@ exports.inferDef = (def) => {
         case 'DType': {
             const tname = def.name;
             const untname = names_1.Name(`un${tname.name}`);
-            const targs = def.args;
             if (global_1.context.lookup('CTVar', tname))
                 throw new TypeError(`type ${names_1.showName(tname)} is already defined`);
             if (global_1.context.lookup('CVar', tname))
                 throw new TypeError(`${names_1.showName(tname)} is already defined`);
             if (global_1.context.lookup('CVar', untname))
                 throw new TypeError(`${names_1.showName(untname)} is already defined`);
-            wellformedness_1.wfType(types_1.tforallK(def.args, def.type));
-            global_1.context.add(elems_1.CTVar(tname, kinds_1.kfunFrom(targs.map(([_, k]) => k || kinds_1.kType).concat([kinds_1.kType]))), elems_1.CVar(tname, types_1.tforallK(targs, types_1.tfun(def.type, types_1.tappFrom([types_1.TVar(tname)].concat(targs.map(([n]) => types_1.TVar(n))))))), elems_1.CVar(untname, types_1.tforallK(targs, types_1.tfun(types_1.tappFrom([types_1.TVar(tname)].concat(targs.map(([n]) => types_1.TVar(n)))), def.type))));
+            const ty = types_1.tforallK(def.args, def.type);
+            wellformedness_1.wfType(ty);
+            const ety = kindInference_1.elaborateType(ty);
+            kindInference_1.checkKindType(ety);
+            const fl = types_1.flattenTForall(ety);
+            const nargs = fl.args.slice(0, def.args.length);
+            const ntype = types_1.tforallK(fl.args.slice(def.args.length), fl.type);
+            global_1.context.add(elems_1.CTVar(tname, kinds_1.kfunFrom(nargs.map(([_, k]) => k || kinds_1.kType).concat([kinds_1.kType]))), elems_1.CVar(tname, types_1.tforallK(nargs, types_1.tfun(ntype, types_1.tappFrom([types_1.TVar(tname)].concat(nargs.map(([n]) => types_1.TVar(n))))))), elems_1.CVar(untname, types_1.tforallK(nargs, types_1.tfun(types_1.tappFrom([types_1.TVar(tname)].concat(nargs.map(([n]) => types_1.TVar(n)))), ntype))));
             return;
         }
         case 'DLet': {
@@ -537,7 +540,9 @@ exports.inferDef = (def) => {
             if (global_1.context.lookup('CVar', name))
                 throw new TypeError(`${names_1.showName(name)} is already defined`);
             wellformedness_1.wfType(def.type);
-            global_1.context.add(elems_1.CVar(name, def.type));
+            const type = kindInference_1.elaborateType(def.type);
+            kindInference_1.checkKindType(type);
+            global_1.context.add(elems_1.CVar(name, type));
             return;
         }
         case 'DForeign': return;
@@ -554,34 +559,32 @@ const kindUnification_1 = require("./kindUnification");
 const global_1 = require("./global");
 const error_1 = require("./error");
 const elems_1 = require("./elems");
-exports.inferKind = (type) => {
-    // console.log(`inferKind ${showType(type)}`);
+const names_1 = require("./names");
+const elaborateTypeR = (type) => {
+    // console.log(`elaborateTypeR ${showType(type)}`);
     switch (type.tag) {
         case 'TVar': {
             const e = global_1.context.lookup('CTVar', type.name);
             if (!e)
                 return error_1.infererr(`undefined tvar ${types_1.showType(type)}`);
-            return e.kind;
+            return [global_1.applyKind(e.kind), type];
         }
         case 'TMeta': {
             const e = global_1.context.lookup('CTMeta', type.name);
             if (!e)
                 return error_1.infererr(`undefined tmeta ${types_1.showType(type)}`);
-            return e.kind;
+            return [global_1.applyKind(e.kind), type];
         }
         case 'TApp': {
-            const l = exports.inferKind(type.left);
-            const r = exports.inferKind(type.right);
+            const [l, tl] = elaborateTypeR(type.left);
+            const [r, tr] = elaborateTypeR(type.right);
             const kv = global_1.namestore.fresh('k');
             const km = kinds_1.KMeta(kv);
-            global_1.context.enter(kv, elems_1.CKMeta(kv));
+            global_1.context.add(elems_1.CKMeta(kv));
             kindUnification_1.unifyKinds(l, kinds_1.KFun(r, km));
-            const ki = global_1.applyKind(km);
-            global_1.context.leave(kv);
-            return ki;
+            return [global_1.applyKind(km), types_1.TApp(tl, tr)];
         }
         case 'TForall': {
-            const t = global_1.namestore.fresh(type.name);
             let k;
             if (type.kind) {
                 k = type.kind;
@@ -591,16 +594,81 @@ exports.inferKind = (type) => {
                 global_1.context.add(elems_1.CKMeta(kn));
                 k = kinds_1.KMeta(kn);
             }
-            global_1.context.enter(t, elems_1.CTVar(t, k));
-            const ki = exports.inferKind(types_1.openTForall(type, types_1.TVar(t)));
-            global_1.context.leave(t);
-            return global_1.applyKind(ki);
+            global_1.context.enter(type.name, elems_1.CTVar(type.name, k));
+            const [ki, tt] = elaborateTypeR(types_1.openTForall(type, types_1.TVar(type.name)));
+            global_1.context.leave(type.name);
+            return [global_1.applyKind(ki), types_1.TForallK(type.name, global_1.applyKind(k), tt)];
         }
     }
 };
-exports.checkKindType = (type) => kindUnification_1.unifyKinds(exports.inferKind(type), kinds_1.kType);
+const instKMetaInKind = (kind) => {
+    switch (kind.tag) {
+        case 'KVar': return kind;
+        case 'KMeta': return kinds_1.kType;
+        case 'KFun':
+            return kinds_1.KFun(instKMetaInKind(kind.left), instKMetaInKind(kind.right));
+    }
+};
+const instKMeta = (type) => {
+    switch (type.tag) {
+        case 'TVar': return type;
+        case 'TMeta': return type;
+        case 'TApp': return types_1.TApp(instKMeta(type.left), instKMeta(type.right));
+        case 'TForall': {
+            const k = type.kind ? instKMetaInKind(type.kind) : kinds_1.kType;
+            return types_1.TForallK(type.name, k, instKMeta(type.type));
+        }
+    }
+};
+exports.elaborateType = (type) => {
+    // console.log(`elaborateType ${showType(type)}`);
+    const m = global_1.namestore.fresh('m');
+    global_1.context.enter(m);
+    const [_, ty] = elaborateTypeR(type);
+    global_1.context.leave(m);
+    return instKMeta(ty);
+};
+exports.deriveKind = (type) => {
+    switch (type.tag) {
+        case 'TVar': {
+            const c = global_1.context.lookup('CTVar', type.name);
+            if (c)
+                return c.kind;
+            return error_1.infererr(`undefined type ${names_1.showName(type.name)}`);
+        }
+        case 'TMeta': {
+            const c = global_1.context.lookup('CTMeta', type.name);
+            if (c)
+                return c.kind;
+            return error_1.infererr(`undefined type ?${names_1.showName(type.name)}`);
+        }
+        case 'TApp': {
+            const l = exports.deriveKind(type.left);
+            const r = exports.deriveKind(type.right);
+            if (l.tag !== 'KFun')
+                return error_1.infererr(`not a kfun in ${types_1.showType(type)}`);
+            if (!kinds_1.eqKind(l.left, r))
+                return error_1.infererr(`kind mismatch in ${types_1.showType(type)}`);
+            return l.right;
+        }
+        case 'TForall': {
+            if (!type.kind)
+                return error_1.infererr(`forall lacks kind: ${types_1.showType(type)}`);
+            const t = global_1.namestore.fresh(type.name);
+            global_1.context.enter(t, elems_1.CTVar(t, type.kind));
+            const k = exports.deriveKind(types_1.openTForall(type, types_1.TVar(t)));
+            global_1.context.leave(t);
+            return k;
+        }
+    }
+};
+exports.checkKindType = (type) => {
+    const k = exports.deriveKind(type);
+    if (!kinds_1.eqKind(k, kinds_1.kType))
+        return error_1.infererr(`expected ${kinds_1.showKind(kinds_1.kType)} but got ${kinds_1.showKind(k)} in ${types_1.showType(type)}`);
+};
 
-},{"./elems":4,"./error":5,"./global":6,"./kindUnification":9,"./kinds":10,"./types":17}],9:[function(require,module,exports){
+},{"./elems":4,"./error":5,"./global":6,"./kindUnification":9,"./kinds":10,"./names":11,"./types":17}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -619,6 +687,7 @@ const solveKind = (x, kind) => {
     global_1.context.addAll(right);
 };
 const instKind = (x, kind) => {
+    // console.log(`instKind ${showKind(x)} ~ ${showKind(kind)} in ${context}`);
     global_1.storeContext();
     try {
         solveKind(x, kind);
@@ -630,15 +699,26 @@ const instKind = (x, kind) => {
         global_1.restoreContext();
         if (kinds_1.isKMeta(kind))
             return solveKind(kind, x);
+        if (kinds_1.isKFun(kind)) {
+            const y = x.name;
+            const a = global_1.namestore.fresh(y);
+            const b = global_1.namestore.fresh(y);
+            const ta = kinds_1.KMeta(a);
+            const tb = kinds_1.KMeta(b);
+            global_1.context.replace('CKMeta', y, [
+                elems_1.CKMeta(b),
+                elems_1.CKMeta(a),
+                elems_1.CKMeta(y, kinds_1.KFun(ta, tb)),
+            ]);
+            instKind(ta, kind.left);
+            instKind(tb, global_1.applyKind(kind.right));
+            return;
+        }
         return error_1.infererr(`inst kind failed: ${kinds_1.showKind(x)} := ${kinds_1.showKind(kind)}, ${err}`);
     }
 };
-exports.unifyKinds = (a_, b_) => {
-    // console.log(`unifyKinds ${showKind(a_)} ~ ${showKind(b_)} in ${context}`);
-    if (a_ === b_)
-        return;
-    const a = global_1.applyKind(a_);
-    const b = global_1.applyKind(b_);
+exports.unifyKinds = (a, b) => {
+    // console.log(`unifyKinds ${showKind(a)} ~ ${showKind(b)} in ${context}`);
     if (a === b)
         return;
     if (kinds_1.isKVar(a) && kinds_1.isKVar(b) && names_1.eqName(a.name, b.name))
@@ -697,6 +777,13 @@ exports.showKind = (kind) => {
                 return exports.isKFun(k) ? `(${s})` : s;
             })
                 .join(' -> ');
+    }
+};
+exports.eqKind = (a, b) => {
+    switch (a.tag) {
+        case 'KVar': return exports.isKVar(b) && names_1.eqName(a.name, b.name);
+        case 'KMeta': return exports.isKMeta(b) && names_1.eqName(a.name, b.name);
+        case 'KFun': return exports.isKFun(b) && exports.eqKind(a.left, b.left) && exports.eqKind(a.right, b.right);
     }
 };
 exports.containsKMeta = (x, kind) => {
@@ -1283,7 +1370,7 @@ const _show = (x) => {
     }
     return '' + x;
 };
-const _prelude = "; some primitives so we have some concrete values\r\ndecltype PrimBool : Type\r\ndeclare primTrue : PrimBool\r\nforeign primTrue \"true\"\r\ndeclare primFalse : PrimBool\r\nforeign primFalse \"false\"\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\n; our base types\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n\r\ntype Functor (f : Type -> Type) = forall a b. (a -> b) -> f a -> f b\r\n";
+const _prelude = "; some primitives so we have some concrete values\r\ndecltype PrimBool : Type\r\ndeclare primTrue : PrimBool\r\nforeign primTrue \"true\"\r\ndeclare primFalse : PrimBool\r\nforeign primFalse \"false\"\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\n; our base types\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Pair a b = forall r. (a -> b -> r) -> r\r\nlet pair a b = Pair \\f -> f a b\r\nlet fst p = unPair p \\x y -> x\r\nlet snd p = unPair p \\x y -> y\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype Bool = forall r. r -> r -> r\r\nlet true = Bool \\a b -> a\r\nlet false = Bool \\a b -> b\r\nlet cond c a b = unBool c a b\r\nlet if c a b = cond c a b unit\r\n\r\ntype Functor f = forall a b. (a -> b) -> f a -> f b\r\n";
 const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     if (_s === ':c' || _s === ':ctx' || _s === ':context')
@@ -1341,7 +1428,6 @@ const kinds_1 = require("./kinds");
 const wellformedness_1 = require("./wellformedness");
 const error_1 = require("./error");
 const unification_1 = require("./unification");
-const kindUnification_1 = require("./kindUnification");
 const kindInference_1 = require("./kindInference");
 exports.solve = (x, type) => {
     if (!types_1.isMono(type))
@@ -1386,14 +1472,10 @@ const instL = (x, type) => {
         if (types_1.isTApp(type))
             return unification_1.inst(x, type);
         if (types_1.isTForall(type)) {
+            if (!type.kind)
+                return error_1.infererr(`forall lacks kind: ${types_1.showType(type)}`);
             const y = global_1.namestore.fresh(type.name);
-            if (type.kind) {
-                global_1.context.enter(y, elems_1.CTVar(y, type.kind));
-            }
-            else {
-                const k = global_1.namestore.fresh(type.name);
-                global_1.context.enter(y, elems_1.CKMeta(k), elems_1.CTVar(y, kinds_1.KMeta(k)));
-            }
+            global_1.context.enter(y, elems_1.CTVar(y, type.kind));
             instL(x, types_1.openTForall(type, types_1.TVar(y)));
             global_1.context.leave(y);
             return;
@@ -1432,14 +1514,10 @@ const instR = (type, x) => {
         if (types_1.isTApp(type))
             return unification_1.inst(x, type);
         if (types_1.isTForall(type)) {
+            if (!type.kind)
+                return error_1.infererr(`forall lacks kind: ${types_1.showType(type)}`);
             const y = global_1.namestore.fresh(type.name);
-            if (type.kind) {
-                global_1.context.enter(y, elems_1.CTMeta(y, type.kind));
-            }
-            else {
-                const k = global_1.namestore.fresh(type.name);
-                global_1.context.enter(y, elems_1.CKMeta(k), elems_1.CTMeta(y, kinds_1.KMeta(k)));
-            }
+            global_1.context.enter(y, elems_1.CTMeta(y, type.kind));
             instR(types_1.openTForall(type, types_1.TMeta(y)), x);
             global_1.context.leave(y);
             return;
@@ -1447,15 +1525,12 @@ const instR = (type, x) => {
         return error_1.infererr(`instR failed: ${types_1.showType(x)} := ${types_1.showType(type)}, ${err}`);
     }
 };
-exports.subsume = (a_, b_) => {
+exports.subsume = (a, b) => {
     // console.log(`subsume ${showType(a_)} <: ${showType(b_)} in ${context}`);
-    if (a_ === b_)
-        return;
-    const a = global_1.apply(a_);
-    const b = global_1.apply(b_);
     if (a === b)
         return;
-    kindUnification_1.unifyKinds(kindInference_1.inferKind(a), kindInference_1.inferKind(b));
+    if (!kinds_1.eqKind(kindInference_1.deriveKind(a), kindInference_1.deriveKind(b)))
+        return error_1.infererr(`kind mismatch in ${types_1.showType(a)} <: ${types_1.showType(b)}`);
     if (types_1.isTVar(a) && types_1.isTVar(b) && names_1.eqName(a.name, b.name))
         return;
     if (types_1.isTMeta(a) && types_1.isTMeta(b) && names_1.eqName(a.name, b.name))
@@ -1469,27 +1544,19 @@ exports.subsume = (a_, b_) => {
     if (types_1.isTApp(a) && types_1.isTApp(b))
         return unification_1.unify(a, b);
     if (types_1.isTForall(a)) {
+        if (!a.kind)
+            return error_1.infererr(`forall lacks kind: ${types_1.showType(a)}`);
         const t = global_1.namestore.fresh(a.name);
-        if (a.kind) {
-            global_1.context.enter(t, elems_1.CTMeta(t, a.kind));
-        }
-        else {
-            const k = global_1.namestore.fresh(a.name);
-            global_1.context.enter(t, elems_1.CKMeta(k), elems_1.CTMeta(t, kinds_1.KMeta(k)));
-        }
+        global_1.context.enter(t, elems_1.CTMeta(t, a.kind));
         exports.subsume(types_1.openTForall(a, types_1.TMeta(t)), b);
         global_1.context.leave(t);
         return;
     }
     if (types_1.isTForall(b)) {
+        if (!b.kind)
+            return error_1.infererr(`forall lacks kind: ${types_1.showType(b)}`);
         const t = global_1.namestore.fresh(b.name);
-        if (b.kind) {
-            global_1.context.enter(t, elems_1.CTVar(t, b.kind));
-        }
-        else {
-            const k = global_1.namestore.fresh(b.name);
-            global_1.context.enter(t, elems_1.CKMeta(k), elems_1.CTVar(t, kinds_1.KMeta(k)));
-        }
+        global_1.context.enter(t, elems_1.CTVar(t, b.kind));
         exports.subsume(a, types_1.openTForall(b, types_1.TVar(t)));
         global_1.context.leave(t);
         return;
@@ -1507,7 +1574,7 @@ exports.subsume = (a_, b_) => {
     return error_1.infererr(`subsume failed: ${types_1.showType(a)} <: ${types_1.showType(b)}`);
 };
 
-},{"./elems":4,"./error":5,"./global":6,"./kindInference":8,"./kindUnification":9,"./kinds":10,"./names":11,"./types":17,"./unification":18,"./wellformedness":20}],16:[function(require,module,exports){
+},{"./elems":4,"./error":5,"./global":6,"./kindInference":8,"./kinds":10,"./names":11,"./types":17,"./unification":18,"./wellformedness":20}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const names_1 = require("./names");
@@ -1754,7 +1821,6 @@ const kinds_1 = require("./kinds");
 const error_1 = require("./error");
 const subsumption_1 = require("./subsumption");
 const kindInference_1 = require("./kindInference");
-const kindUnification_1 = require("./kindUnification");
 exports.inst = (x, type) => {
     global_1.storeContext();
     try {
@@ -1783,14 +1849,10 @@ exports.inst = (x, type) => {
             return;
         }
         if (types_1.isTForall(type)) {
+            if (!type.kind)
+                return error_1.infererr(`forall lacks kind: ${types_1.showType(type)}`);
             const y = global_1.namestore.fresh(type.name);
-            if (type.kind) {
-                global_1.context.enter(y, elems_1.CTVar(y, type.kind));
-            }
-            else {
-                const k = global_1.namestore.fresh(type.name);
-                global_1.context.enter(y, elems_1.CKMeta(k), elems_1.CTVar(y, kinds_1.KMeta(k)));
-            }
+            global_1.context.enter(y, elems_1.CTVar(y, type.kind));
             exports.inst(x, types_1.openTForall(type, types_1.TVar(y)));
             global_1.context.leave(y);
             return;
@@ -1798,15 +1860,12 @@ exports.inst = (x, type) => {
         return error_1.infererr(`inst failed: ${types_1.showType(x)} := ${types_1.showType(type)}, ${err}`);
     }
 };
-exports.unify = (a_, b_) => {
+exports.unify = (a, b) => {
     // console.log(`unify ${showType(a_)} ~ ${showType(b_)} in ${context}`);
-    if (a_ === b_)
-        return;
-    const a = global_1.apply(a_);
-    const b = global_1.apply(b_);
     if (a === b)
         return;
-    kindUnification_1.unifyKinds(kindInference_1.inferKind(a), kindInference_1.inferKind(b));
+    if (!kinds_1.eqKind(kindInference_1.deriveKind(a), kindInference_1.deriveKind(b)))
+        return error_1.infererr(`kind mismatch in ${types_1.showType(a)} ~ ${types_1.showType(b)}`);
     if (a === b)
         return;
     if (types_1.isTVar(a) && types_1.isTVar(b) && names_1.eqName(a.name, b.name))
@@ -1818,9 +1877,14 @@ exports.unify = (a_, b_) => {
         return exports.unify(global_1.apply(a.right), global_1.apply(b.right));
     }
     if (types_1.isTForall(a) && types_1.isTForall(b)) {
+        if (!a.kind)
+            return error_1.infererr(`forall lacks kind: ${types_1.showType(a)}`);
+        if (!b.kind)
+            return error_1.infererr(`forall lacks kind: ${types_1.showType(b)}`);
+        if (!kinds_1.eqKind(a.kind, b.kind))
+            return error_1.infererr(`kind does not match in foralls: ${types_1.showType(a)} ~ ${types_1.showType(b)}`);
         const t = global_1.namestore.fresh(a.name);
-        const k = global_1.namestore.fresh(a.name);
-        global_1.context.enter(t, elems_1.CKMeta(k), elems_1.CTVar(t, kinds_1.KMeta(k)));
+        global_1.context.enter(t, elems_1.CTVar(t, a.kind));
         exports.unify(types_1.openTForall(a, types_1.TVar(t)), types_1.openTForall(b, types_1.TVar(t)));
         global_1.context.leave(t);
         return;
@@ -1838,7 +1902,7 @@ exports.unify = (a_, b_) => {
     return error_1.infererr(`unify failed: ${types_1.showType(a)} ~ ${types_1.showType(b)}`);
 };
 
-},{"./elems":4,"./error":5,"./global":6,"./kindInference":8,"./kindUnification":9,"./kinds":10,"./names":11,"./subsumption":15,"./types":17}],19:[function(require,module,exports){
+},{"./elems":4,"./error":5,"./global":6,"./kindInference":8,"./kinds":10,"./names":11,"./subsumption":15,"./types":17}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");

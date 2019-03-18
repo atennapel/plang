@@ -38,4 +38,4 @@ let false = Bool \a b -> b
 let cond c a b = unBool c a b
 let if c a b = cond c a b unit
 
-type Functor (f : Type -> Type) = forall a b. (a -> b) -> f a -> f b
+type Functor f = forall a b. (a -> b) -> f a -> f b

@@ -91,12 +91,12 @@ export class Context {
   leave(m: NameT): void {
     this.split('CMarker', m);
   }
-  leaveWithUnsolved(m: NameT): NameT[] {
+  leaveWithUnsolved(m: NameT): CTMeta[] {
     const ret = this.split('CMarker', m);
-    const ns: NameT[] = [];
+    const ns: CTMeta[] = [];
     for (let i = 0, l = ret.length; i < l; i++) {
       const c = ret[i];
-      if (isCTMeta(c) && !c.type) ns.push(c.name);
+      if (isCTMeta(c) && !c.type) ns.push(c);
     }
     return ns;
   }

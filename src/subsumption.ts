@@ -15,13 +15,12 @@ import {
 } from './types';
 import { eqName } from './names';
 import { apply, namestore, context, discardContext, storeContext, restoreContext } from './global';
-import { CTMeta, CKMeta, CTVar } from './elems';
-import { KMeta, kType } from './kinds';
+import { CTMeta, CTVar } from './elems';
+import { kType, eqKind } from './kinds';
 import { wfType } from './wellformedness';
 import { InferError, infererr } from './error';
 import { unify, inst } from './unification';
-import { unifyKinds } from './kindUnification';
-import { inferKind } from './kindInference';
+import { deriveKind } from './kindInference';
 
 export const solve = (x: TMeta, type: Type): void => {
   if (!isMono(type)) return infererr('solve with polytype');
@@ -60,13 +59,9 @@ const instL = (x: TMeta, type: Type): void => {
     }
     if (isTApp(type)) return inst(x, type);
     if (isTForall(type)) {
+      if (!type.kind) return infererr(`forall lacks kind: ${showType(type)}`);
       const y = namestore.fresh(type.name);
-      if (type.kind) {
-        context.enter(y, CTVar(y, type.kind));
-      } else {
-        const k = namestore.fresh(type.name);
-        context.enter(y, CKMeta(k), CTVar(y, KMeta(k)));
-      }
+      context.enter(y, CTVar(y, type.kind));
       instL(x, openTForall(type, TVar(y)));
       context.leave(y);
       return;
@@ -102,13 +97,9 @@ const instR = (type: Type, x: TMeta): void => {
     }
     if (isTApp(type)) return inst(x, type);
     if (isTForall(type)) {
+      if (!type.kind) return infererr(`forall lacks kind: ${showType(type)}`);
       const y = namestore.fresh(type.name);
-      if (type.kind) {
-        context.enter(y, CTMeta(y, type.kind));
-      } else {
-        const k = namestore.fresh(type.name);
-        context.enter(y, CKMeta(k), CTMeta(y, KMeta(k)));
-      }
+      context.enter(y, CTMeta(y, type.kind));
       instR(openTForall(type, TMeta(y)), x);
       context.leave(y);
       return;
@@ -117,13 +108,11 @@ const instR = (type: Type, x: TMeta): void => {
   }
 };
 
-export const subsume = (a_: Type, b_: Type): void => {
+export const subsume = (a: Type, b: Type): void => {
   // console.log(`subsume ${showType(a_)} <: ${showType(b_)} in ${context}`);
-  if (a_ === b_) return;
-  const a = apply(a_);
-  const b = apply(b_);
   if (a === b) return;
-  unifyKinds(inferKind(a), inferKind(b));
+  if (!eqKind(deriveKind(a), deriveKind(b)))
+    return infererr(`kind mismatch in ${showType(a)} <: ${showType(b)}`);
   if (isTVar(a) && isTVar(b) && eqName(a.name, b.name)) return;
   if (isTMeta(a) && isTMeta(b) && eqName(a.name, b.name)) return;
   const fa = matchTFun(a);
@@ -135,25 +124,17 @@ export const subsume = (a_: Type, b_: Type): void => {
   if (isTApp(a) && isTApp(b))
     return unify(a, b);
   if (isTForall(a)) {
+    if (!a.kind) return infererr(`forall lacks kind: ${showType(a)}`);
     const t = namestore.fresh(a.name);
-    if (a.kind) {
-      context.enter(t, CTMeta(t, a.kind));
-    } else {
-      const k = namestore.fresh(a.name);
-      context.enter(t, CKMeta(k), CTMeta(t, KMeta(k)));
-    }
+    context.enter(t, CTMeta(t, a.kind));
     subsume(openTForall(a, TMeta(t)), b);
     context.leave(t);
     return;
   }
   if (isTForall(b)) {
+    if (!b.kind) return infererr(`forall lacks kind: ${showType(b)}`);
     const t = namestore.fresh(b.name);
-    if (b.kind) {
-      context.enter(t, CTVar(t, b.kind));
-    } else {
-      const k = namestore.fresh(b.name);
-      context.enter(t, CKMeta(k), CTVar(t, KMeta(k)));
-    }
+    context.enter(t, CTVar(t, b.kind));
     subsume(a, openTForall(b, TVar(t)));
     context.leave(t);
     return;

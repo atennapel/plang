@@ -1,36 +1,34 @@
-import { Type, showType, openTForall, TVar } from './types';
-import { Kind, kType, KFun, KMeta } from './kinds';
+import { Type, showType, openTForall, TVar, TApp, isTMeta, TForallK } from './types';
+import { Kind, kType, KFun, KMeta, eqKind, showKind, isKMeta } from './kinds';
 import { unifyKinds } from './kindUnification';
 import { context, applyKind, namestore } from './global';
 import { infererr } from './error';
 import { CKMeta, CTVar } from './elems';
+import { showName } from './names';
 
-export const inferKind = (type: Type): Kind => {
-  // console.log(`inferKind ${showType(type)}`);
+const elaborateTypeR = (type: Type): [Kind, Type] => {
+  // console.log(`elaborateTypeR ${showType(type)}`);
   switch (type.tag) {
     case 'TVar': {
       const e = context.lookup('CTVar', type.name);
       if (!e) return infererr(`undefined tvar ${showType(type)}`);
-      return e.kind;
+      return [applyKind(e.kind), type];
     }
     case 'TMeta': {
       const e = context.lookup('CTMeta', type.name);
       if (!e) return infererr(`undefined tmeta ${showType(type)}`);
-      return e.kind;
+      return [applyKind(e.kind), type];
     }
     case 'TApp': {
-      const l = inferKind(type.left);
-      const r = inferKind(type.right);
+      const [l, tl] = elaborateTypeR(type.left);
+      const [r, tr] = elaborateTypeR(type.right);
       const kv = namestore.fresh('k');
       const km = KMeta(kv);
-      context.enter(kv, CKMeta(kv));
+      context.add(CKMeta(kv));
       unifyKinds(l, KFun(r, km));
-      const ki = applyKind(km);
-      context.leave(kv);
-      return ki;
+      return [applyKind(km), TApp(tl, tr)];
     }
     case 'TForall': {
-      const t = namestore.fresh(type.name);
       let k;
       if (type.kind) {
         k = type.kind;
@@ -39,13 +37,76 @@ export const inferKind = (type: Type): Kind => {
         context.add(CKMeta(kn));
         k = KMeta(kn);
       }
-      context.enter(t, CTVar(t, k));
-      const ki = inferKind(openTForall(type, TVar(t)));
-      context.leave(t);
-      return applyKind(ki);
+      context.enter(type.name, CTVar(type.name, k));
+      const [ki, tt] = elaborateTypeR(openTForall(type, TVar(type.name)));
+      context.leave(type.name);
+      return [applyKind(ki), TForallK(type.name, applyKind(k), tt)];
     }
   }
 };
 
-export const checkKindType = (type: Type): void =>
-  unifyKinds(inferKind(type), kType);
+const instKMetaInKind = (kind: Kind): Kind => {
+  switch (kind.tag) {
+    case 'KVar': return kind;
+    case 'KMeta': return kType;
+    case 'KFun':
+      return KFun(instKMetaInKind(kind.left), instKMetaInKind(kind.right));
+  }
+}
+
+const instKMeta = (type: Type): Type => {
+  switch (type.tag) {
+    case 'TVar': return type;
+    case 'TMeta': return type;
+    case 'TApp': return TApp(instKMeta(type.left), instKMeta(type.right));
+    case 'TForall': {
+      const k = type.kind ? instKMetaInKind(type.kind) : kType;
+      return TForallK(type.name, k, instKMeta(type.type));
+    }
+  }
+};
+
+export const elaborateType = (type: Type): Type => {
+  // console.log(`elaborateType ${showType(type)}`);
+  const m = namestore.fresh('m');
+  context.enter(m);
+  const [_, ty] = elaborateTypeR(type);
+  context.leave(m);
+  return instKMeta(ty);
+};
+
+export const deriveKind = (type: Type): Kind => {
+  switch (type.tag) {
+    case 'TVar': {
+      const c = context.lookup('CTVar', type.name);
+      if (c) return c.kind;
+      return infererr(`undefined type ${showName(type.name)}`);
+    }
+    case 'TMeta': {
+      const c = context.lookup('CTMeta', type.name);
+      if (c) return c.kind;
+      return infererr(`undefined type ?${showName(type.name)}`);
+    }
+    case 'TApp': {
+      const l = deriveKind(type.left);
+      const r = deriveKind(type.right);
+      if (l.tag !== 'KFun') return infererr(`not a kfun in ${showType(type)}`);
+      if (!eqKind(l.left, r)) return infererr(`kind mismatch in ${showType(type)}`);
+      return l.right;
+    }
+    case 'TForall': {
+      if (!type.kind) return infererr(`forall lacks kind: ${showType(type)}`);
+      const t = namestore.fresh(type.name);
+      context.enter(t, CTVar(t, type.kind));
+      const k = deriveKind(openTForall(type, TVar(t)));
+      context.leave(t);
+      return k;
+    }
+  }
+};
+
+export const checkKindType = (type: Type): void => {
+  const k = deriveKind(type);
+  if (!eqKind(k, kType))
+    return infererr(`expected ${showKind(kType)} but got ${showKind(k)} in ${showType(type)}`);
+};
