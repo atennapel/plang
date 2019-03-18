@@ -1,4 +1,4 @@
-import { Term, Var, appFrom, abs, Ann, Let, App, If } from './terms';
+import { Term, Var, appFrom, abs, Ann, Let, App, If, Query } from './terms';
 import { Name, NameT } from './names';
 import { TVar, Type, tappFrom, tfunFrom, tforallK, tFun, TApp } from './types';
 import { Kind, KVar, kfunFrom, kType } from './kinds';
@@ -42,7 +42,7 @@ const matchingBracket = (c: Bracket): Bracket => {
   return err(`invalid bracket: ${c}`);
 }
 
-const SYM1 = ['\\', ':', '.', '='];
+const SYM1 = ['\\', ':', '.', '=', '?'];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
 
 const KEYWORDS = ['let', 'in', 'type', 'if', 'then', 'else'];
@@ -242,6 +242,7 @@ const parseToken = (ts: Token): Term => {
       return Var(Name(ts.val));
     }
     case 'SymbolT': {
+      if (ts.val === '?') return Query;
       if (ts.val === '<|') {
         const f = Name('f');
         const x = Name('x');

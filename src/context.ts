@@ -101,5 +101,13 @@ export class Context {
     return ns;
   }
 
+  first<T>(fn: (val: Elem) => T | null): T | null {
+    for (let a = this.elems, l = a.length, i = 0; i < l; i++) {
+      const c = fn(a[i]);
+      if (c) return c;
+    }
+    return null;
+  }
+
 }
 

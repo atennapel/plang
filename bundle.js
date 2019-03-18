@@ -1,7 +1,9 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const terms_1 = require("./terms");
 const names_1 = require("./names");
+const err = (msg) => { throw new Error(msg); };
 exports.compileName = (name) => {
     const x = names_1.showName(name);
     return keywords.indexOf(x) >= 0 ? `${x}_` : x;
@@ -14,6 +16,7 @@ exports.compile = (term) => {
         case 'Ann': return exports.compile(term.term);
         case 'Let': return `(${exports.compileName(term.name)} => ${exports.compile(term.body)})(${exports.compile(term.term)})`;
         case 'If': return `(${exports.compile(term.cond)} ? ${exports.compile(term.then)} : ${exports.compile(term.else_)})`;
+        case 'Query': return err(`cannot compile ${terms_1.showTerm(term)}`);
     }
 };
 exports.compileDef = (def, prefix) => {
@@ -82,7 +85,7 @@ implements
 instanceof
 `.trim().split(/\s+/);
 
-},{"./names":12}],2:[function(require,module,exports){
+},{"./names":12,"./terms":17}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = {
@@ -183,6 +186,14 @@ class Context {
                 ns.push(c);
         }
         return ns;
+    }
+    first(fn) {
+        for (let a = this.elems, l = a.length, i = 0; i < l; i++) {
+            const c = fn(a[i]);
+            if (c)
+                return c;
+        }
+        return null;
     }
 }
 exports.Context = Context;
@@ -346,6 +357,30 @@ const kinds_1 = require("./kinds");
 const kindInference_1 = require("./kindInference");
 const definitions_1 = require("./definitions");
 const config_1 = require("./config");
+const resolveImplicit = (type) => {
+    config_1.log(`resolveImplicit ${types_1.showType(type)}`);
+    const x = global_1.context.first(e => {
+        if (e.tag !== 'CVar')
+            return null;
+        global_1.storeContext();
+        try {
+            subsumption_1.subsume(e.type, type);
+            config_1.log(`select ${names_1.showName(e.name)} : ${types_1.showType(e.type)}`);
+            return e.name;
+        }
+        catch (err) {
+            if (!(err instanceof error_1.InferError))
+                throw err;
+            return null;
+        }
+        finally {
+            global_1.restoreContext();
+        }
+    });
+    if (!x)
+        return error_1.infererr(`no implicit value found for: ${types_1.showType(type)}`);
+    return x;
+};
 const getByName = (cs, x) => {
     for (let i = 0, l = cs.length; i < l; i++)
         if (names_1.eqName(cs[i].name, x))
@@ -392,7 +427,7 @@ const typesynth = (term) => {
         const x = global_1.context.lookup('CVar', term.name);
         if (!x)
             return error_1.infererr(`undefined var ${names_1.showName(term.name)}`);
-        return x.type;
+        return [x.type, term];
     }
     if (terms_1.isAbs(term)) {
         const x = global_1.namestore.fresh(term.name);
@@ -401,33 +436,36 @@ const typesynth = (term) => {
         const ta = types_1.TMeta(a);
         const tb = types_1.TMeta(b);
         global_1.context.enter(x, elems_1.CTMeta(a, kinds_1.kType), elems_1.CTMeta(b, kinds_1.kType), elems_1.CVar(x, ta));
-        typecheck(terms_1.openAbs(term, terms_1.Var(x)), tb);
+        const body = typecheck(terms_1.openAbs(term, terms_1.Var(x)), tb);
         const ty = global_1.apply(types_1.TFun(ta, tb));
-        return generalizeFrom(x, ty);
+        return [generalizeFrom(x, ty), terms_1.Abs(x, body)];
     }
     if (terms_1.isApp(term)) {
-        const left = typesynth(term.left);
-        return typeappsynth(global_1.apply(left), term.right);
+        const [left, nleft] = typesynth(term.left);
+        const [right, nright] = typeappsynth(global_1.apply(left), term.right);
+        return [right, terms_1.App(nleft, nright)];
     }
     if (terms_1.isAnn(term)) {
         wellformedness_1.wfType(term.type);
         const ty = kindInference_1.elaborateType(term.type);
         kindInference_1.checkKindType(ty);
-        typecheck(term.term, ty);
-        return ty;
+        const nterm = typecheck(term.term, ty);
+        return [ty, terms_1.Ann(nterm, ty)];
     }
     if (terms_1.isLet(term)) {
-        const ty = typesynth(term.term);
+        const [ty, nterm] = typesynth(term.term);
         const x = global_1.namestore.fresh(term.name);
         global_1.context.enter(x, elems_1.CVar(x, ty));
-        const rty = global_1.apply(typesynth(terms_1.openLet(term, terms_1.Var(x))));
-        return generalizeFrom(x, rty);
+        const [uty, nbody] = typesynth(terms_1.openLet(term, terms_1.Var(x)));
+        const rty = global_1.apply(uty);
+        const gty = generalizeFrom(x, rty);
+        return [gty, terms_1.Let(x, nterm, nbody)];
     }
     if (terms_1.isIf(term)) {
-        typecheck(term.cond, types_1.tBool);
-        const ty = typesynth(term.then);
-        typecheck(term.else_, ty);
-        return ty;
+        const ncond = typecheck(term.cond, types_1.tBool);
+        const [ty, nthen] = typesynth(term.then);
+        const nelse = typecheck(term.else_, ty);
+        return [ty, terms_1.If(ncond, nthen, nelse)];
     }
     return error_1.infererr(`cannot synth: ${terms_1.showTerm(term)}`);
 };
@@ -438,34 +476,39 @@ const typecheck = (term, type) => {
             return error_1.infererr(`forall lacks kind: ${types_1.showType(type)}`);
         const x = global_1.namestore.fresh(type.name);
         global_1.context.enter(x, elems_1.CTVar(x, type.kind));
-        typecheck(term, types_1.openTForall(type, types_1.TVar(x)));
+        const nterm = typecheck(term, types_1.openTForall(type, types_1.TVar(x)));
         global_1.context.leave(x);
-        return;
+        return nterm;
     }
     const f = types_1.matchTFun(type);
     if (terms_1.isAbs(term) && f) {
         const x = global_1.namestore.fresh(term.name);
         global_1.context.enter(x, elems_1.CVar(x, f.left));
-        typecheck(terms_1.openAbs(term, terms_1.Var(x)), f.right);
+        const body = typecheck(terms_1.openAbs(term, terms_1.Var(x)), f.right);
         global_1.context.leave(x);
-        return;
+        return terms_1.Abs(x, body);
     }
     if (terms_1.isLet(term)) {
-        const ty = typesynth(term.term);
+        const [ty, nterm] = typesynth(term.term);
         const x = global_1.namestore.fresh(term.name);
         global_1.context.enter(x, elems_1.CVar(x, ty));
-        typecheck(terms_1.openLet(term, terms_1.Var(x)), global_1.apply(type));
+        const nbody = typecheck(terms_1.openLet(term, terms_1.Var(x)), global_1.apply(type));
         global_1.context.leave(x);
-        return;
+        return terms_1.Let(x, nterm, nbody);
     }
     if (terms_1.isIf(term)) {
-        typecheck(term.cond, types_1.tBool);
-        typecheck(term.then, type);
-        typecheck(term.else_, global_1.apply(type));
-        return;
+        const ncond = typecheck(term.cond, types_1.tBool);
+        const nthen = typecheck(term.then, type);
+        const nelse = typecheck(term.else_, global_1.apply(type));
+        return terms_1.If(ncond, nthen, nelse);
     }
-    const ty = typesynth(term);
-    return subsumption_1.subsume(global_1.apply(ty), global_1.apply(type));
+    if (terms_1.isQuery(term)) {
+        const y = resolveImplicit(type);
+        return terms_1.Var(y);
+    }
+    const [ty, nterm] = typesynth(term);
+    subsumption_1.subsume(global_1.apply(ty), global_1.apply(type));
+    return nterm;
 };
 const typeappsynth = (type, term) => {
     config_1.log(`typeappsynth ${types_1.showType(type)} @ ${terms_1.showTerm(term)}`);
@@ -487,13 +530,13 @@ const typeappsynth = (type, term) => {
             elems_1.CTMeta(a, kinds_1.kType),
             elems_1.CTMeta(x, kinds_1.kType, types_1.TFun(ta, tb)),
         ]);
-        typecheck(term, ta);
-        return tb;
+        const nterm = typecheck(term, ta);
+        return [tb, nterm];
     }
     const f = types_1.matchTFun(type);
     if (f) {
-        typecheck(term, f.left);
-        return f.right;
+        const nterm = typecheck(term, f.left);
+        return [f.right, nterm];
     }
     // TODO: generalize the below for all type applications
     if (types_1.isTApp(type) && types_1.isTMeta(type.left)) {
@@ -504,16 +547,16 @@ const typeappsynth = (type, term) => {
             elems_1.CTMeta(a, kinds_1.kType),
             elems_1.CTMeta(x, kinds_1.kfun(kinds_1.kType, kinds_1.kType), types_1.TApp(types_1.tFun, ta)),
         ]);
-        typecheck(term, ta);
-        return type.right;
+        const nterm = typecheck(term, ta);
+        return [type.right, nterm];
     }
     if (types_1.isTApp(type) && types_1.isTApp(type.left) && types_1.isTMeta(type.left.left)) {
         const x = type.left.left.name;
         global_1.context.replace('CTMeta', x, [
             elems_1.CTMeta(x, kinds_1.kfun(kinds_1.kType, kinds_1.kType, kinds_1.kType), types_1.tFun),
         ]);
-        typecheck(term, type.left.right);
-        return type.right;
+        const nterm = typecheck(term, type.left.right);
+        return [type.right, nterm];
     }
     return error_1.infererr(`cannot typeappsynth: ${types_1.showType(type)} @ ${terms_1.showTerm(term)}`);
 };
@@ -523,11 +566,12 @@ exports.infer = (term) => {
     const m = global_1.namestore.fresh('m');
     global_1.context.enter(m);
     try {
-        const ty = generalizeFrom(m, global_1.apply(typesynth(term)));
+        const [uty, nterm] = typesynth(term);
+        const ty = generalizeFrom(m, global_1.apply(uty));
         kindInference_1.checkKindType(ty);
         if (!global_1.context.isComplete())
             return error_1.infererr(`incomplete context: ${global_1.context}`);
-        return types_1.simplifyType(ty);
+        return [types_1.simplifyType(ty), nterm];
     }
     catch (err) {
         global_1.context.leave(m);
@@ -554,15 +598,15 @@ exports.inferDef = (def) => {
             const nargs = fl.args.slice(0, def.args.length);
             const ntype = types_1.tforallK(fl.args.slice(def.args.length), fl.type);
             global_1.context.add(elems_1.CTVar(tname, kinds_1.kfunFrom(nargs.map(([_, k]) => k || kinds_1.kType).concat([kinds_1.kType]))), elems_1.CVar(tname, types_1.tforallK(nargs, types_1.tfun(ntype, types_1.tappFrom([types_1.TVar(tname)].concat(nargs.map(([n]) => types_1.TVar(n))))))), elems_1.CVar(untname, types_1.tforallK(nargs, types_1.tfun(types_1.tappFrom([types_1.TVar(tname)].concat(nargs.map(([n]) => types_1.TVar(n)))), ntype))));
-            return;
+            return def;
         }
         case 'DLet': {
             const name = def.name;
             if (global_1.context.lookup('CVar', name))
                 throw new TypeError(`${names_1.showName(name)} is already defined`);
-            const ty = exports.infer(terms_1.abs(def.args, def.term));
+            const [ty, term] = exports.infer(terms_1.abs(def.args, def.term));
             global_1.context.add(elems_1.CVar(name, ty));
-            return;
+            return definitions_1.DLet(name, [], term);
         }
         case 'DDeclType': {
             const name = def.name;
@@ -570,7 +614,7 @@ exports.inferDef = (def) => {
                 throw new TypeError(`type ${names_1.showName(name)} is already defined`);
             wellformedness_1.wfKind(def.kind);
             global_1.context.add(elems_1.CTVar(name, def.kind));
-            return;
+            return def;
         }
         case 'DDeclare': {
             const name = def.name;
@@ -580,12 +624,12 @@ exports.inferDef = (def) => {
             const type = kindInference_1.elaborateType(def.type);
             kindInference_1.checkKindType(type);
             global_1.context.add(elems_1.CVar(name, type));
-            return;
+            return def;
         }
-        case 'DForeign': return;
+        case 'DForeign': return def;
     }
 };
-exports.inferDefs = (ds) => ds.forEach(exports.inferDef);
+exports.inferDefs = (ds) => ds.map(exports.inferDef);
 
 },{"./config":2,"./definitions":4,"./elems":5,"./error":6,"./global":7,"./kindInference":9,"./kinds":11,"./names":12,"./subsumption":16,"./terms":17,"./types":18,"./wellformedness":21}],9:[function(require,module,exports){
 "use strict";
@@ -938,7 +982,7 @@ const matchingBracket = (c) => {
         return '(';
     return err(`invalid bracket: ${c}`);
 };
-const SYM1 = ['\\', ':', '.', '='];
+const SYM1 = ['\\', ':', '.', '=', '?'];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
 const KEYWORDS = ['let', 'in', 'type', 'if', 'then', 'else'];
 const KEYWORDS_TYPE = ['forall', 'type', 'let'];
@@ -1168,6 +1212,8 @@ const parseToken = (ts) => {
             return terms_1.Var(names_1.Name(ts.val));
         }
         case 'SymbolT': {
+            if (ts.val === '?')
+                return terms_1.Query;
             if (ts.val === '<|') {
                 const f = names_1.Name('f');
                 const x = names_1.Name('x');
@@ -1545,7 +1591,7 @@ const _show = (x) => {
     }
     return '' + x;
 };
-const _prelude = "; some primitives so we have some concrete values\r\ndeclare True : Bool\r\nforeign True \"true\"\r\ndeclare False : Bool\r\nforeign False \"false\"\r\nlet not b = if b then False else True\r\nlet and a b = if a then b else False\r\nlet or a b = if a then True else b\r\n\r\ndecltype PrimNat : Type\r\ndeclare primZ : PrimNat\r\nforeign primZ \"0\"\r\ndeclare primS : PrimNat -> PrimNat\r\nforeign primS \"x => x + 1\"\r\n\r\ndecltype PrimList : Type -> Type\r\ndeclare primNil : forall t. PrimList t\r\nforeign primNil \"[]\"\r\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\r\nforeign primCons \"h => t => [h].concat(t)\"\r\n\r\ndecltype Pair : Type -> Type -> Type\r\ndeclare pair : forall a b. a -> b -> Pair a b\r\nforeign pair \"a => b => [a, b]\"\r\ndeclare fst : forall a b. Pair a b -> a\r\nforeign fst \"p => p[0]\"\r\ndeclare snd : forall a b. Pair a b -> b\r\nforeign snd \"p => p[1]\"\r\n\r\n; our base types\r\ntype Void = forall t. t\r\n\r\ntype Unit = forall t. t -> t\r\nlet unit = Unit \\x -> x\r\n\r\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\r\nlet inl x = Sum \\f g -> f x\r\nlet inr x = Sum \\f g -> g x\r\n\r\ntype List t = forall r. r -> (t -> r -> r) -> r\r\nlet Nil = List \\n c -> n\r\nlet Cons h t = List \\n c -> c h (unList t n c)\r\nlet showList l = unList l primNil primCons\r\n\r\nlet foldl f v l = unList l v f\r\nlet mapList f = foldl (\\h t -> Cons (f h) t) Nil\r\n\r\ntype Functor f = forall a b. (a -> b) -> f a -> f b\r\nlet map = unFunctor\r\n\r\nlet ArrFunctor = Functor \\f g x -> f (g x)\r\nlet ListFunctor = Functor mapList\r\n";
+const _prelude = "; some primitives so we have some concrete values\ndeclare True : Bool\nforeign True \"true\"\ndeclare False : Bool\nforeign False \"false\"\nlet not b = if b then False else True\nlet and a b = if a then b else False\nlet or a b = if a then True else b\n\ndecltype PrimNat : Type\ndeclare primZ : PrimNat\nforeign primZ \"0\"\ndeclare primS : PrimNat -> PrimNat\nforeign primS \"x => x + 1\"\n\ndecltype PrimList : Type -> Type\ndeclare primNil : forall t. PrimList t\nforeign primNil \"[]\"\ndeclare primCons : forall t. t -> PrimList t -> PrimList t\nforeign primCons \"h => t => [h].concat(t)\"\n\ndecltype Pair : Type -> Type -> Type\ndeclare pair : forall a b. a -> b -> Pair a b\nforeign pair \"a => b => [a, b]\"\ndeclare fst : forall a b. Pair a b -> a\nforeign fst \"p => p[0]\"\ndeclare snd : forall a b. Pair a b -> b\nforeign snd \"p => p[1]\"\n\n; our base types\ntype Void = forall t. t\n\ntype Unit = forall t. t -> t\nlet unit = Unit \\x -> x\n\ntype Sum a b = forall r. (a -> r) -> (b -> r) -> r\nlet inl x = Sum \\f g -> f x\nlet inr x = Sum \\f g -> g x\n\ntype List t = forall r. r -> (t -> r -> r) -> r\nlet Nil = List \\n c -> n\nlet Cons h t = List \\n c -> c h (unList t n c)\nlet showList l = unList l primNil primCons\n\nlet foldl f v l = unList l v f\nlet mapList f = foldl (\\h t -> Cons (f h) t) Nil\n\ntype Functor f = forall a b. (a -> b) -> f a -> f b\nlet map = unFunctor\n\nlet ArrFunctor = Functor \\f g x -> f (g x)\nlet ListFunctor = Functor mapList\n";
 const _env = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     if (_s === ':c' || _s === ':ctx' || _s === ':context')
@@ -1562,10 +1608,10 @@ exports.run = (_s, _cb) => {
         try {
             const _rest = _s.slice(4).trim();
             const _ds = parser_1.parseDefs(_rest);
-            inference_1.inferDefs(_ds);
-            const _c = compiler_1.compileDefs(_ds, n => `${_env}['${n}']`);
+            const _nds = inference_1.inferDefs(_ds);
+            const _c = compiler_1.compileDefs(_nds, n => `${_env}['${n}']`);
             eval(`(() => {${_c}})()`);
-            return _cb(`defined ${_ds.map(d => names_1.showName(d.name)).join(' ')}`);
+            return _cb(`defined ${_nds.map(d => names_1.showName(d.name)).join(' ')}`);
         }
         catch (err) {
             return _cb(`${err}`, true);
@@ -1574,10 +1620,10 @@ exports.run = (_s, _cb) => {
     if (_s === ':p' || _s === ':prelude') {
         try {
             const _ds = parser_1.parseDefs(_prelude);
-            inference_1.inferDefs(_ds);
-            const _c = compiler_1.compileDefs(_ds, n => `${_env}['${n}']`);
+            const _nds = inference_1.inferDefs(_ds);
+            const _c = compiler_1.compileDefs(_nds, n => `${_env}['${n}']`);
             eval(`(() => {${_c}})()`);
-            return _cb(`defined ${_ds.map(d => names_1.showName(d.name)).join(' ')}`);
+            return _cb(`defined ${_nds.map(d => names_1.showName(d.name)).join(' ')}`);
         }
         catch (err) {
             return _cb(`${err}`, true);
@@ -1586,9 +1632,9 @@ exports.run = (_s, _cb) => {
     try {
         const _e = parser_1.parse(_s);
         config_1.log(terms_1.showTerm(_e));
-        const _t = inference_1.infer(_e);
+        const [_t, _ne] = inference_1.infer(_e);
         config_1.log(types_1.showType(_t));
-        const _c = compiler_1.compile(_e);
+        const _c = compiler_1.compile(_ne);
         config_1.log(_c);
         const _v = eval(_c);
         config_1.log(_v);
@@ -1780,6 +1826,8 @@ exports.Let = (name, term, body) => ({ tag: 'Let', name, term, body });
 exports.isLet = (term) => term.tag === 'Let';
 exports.If = (cond, then, else_) => ({ tag: 'If', cond, then, else_ });
 exports.isIf = (term) => term.tag === 'If';
+exports.Query = { tag: 'Query' };
+exports.isQuery = (term) => term.tag === 'Query';
 exports.flattenApp = (type) => {
     let c = type;
     const r = [];
@@ -1819,6 +1867,7 @@ exports.showTerm = (term) => {
             return `(let ${names_1.showName(term.name)} = ${exports.showTerm(term.term)} in ${exports.showTerm(term.body)})`;
         case 'If':
             return `(if ${exports.showTerm(term.cond)} then ${exports.showTerm(term.then)} else ${exports.showTerm(term.else_)})`;
+        case 'Query': return '?';
     }
 };
 const substVar = (x, s, term) => {
@@ -1850,6 +1899,7 @@ const substVar = (x, s, term) => {
             const else_ = substVar(x, s, term.else_);
             return exports.If(cond, then, else_);
         }
+        case 'Query': return term;
     }
 };
 exports.openAbs = (a, s) => substVar(a.name, s, a.body);

@@ -1,6 +1,8 @@
-import { Term } from './terms';
+import { Term, showTerm } from './terms';
 import { showName, NameT } from './names';
 import { Def } from './definitions';
+
+const err = (msg: string) => { throw new Error(msg) };
 
 export const compileName = (name: NameT) => {
   const x = showName(name);
@@ -15,6 +17,7 @@ export const compile = (term: Term): string => {
     case 'Ann': return compile(term.term);
     case 'Let': return `(${compileName(term.name)} => ${compile(term.body)})(${compile(term.term)})`;
     case 'If': return `(${compile(term.cond)} ? ${compile(term.then)} : ${compile(term.else_)})`;
+    case 'Query': return err(`cannot compile ${showTerm(term)}`);
   }
 };
 

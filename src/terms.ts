@@ -7,7 +7,8 @@ export type Term
   | App
   | Ann
   | Let
-  | If;
+  | If
+  | Query;
 
 export interface Var {
   readonly tag: 'Var';
@@ -64,6 +65,12 @@ export const If = (cond: Term, then: Term, else_: Term): If =>
   ({ tag: 'If', cond, then, else_ });
 export const isIf = (term: Term): term is If => term.tag === 'If';
 
+export interface Query {
+  readonly tag: 'Query';
+}
+export const Query: Query = { tag: 'Query' };
+export const isQuery = (term: Term): term is Query => term.tag === 'Query';
+
 export const flattenApp = (type: Term): Term[] => {
   let c = type;
   const r: Term[] = [];
@@ -103,6 +110,7 @@ export const showTerm = (term: Term): string => {
       return `(let ${showName(term.name)} = ${showTerm(term.term)} in ${showTerm(term.body)})`;
     case 'If':
       return `(if ${showTerm(term.cond)} then ${showTerm(term.then)} else ${showTerm(term.else_)})`;
+    case 'Query': return '?';
   }
 };
 
@@ -134,6 +142,7 @@ const substVar = (x: NameT, s: Term, term: Term): Term => {
       const else_ = substVar(x, s, term.else_);
       return If(cond, then, else_);
     }
+    case 'Query': return term;
   }
 };
 export const openAbs = (a: Abs, s: Term): Term =>

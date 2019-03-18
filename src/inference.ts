@@ -1,15 +1,35 @@
-import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn, isLet, openLet, abs, isIf } from './terms';
+import { Term, isAbs, Var, openAbs, showTerm, isVar, isApp, isAnn, isLet, openLet, abs, isIf, isQuery, Abs, App, Ann, If, Let } from './terms';
 import { Type, isTForall, matchTFun, openTForall, TVar, showType, TMeta, isTMeta, TFun, substTMetas, TForall, simplifyType, tforallK, tfun, tappFrom, isTApp, TApp, tFun, TForallK, flattenTForall, tBool } from './types';
-import { namestore, context, apply } from './global';
+import { namestore, context, apply, storeContext, restoreContext } from './global';
 import { wfContext, wfType, wfKind } from './wellformedness';
-import { infererr } from './error';
+import { infererr, InferError } from './error';
 import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap, showName, Name, eqName } from './names';
 import { subsume } from './subsumption';
 import { CVar, CTVar, CTMeta } from './elems';
 import { kType, kfunFrom, kfun, Kind } from './kinds';
 import { checkKindType, elaborateType } from './kindInference';
-import { Def, showDef } from './definitions';
+import { Def, showDef, DLet } from './definitions';
 import { log } from './config';
+
+const resolveImplicit = (type: Type): NameT => {
+  log(`resolveImplicit ${showType(type)}`);
+  const x = context.first<NameT>(e => {
+    if (e.tag !== 'CVar') return null;
+    storeContext();
+    try {
+      subsume(e.type, type);
+      log(`select ${showName(e.name)} : ${showType(e.type)}`);
+      return e.name;
+    } catch (err) {
+      if (!(err instanceof InferError)) throw err;
+      return null;
+    } finally {
+      restoreContext();
+    }
+  });
+  if (!x) return infererr(`no implicit value found for: ${showType(type)}`);
+  return x;
+};
 
 const getByName = (cs: CTMeta[], x: NameT): CTMeta | null => {
   for (let i = 0, l = cs.length; i < l; i++) 
@@ -52,12 +72,12 @@ const generalize = (unsolved: CTMeta[], type: Type): Type => {
 const generalizeFrom = (marker: NameT, type: Type): Type =>
   generalize(context.leaveWithUnsolved(marker), type);
 
-const typesynth = (term: Term): Type => {
+const typesynth = (term: Term): [Type, Term] => {
   log(`typesynth ${showTerm(term)}`);
   if (isVar(term)) {
     const x = context.lookup('CVar', term.name);
     if (!x) return infererr(`undefined var ${showName(term.name)}`);
-    return x.type;
+    return [x.type, term];
   }
   if (isAbs(term)) {
     const x = namestore.fresh(term.name);
@@ -66,74 +86,82 @@ const typesynth = (term: Term): Type => {
     const ta = TMeta(a);
     const tb = TMeta(b);
     context.enter(x, CTMeta(a, kType), CTMeta(b, kType), CVar(x, ta));
-    typecheck(openAbs(term, Var(x)), tb);
+    const body = typecheck(openAbs(term, Var(x)), tb);
     const ty = apply(TFun(ta, tb));
-    return generalizeFrom(x, ty);
+    return [generalizeFrom(x, ty), Abs(x, body)];
   }
   if (isApp(term)) {
-    const left = typesynth(term.left);
-    return typeappsynth(apply(left), term.right);
+    const [left, nleft] = typesynth(term.left);
+    const [right, nright] = typeappsynth(apply(left), term.right);
+    return [right, App(nleft, nright)];
   }
   if (isAnn(term)) {
     wfType(term.type);
     const ty = elaborateType(term.type);
     checkKindType(ty);
-    typecheck(term.term, ty);
-    return ty;
+    const nterm = typecheck(term.term, ty);
+    return [ty, Ann(nterm, ty)];
   }
   if (isLet(term)) {
-    const ty = typesynth(term.term);
+    const [ty, nterm] = typesynth(term.term);
     const x = namestore.fresh(term.name);
     context.enter(x, CVar(x, ty));
-    const rty = apply(typesynth(openLet(term, Var(x))));
-    return generalizeFrom(x, rty);
+    const [uty, nbody] = typesynth(openLet(term, Var(x)));
+    const rty = apply(uty);
+    const gty = generalizeFrom(x, rty);
+    return [gty, Let(x, nterm, nbody)];
   }
   if (isIf(term)) {
-    typecheck(term.cond, tBool);
-    const ty = typesynth(term.then);
-    typecheck(term.else_, ty);
-    return ty;
+    const ncond = typecheck(term.cond, tBool);
+    const [ty, nthen] = typesynth(term.then);
+    const nelse = typecheck(term.else_, ty);
+    return [ty, If(ncond, nthen, nelse)];
   }
   return infererr(`cannot synth: ${showTerm(term)}`);
 };
 
-const typecheck = (term: Term, type: Type): void => {
+const typecheck = (term: Term, type: Type): Term => {
   log(`typecheck ${showTerm(term)} : ${showType(type)}`);
   if (isTForall(type)) {
     if (!type.kind) return infererr(`forall lacks kind: ${showType(type)}`);
     const x = namestore.fresh(type.name);
     context.enter(x, CTVar(x, type.kind));
-    typecheck(term, openTForall(type, TVar(x)));
+    const nterm = typecheck(term, openTForall(type, TVar(x)));
     context.leave(x);
-    return;
+    return nterm;
   }
   const f = matchTFun(type);
   if (isAbs(term) && f) {
     const x = namestore.fresh(term.name);
     context.enter(x, CVar(x, f.left));
-    typecheck(openAbs(term, Var(x)), f.right);
+    const body = typecheck(openAbs(term, Var(x)), f.right);
     context.leave(x);
-    return;
+    return Abs(x, body);
   }
   if (isLet(term)) {
-    const ty = typesynth(term.term);
+    const [ty, nterm] = typesynth(term.term);
     const x = namestore.fresh(term.name);
     context.enter(x, CVar(x, ty));
-    typecheck(openLet(term, Var(x)), apply(type));
+    const nbody = typecheck(openLet(term, Var(x)), apply(type));
     context.leave(x);
-    return;
+    return Let(x, nterm, nbody);
   }
   if (isIf(term)) {
-    typecheck(term.cond, tBool);
-    typecheck(term.then, type);
-    typecheck(term.else_, apply(type));
-    return;
+    const ncond = typecheck(term.cond, tBool);
+    const nthen = typecheck(term.then, type);
+    const nelse = typecheck(term.else_, apply(type));
+    return If(ncond, nthen, nelse);
   }
-  const ty = typesynth(term);
-  return subsume(apply(ty), apply(type));
+  if (isQuery(term)) {
+    const y = resolveImplicit(type);
+    return Var(y);
+  }
+  const [ty, nterm] = typesynth(term);
+  subsume(apply(ty), apply(type));
+  return nterm;
 };
 
-const typeappsynth = (type: Type, term: Term): Type => {
+const typeappsynth = (type: Type, term: Term): [Type, Term] => {
   log(`typeappsynth ${showType(type)} @ ${showTerm(term)}`);
   if (isTForall(type)) {
     if (!type.kind) return infererr(`forall lacks kind: ${showType(type)}`);
@@ -152,13 +180,13 @@ const typeappsynth = (type: Type, term: Term): Type => {
       CTMeta(a, kType),
       CTMeta(x, kType, TFun(ta, tb)),
     ])
-    typecheck(term, ta);
-    return tb;
+    const nterm = typecheck(term, ta);
+    return [tb, nterm];
   }
   const f = matchTFun(type);
   if (f) {
-    typecheck(term, f.left);
-    return f.right;
+    const nterm = typecheck(term, f.left);
+    return [f.right, nterm];
   }
   // TODO: generalize the below for all type applications
   if (isTApp(type) && isTMeta(type.left)) {
@@ -169,37 +197,38 @@ const typeappsynth = (type: Type, term: Term): Type => {
       CTMeta(a, kType),
       CTMeta(x, kfun(kType, kType), TApp(tFun, ta)),
     ]);
-    typecheck(term, ta);
-    return type.right;
+    const nterm = typecheck(term, ta);
+    return [type.right, nterm];
   }
   if (isTApp(type) && isTApp(type.left) && isTMeta(type.left.left)) {
     const x = type.left.left.name;
     context.replace('CTMeta', x, [
       CTMeta(x, kfun(kType, kType, kType), tFun),
     ]);
-    typecheck(term, type.left.right);
-    return type.right;
+    const nterm = typecheck(term, type.left.right);
+    return [type.right, nterm];
   }
   return infererr(`cannot typeappsynth: ${showType(type)} @ ${showTerm(term)}`);
 };
 
-export const infer = (term: Term): Type => {
+export const infer = (term: Term): [Type, Term] => {
   namestore.reset();
   wfContext();
   const m = namestore.fresh('m');
   context.enter(m);
   try {
-    const ty = generalizeFrom(m, apply(typesynth(term)));
+    const [uty, nterm] = typesynth(term);
+    const ty = generalizeFrom(m, apply(uty));
     checkKindType(ty);
     if (!context.isComplete()) return infererr(`incomplete context: ${context}`);
-    return simplifyType(ty);
+    return [simplifyType(ty), nterm];
   } catch (err) {
     context.leave(m);
     throw err;
   }
 };
 
-export const inferDef = (def: Def): void => {
+export const inferDef = (def: Def): Def => {
   log(`inferDef ${showDef(def)}`);
   switch (def.tag) {
     case 'DType': {
@@ -223,15 +252,15 @@ export const inferDef = (def: Def): void => {
         CVar(tname, tforallK(nargs, tfun(ntype, tappFrom([TVar(tname)].concat(nargs.map(([n]) => TVar(n))))))),
         CVar(untname, tforallK(nargs, tfun(tappFrom([TVar(tname)].concat(nargs.map(([n]) => TVar(n)))), ntype))),
       );
-      return;
+      return def;
     }
     case 'DLet': {
       const name = def.name;
       if (context.lookup('CVar', name))
         throw new TypeError(`${showName(name)} is already defined`);
-      const ty = infer(abs(def.args, def.term));
+      const [ty, term] = infer(abs(def.args, def.term));
       context.add(CVar(name, ty));
-      return;
+      return DLet(name, [], term);
     }
     case 'DDeclType': {
       const name = def.name;
@@ -239,7 +268,7 @@ export const inferDef = (def: Def): void => {
         throw new TypeError(`type ${showName(name)} is already defined`);
       wfKind(def.kind);
       context.add(CTVar(name, def.kind));
-      return;
+      return def;
     }
     case 'DDeclare': {
       const name = def.name;
@@ -249,11 +278,11 @@ export const inferDef = (def: Def): void => {
       const type = elaborateType(def.type);
       checkKindType(type);
       context.add(CVar(name, type));
-      return;
+      return def;
     }
-    case 'DForeign': return;
+    case 'DForeign': return def;
   }
 };
 
-export const inferDefs = (ds: Def[]): void =>
-  ds.forEach(inferDef);
+export const inferDefs = (ds: Def[]): Def[] =>
+  ds.map(inferDef);

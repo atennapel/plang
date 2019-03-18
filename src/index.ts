@@ -11,10 +11,10 @@ try {
   console.log(scr);
   const term = parse(scr);
   console.log(showTerm(term));
-  const ty = infer(term);
+  const [ty, nterm] = infer(term);
   console.log(showType(ty));
   console.log(`${context}`);
-  const co = compile(term);
+  const co = compile(nterm);
   console.log(co);
   const ev = eval(co);
   console.log(ev);

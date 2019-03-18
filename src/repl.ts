@@ -35,10 +35,10 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     try {
       const _rest = _s.slice(4).trim();
       const _ds = parseDefs(_rest);
-      inferDefs(_ds);
-      const _c = compileDefs(_ds, n => `${_env}['${n}']`);
+      const _nds = inferDefs(_ds);
+      const _c = compileDefs(_nds, n => `${_env}['${n}']`);
       eval(`(() => {${_c}})()`);
-      return _cb(`defined ${_ds.map(d => showName(d.name)).join(' ')}`);
+      return _cb(`defined ${_nds.map(d => showName(d.name)).join(' ')}`);
     } catch (err) {
       return _cb(`${err}`, true);
     }
@@ -46,10 +46,10 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   if (_s === ':p' || _s === ':prelude') {
     try {
       const _ds = parseDefs(_prelude);
-      inferDefs(_ds);
-      const _c = compileDefs(_ds, n => `${_env}['${n}']`);
+      const _nds = inferDefs(_ds);
+      const _c = compileDefs(_nds, n => `${_env}['${n}']`);
       eval(`(() => {${_c}})()`);
-      return _cb(`defined ${_ds.map(d => showName(d.name)).join(' ')}`);
+      return _cb(`defined ${_nds.map(d => showName(d.name)).join(' ')}`);
     } catch (err) {
       return _cb(`${err}`, true);
     }
@@ -57,9 +57,9 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   try {
     const _e = parse(_s);
     log(showTerm(_e));
-    const _t = infer(_e);
+    const [_t, _ne] = infer(_e);
     log(showType(_t));
-    const _c = compile(_e);
+    const _c = compile(_ne);
     log(_c);
     const _v = eval(_c);
     log(_v);

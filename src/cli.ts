@@ -5,8 +5,8 @@ import { compileDefs } from './compiler';
 if (process.argv[2]) {
   const sc = require('fs').readFileSync(process.argv[2], 'utf8');
   const ds = parseDefs(sc);
-  inferDefs(ds);
-  const c = compileDefs(ds, x => `const ${x}`);
+  const nds = inferDefs(ds);
+  const c = compileDefs(nds, x => `const ${x}`);
   console.log(c);
   process.exit();
 }
