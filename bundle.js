@@ -127,7 +127,7 @@ class Context {
         return this.addAll(c.elems);
     }
     indexOf(ty, name) {
-        for (let a = this.elems, l = a.length, i = 0; i < l; i++) {
+        for (let a = this.elems, i = a.length - 1; i >= 0; i--) {
             const c = a[i];
             if (c.tag === ty && names_1.eqName(c.name, name))
                 return i;
@@ -188,7 +188,7 @@ class Context {
         return ns;
     }
     first(fn) {
-        for (let a = this.elems, l = a.length, i = 0; i < l; i++) {
+        for (let a = this.elems, i = a.length - 1; i >= 0; i--) {
             const c = fn(a[i]);
             if (c)
                 return c;

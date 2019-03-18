@@ -41,7 +41,7 @@ export class Context {
   }
 
   indexOf(ty: ElemTag, name: NameT): number {
-    for (let a = this.elems, l = a.length, i = 0; i < l; i++) {
+    for (let a = this.elems, i = a.length - 1; i >= 0; i--) {
       const c = a[i];
       if (c.tag === ty && eqName(c.name, name)) return i;
     }
@@ -102,7 +102,7 @@ export class Context {
   }
 
   first<T>(fn: (val: Elem) => T | null): T | null {
-    for (let a = this.elems, l = a.length, i = 0; i < l; i++) {
+    for (let a = this.elems, i = a.length - 1; i >= 0; i--) {
       const c = fn(a[i]);
       if (c) return c;
     }
