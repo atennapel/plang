@@ -11,15 +11,15 @@ import { checkKindType, elaborateType } from './kindInference';
 import { Def, showDef, DLet } from './definitions';
 import { log } from './config';
 
-const resolveImplicit = (type: Type): NameT => {
+const resolveImplicit = (type: Type): [NameT, Type] => {
   log(`resolveImplicit ${showType(type)}`);
-  const x = context.first<NameT>(e => {
+  const x = context.first(e => {
     if (e.tag !== 'CVar') return null;
     storeContext();
     try {
       subsume(e.type, type);
       log(`select ${showName(e.name)} : ${showType(e.type)}`);
-      return e.name;
+      return [e.name, e.type] as [NameT, Type];
     } catch (err) {
       if (!(err instanceof InferError)) throw err;
       return null;
@@ -153,7 +153,8 @@ const typecheck = (term: Term, type: Type): Term => {
     return If(ncond, nthen, nelse);
   }
   if (isQuery(term)) {
-    const y = resolveImplicit(type);
+    const [y, t] = resolveImplicit(type);
+    subsume(t, type);
     return Var(y);
   }
   const [ty, nterm] = typesynth(term);

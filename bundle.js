@@ -366,7 +366,7 @@ const resolveImplicit = (type) => {
         try {
             subsumption_1.subsume(e.type, type);
             config_1.log(`select ${names_1.showName(e.name)} : ${types_1.showType(e.type)}`);
-            return e.name;
+            return [e.name, e.type];
         }
         catch (err) {
             if (!(err instanceof error_1.InferError))
@@ -503,7 +503,8 @@ const typecheck = (term, type) => {
         return terms_1.If(ncond, nthen, nelse);
     }
     if (terms_1.isQuery(term)) {
-        const y = resolveImplicit(type);
+        const [y, t] = resolveImplicit(type);
+        subsumption_1.subsume(t, type);
         return terms_1.Var(y);
     }
     const [ty, nterm] = typesynth(term);
