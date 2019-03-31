@@ -17,5 +17,5 @@ let symm = \q -> (\(Symm x) -> x) ((\(Eq x) -> x) q (Symm refl))
 
 type Lift f a b = Eq (f a) (f b)
 let lift = \q -> (\(Lift x) -> x) ((\(Eq x) -> x) q (Lift refl))
-  : forall f a b. Eq a b -> Eq (f a)
+  : forall f a b. Eq a b -> Eq (f a) (f b)
 
