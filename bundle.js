@@ -180,12 +180,15 @@ class Context {
     leaveWithUnsolved(m) {
         const ret = this.split('CMarker', m);
         const ns = [];
+        const nq = [];
         for (let i = 0, l = ret.length; i < l; i++) {
             const c = ret[i];
             if (elems_1.isCTMeta(c) && !c.type)
                 ns.push(c);
+            else if (elems_1.isCQuery(c))
+                nq.push(c);
         }
-        return ns;
+        return [ns, nq];
     }
     first(fn) {
         for (let a = this.elems, i = a.length - 1; i >= 0; i--) {
@@ -251,6 +254,8 @@ exports.CVar = (name, type) => ({ tag: 'CVar', name, type });
 exports.isCVar = (elem) => elem.tag === 'CVar';
 exports.CMarker = (name) => ({ tag: 'CMarker', name });
 exports.isCMarker = (elem) => elem.tag === 'CMarker';
+exports.CQuery = (name, type) => ({ tag: 'CQuery', name, type });
+exports.isCQuery = (elem) => elem.tag === 'CQuery';
 exports.showElem = (elem) => {
     switch (elem.tag) {
         case 'CKVar':
@@ -265,6 +270,8 @@ exports.showElem = (elem) => {
             return `${names_1.showName(elem.name)} : ${types_1.showType(elem.type)}`;
         case 'CMarker':
             return `|>${names_1.showName(elem.name)}`;
+        case 'CQuery':
+            return `query ?${names_1.showName(elem.name)} : ${types_1.showType(elem.type)}`;
     }
 };
 
@@ -420,7 +427,12 @@ const generalize = (unsolved, type) => {
     }
     return c;
 };
-const generalizeFrom = (marker, type) => generalize(global_1.context.leaveWithUnsolved(marker), type);
+const generalizeFrom = (marker, type) => {
+    console.log(`${global_1.context}`);
+    const [us, qs] = global_1.context.leaveWithUnsolved(marker);
+    console.log(qs.map(elems_1.showElem).join(', '));
+    return generalize(us, type);
+};
 const typesynth = (term) => {
     config_1.log(`typesynth ${terms_1.showTerm(term)}`);
     if (terms_1.isVar(term)) {
@@ -467,6 +479,12 @@ const typesynth = (term) => {
         const nelse = typecheck(term.else_, ty);
         return [ty, terms_1.If(ncond, nthen, nelse)];
     }
+    if (terms_1.isQuery(term)) {
+        const x = global_1.namestore.fresh('q');
+        const tm = types_1.TMeta(x);
+        global_1.context.add(elems_1.CTMeta(x, kinds_1.kType), elems_1.CQuery(x, tm));
+        return [tm, terms_1.Var(x)];
+    }
     return error_1.infererr(`cannot synth: ${terms_1.showTerm(term)}`);
 };
 const typecheck = (term, type) => {
@@ -503,9 +521,9 @@ const typecheck = (term, type) => {
         return terms_1.If(ncond, nthen, nelse);
     }
     if (terms_1.isQuery(term)) {
-        const [y, t] = resolveImplicit(type);
-        subsumption_1.subsume(t, type);
-        return terms_1.Var(y);
+        const x = global_1.namestore.fresh('q');
+        global_1.context.add(elems_1.CQuery(x, type));
+        return terms_1.Var(x);
     }
     const [ty, nterm] = typesynth(term);
     subsumption_1.subsume(global_1.apply(ty), global_1.apply(type));

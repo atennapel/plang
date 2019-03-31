@@ -3,12 +3,12 @@ import {
   Elem,
   ElemTag,
   ElemFromTag,
-  CKMeta,
-  isCKMeta,
   CTMeta,
   isCTMeta,
   CMarker,
   showElem,
+  CQuery,
+  isCQuery,
 } from './elems';
 
 export class Context {
@@ -91,14 +91,16 @@ export class Context {
   leave(m: NameT): void {
     this.split('CMarker', m);
   }
-  leaveWithUnsolved(m: NameT): CTMeta[] {
+  leaveWithUnsolved(m: NameT): [CTMeta[], CQuery[]] {
     const ret = this.split('CMarker', m);
     const ns: CTMeta[] = [];
+    const nq: CQuery[] = [];
     for (let i = 0, l = ret.length; i < l; i++) {
       const c = ret[i];
       if (isCTMeta(c) && !c.type) ns.push(c);
+      else if (isCQuery(c)) nq.push(c); 
     }
-    return ns;
+    return [ns, nq];
   }
 
   first<T>(fn: (val: Elem) => T | null): T | null {

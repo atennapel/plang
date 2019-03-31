@@ -8,7 +8,8 @@ export type Elem
   | CTVar
   | CTMeta
   | CVar
-  | CMarker;
+  | CMarker
+  | CQuery;
 
 export type ElemTag = Elem['tag'];
 
@@ -19,6 +20,7 @@ export type ElemFromTag<T extends ElemTag> = {
   CTMeta: CTMeta;
   CVar: CVar;
   CMarker: CMarker;
+  CQuery: CQuery;
 }[T];
 
 export interface CKVar {
@@ -72,6 +74,14 @@ export interface CMarker {
 export const CMarker = (name: NameT): CMarker => ({ tag: 'CMarker', name });
 export const isCMarker = (elem: Elem): elem is CMarker => elem.tag === 'CMarker';
 
+export interface CQuery {
+  readonly tag: 'CQuery';
+  readonly name: NameT;
+  readonly type: Type;
+}
+export const CQuery = (name: NameT, type: Type): CQuery => ({ tag: 'CQuery', name, type });
+export const isCQuery = (elem: Elem): elem is CQuery => elem.tag === 'CQuery';
+
 export const showElem = (elem: Elem): string => {
   switch (elem.tag) {
     case 'CKVar':
@@ -86,5 +96,7 @@ export const showElem = (elem: Elem): string => {
       return `${showName(elem.name)} : ${showType(elem.type)}`;
     case 'CMarker':
       return `|>${showName(elem.name)}`;
+    case 'CQuery':
+      return `query ?${showName(elem.name)} : ${showType(elem.type)}`
   }
 };

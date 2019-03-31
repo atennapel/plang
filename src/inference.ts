@@ -5,7 +5,7 @@ import { wfContext, wfType, wfKind } from './wellformedness';
 import { infererr, InferError } from './error';
 import { NameT, NameMap, createNameMap, insertNameMap, nameContains, getNameMap, showName, Name, eqName } from './names';
 import { subsume } from './subsumption';
-import { CVar, CTVar, CTMeta } from './elems';
+import { CVar, CTVar, CTMeta, showElem, CQuery } from './elems';
 import { kType, kfunFrom, kfun, Kind } from './kinds';
 import { checkKindType, elaborateType } from './kindInference';
 import { Def, showDef, DLet } from './definitions';
@@ -69,8 +69,12 @@ const generalize = (unsolved: CTMeta[], type: Type): Type => {
   }
   return c;
 };
-const generalizeFrom = (marker: NameT, type: Type): Type =>
-  generalize(context.leaveWithUnsolved(marker), type);
+const generalizeFrom = (marker: NameT, type: Type): Type => {
+  console.log(`${context}`);
+  const [us, qs] = context.leaveWithUnsolved(marker);
+  console.log(qs.map(showElem).join(', '));
+  return generalize(us, type);
+};
 
 const typesynth = (term: Term): [Type, Term] => {
   log(`typesynth ${showTerm(term)}`);
@@ -117,6 +121,12 @@ const typesynth = (term: Term): [Type, Term] => {
     const nelse = typecheck(term.else_, ty);
     return [ty, If(ncond, nthen, nelse)];
   }
+  if (isQuery(term)) {
+    const x = namestore.fresh('q');
+    const tm = TMeta(x);
+    context.add(CTMeta(x, kType), CQuery(x, tm));
+    return [tm, Var(x)];
+  }
   return infererr(`cannot synth: ${showTerm(term)}`);
 };
 
@@ -153,9 +163,9 @@ const typecheck = (term: Term, type: Type): Term => {
     return If(ncond, nthen, nelse);
   }
   if (isQuery(term)) {
-    const [y, t] = resolveImplicit(type);
-    subsume(t, type);
-    return Var(y);
+    const x = namestore.fresh('q');
+    context.add(CQuery(x, type));
+    return Var(x);
   }
   const [ty, nterm] = typesynth(term);
   subsume(apply(ty), apply(type));
