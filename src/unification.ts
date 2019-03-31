@@ -6,17 +6,21 @@ import { kindOf } from './kindInference';
 
 const bindTMeta = (env: Env, x: TMeta, t: Type): void => {
   if (x.type) return unify(env, x.type, t);
-  if (t.tag === 'TMeta' && t.type)
+  if (t.tag === 'TMeta' && t.type) {
+    if (!x.name && t.name) x.name = t.name;
     return unify(env, x, t.type);
+  }
   if (occursTMeta(x, t))
     return terr(`${showTy(x)} occurs in ${showTy(t)}`);
   const k1 = kindOf(env, x);
   const k2 = kindOf(env, t);
   if (!eqKind(k1, k2))
     return terr(`kind mismatch in unification of ${showTy(x)} ~ ${showTy(t)}: ${showKind(k1)} ~ ${showKind(k2)}`);
+  if (!x.name && t.tag === 'TMeta' && t.name) x.name = t.name;
   x.type = t;
 };
 export const unify = (env: Env, a: Type, b: Type): void => {
+  console.log(`unify ${showTy(a)} ~ ${showTy(b)}`);
   if (a.tag === 'TVar' || b.tag === 'TVar')
     return terr(`tvar in unify: ${showTy(a)} ~ ${showTy(b)}`);
   if (a === b) return;

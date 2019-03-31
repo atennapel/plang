@@ -61,8 +61,7 @@ export const PVar = (name: Name): PVar => ({ tag: 'PVar', name });
 export interface PWildcard {
   readonly tag: 'PWildcard';
 }
-export const PWildcard = (name: Name): PWildcard =>
-  ({ tag: 'PWildcard' });
+export const PWildcard: PWildcard = ({ tag: 'PWildcard' });
 
 export interface PAnn {
   readonly tag: 'PAnn';

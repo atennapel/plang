@@ -29,8 +29,10 @@ const instantiate = (ty: Type): Type => {
   if (ty.tag !== 'TForall') return ty;
   const m: TVMap = {};
   const names = ty.names;
-  for (let i = 0, l = names.length; i < l; i++)
-    m[names[i]] = freshTMeta(ty.kinds[i]);
+  for (let i = 0, l = names.length; i < l; i++) {
+    const x = names[i];
+    m[x] = freshTMeta(ty.kinds[i], x);
+  }
   return substTVar(m, ty.type);
 };
 
@@ -63,6 +65,7 @@ const inferRho = (env: Env, term: Term): Type => {
   return i.type;
 };
 const tcRho = (env: Env, term: Term, ex: Expected): void => {
+  console.log(`tcRho ${showTerm(term)} with ${showEx(ex)}`)
   if (term.tag === 'Var') {
     const ty = lookupVar(env, term.name);
     if (!ty) return terr(`undefined var ${showTerm(term)}`);
@@ -115,7 +118,10 @@ const tcPat = (
   pat: Pat,
   ex: Expected
 ): [Name, Type][] => {
-  if (pat.tag === 'PWildcard') return [];
+  if (pat.tag === 'PWildcard') {
+    if (ex.tag === 'Infer') ex.type = freshTMeta(kType);
+    return [];
+  }
   if (pat.tag === 'PVar') {
     if (ex.tag === 'Check') return [[pat.name, ex.type]];
     const ty = freshTMeta(kType);
@@ -152,6 +158,7 @@ const checkSigma = (env: Env, term: Term, ty: Type): void => {
 };
 
 const subsCheck = (env: Env, a: Type, b: Type): void => {
+  console.log(`subsCheck ${showTy(a)} <: ${showTy(b)}`);
   const sk: TSkol[] = [];
   const rho = skolemise(b, sk);
   subsCheckRho(env, a, rho);

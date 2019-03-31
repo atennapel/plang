@@ -55,10 +55,11 @@ export interface TMeta {
   readonly tag: 'TMeta';
   readonly id: Id;
   readonly kind: Kind;
+  name: Name | null;
   type: Type | null;
 }
-export const TMeta = (id: Id, kind: Kind): TMeta =>
-  ({ tag: 'TMeta', id, kind, type: null });
+export const TMeta = (id: Id, kind: Kind, name: Name | null = null): TMeta =>
+  ({ tag: 'TMeta', id, kind, name, type: null });
 
 export interface TFun {
   readonly tag: 'TApp';
@@ -81,12 +82,12 @@ export const isTFun = (ty: Type): ty is TFun =>
 export const showTy = (t: Type): string => {
   if (t.tag === 'TCon') return t.name;
   if (t.tag === 'TVar') return t.name;
-  if (t.tag === 'TMeta') return `?${t.id}`;
+  if (t.tag === 'TMeta') return `?${t.name ? `${t.name}\$` : ''}${t.id}`;
   if (t.tag === 'TSkol') return `'${t.name}\$${t.id}`;
   if (t.tag === 'TForall')
   return `(forall ${t.names.map((tv, i) =>
     t.kinds[i] ? `(${tv} : ${showKind(t.kinds[i])})` :
-      `${tv}`).join('')}. ${showTy(t.type)})`;
+      `${tv}`).join(' ')}. ${showTy(t.type)})`;
   if (isTFun(t))
     return `(${showTy(t.left.right)} -> ${showTy(t.right)})`;
   if (t.tag === 'TApp')
@@ -162,6 +163,7 @@ export const tbinders = (ty: Type, bs: Name[] = []): Name[] => {
 };
 
 export const quantify = (tms: TMeta[], ty: Type): Type => {
+  console.log(`quantify ${showTy(ty)} with [${tms.map(showTy).join(', ')}]`)
   const len = tms.length;
   if (len === 0) return ty;
   const used = tbinders(ty);
@@ -171,8 +173,9 @@ export const quantify = (tms: TMeta[], ty: Type): Type => {
   let l = 0;
   let j = 0;
   while (i < len) {
-    const v = `${String.fromCharCode(l + 97)}${j > 0 ? j : ''}`;
+    const v = tms[i].name || `${String.fromCharCode(l + 97)}${j > 0 ? j : ''}`;
     if (used.indexOf(v) < 0) {
+      used.push(v);
       tms[i].type = TVar(v);
       tvs[i] = v;
       ks[i] = tms[i].kind;

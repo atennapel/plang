@@ -13,7 +13,8 @@ let _id = 0;
 export const resetId = () => { _id = 0 };
 export const freshId = () => _id++;
 
-export const freshTMeta = (kind: Kind) => TMeta(freshId(), kind);
+export const freshTMeta = (kind: Kind, name: Name | null = null) =>
+  TMeta(freshId(), kind, name);
 export const freshTSkol = (name: Name, kind: Kind) =>
   TSkol(name, freshId(), kind);
 export const freshKMeta = () => KMeta(freshId());
