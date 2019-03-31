@@ -1181,6 +1181,32 @@ exports.run = (_s, _cb) => {
             config_1.config.debug = !config_1.config.debug;
             return _cb(`debug: ${config_1.config.debug}`);
         }
+        if (_s.startsWith(':showBool ')) {
+            const _rest = _s.slice(9);
+            const _e = parser_1.parse(_rest);
+            config_1.log(terms_1.showTerm(_e));
+            const _t = inference_1.infer(_env, _e);
+            config_1.log(types_1.showTy(_t));
+            if (_t.tag !== 'TCon' || _t.name !== 'Bool')
+                throw new Error(`not a Bool in showBool`);
+            const _c = compiler_1.compile(_e);
+            config_1.log(_c);
+            const _v = eval(`${_c}(true)(false)`);
+            return _cb(`${_show(_v)}`);
+        }
+        if (_s.startsWith(':showNat ')) {
+            const _rest = _s.slice(8);
+            const _e = parser_1.parse(_rest);
+            config_1.log(terms_1.showTerm(_e));
+            const _t = inference_1.infer(_env, _e);
+            config_1.log(types_1.showTy(_t));
+            if (_t.tag !== 'TCon' || _t.name !== 'Nat')
+                throw new Error(`not a Nat in showNat`);
+            const _c = compiler_1.compile(_e);
+            config_1.log(_c);
+            const _v = eval(`${_c}(x => x + 1)(0)`);
+            return _cb(`${_show(_v)}`);
+        }
         if (_s.startsWith(':let ')) {
             const _parts = _s.slice(4).trim().split('=');
             const _name = _parts[0].trim();

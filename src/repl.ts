@@ -33,6 +33,32 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       config.debug = !config.debug;
       return _cb(`debug: ${config.debug}`);
     }
+    if (_s.startsWith(':showBool ')) {
+      const _rest = _s.slice(9);
+      const _e = parse(_rest);
+      log(showTerm(_e));
+      const _t = infer(_env, _e);
+      log(showTy(_t));
+      if (_t.tag !== 'TCon' || _t.name !== 'Bool')
+        throw new Error(`not a Bool in showBool`);
+      const _c = compile(_e);
+      log(_c);
+      const _v = eval(`${_c}(true)(false)`);
+      return _cb(`${_show(_v)}`);
+    }
+    if (_s.startsWith(':showNat ')) {
+      const _rest = _s.slice(8);
+      const _e = parse(_rest);
+      log(showTerm(_e));
+      const _t = infer(_env, _e);
+      log(showTy(_t));
+      if (_t.tag !== 'TCon' || _t.name !== 'Nat')
+        throw new Error(`not a Nat in showNat`);
+      const _c = compile(_e);
+      log(_c);
+      const _v = eval(`${_c}(x => x + 1)(0)`);
+      return _cb(`${_show(_v)}`);
+    }
     if (_s.startsWith(':let ')) {
       const _parts = _s.slice(4).trim().split('=');
       const _name = _parts[0].trim();
