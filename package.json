@@ -15,7 +15,7 @@
     "@types/node": "^11.11.3",
     "brfs": "^2.0.2",
     "browserify": "^16.2.3",
-    "typescript": "^3.3.3333"
+    "typescript": "^3.4"
   },
   "dependencies": {}
 }
