@@ -9,6 +9,7 @@ export const compilePat = (pat: Pat): string => {
   if (pat.tag === 'PVar') return pat.name;
   if (pat.tag === 'PAnn') return compilePat(pat.pat);
   if (pat.tag === 'PWildcard') return '_';
+  if (pat.tag === 'PCon') return compilePat(pat.pat);
   return impossible('compilePat');
 };
 

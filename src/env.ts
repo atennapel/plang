@@ -1,5 +1,5 @@
-import { Type, TMeta, tmetas, prune, TSkol } from './types';
-import { Kind, KFun, kType } from './kinds';
+import { Type, TMeta, tmetas, prune, TSkol, showTy } from './types';
+import { Kind, KFun, kType, showKind } from './kinds';
 import List from './List';
 import { Name, skolemCheck } from './util';
 
@@ -13,6 +13,15 @@ export const Env = (
   tcons: { [key: string]: Kind } = {},
   local: List<[string, Type]> = List.nil(),
 ) => ({ global, tcons, local });
+
+export const showEnv = (env: Env) => {
+  const r: string[] = [];
+  for (let k in env.tcons)
+    r.push(`type ${k} : ${showKind(env.tcons[k])}`);
+  for (let k in env.global)
+    r.push(`${k} : ${showTy(env.global[k])}`);
+  return r.join('\n');
+};
 
 export const extendVar = (env: Env, x: Name, t: Type): Env =>
   Env(env.global, env.tcons, List.cons([x, t], env.local));

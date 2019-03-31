@@ -135,6 +135,14 @@ const tcPat = (
     instPatSigma(env, ty, ex);
     return bs;
   }
+  if (pat.tag === 'PCon') {
+    const ty = lookupVar(env, pat.name);
+    if (!ty) return terr(`undefined constructor ${pat.name} in pattern`);
+    const { left: { right: left }, right } = unifyTFun(env, instantiate(ty));
+    const bs = checkPat(env, pat.pat, left);
+    instPatSigma(env, right, ex);
+    return bs;
+  }
   return impossible('tcPat');
 };
 

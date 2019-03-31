@@ -139,6 +139,8 @@ exports.compilePat = (pat) => {
         return exports.compilePat(pat.pat);
     if (pat.tag === 'PWildcard')
         return '_';
+    if (pat.tag === 'PCon')
+        return exports.compilePat(pat.pat);
     return util_1.impossible('compilePat');
 };
 exports.compile = (term) => {
@@ -230,6 +232,14 @@ const kinds_1 = require("./kinds");
 const List_1 = require("./List");
 const util_1 = require("./util");
 exports.Env = (global = {}, tcons = {}, local = List_1.default.nil()) => ({ global, tcons, local });
+exports.showEnv = (env) => {
+    const r = [];
+    for (let k in env.tcons)
+        r.push(`type ${k} : ${kinds_1.showKind(env.tcons[k])}`);
+    for (let k in env.global)
+        r.push(`${k} : ${types_1.showTy(env.global[k])}`);
+    return r.join('\n');
+};
 exports.extendVar = (env, x, t) => exports.Env(env.global, env.tcons, List_1.default.cons([x, t], env.local));
 exports.extendVars = (env, vs) => {
     const local = vs.reduce((l, kv) => List_1.default.cons(kv, l), env.local);
@@ -383,6 +393,15 @@ const tcPat = (env, pat, ex) => {
         const ty = kindInference_1.inferKind(env, pat.type);
         const bs = checkPat(env, pat.pat, ty);
         instPatSigma(env, ty, ex);
+        return bs;
+    }
+    if (pat.tag === 'PCon') {
+        const ty = env_1.lookupVar(env, pat.name);
+        if (!ty)
+            return util_1.terr(`undefined constructor ${pat.name} in pattern`);
+        const { left: { right: left }, right } = unification_1.unifyTFun(env, instantiate(ty));
+        const bs = checkPat(env, pat.pat, left);
+        instPatSigma(env, right, ex);
         return bs;
     }
     return util_1.impossible('tcPat');
@@ -915,6 +934,15 @@ const parsePat = (ts) => {
         }
         case 'ParenT': {
             const a = ts.val;
+            if (a.length === 1)
+                return [terms_1.PWildcard];
+            if (a.length === 2 && a[0].tag === 'VarT' && isCon(a[0].val)) {
+                const con = a[0].val;
+                const pat = parsePat(a[1]);
+                if (pat.length !== 1)
+                    return err(`con with too many arguments: ${con}`);
+                return [terms_1.PCon(con, pat[0])];
+            }
             const args = [];
             let i = 0;
             while (true) {
@@ -1113,6 +1141,7 @@ exports.parse = (sc) => {
 };
 
 },{"./config":3,"./kinds":7,"./terms":10,"./types":11}],9:[function(require,module,exports){
+(function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1122,6 +1151,8 @@ const types_1 = require("./types");
 const compiler_1 = require("./compiler");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
+const kinds_1 = require("./kinds");
+const kindInference_1 = require("./kindInference");
 const _show = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
@@ -1137,16 +1168,48 @@ const _show = (x) => {
     return '' + x;
 };
 const _env = env_1.initialEnv;
+const _global = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
-    if (_s === ':showkinds' || _s === ':k') {
-        config_1.config.showKinds = !config_1.config.showKinds;
-        return _cb(`showKinds: ${config_1.config.showKinds}`);
-    }
-    if (_s === ':debug' || _s === ':d') {
-        config_1.config.debug = !config_1.config.debug;
-        return _cb(`debug: ${config_1.config.debug}`);
-    }
     try {
+        if (_s === ':env' || _s === ':e')
+            return _cb(env_1.showEnv(_env));
+        if (_s === ':showkinds' || _s === ':k') {
+            config_1.config.showKinds = !config_1.config.showKinds;
+            return _cb(`showKinds: ${config_1.config.showKinds}`);
+        }
+        if (_s === ':debug' || _s === ':d') {
+            config_1.config.debug = !config_1.config.debug;
+            return _cb(`debug: ${config_1.config.debug}`);
+        }
+        if (_s.startsWith(':let ')) {
+            const _parts = _s.slice(4).trim().split('=');
+            const _name = _parts[0].trim();
+            const _rest = _parts.slice(1).join('=');
+            if (!/^[a-z][a-zA-Z0-9]*$/.test(_name))
+                throw new Error(`invalid name for let: ${_name}`);
+            const _e = parser_1.parse(_rest);
+            config_1.log(terms_1.showTerm(_e));
+            const _t = inference_1.infer(_env, _e);
+            config_1.log(types_1.showTy(_t));
+            const _c = compiler_1.compile(_e);
+            config_1.log(_c);
+            const _v = eval(`${_global}['${compiler_1.compileName(_name)}'] = ${_c}`);
+            config_1.log(_v);
+            _env.global[_name] = _t;
+            return _cb(`${_name} = ${_show(_v)} : ${types_1.showTy(_t)}`);
+        }
+        if (_s.startsWith(':type ')) {
+            const _parts = _s.slice(5).trim().split('=');
+            const _name = _parts[0].trim();
+            const _rest = _parts.slice(1).join('=');
+            if (!/^[A-Z][a-zA-Z0-9]*$/.test(_name))
+                throw new Error(`invalid name for type: ${_name}`);
+            const _t = kindInference_1.inferKind(_env, parser_1.parseType(_rest));
+            _env.tcons[_name] = kinds_1.kType;
+            _env.global[_name] = types_1.tfunFrom([_t, types_1.TCon(_name)]);
+            eval(`${_global}['${compiler_1.compileName(_name)}'] = x => x`);
+            return _cb(`type ${_name} defined`);
+        }
         const _e = parser_1.parse(_s);
         config_1.log(terms_1.showTerm(_e));
         const _t = inference_1.infer(_env, _e);
@@ -1162,7 +1225,8 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./compiler":2,"./config":3,"./env":4,"./inference":5,"./parser":8,"./terms":10,"./types":11}],10:[function(require,module,exports){
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./compiler":2,"./config":3,"./env":4,"./inference":5,"./kindInference":6,"./kinds":7,"./parser":8,"./terms":10,"./types":11}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1177,6 +1241,7 @@ exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.PVar = (name) => ({ tag: 'PVar', name });
 exports.PWildcard = ({ tag: 'PWildcard' });
 exports.PAnn = (pat, type) => ({ tag: 'PAnn', pat, type });
+exports.PCon = (name, pat) => ({ tag: 'PCon', name, pat });
 exports.showPat = (p) => {
     if (p.tag === 'PVar')
         return p.name;
@@ -1184,6 +1249,8 @@ exports.showPat = (p) => {
         return '_';
     if (p.tag === 'PAnn')
         return `(${exports.showPat(p.pat)} : ${types_1.showTy(p.type)})`;
+    if (p.tag === 'PCon')
+        return `(${p.name} ${exports.showPat(p.pat)})`;
     return util_1.impossible('showPat');
 };
 exports.showTerm = (t) => {

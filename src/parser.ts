@@ -2,7 +2,7 @@ import { log } from './config';
 import { Kind, KCon, kfunFrom } from './kinds';
 import { Type, TVar, TCon, tFun, tforall, TApp, tfunFrom, tappFrom } from './types';
 import { Name } from './util';
-import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn } from './terms';
+import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon } from './terms';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -276,7 +276,8 @@ const parsePat = (ts: Token): Pat[] => {
   log(`parsePat ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': {
-      if (KEYWORDS.indexOf(ts.val) >= 0 || isCon(ts.val)) return err(`stuck on ${ts.val}`);
+      if (KEYWORDS.indexOf(ts.val) >= 0 || isCon(ts.val))
+        return err(`stuck on ${ts.val}`);
       return [PVar(ts.val)];
     }
     case 'SymbolT': {
@@ -285,6 +286,14 @@ const parsePat = (ts: Token): Pat[] => {
     }
     case 'ParenT': {
       const a = ts.val;
+      if (a.length === 1) return [PWildcard];
+      if (a.length === 2 && a[0].tag === 'VarT' && isCon(a[0].val as string)) {
+        const con = a[0].val as string;
+        const pat = parsePat(a[1]);
+        if (pat.length !== 1)
+          return err(`con with too many arguments: ${con}`);
+        return [PCon(con, pat[0])];
+      }
       const args: Pat[] = [];
       let i = 0;
       while (true) {

@@ -54,7 +54,8 @@ export const Ann = (term: Term, type: Type): Ann =>
 export type Pat
   = PVar
   | PWildcard
-  | PAnn;
+  | PAnn
+  | PCon;
 
 export interface PVar {
   readonly tag: 'PVar';
@@ -75,11 +76,21 @@ export interface PAnn {
 export const PAnn = (pat: Pat, type: Type): PAnn =>
   ({ tag: 'PAnn', pat, type });
 
+export interface PCon {
+  readonly tag: 'PCon';
+  readonly name: Name;
+  readonly pat: Pat;
+}
+export const PCon = (name: Name, pat: Pat): PCon =>
+  ({ tag: 'PCon', name, pat });
+
 export const showPat = (p: Pat): string => {
   if (p.tag === 'PVar') return p.name;
   if (p.tag === 'PWildcard') return '_';
   if (p.tag === 'PAnn')
     return `(${showPat(p.pat)} : ${showTy(p.type)})`;
+  if (p.tag === 'PCon')
+    return `(${p.name} ${showPat(p.pat)})`;
   return impossible('showPat');
 };
 
