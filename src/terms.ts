@@ -24,11 +24,11 @@ export const App = (left: Term, right: Term): App =>
 
 export interface Abs {
   readonly tag: 'Abs';
-  readonly name: Name;
+  readonly pat: Pat;
   readonly body: Term;
 }
-export const Abs = (name: Name, body: Term): Abs =>
-  ({ tag: 'Abs', name, body });
+export const Abs = (pat: Pat, body: Term): Abs =>
+  ({ tag: 'Abs', pat, body });
 
 export interface Let {
   readonly tag: 'Let';
@@ -47,10 +47,43 @@ export interface Ann {
 export const Ann = (term: Term, type: Type): Ann =>
   ({ tag: 'Ann', term, type });
 
+export type Pat
+  = PVar
+  | PWildcard
+  | PAnn;
+
+export interface PVar {
+  readonly tag: 'PVar';
+  readonly name: Name;
+}
+export const PVar = (name: Name): PVar => ({ tag: 'PVar', name });
+
+export interface PWildcard {
+  readonly tag: 'PWildcard';
+}
+export const PWildcard = (name: Name): PWildcard =>
+  ({ tag: 'PWildcard' });
+
+export interface PAnn {
+  readonly tag: 'PAnn';
+  readonly pat: Pat;
+  readonly type: Type;
+}
+export const PAnn = (pat: Pat, type: Type): PAnn =>
+  ({ tag: 'PAnn', pat, type });
+
+export const showPat = (p: Pat): string => {
+  if (p.tag === 'PVar') return p.name;
+  if (p.tag === 'PWildcard') return '_';
+  if (p.tag === 'PAnn')
+    return `(${showPat(p.pat)} : ${showTy(p.type)})`;
+  return impossible('showPat');
+};
+
 export const showTerm = (t: Term): string => {
   if (t.tag === 'Var') return t.name;
   if (t.tag === 'Abs')
-    return `(\\${t.name} -> ${showTerm(t.body)})`;
+    return `(\\${showPat(t.pat)} -> ${showTerm(t.body)})`;
   if (t.tag === 'App')
     return `(${showTerm(t.left)} ${showTerm(t.right)})`;
   if (t.tag === 'Ann')

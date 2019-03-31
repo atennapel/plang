@@ -16,6 +16,10 @@ export const Env = (
 
 export const extendVar = (env: Env, x: Name, t: Type): Env =>
   Env(env.global, env.tcons, List.cons([x, t], env.local));
+export const extendVars = (env: Env, vs: [Name, Type][]): Env => {
+  const local = vs.reduce((l, kv) => List.cons(kv, l), env.local);
+  return Env(env.global, env.tcons, local);
+};
 export const lookupVar = (env: Env, x: Name): Type | null => {
   const t = env.local.first(([k, _]) => x === k);
   if (t) return t[1];

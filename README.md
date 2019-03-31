@@ -1,6 +1,6 @@
 Try it out at https://atennapel.github.io/plang
 
 TODO:
-- patterns
+- patterns in Let
 - keep tvar names
-- literals
+- data constructors

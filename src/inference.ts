@@ -1,10 +1,11 @@
 import { Type, showTy, TVMap, substTVar, TSkol, isTFun, TFun, prune, tmetas, quantify } from './types';
-import { impossible, freshTMeta, freshTSkol, terr, resetId, skolemCheck } from './util';
-import { Env, tmetasEnv, skolemCheckEnv, lookupVar, extendVar } from './env';
-import { Term, showTerm } from './terms';
+import { impossible, freshTMeta, freshTSkol, terr, resetId, skolemCheck, Name } from './util';
+import { Env, tmetasEnv, skolemCheckEnv, lookupVar, extendVar, extendVars } from './env';
+import { Term, showTerm, Pat, showPat } from './terms';
 import { unifyTFun, unify } from './unification';
 import { inferKind } from './kindInference';
 import { kType } from './kinds';
+import { version } from 'punycode';
 
 type Expected = Check | Infer;
 interface Check {
@@ -61,7 +62,6 @@ const inferRho = (env: Env, term: Term): Type => {
     return terr(`inferRho failed for ${showTerm(term)}`);
   return i.type;
 };
-
 const tcRho = (env: Env, term: Term, ex: Expected): void => {
   if (term.tag === 'Var') {
     const ty = lookupVar(env, term.name);
@@ -77,11 +77,12 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
   if (term.tag === 'Abs') {
     if (ex.tag === 'Check') {
       const { left: { right: left }, right } = unifyTFun(env, ex.type);
-      const nenv = extendVar(env, term.name, left);
+      const bs = checkPat(env, term.pat, left);
+      const nenv = extendVars(env, bs);
       return checkRho(nenv, term.body, right);
     } else if (ex.tag === 'Infer') {
-      const ty = freshTMeta(kType);
-      const nenv = extendVar(env, term.name, ty);
+      const [bs, ty] = inferPat(env, term.pat);
+      const nenv = extendVars(env, bs);
       const bty = inferRho(nenv, term.body);
       ex.type = TFun(ty, bty);
       return;
@@ -98,6 +99,41 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
     return instSigma(env, type, ex);
   }
   return impossible('tcRho');
+};
+
+const checkPat = (env: Env, pat: Pat, ty: Type): [Name, Type][] =>
+  tcPat(env, pat, Check(ty));
+const inferPat = (env: Env, pat: Pat): [[Name, Type][], Type] => {
+  const i = Infer();
+  const bs = tcPat(env, pat, i);
+  if (!i.type)
+    return terr(`inferPat failed for ${showPat(pat)}`);
+  return [bs, i.type];
+};
+const tcPat = (
+  env: Env,
+  pat: Pat,
+  ex: Expected
+): [Name, Type][] => {
+  if (pat.tag === 'PWildcard') return [];
+  if (pat.tag === 'PVar') {
+    if (ex.tag === 'Check') return [[pat.name, ex.type]];
+    const ty = freshTMeta(kType);
+    ex.type = ty;
+    return [[pat.name, ty]];
+  }
+  if (pat.tag === 'PAnn') {
+    const bs = checkPat(env, pat.pat, pat.type);
+    instPatSigma(env, pat.type, ex);
+    return bs;
+  }
+  return impossible('tcPat');
+};
+
+const instPatSigma = (env: Env, ty: Type, ex: Expected): void => {
+  if (ex.tag === 'Check')
+    return subsCheck(env, ex.type, ty);
+  ex.type = ty;
 };
 
 const inferSigma = (env: Env, term: Term): Type => {
