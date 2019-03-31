@@ -81,6 +81,7 @@ const defaultKindInKind = (k: Kind): Kind => {
   if (k.tag === 'KCon') return k;
   if (k.tag === 'KMeta') {
     if (k.kind) return defaultKindInKind(k.kind);
+    k.kind = kType;
     return kType;
   }
   if (k.tag === 'KFun') {

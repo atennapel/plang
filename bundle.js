@@ -528,6 +528,7 @@ const defaultKindInKind = (k) => {
     if (k.tag === 'KMeta') {
         if (k.kind)
             return defaultKindInKind(k.kind);
+        k.kind = kinds_1.kType;
         return kinds_1.kType;
     }
     if (k.tag === 'KFun') {
@@ -1153,6 +1154,7 @@ const inference_1 = require("./inference");
 const parser_1 = require("./parser");
 const kinds_1 = require("./kinds");
 const kindInference_1 = require("./kindInference");
+const util_1 = require("./util");
 const _show = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
@@ -1226,13 +1228,23 @@ exports.run = (_s, _cb) => {
         }
         if (_s.startsWith(':type ')) {
             const _parts = _s.slice(5).trim().split('=');
-            const _name = _parts[0].trim();
+            const _parts0 = _parts[0].trim().split(/\s+/g);
+            if (_parts0.length === 0)
+                throw new Error('empty name');
+            const _name = _parts0[0];
+            const _args = _parts0.slice(1);
             const _rest = _parts.slice(1).join('=');
             if (!/^[A-Z][a-zA-Z0-9]*$/.test(_name))
                 throw new Error(`invalid name for type: ${_name}`);
-            const _t = kindInference_1.inferKind(_env, parser_1.parseType(_rest));
-            _env.tcons[_name] = kinds_1.kType;
-            _env.global[_name] = types_1.tfunFrom([_t, types_1.TCon(_name)]);
+            const _t = parser_1.parseType(_rest);
+            _env.tcons[_name] = util_1.freshKMeta();
+            const _b = types_1.tfunFrom([_t, types_1.tappFrom([types_1.TCon(_name)]
+                    .concat(_args.map(types_1.TVar)))]);
+            const _ty = _args.length === 0 ? _b :
+                types_1.TForall(_args, _args.map(() => null), _b);
+            const _ti = kindInference_1.inferKind(_env, _ty);
+            _env.global[_name] = _ti;
+            _env.tcons[_name] = kinds_1.pruneKind(_env.tcons[_name]);
             eval(`${_global}['${compiler_1.compileName(_name)}'] = x => x`);
             return _cb(`type ${_name} defined`);
         }
@@ -1252,7 +1264,7 @@ exports.run = (_s, _cb) => {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./compiler":2,"./config":3,"./env":4,"./inference":5,"./kindInference":6,"./kinds":7,"./parser":8,"./terms":10,"./types":11}],10:[function(require,module,exports){
+},{"./compiler":2,"./config":3,"./env":4,"./inference":5,"./kindInference":6,"./kinds":7,"./parser":8,"./terms":10,"./types":11,"./util":13}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");

@@ -1,12 +1,13 @@
 import { config, log } from './config';
 import { initialEnv, showEnv } from './env';
 import { showTerm } from './terms';
-import { showTy, TCon, TForall, tfunFrom, TVar, TApp } from './types';
+import { showTy, TCon, TForall, tfunFrom, TVar, tappFrom, Type } from './types';
 import { compile, compileName } from './compiler';
 import { infer } from './inference';
 import { parse, parseType } from './parser';
-import { kType, KFun } from './kinds';
+import { kType, kfunFrom, Kind, pruneKind } from './kinds';
 import { inferKind } from './kindInference';
+import { freshKMeta } from './util';
 
 const _show = (x: any): string => {
   if (typeof x === 'function') return '[Fn]';
@@ -78,13 +79,23 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     }
     if (_s.startsWith(':type ')) {
       const _parts = _s.slice(5).trim().split('=');
-      const _name = _parts[0].trim();
+      const _parts0 = _parts[0].trim().split(/\s+/g);
+      if (_parts0.length === 0)
+        throw new Error('empty name');
+      const _name = _parts0[0];
+      const _args = _parts0.slice(1);
       const _rest = _parts.slice(1).join('=');
       if (!/^[A-Z][a-zA-Z0-9]*$/.test(_name))
         throw new Error(`invalid name for type: ${_name}`);
-      const _t = inferKind(_env, parseType(_rest));
-      _env.tcons[_name] = kType;
-      _env.global[_name] = tfunFrom([_t, TCon(_name)]);
+      const _t = parseType(_rest);
+      _env.tcons[_name] = freshKMeta();
+      const _b = tfunFrom([_t, tappFrom([TCon(_name) as Type]
+        .concat(_args.map(TVar)))]);
+      const _ty = _args.length === 0 ? _b :
+        TForall(_args, _args.map(() => null), _b);
+      const _ti = inferKind(_env, _ty);
+      _env.global[_name] = _ti;
+      _env.tcons[_name] = pruneKind(_env.tcons[_name]);
       eval(`${_global}['${compileName(_name)}'] = x => x`);
       return _cb(`type ${_name} defined`);
     }
