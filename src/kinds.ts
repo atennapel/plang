@@ -24,16 +24,28 @@ export interface KMeta {
   readonly id: Id;
   kind: Kind | null;
 }
+export const KMeta = (id: Id): KMeta =>
+  ({ tag: 'KMeta', id, kind: null });
 
 export const kType = KCon('Type');
 
-export const KMeta = (id: Id): KMeta =>
-  ({ tag: 'KMeta', id, kind: null });
+export const flattenKFun = (ki: Kind): Kind[] => {
+  const r: Kind[] = [];
+  let c = ki;
+  while (c.tag === 'KFun') {
+    r.push(c.left);
+    c = c.right;
+  }
+  r.push(c);
+  return r;
+};
 
 export const showKind = (ki: Kind): string => {
   if (ki.tag === 'KCon') return ki.name;
   if (ki.tag === 'KFun')
-    return `(${showKind(ki.left)} -> ${showKind(ki.right)})`;
+    return flattenKFun(ki)
+      .map(k => k.tag === 'KFun' ? `(${showKind(k)})` : showKind(k))
+      .join(' -> ');
   if (ki.tag === 'KMeta') return `?${ki.id}`;
   return impossible('showKind');
 };

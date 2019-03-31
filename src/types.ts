@@ -1,5 +1,6 @@
 import { Name, Id, impossible } from './util';
-import { Kind, showKind } from './kinds';
+import { Kind, showKind, kType } from './kinds';
+import { log, config } from './config';
 
 export type Type
   = TForall
@@ -79,19 +80,46 @@ export const isTFun = (ty: Type): ty is TFun =>
       (ty.left.left.tag === 'TCon' &&
         ty.left.left.name === tFun.name));
 
+export const flattenTFun = (t: Type): Type[] => {
+  let c = t;
+  const r: Type[] = [];
+  while (isTFun(c)) {
+    r.push(c.left.right);
+    c = c.right;
+  }
+  r.push(c);
+  return r;
+};
+
+export const flattenTApp = (t: Type): Type[] => {
+  let c = t;
+  const r: Type[] = [];
+  while (c.tag === 'TApp') {
+    r.push(c.right);
+    c = c.left;
+  }
+  r.push(c);
+  return r.reverse();
+};
+
 export const showTy = (t: Type): string => {
   if (t.tag === 'TCon') return t.name;
   if (t.tag === 'TVar') return t.name;
   if (t.tag === 'TMeta') return `?${t.name ? `${t.name}\$` : ''}${t.id}`;
   if (t.tag === 'TSkol') return `'${t.name}\$${t.id}`;
   if (t.tag === 'TForall')
-  return `(forall ${t.names.map((tv, i) =>
-    t.kinds[i] ? `(${tv} : ${showKind(t.kinds[i])})` :
-      `${tv}`).join(' ')}. ${showTy(t.type)})`;
+    return `forall ${t.names.map((tv, i) =>
+      t.kinds[i] && config.showKinds ?
+        `(${tv} : ${showKind(t.kinds[i])})` :
+        `${tv}`).join(' ')}. ${showTy(t.type)}`;
   if (isTFun(t))
-    return `(${showTy(t.left.right)} -> ${showTy(t.right)})`;
+    return flattenTFun(t)
+      .map(t => isTFun(t) || t.tag === 'TForall' ? `(${showTy(t)})` : showTy(t))
+      .join(' -> ');
   if (t.tag === 'TApp')
-    return `(${showTy(t.left)} ${showTy(t.right)})`;
+    return flattenTApp(t)
+      .map(t => t.tag === 'TApp' || t.tag === 'TForall' ? `(${showTy(t)})` : showTy(t))
+      .join(' ');
   return impossible('showTy');
 };
 
@@ -163,7 +191,7 @@ export const tbinders = (ty: Type, bs: Name[] = []): Name[] => {
 };
 
 export const quantify = (tms: TMeta[], ty: Type): Type => {
-  console.log(`quantify ${showTy(ty)} with [${tms.map(showTy).join(', ')}]`)
+  log(`quantify ${showTy(ty)} with [${tms.map(showTy).join(', ')}]`)
   const len = tms.length;
   if (len === 0) return ty;
   const used = tbinders(ty);
@@ -173,7 +201,9 @@ export const quantify = (tms: TMeta[], ty: Type): Type => {
   let l = 0;
   let j = 0;
   while (i < len) {
-    const v = tms[i].name || `${String.fromCharCode(l + 97)}${j > 0 ? j : ''}`;
+    const x = tms[i].name;
+    const v = x && used.indexOf(x) < 0 ? x :
+      `${String.fromCharCode(l + 97)}${j > 0 ? j : ''}`;
     if (used.indexOf(v) < 0) {
       used.push(v);
       tms[i].type = TVar(v);

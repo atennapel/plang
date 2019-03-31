@@ -6,6 +6,7 @@ import { unifyTFun, unify } from './unification';
 import { inferKind } from './kindInference';
 import { kType } from './kinds';
 import { version } from 'punycode';
+import { log } from './config';
 
 type Expected = Check | Infer;
 interface Check {
@@ -65,7 +66,7 @@ const inferRho = (env: Env, term: Term): Type => {
   return i.type;
 };
 const tcRho = (env: Env, term: Term, ex: Expected): void => {
-  console.log(`tcRho ${showTerm(term)} with ${showEx(ex)}`)
+  log(`tcRho ${showTerm(term)} with ${showEx(ex)}`)
   if (term.tag === 'Var') {
     const ty = lookupVar(env, term.name);
     if (!ty) return terr(`undefined var ${showTerm(term)}`);
@@ -158,7 +159,7 @@ const checkSigma = (env: Env, term: Term, ty: Type): void => {
 };
 
 const subsCheck = (env: Env, a: Type, b: Type): void => {
-  console.log(`subsCheck ${showTy(a)} <: ${showTy(b)}`);
+  log(`subsCheck ${showTy(a)} <: ${showTy(b)}`);
   const sk: TSkol[] = [];
   const rho = skolemise(b, sk);
   subsCheckRho(env, a, rho);

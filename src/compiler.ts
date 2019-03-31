@@ -1,0 +1,74 @@
+import { Term, Pat } from './terms';
+import { Name, impossible } from './util';
+
+export const compileName = (x: Name) => {
+  return keywords.indexOf(x) >= 0 ? `${x}_` : x;
+};
+
+export const compilePat = (pat: Pat): string => {
+  if (pat.tag === 'PVar') return pat.name;
+  if (pat.tag === 'PAnn') return compilePat(pat.pat);
+  if (pat.tag === 'PWildcard') return '_';
+  return impossible('compilePat');
+};
+
+export const compile = (term: Term): string => {
+  if (term.tag === 'Var') return compileName(term.name);
+  if (term.tag === 'Abs') return `(${compilePat(term.pat)} => ${compile(term.body)})`;
+  if (term.tag === 'App') return `${compile(term.left)}(${compile(term.right)})`;
+  if (term.tag === 'Ann') return compile(term.term);
+  if (term.tag === 'Let') return `(${compileName(term.name)} => ${compile(term.body)})(${compile(term.val)})`;
+  return impossible('compile');
+};
+
+const keywords = `
+do
+if
+in
+for
+let
+new
+try
+var
+case
+else
+enum
+eval
+null
+this
+true
+void
+with
+await
+break
+catch
+class
+const
+false
+super
+throw
+while
+yield
+delete
+export
+import
+public
+return
+static
+switch
+typeof
+default
+extends
+finally
+package
+private
+continue
+debugger
+function
+arguments
+interface
+protected
+implements
+instanceof
+`.trim().split(/\s+/);
+

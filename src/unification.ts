@@ -3,6 +3,7 @@ import { TMeta, Type, TFun, isTFun, occursTMeta, showTy } from './types';
 import { freshTMeta, terr } from './util';
 import { kType, showKind, eqKind } from './kinds';
 import { kindOf } from './kindInference';
+import { log } from './config';
 
 const bindTMeta = (env: Env, x: TMeta, t: Type): void => {
   if (x.type) return unify(env, x.type, t);
@@ -20,7 +21,7 @@ const bindTMeta = (env: Env, x: TMeta, t: Type): void => {
   x.type = t;
 };
 export const unify = (env: Env, a: Type, b: Type): void => {
-  console.log(`unify ${showTy(a)} ~ ${showTy(b)}`);
+  log(`unify ${showTy(a)} ~ ${showTy(b)}`);
   if (a.tag === 'TVar' || b.tag === 'TVar')
     return terr(`tvar in unify: ${showTy(a)} ~ ${showTy(b)}`);
   if (a === b) return;
