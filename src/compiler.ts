@@ -1,5 +1,6 @@
 import { Term, Pat } from './terms';
 import { Name, impossible } from './util';
+import { Def } from './definitions';
 
 export const compileName = (x: Name) => {
   return keywords.indexOf(x) >= 0 ? `${x}_` : x;
@@ -21,6 +22,19 @@ export const compile = (term: Term): string => {
   if (term.tag === 'Let') return `(${compileName(term.name)} => ${compile(term.body)})(${compile(term.val)})`;
   return impossible('compile');
 };
+
+export const compileDef = (def: Def, prefix: (name: string) => string): string => {
+  switch (def.tag) {
+    case 'DType': {
+      const con = `${prefix(compileName(def.name))} = x => x;`;
+      return `${con}`;
+    }
+    case 'DLet':
+      return `${prefix(compileName(def.name))} = ${def.args.map(compilePat).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${compile(def.term)};`;
+  }
+};
+export const compileDefs = (ds: Def[], prefix: (name: string) => string): string =>
+  ds.map(d => compileDef(d, prefix)).join('\n') + '\n';
 
 const keywords = `
 do

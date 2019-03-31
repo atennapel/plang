@@ -1,12 +1,12 @@
-import { Type, showTy, TVMap, substTVar, TSkol, isTFun, TFun, prune, tmetas, quantify } from './types';
-import { impossible, freshTMeta, freshTSkol, terr, resetId, skolemCheck, Name } from './util';
-import { Env, tmetasEnv, skolemCheckEnv, lookupVar, extendVar, extendVars } from './env';
-import { Term, showTerm, Pat, showPat } from './terms';
+import { Type, showTy, TVMap, substTVar, TSkol, isTFun, TFun, prune, tmetas, quantify, tfunFrom, tappFrom, TCon, TVar, tforall } from './types';
+import { impossible, freshTMeta, freshTSkol, terr, resetId, skolemCheck, Name, freshKMeta } from './util';
+import { Env, tmetasEnv, skolemCheckEnv, lookupVar, extendVar, extendVars, lookupTCon } from './env';
+import { Term, showTerm, Pat, showPat, abs } from './terms';
 import { unifyTFun, unify } from './unification';
 import { inferKind } from './kindInference';
-import { kType, Kind } from './kinds';
-import { version } from 'punycode';
+import { kType, Kind, pruneKind } from './kinds';
 import { log } from './config';
+import { Def, showDef } from './definitions';
 
 type Expected = Check | Infer;
 interface Check {
@@ -196,6 +196,42 @@ const instSigma = (env: Env, ty: Type, ex: Expected): void => {
 };
 
 export const infer = (env: Env, term: Term): Type => {
+  log(`infer ${showTerm(term)}`);
   resetId();
   return prune(inferSigma(env, term));
 };
+
+export const inferDef = (env: Env, def: Def): void => {
+  log(`inferDef ${showDef(def)}`);
+  if (def.tag === 'DType') {
+    const tname = def.name;
+    if (lookupTCon(env, tname))
+      return terr(`type ${tname} is already defined`);
+    if (lookupVar(env, tname))
+      return terr(`constructor ${tname} is already defined`);
+    env.tcons[tname] = freshKMeta();
+    const t = def.type;
+    const tc = TCon(tname);
+    const b = tfunFrom([t, tappFrom([tc as Type].concat(def.args.map(([x, _]) => TVar(x))))]);
+    const ty = tforall(def.args, b);
+    const ti = inferKind(env, ty);
+    env.global[tname] = ti;
+    env.tcons[tname] = pruneKind(env.tcons[tname]);
+    return;
+  }
+  if (def.tag === 'DLet') {
+    const name = def.name;
+    if (lookupVar(env, name))
+      return terr(`${name} is already defined`);
+    const ty = infer(env, abs(def.args, def.term));
+    env.global[name] = ty;
+    return;
+  }
+  return impossible('inferDef');
+};
+
+export const inferDefs = (env: Env, ds: Def[]): void => {
+  for (let i = 0, l = ds.length; i < l; i++)
+    inferDef(env, ds[i]);
+};
+

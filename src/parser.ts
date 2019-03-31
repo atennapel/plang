@@ -3,6 +3,7 @@ import { Kind, KCon, kfunFrom } from './kinds';
 import { Type, TVar, TCon, tFun, tforall, TApp, tfunFrom, tappFrom } from './types';
 import { Name } from './util';
 import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon } from './terms';
+import { Def, DLet, DType } from './definitions';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -44,8 +45,9 @@ const matchingBracket = (c: Bracket): Bracket => {
 const SYM1 = ['\\', ':', '.', '=', '?', '_'];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
 
-const KEYWORDS = ['let', 'in'];
-const KEYWORDS_TYPE = ['forall'];
+const KEYWORDS = ['let', 'in', 'type'];
+const KEYWORDS_TYPE = ['forall', 'let', 'type'];
+const KEYWORDS_DEF = ['let', 'type'];
 
 const START = 0;
 const NAME = 1;
@@ -171,6 +173,29 @@ const parseTokenType = (ts: Token): Type => {
   }
 };
 
+const parseTypePat = (ts: Token): [Name, Kind | null][] => {
+  log(`parseTypePat ${showToken(ts)}`);
+  switch (ts.tag) {
+    case 'VarT': {
+      if (KEYWORDS_TYPE.indexOf(ts.val) >= 0 || isCon(ts.val)) return err(`stuck on ${ts.val}`);
+      return [[ts.val, null]];
+    }
+    case 'SymbolT': return err(`stuck on ${ts.val}`);
+    case 'ParenT': {
+      const parts = splitTokens(ts.val, t => matchSymbolT(':', t));
+      if (parts.length !== 2) return err(`invalid use of : in forall argument`);
+      const as = parts[0].map(t => {
+        if (t.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(t.val) >= 0)
+          return err(`not a valid arg in forall: ${t.val}`);
+        return t.val;
+      });
+      const ki = parseParensKind(parts[1]);
+      return as.map(x => [x, ki]);
+    }
+    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+  }
+};
+
 const parseParensType = (ts: Token[]): Type => {
   log(`parseParensType ${showTokens(ts)}`);
   if (ts.length === 0) return err('empty type');
@@ -182,21 +207,8 @@ const parseParensType = (ts: Token[]): Type => {
       const c = ts[i++];
       if (!c) return err(`no . after forall`);
       if (matchSymbolT('.', c)) break;
-      if (c.tag === 'ParenT') {
-        const parts = splitTokens(c.val, t => matchSymbolT(':', t));
-        if (parts.length !== 2) return err(`invalid use of : in forall argument`);
-        const as = parts[0].map(t => {
-          if (t.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(t.val) >= 0)
-            return err(`not a valid arg in forall: ${t.val}`);
-          return t.val;
-        });
-        const ki = parseParensKind(parts[1]);
-        for (let j = 0; j < as.length; j++) args.push([as[j], ki]);
-        continue;
-      }
-      if (c.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(c.val) >= 0)
-        return err(`invalid arg to forall: ${c.val}`);
-      args.push([c.val, null]);
+      const ps = parseTypePat(c);
+      for (let j = 0; j < ps.length; j++) args.push(ps[j]);
     }
     if (args.length === 0) return err(`forall without args`);
     const body = parseParensType(ts.slice(i));
@@ -455,6 +467,59 @@ const parseParens = (ts: Token[]): Term => {
   return appFrom(args);
 };
 
+// definitions
+const parseParensDefs = (ts: Token[]): Def[] => {
+  if (ts.length === 0) return [];
+  if (matchVarT('type', ts[0])) {
+    if (ts[1].tag !== 'VarT' || !isCon(ts[1].val as string))
+      return err(`invalid type name: ${ts[1].val}`);
+    const tname = ts[1].val as string;
+    const args: [Name, Kind | null][] = [];
+    let i = 2;
+    while (true) {
+      const c = ts[i++];
+      if (!c) return err(`no = after type def`);
+      if (matchSymbolT('=', c)) break;
+      const ps = parseTypePat(c);
+      for (let j = 0; j < ps.length; j++) args.push(ps[j]);
+    }
+    const bodyts: Token[] = [];
+    while (true) {
+      const c = ts[i++];
+      if (!c || (c.tag === 'VarT' && KEYWORDS_DEF.indexOf(c.val) >= 0)) break;
+      bodyts.push(c);
+    }
+    const body = parseParensType(bodyts);
+    const rest = parseParensDefs(ts.slice(i - 1));
+    return [DType(tname, args, body) as Def].concat(rest);
+  }
+  if (matchVarT('let', ts[0])) {
+    if (ts.length < 2) return err(`let without name`);
+    if (ts[1].tag !== 'VarT' || isCon(ts[0].val as string))
+      return err(`invalid name for let`);
+    const name = ts[1].val as string;
+    const args: Pat[] = [];
+    let i = 2;
+    while (true) {
+      const c = ts[i++];
+      if (!c) return err(`no = after let`);
+      if (matchSymbolT('=', c)) break;
+      const ps = parsePat(c);
+      for (let j = 0; j < ps.length; j++) args.push(ps[j]);
+    }
+    const bodyts: Token[] = [];
+    while (true) {
+      const c = ts[i++];
+      if (!c || (c.tag === 'VarT' && KEYWORDS_DEF.indexOf(c.val) >= 0)) break;
+      bodyts.push(c);
+    }
+    const body = parseParens(bodyts);
+    const rest = parseParensDefs(ts.slice(i - 1));
+    return [DLet(name, args, body) as Def].concat(rest);
+  }
+  return err(`def stuck on ${ts[0].val}`);
+};
+
 // parsing
 export const parseKind = (sc: string): Kind => {
   const ts = tokenize(sc);
@@ -469,6 +534,11 @@ export const parseType = (sc: string): Type => {
 export const parse = (sc: string): Term => {
   const ts = tokenize(sc);
   const ex = parseParens(ts);
+  return ex;
+};
+export const parseDefs = (sc: string): Def[] => {
+  const ts = tokenize(sc);
+  const ex = parseParensDefs(ts);
   return ex;
 };
 

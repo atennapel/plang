@@ -1,14 +1,14 @@
 import { run } from './repl';
-import { parse } from './parser';
-import { infer } from './inference';
+import { parseDefs } from './parser';
+import { inferDefs } from './inference';
 import { initialEnv } from './env';
-import { compile } from './compiler';
+import { compileDefs } from './compiler';
 
 if (process.argv[2]) {
   const sc = require('fs').readFileSync(process.argv[2], 'utf8');
-  const ds = parse(sc);
-  const ty = infer(initialEnv, ds);
-  const c = compile(ds);
+  const ds = parseDefs(sc);
+  inferDefs(initialEnv, ds);
+  const c = compileDefs(ds, x => `const ${x}`);
   console.log(c);
   process.exit();
 }

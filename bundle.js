@@ -156,6 +156,17 @@ exports.compile = (term) => {
         return `(${exports.compileName(term.name)} => ${exports.compile(term.body)})(${exports.compile(term.val)})`;
     return util_1.impossible('compile');
 };
+exports.compileDef = (def, prefix) => {
+    switch (def.tag) {
+        case 'DType': {
+            const con = `${prefix(exports.compileName(def.name))} = x => x;`;
+            return `${con}`;
+        }
+        case 'DLet':
+            return `${prefix(exports.compileName(def.name))} = ${def.args.map(exports.compilePat).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${exports.compile(def.term)};`;
+    }
+};
+exports.compileDefs = (ds, prefix) => ds.map(d => exports.compileDef(d, prefix)).join('\n') + '\n';
 const keywords = `
 do
 if
@@ -207,7 +218,7 @@ implements
 instanceof
 `.trim().split(/\s+/);
 
-},{"./util":13}],3:[function(require,module,exports){
+},{"./util":14}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = {
@@ -224,6 +235,31 @@ exports.log = (msg) => {
 };
 
 },{}],4:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const kinds_1 = require("./kinds");
+const types_1 = require("./types");
+const terms_1 = require("./terms");
+exports.DType = (name, args, type) => ({ tag: 'DType', name, args, type });
+exports.isDType = (def) => def.tag === 'DType';
+exports.DLet = (name, args, term) => ({ tag: 'DLet', name, args, term });
+exports.isDLet = (def) => def.tag === 'DLet';
+exports.showDef = (def) => {
+    switch (def.tag) {
+        case 'DType': {
+            const args = def.args.length > 0 ?
+                `${def.args.map(([n, k]) => k ? `(${n} : ${kinds_1.showKind(k)})` : n).join(' ')} ` :
+                '';
+            return `type ${def.name} ${args}= ${types_1.showTy(def.type)}`;
+        }
+        case 'DLet': {
+            const args = def.args.length > 0 ? `${def.args.map(terms_1.showPat).join(' ')} ` : '';
+            return `let ${def.name} ${args}= ${terms_1.showTerm(def.term)}`;
+        }
+    }
+};
+
+},{"./kinds":8,"./terms":11,"./types":12}],5:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -270,7 +306,7 @@ exports.initialEnv = exports.Env({}, {
 });
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./List":1,"./kinds":7,"./types":11,"./util":13}],5:[function(require,module,exports){
+},{"./List":1,"./kinds":8,"./types":12,"./util":14}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -281,6 +317,7 @@ const unification_1 = require("./unification");
 const kindInference_1 = require("./kindInference");
 const kinds_1 = require("./kinds");
 const config_1 = require("./config");
+const definitions_1 = require("./definitions");
 const Check = (type) => ({ tag: 'Check', type });
 const Infer = () => ({ tag: 'Infer', type: null });
 const showEx = (ex) => {
@@ -451,11 +488,44 @@ const instSigma = (env, ty, ex) => {
     ex.type = instantiate(ty);
 };
 exports.infer = (env, term) => {
+    config_1.log(`infer ${terms_1.showTerm(term)}`);
     util_1.resetId();
     return types_1.prune(inferSigma(env, term));
 };
+exports.inferDef = (env, def) => {
+    config_1.log(`inferDef ${definitions_1.showDef(def)}`);
+    if (def.tag === 'DType') {
+        const tname = def.name;
+        if (env_1.lookupTCon(env, tname))
+            return util_1.terr(`type ${tname} is already defined`);
+        if (env_1.lookupVar(env, tname))
+            return util_1.terr(`constructor ${tname} is already defined`);
+        env.tcons[tname] = util_1.freshKMeta();
+        const t = def.type;
+        const tc = types_1.TCon(tname);
+        const b = types_1.tfunFrom([t, types_1.tappFrom([tc].concat(def.args.map(([x, _]) => types_1.TVar(x))))]);
+        const ty = types_1.tforall(def.args, b);
+        const ti = kindInference_1.inferKind(env, ty);
+        env.global[tname] = ti;
+        env.tcons[tname] = kinds_1.pruneKind(env.tcons[tname]);
+        return;
+    }
+    if (def.tag === 'DLet') {
+        const name = def.name;
+        if (env_1.lookupVar(env, name))
+            return util_1.terr(`${name} is already defined`);
+        const ty = exports.infer(env, terms_1.abs(def.args, def.term));
+        env.global[name] = ty;
+        return;
+    }
+    return util_1.impossible('inferDef');
+};
+exports.inferDefs = (env, ds) => {
+    for (let i = 0, l = ds.length; i < l; i++)
+        exports.inferDef(env, ds[i]);
+};
 
-},{"./config":3,"./env":4,"./kindInference":6,"./kinds":7,"./terms":10,"./types":11,"./unification":12,"./util":13}],6:[function(require,module,exports){
+},{"./config":3,"./definitions":4,"./env":5,"./kindInference":7,"./kinds":8,"./terms":11,"./types":12,"./unification":13,"./util":14}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -570,7 +640,7 @@ exports.kindOf = (env, t) => {
     return util_1.terr(`unexpected type ${types_1.showTy(t)} in kindOf`);
 };
 
-},{"./env":4,"./kinds":7,"./types":11,"./util":13}],7:[function(require,module,exports){
+},{"./env":5,"./kinds":8,"./types":12,"./util":14}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -632,13 +702,14 @@ exports.eqKind = (a, b) => {
     return false;
 };
 
-},{"./util":13}],8:[function(require,module,exports){
+},{"./util":14}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
 const kinds_1 = require("./kinds");
 const types_1 = require("./types");
 const terms_1 = require("./terms");
+const definitions_1 = require("./definitions");
 const err = (msg) => { throw new SyntaxError(msg); };
 const VarT = (val) => ({ tag: 'VarT', val });
 const matchVarT = (val, t) => t.tag === 'VarT' && t.val === val;
@@ -664,8 +735,9 @@ const matchingBracket = (c) => {
 };
 const SYM1 = ['\\', ':', '.', '=', '?', '_'];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
-const KEYWORDS = ['let', 'in'];
-const KEYWORDS_TYPE = ['forall'];
+const KEYWORDS = ['let', 'in', 'type'];
+const KEYWORDS_TYPE = ['forall', 'let', 'type'];
+const KEYWORDS_DEF = ['let', 'type'];
 const START = 0;
 const NAME = 1;
 const STRING = 2;
@@ -811,6 +883,30 @@ const parseTokenType = (ts) => {
         case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
     }
 };
+const parseTypePat = (ts) => {
+    config_1.log(`parseTypePat ${showToken(ts)}`);
+    switch (ts.tag) {
+        case 'VarT': {
+            if (KEYWORDS_TYPE.indexOf(ts.val) >= 0 || isCon(ts.val))
+                return err(`stuck on ${ts.val}`);
+            return [[ts.val, null]];
+        }
+        case 'SymbolT': return err(`stuck on ${ts.val}`);
+        case 'ParenT': {
+            const parts = splitTokens(ts.val, t => matchSymbolT(':', t));
+            if (parts.length !== 2)
+                return err(`invalid use of : in forall argument`);
+            const as = parts[0].map(t => {
+                if (t.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(t.val) >= 0)
+                    return err(`not a valid arg in forall: ${t.val}`);
+                return t.val;
+            });
+            const ki = parseParensKind(parts[1]);
+            return as.map(x => [x, ki]);
+        }
+        case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+    }
+};
 const parseParensType = (ts) => {
     config_1.log(`parseParensType ${showTokens(ts)}`);
     if (ts.length === 0)
@@ -826,23 +922,9 @@ const parseParensType = (ts) => {
                 return err(`no . after forall`);
             if (matchSymbolT('.', c))
                 break;
-            if (c.tag === 'ParenT') {
-                const parts = splitTokens(c.val, t => matchSymbolT(':', t));
-                if (parts.length !== 2)
-                    return err(`invalid use of : in forall argument`);
-                const as = parts[0].map(t => {
-                    if (t.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(t.val) >= 0)
-                        return err(`not a valid arg in forall: ${t.val}`);
-                    return t.val;
-                });
-                const ki = parseParensKind(parts[1]);
-                for (let j = 0; j < as.length; j++)
-                    args.push([as[j], ki]);
-                continue;
-            }
-            if (c.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(c.val) >= 0)
-                return err(`invalid arg to forall: ${c.val}`);
-            args.push([c.val, null]);
+            const ps = parseTypePat(c);
+            for (let j = 0; j < ps.length; j++)
+                args.push(ps[j]);
         }
         if (args.length === 0)
             return err(`forall without args`);
@@ -1124,6 +1206,68 @@ const parseParens = (ts) => {
     }
     return terms_1.appFrom(args);
 };
+// definitions
+const parseParensDefs = (ts) => {
+    if (ts.length === 0)
+        return [];
+    if (matchVarT('type', ts[0])) {
+        if (ts[1].tag !== 'VarT' || !isCon(ts[1].val))
+            return err(`invalid type name: ${ts[1].val}`);
+        const tname = ts[1].val;
+        const args = [];
+        let i = 2;
+        while (true) {
+            const c = ts[i++];
+            if (!c)
+                return err(`no = after type def`);
+            if (matchSymbolT('=', c))
+                break;
+            const ps = parseTypePat(c);
+            for (let j = 0; j < ps.length; j++)
+                args.push(ps[j]);
+        }
+        const bodyts = [];
+        while (true) {
+            const c = ts[i++];
+            if (!c || (c.tag === 'VarT' && KEYWORDS_DEF.indexOf(c.val) >= 0))
+                break;
+            bodyts.push(c);
+        }
+        const body = parseParensType(bodyts);
+        const rest = parseParensDefs(ts.slice(i - 1));
+        return [definitions_1.DType(tname, args, body)].concat(rest);
+    }
+    if (matchVarT('let', ts[0])) {
+        if (ts.length < 2)
+            return err(`let without name`);
+        if (ts[1].tag !== 'VarT' || isCon(ts[0].val))
+            return err(`invalid name for let`);
+        const name = ts[1].val;
+        const args = [];
+        let i = 2;
+        while (true) {
+            const c = ts[i++];
+            if (!c)
+                return err(`no = after let`);
+            if (matchSymbolT('=', c))
+                break;
+            const ps = parsePat(c);
+            for (let j = 0; j < ps.length; j++)
+                args.push(ps[j]);
+        }
+        const bodyts = [];
+        while (true) {
+            const c = ts[i++];
+            if (!c || (c.tag === 'VarT' && KEYWORDS_DEF.indexOf(c.val) >= 0))
+                break;
+            bodyts.push(c);
+        }
+        const body = parseParens(bodyts);
+        const rest = parseParensDefs(ts.slice(i - 1));
+        return [definitions_1.DLet(name, args, body)].concat(rest);
+    }
+    return err(`def stuck on ${ts[0].val}`);
+};
 // parsing
 exports.parseKind = (sc) => {
     const ts = tokenize(sc);
@@ -1140,8 +1284,13 @@ exports.parse = (sc) => {
     const ex = parseParens(ts);
     return ex;
 };
+exports.parseDefs = (sc) => {
+    const ts = tokenize(sc);
+    const ex = parseParensDefs(ts);
+    return ex;
+};
 
-},{"./config":3,"./kinds":7,"./terms":10,"./types":11}],9:[function(require,module,exports){
+},{"./config":3,"./definitions":4,"./kinds":8,"./terms":11,"./types":12}],10:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -1152,9 +1301,6 @@ const types_1 = require("./types");
 const compiler_1 = require("./compiler");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
-const kinds_1 = require("./kinds");
-const kindInference_1 = require("./kindInference");
-const util_1 = require("./util");
 const _show = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
@@ -1183,6 +1329,20 @@ exports.run = (_s, _cb) => {
             config_1.config.debug = !config_1.config.debug;
             return _cb(`debug: ${config_1.config.debug}`);
         }
+        if (_s.startsWith(':load ') || _s.startsWith(':l ')) {
+            const _rest = (_s.startsWith(':load') ? _s.slice(5) : _s.slice(2)).trim();
+            fetch(`lib/${_rest}`)
+                .then(res => res.text())
+                .then(_rest => {
+                const _ds = parser_1.parseDefs(_rest);
+                inference_1.inferDefs(_env, _ds);
+                const _c = compiler_1.compileDefs(_ds, n => `${_global}['${n}']`);
+                eval(`(() => {${_c}})()`);
+                return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+            })
+                .catch(_err => _cb(`${_err}`, true));
+            return;
+        }
         if (_s.startsWith(':showBool ')) {
             const _rest = _s.slice(9);
             const _e = parser_1.parse(_rest);
@@ -1209,44 +1369,13 @@ exports.run = (_s, _cb) => {
             const _v = eval(`${_c}(x => x + 1)(0)`);
             return _cb(`${_show(_v)}`);
         }
-        if (_s.startsWith(':let ')) {
-            const _parts = _s.slice(4).trim().split('=');
-            const _name = _parts[0].trim();
-            const _rest = _parts.slice(1).join('=');
-            if (!/^[a-z][a-zA-Z0-9]*$/.test(_name))
-                throw new Error(`invalid name for let: ${_name}`);
-            const _e = parser_1.parse(_rest);
-            config_1.log(terms_1.showTerm(_e));
-            const _t = inference_1.infer(_env, _e);
-            config_1.log(types_1.showTy(_t));
-            const _c = compiler_1.compile(_e);
-            config_1.log(_c);
-            const _v = eval(`${_global}['${compiler_1.compileName(_name)}'] = ${_c}`);
-            config_1.log(_v);
-            _env.global[_name] = _t;
-            return _cb(`${_name} = ${_show(_v)} : ${types_1.showTy(_t)}`);
-        }
-        if (_s.startsWith(':type ')) {
-            const _parts = _s.slice(5).trim().split('=');
-            const _parts0 = _parts[0].trim().split(/\s+/g);
-            if (_parts0.length === 0)
-                throw new Error('empty name');
-            const _name = _parts0[0];
-            const _args = _parts0.slice(1);
-            const _rest = _parts.slice(1).join('=');
-            if (!/^[A-Z][a-zA-Z0-9]*$/.test(_name))
-                throw new Error(`invalid name for type: ${_name}`);
-            const _t = parser_1.parseType(_rest);
-            _env.tcons[_name] = util_1.freshKMeta();
-            const _b = types_1.tfunFrom([_t, types_1.tappFrom([types_1.TCon(_name)]
-                    .concat(_args.map(types_1.TVar)))]);
-            const _ty = _args.length === 0 ? _b :
-                types_1.TForall(_args, _args.map(() => null), _b);
-            const _ti = kindInference_1.inferKind(_env, _ty);
-            _env.global[_name] = _ti;
-            _env.tcons[_name] = kinds_1.pruneKind(_env.tcons[_name]);
-            eval(`${_global}['${compiler_1.compileName(_name)}'] = x => x`);
-            return _cb(`type ${_name} defined`);
+        if (_s.startsWith(':let ') || _s.startsWith(':type ')) {
+            const _rest = _s.slice(1);
+            const _ds = parser_1.parseDefs(_rest);
+            inference_1.inferDefs(_env, _ds);
+            const _c = compiler_1.compileDefs(_ds, n => `${_global}['${n}']`);
+            eval(`(() => {${_c}})()`);
+            return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
         }
         const _e = parser_1.parse(_s);
         config_1.log(terms_1.showTerm(_e));
@@ -1258,13 +1387,13 @@ exports.run = (_s, _cb) => {
         config_1.log(_v);
         return _cb(`${_show(_v)} : ${types_1.showTy(_t)}`);
     }
-    catch (err) {
-        return _cb('' + err, true);
+    catch (_err) {
+        return _cb(`${_err}`, true);
     }
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./compiler":2,"./config":3,"./env":4,"./inference":5,"./kindInference":6,"./kinds":7,"./parser":8,"./terms":10,"./types":11,"./util":13}],10:[function(require,module,exports){
+},{"./compiler":2,"./config":3,"./env":5,"./inference":6,"./parser":9,"./terms":11,"./types":12}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1305,7 +1434,7 @@ exports.showTerm = (t) => {
     return util_1.impossible('showTerm');
 };
 
-},{"./types":11,"./util":13}],11:[function(require,module,exports){
+},{"./types":12,"./util":14}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1470,7 +1599,7 @@ exports.quantify = (tms, ty) => {
     return exports.TForall(tvs, ks, exports.prune(ty));
 };
 
-},{"./config":3,"./kinds":7,"./util":13}],12:[function(require,module,exports){
+},{"./config":3,"./kinds":8,"./util":14}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1524,7 +1653,7 @@ exports.unifyTFun = (env, ty) => {
     return fn;
 };
 
-},{"./config":3,"./kindInference":6,"./kinds":7,"./types":11,"./util":13}],13:[function(require,module,exports){
+},{"./config":3,"./kindInference":7,"./kinds":8,"./types":12,"./util":14}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -1550,7 +1679,7 @@ exports.skolemCheck = (sk, ty) => {
         return exports.skolemCheck(sk, ty.type);
 };
 
-},{"./kinds":7,"./types":11}],14:[function(require,module,exports){
+},{"./kinds":8,"./types":12}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -1608,4 +1737,4 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":9}]},{},[14]);
+},{"./repl":10}]},{},[15]);

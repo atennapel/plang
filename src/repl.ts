@@ -2,9 +2,9 @@ import { config, log } from './config';
 import { initialEnv, showEnv } from './env';
 import { showTerm } from './terms';
 import { showTy, TCon, TForall, tfunFrom, TVar, tappFrom, Type } from './types';
-import { compile, compileName } from './compiler';
-import { infer } from './inference';
-import { parse, parseType } from './parser';
+import { compile, compileName, compileDefs } from './compiler';
+import { infer, inferDefs } from './inference';
+import { parse, parseType, parseDefs } from './parser';
 import { kType, kfunFrom, Kind, pruneKind } from './kinds';
 import { inferKind } from './kindInference';
 import { freshKMeta } from './util';
@@ -34,6 +34,20 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       config.debug = !config.debug;
       return _cb(`debug: ${config.debug}`);
     }
+    if (_s.startsWith(':load ') || _s.startsWith(':l ')) {
+      const _rest = (_s.startsWith(':load') ? _s.slice(5) : _s.slice(2)).trim();
+      fetch(`lib/${_rest}`)
+        .then(res => res.text())
+        .then(_rest => {
+          const _ds = parseDefs(_rest);
+          inferDefs(_env, _ds);
+          const _c = compileDefs(_ds, n => `${_global}['${n}']`);
+          eval(`(() => {${_c}})()`);
+          return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+        })
+        .catch(_err => _cb(`${_err}`, true));
+      return;
+    }
     if (_s.startsWith(':showBool ')) {
       const _rest = _s.slice(9);
       const _e = parse(_rest);
@@ -60,44 +74,13 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       const _v = eval(`${_c}(x => x + 1)(0)`);
       return _cb(`${_show(_v)}`);
     }
-    if (_s.startsWith(':let ')) {
-      const _parts = _s.slice(4).trim().split('=');
-      const _name = _parts[0].trim();
-      const _rest = _parts.slice(1).join('=');
-      if (!/^[a-z][a-zA-Z0-9]*$/.test(_name))
-        throw new Error(`invalid name for let: ${_name}`);
-      const _e = parse(_rest);
-      log(showTerm(_e));
-      const _t = infer(_env, _e);
-      log(showTy(_t));
-      const _c = compile(_e);
-      log(_c);
-      const _v = eval(`${_global}['${compileName(_name)}'] = ${_c}`);
-      log(_v);
-      _env.global[_name] = _t;
-      return _cb(`${_name} = ${_show(_v)} : ${showTy(_t)}`);
-    }
-    if (_s.startsWith(':type ')) {
-      const _parts = _s.slice(5).trim().split('=');
-      const _parts0 = _parts[0].trim().split(/\s+/g);
-      if (_parts0.length === 0)
-        throw new Error('empty name');
-      const _name = _parts0[0];
-      const _args = _parts0.slice(1);
-      const _rest = _parts.slice(1).join('=');
-      if (!/^[A-Z][a-zA-Z0-9]*$/.test(_name))
-        throw new Error(`invalid name for type: ${_name}`);
-      const _t = parseType(_rest);
-      _env.tcons[_name] = freshKMeta();
-      const _b = tfunFrom([_t, tappFrom([TCon(_name) as Type]
-        .concat(_args.map(TVar)))]);
-      const _ty = _args.length === 0 ? _b :
-        TForall(_args, _args.map(() => null), _b);
-      const _ti = inferKind(_env, _ty);
-      _env.global[_name] = _ti;
-      _env.tcons[_name] = pruneKind(_env.tcons[_name]);
-      eval(`${_global}['${compileName(_name)}'] = x => x`);
-      return _cb(`type ${_name} defined`);
+    if (_s.startsWith(':let ') || _s.startsWith(':type ')) {
+      const _rest = _s.slice(1);
+      const _ds = parseDefs(_rest);
+      inferDefs(_env, _ds);
+      const _c = compileDefs(_ds, n => `${_global}['${n}']`);
+      eval(`(() => {${_c}})()`);
+      return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
     }
     const _e = parse(_s);
     log(showTerm(_e));
@@ -108,7 +91,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     const _v = eval(_c);
     log(_v);
     return _cb(`${_show(_v)} : ${showTy(_t)}`);
-  } catch (err) {
-    return _cb('' + err, true);
+  } catch (_err) {
+    return _cb(`${_err}`, true);
   }
 };
