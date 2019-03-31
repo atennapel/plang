@@ -1,5 +1,4 @@
 Try it out at https://atennapel.github.io/plang
 
 TODO:
-- parser
 - data constructors

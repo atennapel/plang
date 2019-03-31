@@ -13,15 +13,22 @@ export type Type
 export interface TForall {
   readonly tag: 'TForall';
   readonly names: Name[];
-  readonly kinds: Kind[];
+  readonly kinds: (Kind | null)[];
   readonly type: Type;
 }
 export const TForall = (
   names: Name[],
-  kinds: Kind[],
+  kinds: (Kind | null)[],
   type: Type
-): TForall =>
-  ({ tag: 'TForall', names, kinds, type });
+): TForall => ({ tag: 'TForall', names, kinds, type });
+export const tforall = (ns: [Name, Kind | null][], type: Type) => {
+  const [names, kinds] = ns.reduce((c, [x, k]) => {
+    c[0].push(x);
+    c[1].push(k);
+    return c
+  }, [[], []] as [Name[], (Kind | null)[]]);
+  return TForall(names, kinds, type);
+};
 
 export interface TApp {
   readonly tag: 'TApp';
@@ -30,6 +37,8 @@ export interface TApp {
 }
 export const TApp = (left: Type, right: Type): TApp =>
   ({ tag: 'TApp', left, right });
+export const tappFrom = (ts: Type[]): Type =>
+  ts.reduce(TApp);
 
 export interface TCon {
   readonly tag: 'TCon';
@@ -79,6 +88,8 @@ export const isTFun = (ty: Type): ty is TFun =>
     (ty.left.left === tFun ||
       (ty.left.left.tag === 'TCon' &&
         ty.left.left.name === tFun.name));
+export const tfunFrom = (ts: Type[]): Type =>
+  ts.reduceRight((x, y) => TFun(y, x));
 
 export const flattenTFun = (t: Type): Type[] => {
   let c = t;
@@ -110,7 +121,7 @@ export const showTy = (t: Type): string => {
   if (t.tag === 'TForall')
     return `forall ${t.names.map((tv, i) =>
       t.kinds[i] && config.showKinds ?
-        `(${tv} : ${showKind(t.kinds[i])})` :
+        `(${tv} : ${showKind(t.kinds[i] as Kind)})` :
         `${tv}`).join(' ')}. ${showTy(t.type)}`;
   if (isTFun(t))
     return flattenTFun(t)

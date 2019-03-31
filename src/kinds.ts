@@ -18,6 +18,8 @@ export interface KFun {
 }
 export const KFun = (left: Kind, right: Kind): KFun =>
   ({ tag: 'KFun', left, right });
+export const kfunFrom = (ks: Kind[]): Kind =>
+  ks.reduceRight((x, y) => KFun(y, x));
 
 export interface KMeta {
   readonly tag: 'KMeta';

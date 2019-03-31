@@ -1,0 +1,465 @@
+import { log } from './config';
+import { Kind, KCon, kfunFrom } from './kinds';
+import { Type, TVar, TCon, tFun, tforall, TApp, tfunFrom, tappFrom } from './types';
+import { Name } from './util';
+import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn } from './terms';
+
+const err = (msg: string) => { throw new SyntaxError(msg) };
+
+// tokens
+type Token
+  = VarT
+  | SymbolT
+  | StringT
+  | ParenT;
+
+interface VarT { readonly tag: 'VarT'; readonly val: string }
+const VarT = (val: string): VarT => ({ tag: 'VarT', val });
+const matchVarT = (val: string, t: Token): boolean => t.tag === 'VarT' && t.val === val;
+interface SymbolT { readonly tag: 'SymbolT'; readonly val: string }
+const SymbolT = (val: string): SymbolT => ({ tag: 'SymbolT', val });
+const matchSymbolT = (val: string, t: Token): boolean => t.tag === 'SymbolT' && t.val === val;
+interface StringT { readonly tag: 'StringT'; readonly val: string }
+const StringT = (val: string): StringT => ({ tag: 'StringT', val });
+interface ParenT { readonly tag: 'ParenT'; readonly val: Token[] }
+const ParenT = (val: Token[]): ParenT => ({ tag: 'ParenT', val });
+
+const showToken = (t: Token): string => {
+  switch (t.tag) {
+    case 'SymbolT':
+    case 'VarT': return t.val;
+    case 'StringT': return JSON.stringify(t.val);
+    case 'ParenT': return `(${t.val.map(showToken).join(' ')})`;
+  }
+};
+const showTokens = (ts: Token[]): string => ts.map(showToken).join(' ');
+
+type Bracket = '(' | ')';
+const matchingBracket = (c: Bracket): Bracket => {
+  if(c === '(') return ')';
+  if(c === ')') return '(';
+  return err(`invalid bracket: ${c}`);
+}
+
+const SYM1 = ['\\', ':', '.', '=', '?', '_'];
+const SYM2 = ['->', '<|', '|>', '<<', '>>'];
+
+const KEYWORDS = ['let', 'in'];
+const KEYWORDS_TYPE = ['forall'];
+
+const START = 0;
+const NAME = 1;
+const STRING = 2;
+const COMMENT = 3;
+const tokenize = (sc: string): Token[] => {
+  let state = START;
+  let r: Token[] = [];
+  let t = '';
+  let p: Token[][] = [], b: Bracket[] = [];
+  for (let i = 0, l = sc.length; i <= l; i++) {
+    const c = sc[i] || ' ';
+    const next = sc[i + 1] || '';
+    log(`${i};${c};${next};${state};${showTokens(r)}`);
+    if (state === START) {
+      if (SYM2.indexOf(c + next) >= 0) r.push(SymbolT(c + next)), i++;
+      else if (SYM1.indexOf(c) >= 0) r.push(SymbolT(c));
+      else if (c === ';') state = COMMENT;
+      else if (c === '"') state = STRING;
+      else if (/[a-z]/i.test(c)) t += c, state = NAME;
+      else if(c === '(') b.push(c), p.push(r), r = [];
+      else if(c === ')') {
+        if(b.length === 0) return err(`unmatched bracket: ${c}`);
+        const br = b.pop() as Bracket;
+        if(matchingBracket(br) !== c) return err(`unmatched bracket: ${br} and ${c}`);
+        const a: Token[] = p.pop() as Token[];
+        a.push(ParenT(r));
+        r = a;
+      }
+      else if (/\s/.test(c)) continue;
+      else return err(`invalid char ${c} in tokenize`);
+    } else if (state === NAME) {
+      if (!/[a-z0-9]/i.test(c)) {
+        r.push(VarT(t));
+        t = '', i--, state = START;
+      } else t += c;
+    } else if (state === STRING) {
+      if (c === '"') {
+        r.push(StringT(t));
+        t = '', state = START;
+      } else t += c;
+    } else if (state === COMMENT) {
+      if (c === '\n') state = START;
+    }
+  }
+  if (b.length > 0) return err(`unclosed brackets: ${b.join(' ')}`);
+  if (state !== START) return err('invalid tokenize end state');
+  return r;
+};
+
+const indexOf = (a: Token[], fn: (t: Token) => boolean): number => {
+  for (let i = 0, l = a.length; i < l; i++)
+    if (fn(a[i])) return i;
+  return -1;
+};
+const contains = (a: Token[], fn: (t: Token) => boolean): boolean =>
+  indexOf(a, fn) >= 0;
+const splitTokens = (a: Token[], fn: (t: Token) => boolean): Token[][] => {
+  const r: Token[][] = [];
+  let t: Token[] = [];
+  for (let i = 0, l = a.length; i < l; i++) {
+    const c = a[i];
+    if (fn(c)) {
+      r.push(t);
+      t = [];
+    } else t.push(c);
+  }
+  r.push(t);
+  return r;
+};
+
+// kinds
+const parseTokenKind = (ts: Token): Kind => {
+  log(`parseTokenKind ${showToken(ts)}`);
+  switch (ts.tag) {
+    case 'VarT': return KCon(ts.val);
+    case 'SymbolT': return err(`stuck on ${ts.val}`);
+    case 'ParenT': return parseParensKind(ts.val);
+    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+  }
+};
+
+const parseParensKind = (ts: Token[]): Kind => {
+  log(`parseParensKind ${showTokens(ts)}`);
+  if (ts.length === 0) return err('empty kind');
+  if (ts.length === 1) return parseTokenKind(ts[0]);
+  let args: Token[] = [];
+  const fs: Token[][] = [];
+  for (let i = 0; i < ts.length; i++) {
+    const c = ts[i];
+    if (matchSymbolT('->', c)) {
+      fs.push(args);
+      args = [];
+      continue;
+    }
+    args.push(c);
+  }
+  fs.push(args);
+  return kfunFrom(fs.map(ts => {
+    if (ts.length === 0) return err(`empty kind ->`);
+    if (ts.length > 1) return err(`kind applications unimplemented`);
+    return parseTokenKind(ts[0]);
+  }));
+};
+
+// types
+const isCon = (x: Name): boolean =>
+  /[A-Z]/.test(x[0]);
+
+const parseTokenType = (ts: Token): Type => {
+  log(`parseTokenType ${showToken(ts)}`);
+  switch (ts.tag) {
+    case 'VarT': {
+      if (KEYWORDS_TYPE.indexOf(ts.val) >= 0) return err(`stuck on ${ts.val}`);
+      return isCon(ts.val) ? TCon(ts.val) : TVar(ts.val);
+    }
+    case 'SymbolT': {
+      if (ts.val === '->') return tFun;
+      return err(`stuck on ${ts.val}`);
+    }
+    case 'ParenT': return parseParensType(ts.val);
+    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+  }
+};
+
+const parseParensType = (ts: Token[]): Type => {
+  log(`parseParensType ${showTokens(ts)}`);
+  if (ts.length === 0) return err('empty type');
+  if (ts.length === 1) return parseTokenType(ts[0]);
+  if (matchVarT('forall', ts[0])) {
+    const args: [Name, Kind | null][] = [];
+    let i = 1;
+    while (true) {
+      const c = ts[i++];
+      if (!c) return err(`no . after forall`);
+      if (matchSymbolT('.', c)) break;
+      if (c.tag === 'ParenT') {
+        const parts = splitTokens(c.val, t => matchSymbolT(':', t));
+        if (parts.length !== 2) return err(`invalid use of : in forall argument`);
+        const as = parts[0].map(t => {
+          if (t.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(t.val) >= 0)
+            return err(`not a valid arg in forall: ${t.val}`);
+          return t.val;
+        });
+        const ki = parseParensKind(parts[1]);
+        for (let j = 0; j < as.length; j++) args.push([as[j], ki]);
+        continue;
+      }
+      if (c.tag !== 'VarT' || KEYWORDS_TYPE.indexOf(c.val) >= 0)
+        return err(`invalid arg to forall: ${c.val}`);
+      args.push([c.val, null]);
+    }
+    if (args.length === 0) return err(`forall without args`);
+    const body = parseParensType(ts.slice(i));
+    return tforall(args, body);
+  }
+  let args: Token[] = [];
+  const fs: Token[][] = [];
+  for (let i = 0; i < ts.length; i++) {
+    const c = ts[i];
+    if (matchVarT('forall', c)) {
+      const rest = parseParensType(ts.slice(i));
+      const app = tappFrom(args.map(parseTokenType).concat([rest]));
+      return tfunFrom(fs.map(ts => tappFrom(ts.map(parseTokenType))).concat([app]));
+    }
+    if (matchSymbolT('->', c)) {
+      fs.push(args);
+      args = [];
+      continue;
+    }
+    args.push(c);
+  }
+  fs.push(args);
+  if (fs.length === 2) {     
+    // special case (t ->)
+    if (fs[1].length === 0) {
+      return TApp(tFun, tappFrom(fs[0].map(parseTokenType)));
+    // special case (-> t)
+    } else if (fs[0].length === 0) {
+      return TApp(tFun, tappFrom(fs[1].map(parseTokenType)));
+    }
+  }
+  return tfunFrom(fs.map(ts => {
+    if (ts.length === 0) return err(`empty type ->`);
+    return tappFrom(ts.map(parseTokenType))
+  }));
+};
+
+// terms
+const parseToken = (ts: Token): Term => {
+  log(`parseToken ${showToken(ts)}`);
+  switch (ts.tag) {
+    case 'VarT': {
+      if (KEYWORDS.indexOf(ts.val) >= 0) return err(`stuck on ${ts.val}`);
+      return Var(ts.val);
+    }
+    case 'SymbolT': {
+      if (ts.val === '<|') {
+        const f = 'f';
+        const x = 'x';
+        return abs([PVar(f), PVar(x)], appFrom([Var(f), Var(x)]));
+      }
+      if (ts.val === '|>') {
+        const f = 'f';
+        const x = 'x';
+        return abs([PVar(x), PVar(f)], appFrom([Var(f), Var(x)]));
+      }
+      if (ts.val === '<<') {
+        const f = 'f';
+        const g = 'g';
+        const x = 'x';
+        return abs([PVar(f), PVar(g), PVar(x)], App(Var(f), App(Var(g), Var(x))));
+      }
+      if (ts.val === '>>') {
+        const f = 'f';
+        const g = 'g';
+        const x = 'x';
+        return abs([PVar(g), PVar(f), PVar(x)], App(Var(f), App(Var(g), Var(x))));
+      }
+      return err(`stuck on ${ts.val}`);
+    }
+    case 'ParenT': return parseParens(ts.val);
+    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+  }
+};
+
+const parsePat = (ts: Token): Pat[] => {
+  log(`parsePat ${showToken(ts)}`);
+  switch (ts.tag) {
+    case 'VarT': {
+      if (KEYWORDS.indexOf(ts.val) >= 0 || isCon(ts.val)) return err(`stuck on ${ts.val}`);
+      return [PVar(ts.val)];
+    }
+    case 'SymbolT': {
+      if (ts.val === '_') return [PWildcard];
+      return err(`stuck on ${ts.val}`);
+    }
+    case 'ParenT': {
+      const a = ts.val;
+      const args: Pat[] = [];
+      let i = 0;
+      while (true) {
+        const c = a[i++];
+        if (!c) return err(`no : in abs annotation`);
+        if (matchSymbolT(':', c)) break;
+        const ps = parsePat(c);
+        for (let j = 0; j < ps.length; j++) args.push(ps[j]);
+      }
+      if (args.length === 0) return err(`empty args in abs annotation`);
+      const ty = parseParensType(a.slice(i));
+      return args.map(p => PAnn(p, ty));
+    }
+    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+  }
+};
+
+const parseParens = (ts: Token[]): Term => {
+  log(`parseParens ${showTokens(ts)}`);
+  if (ts.length === 0) return err('empty');
+  if (ts.length === 1) return parseToken(ts[0]);
+  if (contains(ts, t => matchSymbolT(':', t))) {
+    const parts = splitTokens(ts, t => matchSymbolT(':', t));
+    if (parts.length !== 2) return err(`invalid use (${parts.length}) of :`);
+    const left = parseParens(parts[0]);
+    const right = parseParensType(parts[1]);
+    return Ann(left, right);
+  }
+  if (matchSymbolT('\\', ts[0])) {
+    const args: Pat[] = [];
+    let i = 1;
+    while (true) {
+      const c = ts[i++];
+      if (!c) return err(`no -> after \\`);
+      if (matchSymbolT('->', c)) break;
+      const ps = parsePat(c);
+      for (let j = 0; j < ps.length; j++) args.push(ps[j]);
+    }
+    if (args.length === 0) args.push(PWildcard);
+    const body = parseParens(ts.slice(i));
+    return abs(args, body);
+  }
+  if (matchVarT('let', ts[0])) {
+    if (ts.length < 2) return err(`let without name`);
+    if (ts[1].tag !== 'VarT' || isCon(ts[0].val as string))
+      return err(`invalid name for let`);
+    const name = ts[1].val as string;
+    const args: Pat[] = [];
+    let i = 2;
+    while (true) {
+      const c = ts[i++];
+      if (!c) return err(`no = after let`);
+      if (matchSymbolT('=', c)) break;
+      const ps = parsePat(c);
+      for (let j = 0; j < ps.length; j++) args.push(ps[j]);
+    }
+    const bodyts: Token[] = [];
+    while (true) {
+      const c = ts[i++];
+      if (!c) return err(`no in after = in let`);
+      if (matchVarT('in', c)) break;
+      bodyts.push(c);
+    }
+    const body = parseParens(bodyts);
+    const rest = parseParens(ts.slice(i));
+    return Let(name, args.length > 0 ? abs(args.slice(1), body) : body , rest);
+  }
+  if (contains(ts, t => matchSymbolT('<|', t))) {
+    const split = splitTokens(ts, t => matchSymbolT('<|', t));
+    // special case
+    if (split.length === 2) {
+      // (f <|) = \x -> f x
+      if (split[1].length === 0) {
+        const f = parseParens(split[0]);
+        const x = '_x';
+        return abs([PVar(x)], App(f, Var(x)));
+      // (<| x) = \f -> f x
+      } else if (split[0].length === 0) {
+        const f = '_f';
+        const x = parseParens(split[1]);
+        return abs([PVar(f)], App(Var(f), x));
+      }
+    }
+    const terms = split.map(parseParens);
+    return terms.reduceRight((x, y) => App(y, x));
+  }
+  if (contains(ts, t => matchSymbolT('|>', t))) {
+    const split = splitTokens(ts, t => matchSymbolT('|>', t));
+    // special case
+    if (split.length === 2) {
+      // (x |>) = \f -> f x
+      if (split[1].length === 0) {
+        const f = '_f';
+        const x = parseParens(split[0]);
+        return abs([PVar(f)], App(Var(f), x));
+      // (|> f) = \x -> f x
+      } else if (split[0].length === 0) {
+        const f = parseParens(split[1]);
+        const x = '_x';
+        return abs([PVar(x)], App(f, Var(x)));
+      }
+    }
+    const terms = split.map(parseParens);
+    return terms.reverse().reduceRight((x, y) => App(y, x));
+  }
+  if (contains(ts, t => matchSymbolT('<<', t))) {
+    const split = splitTokens(ts, t => matchSymbolT('<<', t));
+    // special case
+    if (split.length === 2) {
+      // (f <<) = \g x -> f (g x)
+      if (split[1].length === 0) {
+        const f = parseParens(split[0]);
+        const g = '_g';
+        const x = '_x';
+        return abs([PVar(g), PVar(x)], App(f, App(Var(g), Var(x))));
+      // (<< g) = \f x -> f (g x)
+      } else if (split[0].length === 0) {
+        const f = '_f';
+        const g = parseParens(split[1]);
+        const x = '_x';
+        return abs([PVar(f), PVar(x)], App(Var(f), App(g, Var(x))));
+      }
+    }
+    const terms = split.map(parseParens);
+    const x = '_x';
+    return abs([PVar(x)], terms.reduceRight((x, y) => App(y, x), Var(x)));
+  }
+  if (contains(ts, t => matchSymbolT('>>', t))) {
+    const split = splitTokens(ts, t => matchSymbolT('>>', t));
+    // special case
+    if (split.length === 2) {
+      // (f >>) = \g x -> g (f x)
+      if (split[1].length === 0) {
+        const f = parseParens(split[0]);
+        const g = '_g';
+        const x = '_x';
+        return abs([PVar(g), PVar(x)], App(Var(g), App(f, Var(x))));
+      // (>> g) = \f x -> g (f x)
+      } else if (split[0].length === 0) {
+        const f = '_f';
+        const g = parseParens(split[1]);
+        const x = '_x';
+        return abs([PVar(f), PVar(x)], App(g, App(Var(f), Var(x))));
+      }
+    }
+    const terms = split.map(parseParens);
+    const x = '_x';
+    return abs([PVar(x)], terms.reverse().reduceRight((x, y) => App(y, x), Var(x)));
+  }
+  const args: Term[] = [];
+  for (let i = 0; i < ts.length; i++) {
+    const c = ts[i];
+    if (matchSymbolT('\\', c)) {
+      args.push(parseParens(ts.slice(i)));
+      return appFrom(args);
+    }
+    args.push(parseToken(c));
+  }
+  return appFrom(args);
+};
+
+// parsing
+export const parseKind = (sc: string): Kind => {
+  const ts = tokenize(sc);
+  const ex = parseParensKind(ts);
+  return ex;
+};
+export const parseType = (sc: string): Type => {
+  const ts = tokenize(sc);
+  const ex = parseParensType(ts);
+  return ex;
+};
+export const parse = (sc: string): Term => {
+  const ts = tokenize(sc);
+  const ex = parseParens(ts);
+  return ex;
+};
+

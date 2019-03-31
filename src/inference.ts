@@ -4,7 +4,7 @@ import { Env, tmetasEnv, skolemCheckEnv, lookupVar, extendVar, extendVars } from
 import { Term, showTerm, Pat, showPat } from './terms';
 import { unifyTFun, unify } from './unification';
 import { inferKind } from './kindInference';
-import { kType } from './kinds';
+import { kType, Kind } from './kinds';
 import { version } from 'punycode';
 import { log } from './config';
 
@@ -32,7 +32,7 @@ const instantiate = (ty: Type): Type => {
   const names = ty.names;
   for (let i = 0, l = names.length; i < l; i++) {
     const x = names[i];
-    m[x] = freshTMeta(ty.kinds[i], x);
+    m[x] = freshTMeta(ty.kinds[i] as Kind, x);
   }
   return substTVar(m, ty.type);
 };
@@ -42,7 +42,7 @@ const skolemise = (ty: Type, sk: TSkol[] = []): Type => {
     const m: TVMap = {};
     const names = ty.names;
     for (let i = 0, l = names.length; i < l; i++) {
-      const k = freshTSkol(names[i], ty.kinds[i]);
+      const k = freshTSkol(names[i], ty.kinds[i] as Kind);
       m[names[i]] = k;
       sk.push(k);
     }
@@ -130,8 +130,9 @@ const tcPat = (
     return [[pat.name, ty]];
   }
   if (pat.tag === 'PAnn') {
-    const bs = checkPat(env, pat.pat, pat.type);
-    instPatSigma(env, pat.type, ex);
+    const ty = inferKind(env, pat.type);
+    const bs = checkPat(env, pat.pat, ty);
+    instPatSigma(env, ty, ex);
     return bs;
   }
   return impossible('tcPat');

@@ -21,6 +21,8 @@ export interface App {
 }
 export const App = (left: Term, right: Term): App =>
   ({ tag: 'App', left, right });
+export const appFrom = (ts: Term[]): Term =>
+  ts.reduce(App);
 
 export interface Abs {
   readonly tag: 'Abs';
@@ -29,6 +31,8 @@ export interface Abs {
 }
 export const Abs = (pat: Pat, body: Term): Abs =>
   ({ tag: 'Abs', pat, body });
+export const abs = (ns: Pat[], body: Term) =>
+  ns.reduceRight((x, y) => Abs(y, x), body);
 
 export interface Let {
   readonly tag: 'Let';

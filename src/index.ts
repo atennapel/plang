@@ -1,4 +1,4 @@
-import { Abs, Var, showTerm, PVar, Pat, PWildcard, Term, Ann } from './terms';
+import { Abs, Var, showTerm, PVar, Pat, PWildcard, Term, Ann, abs } from './terms';
 import { infer } from './inference';
 import { initialEnv } from './env';
 import { showTy, TFun, TVar, TForall } from './types';
@@ -11,8 +11,6 @@ const pv = PVar;
 const _ = PWildcard;
 
 const v = Var;
-const abs = (ns: Pat[], body: Term) =>
-  ns.reduceRight((x, y) => Abs(y, x), body);
 
 setConfig({
   debug: false,
