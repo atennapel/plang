@@ -12,6 +12,7 @@ type Token
   = VarT
   | SymbolT
   | StringT
+  | NumberT
   | ParenT;
 
 interface VarT { readonly tag: 'VarT'; readonly val: string }
@@ -22,6 +23,8 @@ const SymbolT = (val: string): SymbolT => ({ tag: 'SymbolT', val });
 const matchSymbolT = (val: string, t: Token): boolean => t.tag === 'SymbolT' && t.val === val;
 interface StringT { readonly tag: 'StringT'; readonly val: string }
 const StringT = (val: string): StringT => ({ tag: 'StringT', val });
+interface NumberT { readonly tag: 'NumberT'; readonly val: string }
+const NumberT = (val: string): NumberT => ({ tag: 'NumberT', val });
 interface ParenT { readonly tag: 'ParenT'; readonly val: Token[] }
 const ParenT = (val: Token[]): ParenT => ({ tag: 'ParenT', val });
 
@@ -31,6 +34,7 @@ const showToken = (t: Token): string => {
     case 'VarT': return t.val;
     case 'StringT': return JSON.stringify(t.val);
     case 'ParenT': return `(${t.val.map(showToken).join(' ')})`;
+    case 'NumberT': return t.val;
   }
 };
 const showTokens = (ts: Token[]): string => ts.map(showToken).join(' ');
@@ -53,6 +57,7 @@ const START = 0;
 const NAME = 1;
 const STRING = 2;
 const COMMENT = 3;
+const NUMBER = 4;
 const tokenize = (sc: string): Token[] => {
   let state = START;
   let r: Token[] = [];
@@ -68,6 +73,7 @@ const tokenize = (sc: string): Token[] => {
       else if (c === ';') state = COMMENT;
       else if (c === '"') state = STRING;
       else if (/[a-z]/i.test(c)) t += c, state = NAME;
+      else if (/[0-9]/i.test(c)) t += c, state = NUMBER;
       else if(c === '(') b.push(c), p.push(r), r = [];
       else if(c === ')') {
         if(b.length === 0) return err(`unmatched bracket: ${c}`);
@@ -82,6 +88,11 @@ const tokenize = (sc: string): Token[] => {
     } else if (state === NAME) {
       if (!/[a-z0-9]/i.test(c)) {
         r.push(VarT(t));
+        t = '', i--, state = START;
+      } else t += c;
+    } else if (state === NUMBER) {
+      if (!/[0-9]/.test(c)) {
+        r.push(NumberT(t));
         t = '', i--, state = START;
       } else t += c;
     } else if (state === STRING) {
@@ -127,6 +138,7 @@ const parseTokenKind = (ts: Token): Kind => {
     case 'SymbolT': return err(`stuck on ${ts.val}`);
     case 'ParenT': return parseParensKind(ts.val);
     case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+    case 'NumberT': return err(`stuck on ${ts.val}`);
   }
 };
 
@@ -170,6 +182,7 @@ const parseTokenType = (ts: Token): Type => {
     }
     case 'ParenT': return parseParensType(ts.val);
     case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+    case 'NumberT': return err(`stuck on ${ts.val}`);
   }
 };
 
@@ -193,6 +206,7 @@ const parseTypePat = (ts: Token): [Name, Kind | null][] => {
       return as.map(x => [x, ki]);
     }
     case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+    case 'NumberT': return err(`stuck on ${ts.val}`);
   }
 };
 
@@ -280,7 +294,32 @@ const parseToken = (ts: Token): Term => {
       return err(`stuck on ${ts.val}`);
     }
     case 'ParenT': return parseParens(ts.val);
-    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+    case 'StringT': {
+      const val = ts.val;
+      const r: number[] = Array(val.length);
+      const l = val.length;
+      for (let i = 0; i < l; i++)
+        r[i] = val.charCodeAt(i);
+      let c: Term = Var('nil');
+      const cons = Var('cons');
+      const s = Var('s');
+      for (let i = 0; i < l; i++) {
+        const n = r[i];
+        let t: Term = Var('z');
+        for (let j = 0; j < n; j++) t = App(s, t);
+        c = appFrom([cons, t, c]);
+      }
+      return App(Var('Str'), c);
+    }
+    case 'NumberT': {
+      const val = ts.val;
+      const n = parseInt(val, 10);
+      if (isNaN(n) || n < 0) return err(`invalid number: ${val}`);
+      let c: Term = Var('z');
+      const s = Var('s');
+      for (let i = 0; i < n; i++) c = App(s, c);
+      return c;
+    }
   }
 };
 
@@ -320,6 +359,7 @@ const parsePat = (ts: Token): Pat[] => {
       return args.map(p => PAnn(p, ty));
     }
     case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+    case 'NumberT': return err(`stuck on ${ts.val}`);
   }
 };
 

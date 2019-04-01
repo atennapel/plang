@@ -716,6 +716,7 @@ const matchVarT = (val, t) => t.tag === 'VarT' && t.val === val;
 const SymbolT = (val) => ({ tag: 'SymbolT', val });
 const matchSymbolT = (val, t) => t.tag === 'SymbolT' && t.val === val;
 const StringT = (val) => ({ tag: 'StringT', val });
+const NumberT = (val) => ({ tag: 'NumberT', val });
 const ParenT = (val) => ({ tag: 'ParenT', val });
 const showToken = (t) => {
     switch (t.tag) {
@@ -723,6 +724,7 @@ const showToken = (t) => {
         case 'VarT': return t.val;
         case 'StringT': return JSON.stringify(t.val);
         case 'ParenT': return `(${t.val.map(showToken).join(' ')})`;
+        case 'NumberT': return t.val;
     }
 };
 const showTokens = (ts) => ts.map(showToken).join(' ');
@@ -742,6 +744,7 @@ const START = 0;
 const NAME = 1;
 const STRING = 2;
 const COMMENT = 3;
+const NUMBER = 4;
 const tokenize = (sc) => {
     let state = START;
     let r = [];
@@ -762,6 +765,8 @@ const tokenize = (sc) => {
                 state = STRING;
             else if (/[a-z]/i.test(c))
                 t += c, state = NAME;
+            else if (/[0-9]/i.test(c))
+                t += c, state = NUMBER;
             else if (c === '(')
                 b.push(c), p.push(r), r = [];
             else if (c === ')') {
@@ -782,6 +787,14 @@ const tokenize = (sc) => {
         else if (state === NAME) {
             if (!/[a-z0-9]/i.test(c)) {
                 r.push(VarT(t));
+                t = '', i--, state = START;
+            }
+            else
+                t += c;
+        }
+        else if (state === NUMBER) {
+            if (!/[0-9]/.test(c)) {
+                r.push(NumberT(t));
                 t = '', i--, state = START;
             }
             else
@@ -836,6 +849,7 @@ const parseTokenKind = (ts) => {
         case 'SymbolT': return err(`stuck on ${ts.val}`);
         case 'ParenT': return parseParensKind(ts.val);
         case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+        case 'NumberT': return err(`stuck on ${ts.val}`);
     }
 };
 const parseParensKind = (ts) => {
@@ -881,6 +895,7 @@ const parseTokenType = (ts) => {
         }
         case 'ParenT': return parseParensType(ts.val);
         case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+        case 'NumberT': return err(`stuck on ${ts.val}`);
     }
 };
 const parseTypePat = (ts) => {
@@ -905,6 +920,7 @@ const parseTypePat = (ts) => {
             return as.map(x => [x, ki]);
         }
         case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+        case 'NumberT': return err(`stuck on ${ts.val}`);
     }
 };
 const parseParensType = (ts) => {
@@ -999,7 +1015,35 @@ const parseToken = (ts) => {
             return err(`stuck on ${ts.val}`);
         }
         case 'ParenT': return parseParens(ts.val);
-        case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+        case 'StringT': {
+            const val = ts.val;
+            const r = Array(val.length);
+            const l = val.length;
+            for (let i = 0; i < l; i++)
+                r[i] = val.charCodeAt(i);
+            let c = terms_1.Var('nil');
+            const cons = terms_1.Var('cons');
+            const s = terms_1.Var('s');
+            for (let i = 0; i < l; i++) {
+                const n = r[i];
+                let t = terms_1.Var('z');
+                for (let j = 0; j < n; j++)
+                    t = terms_1.App(s, t);
+                c = terms_1.appFrom([cons, t, c]);
+            }
+            return terms_1.App(terms_1.Var('Str'), c);
+        }
+        case 'NumberT': {
+            const val = ts.val;
+            const n = parseInt(val, 10);
+            if (isNaN(n) || n < 0)
+                return err(`invalid number: ${val}`);
+            let c = terms_1.Var('z');
+            const s = terms_1.Var('s');
+            for (let i = 0; i < n; i++)
+                c = terms_1.App(s, c);
+            return c;
+        }
     }
 };
 const parsePat = (ts) => {
@@ -1044,6 +1088,7 @@ const parsePat = (ts) => {
             return args.map(p => terms_1.PAnn(p, ty));
         }
         case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
+        case 'NumberT': return err(`stuck on ${ts.val}`);
     }
 };
 const parseParens = (ts) => {
