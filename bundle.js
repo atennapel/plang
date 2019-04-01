@@ -1024,7 +1024,7 @@ const parseToken = (ts) => {
             let c = terms_1.Var('nil');
             const cons = terms_1.Var('cons');
             const s = terms_1.Var('s');
-            for (let i = 0; i < l; i++) {
+            for (let i = l - 1; i >= 0; i--) {
                 const n = r[i];
                 let t = terms_1.Var('z');
                 for (let j = 0; j < n; j++)
@@ -1346,19 +1346,43 @@ const types_1 = require("./types");
 const compiler_1 = require("./compiler");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
-const _show = (x) => {
+const _showR = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
     if (typeof x === 'string')
         return JSON.stringify(x);
     if (Array.isArray(x))
-        return `[${x.map(_show).join(', ')}]`;
+        return `[${x.map(_showR).join(', ')}]`;
     if (typeof x === 'object' && typeof x._tag === 'string') {
         if (x._tag === 'Pair')
-            return `(Pair ${_show(x.val[0])} ${_show(x.val[1])})`;
-        return x.val === null ? x._tag : `(${x._tag} ${_show(x.val)})`;
+            return `(Pair ${_showR(x.val[0])} ${_showR(x.val[1])})`;
+        return x.val === null ? x._tag : `(${x._tag} ${_showR(x.val)})`;
     }
     return '' + x;
+};
+const _show = (x, t) => {
+    if (t.tag === 'TCon' && t.name === 'Bool')
+        return x('true')('false');
+    if (t.tag === 'TCon' && t.name === 'Nat')
+        return `${x((x) => x + 1)(0)}`;
+    if (t.tag === 'TCon' && t.name === 'Str') {
+        const r = [];
+        x(r)((n) => (r) => {
+            r.push(String.fromCharCode(n((x) => x + 1)(0)));
+            return r;
+        });
+        return JSON.stringify(r.reverse().join(''));
+    }
+    if (t.tag === 'TApp' && t.left.tag === 'TCon' && t.left.name === 'List') {
+        const ty = t.right;
+        const r = [];
+        x(r)((y) => (r) => {
+            r.push(_show(y, ty));
+            return r;
+        });
+        return `[${r.reverse().join(', ')}]`;
+    }
+    return _showR(x);
 };
 const _env = env_1.initialEnv;
 const _global = typeof global === 'undefined' ? 'window' : 'global';
@@ -1374,9 +1398,9 @@ exports.run = (_s, _cb) => {
             config_1.config.debug = !config_1.config.debug;
             return _cb(`debug: ${config_1.config.debug}`);
         }
-        if (_s.startsWith(':load ') || _s.startsWith(':l ')) {
+        if (_s.startsWith(':load ') || _s.startsWith(':l ') || _s === ':l' || _s === ':load') {
             const _rest = (_s.startsWith(':load') ? _s.slice(5) : _s.slice(2)).trim();
-            fetch(`lib/${_rest}`)
+            fetch(`lib/${_rest || 'prelude.p'}`)
                 .then(res => res.text())
                 .then(_rest => {
                 const _ds = parser_1.parseDefs(_rest);
@@ -1387,32 +1411,6 @@ exports.run = (_s, _cb) => {
             })
                 .catch(_err => _cb(`${_err}`, true));
             return;
-        }
-        if (_s.startsWith(':showBool ')) {
-            const _rest = _s.slice(9);
-            const _e = parser_1.parse(_rest);
-            config_1.log(terms_1.showTerm(_e));
-            const _t = inference_1.infer(_env, _e);
-            config_1.log(types_1.showTy(_t));
-            if (_t.tag !== 'TCon' || _t.name !== 'Bool')
-                throw new Error(`not a Bool in showBool`);
-            const _c = compiler_1.compile(_e);
-            config_1.log(_c);
-            const _v = eval(`${_c}(true)(false)`);
-            return _cb(`${_show(_v)}`);
-        }
-        if (_s.startsWith(':showNat ')) {
-            const _rest = _s.slice(8);
-            const _e = parser_1.parse(_rest);
-            config_1.log(terms_1.showTerm(_e));
-            const _t = inference_1.infer(_env, _e);
-            config_1.log(types_1.showTy(_t));
-            if (_t.tag !== 'TCon' || _t.name !== 'Nat')
-                throw new Error(`not a Nat in showNat`);
-            const _c = compiler_1.compile(_e);
-            config_1.log(_c);
-            const _v = eval(`${_c}(x => x + 1)(0)`);
-            return _cb(`${_show(_v)}`);
         }
         if (_s.startsWith(':let ') || _s.startsWith(':type ')) {
             const _rest = _s.slice(1);
@@ -1430,7 +1428,7 @@ exports.run = (_s, _cb) => {
         config_1.log(_c);
         const _v = eval(_c);
         config_1.log(_v);
-        return _cb(`${_show(_v)} : ${types_1.showTy(_t)}`);
+        return _cb(`${_show(_v, _t)} : ${types_1.showTy(_t)}`);
     }
     catch (_err) {
         return _cb(`${_err}`, true);

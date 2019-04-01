@@ -303,7 +303,7 @@ const parseToken = (ts: Token): Term => {
       let c: Term = Var('nil');
       const cons = Var('cons');
       const s = Var('s');
-      for (let i = 0; i < l; i++) {
+      for (let i = l - 1; i >= 0; i--) {
         const n = r[i];
         let t: Term = Var('z');
         for (let j = 0; j < n; j++) t = App(s, t);
