@@ -5,6 +5,7 @@ import { showTy, Type } from './types';
 import { compile, compileDefs } from './compiler';
 import { infer, inferDefs } from './inference';
 import { parse, parseDefs } from './parser';
+import { runState, runVal, showState, showVal } from './machine';
 
 const _showR = (x: any): string => {
   if (typeof x === 'function') return '[Fn]';
@@ -78,6 +79,30 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       const _c = compileDefs(_ds, n => `${_global}['${n}']`);
       eval(`(() => {${_c}})()`);
       return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+    }
+    if (_s.startsWith(':cek ')) {
+      const _rest = _s.slice(4);
+      const _e = parse(_s);
+      const _st = runState(_e);
+      return _cb(showState(_st));
+    }
+    if (_s.startsWith(':cek ')) {
+      const _rest = _s.slice(4);
+      const _e = parse(_rest);
+      const _st = runState(_e);
+      return _cb(showState(_st));
+    }
+    if (_s.startsWith(':cekv ')) {
+      const _rest = _s.slice(5);
+      const _e = parse(_rest);
+      const _st = runVal(_e);
+      return _cb(showVal(_st));
+    }
+    if (_s.startsWith(':t')) {
+      const _rest = _s.slice(2);
+      const _e = parse(_rest);
+      const _t = infer(_env, _e);
+      return _cb(showTy(_t));
     }
     const _e = parse(_s);
     log(showTerm(_e));

@@ -232,7 +232,7 @@ implements
 instanceof
 `.trim().split(/\s+/);
 
-},{"./util":14}],3:[function(require,module,exports){
+},{"./util":15}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = {
@@ -273,7 +273,7 @@ exports.showDef = (def) => {
     }
 };
 
-},{"./kinds":8,"./terms":11,"./types":12}],5:[function(require,module,exports){
+},{"./kinds":8,"./terms":12,"./types":13}],5:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -320,7 +320,7 @@ exports.initialEnv = exports.Env({}, {
 });
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./List":1,"./kinds":8,"./types":12,"./util":14}],6:[function(require,module,exports){
+},{"./List":1,"./kinds":8,"./types":13,"./util":15}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -539,7 +539,7 @@ exports.inferDefs = (env, ds) => {
         exports.inferDef(env, ds[i]);
 };
 
-},{"./config":3,"./definitions":4,"./env":5,"./kindInference":7,"./kinds":8,"./terms":11,"./types":12,"./unification":13,"./util":14}],7:[function(require,module,exports){
+},{"./config":3,"./definitions":4,"./env":5,"./kindInference":7,"./kinds":8,"./terms":12,"./types":13,"./unification":14,"./util":15}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -654,7 +654,7 @@ exports.kindOf = (env, t) => {
     return util_1.terr(`unexpected type ${types_1.showTy(t)} in kindOf`);
 };
 
-},{"./env":5,"./kinds":8,"./types":12,"./util":14}],8:[function(require,module,exports){
+},{"./env":5,"./kinds":8,"./types":13,"./util":15}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -716,7 +716,153 @@ exports.eqKind = (a, b) => {
     return false;
 };
 
-},{"./util":14}],9:[function(require,module,exports){
+},{"./util":15}],9:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const util_1 = require("./util");
+const List_1 = require("./List");
+exports.MVar = (name) => ({ tag: 'MVar', name });
+exports.MApp = (left, right) => ({ tag: 'MApp', left, right });
+exports.mappFrom = (ts) => ts.reduce(exports.MApp);
+exports.MAbs = (name, body) => ({ tag: 'MAbs', name, body });
+exports.mabs = (ns, body) => ns.reduceRight((x, y) => exports.MAbs(y, x), body);
+exports.MConst = (val) => ({ tag: 'MConst', val });
+exports.MInc = (term) => ({ tag: 'MInc', term });
+exports.showMTerm = (term) => {
+    if (term.tag === 'MVar')
+        return term.name;
+    if (term.tag === 'MConst')
+        return `${term.val}`;
+    if (term.tag === 'MAbs')
+        return `(\\${term.name} -> ${exports.showMTerm(term.body)})`;
+    if (term.tag === 'MApp')
+        return `(${exports.showMTerm(term.left)} ${exports.showMTerm(term.right)})`;
+    if (term.tag === 'MInc')
+        return `(inc ${exports.showMTerm(term.term)})`;
+    return util_1.impossible('showMTerm');
+};
+const freeMTerm = (term, fr = {}) => {
+    if (term.tag === 'MVar') {
+        fr[term.name] = true;
+        return fr;
+    }
+    if (term.tag === 'MAbs') {
+        freeMTerm(term.body, fr);
+        fr[term.name] = false;
+        return fr;
+    }
+    if (term.tag === 'MApp') {
+        freeMTerm(term.left, fr);
+        return freeMTerm(term.right, fr);
+    }
+    if (term.tag === 'MInc')
+        return freeMTerm(term.term, fr);
+    return fr;
+};
+exports.patToMachine = (pat) => {
+    if (pat.tag === 'PWildcard')
+        return '_';
+    if (pat.tag === 'PVar')
+        return pat.name;
+    if (pat.tag === 'PAnn')
+        return exports.patToMachine(pat.pat);
+    if (pat.tag === 'PCon')
+        return exports.patToMachine(pat.pat);
+    return util_1.impossible('patToMachine');
+};
+exports.termToMachine = (term) => {
+    if (term.tag === 'Var')
+        return exports.MVar(term.name);
+    if (term.tag === 'Abs')
+        return exports.MAbs(exports.patToMachine(term.pat), exports.termToMachine(term.body));
+    if (term.tag === 'App')
+        return exports.MApp(exports.termToMachine(term.left), exports.termToMachine(term.right));
+    if (term.tag === 'Let')
+        return exports.MApp(exports.MAbs(term.name, exports.termToMachine(term.body)), exports.termToMachine(term.val));
+    if (term.tag === 'Ann')
+        return exports.termToMachine(term.term);
+    return util_1.impossible('termToMachine');
+};
+const Clos = (abs, env) => ({ tag: 'Clos', abs, env });
+const VConst = (val) => ({ tag: 'VConst', val });
+exports.showVal = (v) => v.tag === 'VConst' ? `${v.val}` : `Clos(${exports.showMTerm(v.abs)}, ${showEnv(v.env)})`;
+const extend = (env, k, v) => List_1.default.cons([k, v], env);
+const lookup = (env, k) => {
+    const r = env.first(([k2, _]) => k === k2);
+    if (r)
+        return r[1];
+    return null;
+};
+const showEnv = (env) => env.toString(([k, v]) => `${k} = ${exports.showVal(v)}`);
+const FFun = (fn) => ({ tag: 'FFun', fn });
+const FArg = (term, env) => ({ tag: 'FArg', term, env });
+const FInc = { tag: 'FInc' };
+const showFrame = (f) => {
+    if (f.tag === 'FFun')
+        return `FFun(${exports.showVal(f.fn)})`;
+    if (f.tag === 'FArg')
+        return `FArg(${exports.showMTerm(f.term)}, ${showEnv(f.env)})`;
+    if (f.tag === 'FInc')
+        return `FInc`;
+    return util_1.impossible('showFrame');
+};
+const State = (term, env = List_1.default.nil(), stack = List_1.default.nil()) => ({ term, env, stack });
+exports.showState = (s) => `State(${exports.showMTerm(s.term)}, ${showEnv(s.env)}, ${s.stack.toString(showFrame)})`;
+const makeClos = (term, env) => {
+    const f = freeMTerm(term);
+    const nenv = env.filter(([x, _]) => f[x]);
+    return Clos(term, nenv);
+};
+const step = (state) => {
+    const { term, env, stack } = state;
+    if (term.tag === 'MVar') {
+        const v = lookup(env, term.name);
+        if (!v)
+            return null;
+        if (v.tag === 'VConst')
+            return State(exports.MConst(v.val), env, stack);
+        return State(v.abs, v.env, stack);
+    }
+    if (term.tag === 'MApp')
+        return State(term.left, env, List_1.default.cons(FArg(term.right, env), stack));
+    if (term.tag === 'MInc')
+        return State(term.term, env, List_1.default.cons(FInc, stack));
+    if (stack.isNonEmpty()) {
+        const top = stack.head();
+        const tail = stack.tail();
+        if (term.tag === 'MAbs' && top.tag === 'FArg')
+            return State(top.term, top.env, List_1.default.cons(FFun(makeClos(term, env)), tail));
+        if (term.tag === 'MAbs' && top.tag === 'FFun') {
+            const abs = top.fn.abs;
+            return State(abs.body, extend(top.fn.env, abs.name, makeClos(term, env)), tail);
+        }
+        if (term.tag === 'MConst' && top.tag === 'FFun') {
+            const abs = top.fn.abs;
+            return State(abs.body, extend(top.fn.env, abs.name, VConst(term.val)), tail);
+        }
+        if (term.tag === 'MConst' && top.tag === 'FInc')
+            return State(exports.MConst(term.val + 1), env, tail);
+    }
+    return null;
+};
+const steps = (state) => {
+    let c = state;
+    while (true) {
+        // console.log(showState(c));
+        const next = step(c);
+        if (!next)
+            return c;
+        c = next;
+    }
+};
+exports.runState = (term) => steps(State(exports.termToMachine(term)));
+exports.runVal = (term) => {
+    const st = exports.runState(term);
+    const t = st.term;
+    return t.tag === 'MConst' ? VConst(t.val) : Clos(t, st.env);
+};
+
+},{"./List":1,"./util":15}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1349,7 +1495,7 @@ exports.parseDefs = (sc) => {
     return ex;
 };
 
-},{"./config":3,"./definitions":4,"./kinds":8,"./terms":11,"./types":12}],10:[function(require,module,exports){
+},{"./config":3,"./definitions":4,"./kinds":8,"./terms":12,"./types":13}],11:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -1360,6 +1506,7 @@ const types_1 = require("./types");
 const compiler_1 = require("./compiler");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
+const machine_1 = require("./machine");
 const _showR = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
@@ -1434,6 +1581,30 @@ exports.run = (_s, _cb) => {
             eval(`(() => {${_c}})()`);
             return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
         }
+        if (_s.startsWith(':cek ')) {
+            const _rest = _s.slice(4);
+            const _e = parser_1.parse(_s);
+            const _st = machine_1.runState(_e);
+            return _cb(machine_1.showState(_st));
+        }
+        if (_s.startsWith(':cek ')) {
+            const _rest = _s.slice(4);
+            const _e = parser_1.parse(_rest);
+            const _st = machine_1.runState(_e);
+            return _cb(machine_1.showState(_st));
+        }
+        if (_s.startsWith(':cekv ')) {
+            const _rest = _s.slice(5);
+            const _e = parser_1.parse(_rest);
+            const _st = machine_1.runVal(_e);
+            return _cb(machine_1.showVal(_st));
+        }
+        if (_s.startsWith(':t')) {
+            const _rest = _s.slice(2);
+            const _e = parser_1.parse(_rest);
+            const _t = inference_1.infer(_env, _e);
+            return _cb(types_1.showTy(_t));
+        }
         const _e = parser_1.parse(_s);
         config_1.log(terms_1.showTerm(_e));
         const _t = inference_1.infer(_env, _e);
@@ -1450,7 +1621,7 @@ exports.run = (_s, _cb) => {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./compiler":2,"./config":3,"./env":5,"./inference":6,"./parser":9,"./terms":11,"./types":12}],11:[function(require,module,exports){
+},{"./compiler":2,"./config":3,"./env":5,"./inference":6,"./machine":9,"./parser":10,"./terms":12,"./types":13}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1491,7 +1662,7 @@ exports.showTerm = (t) => {
     return util_1.impossible('showTerm');
 };
 
-},{"./types":12,"./util":14}],12:[function(require,module,exports){
+},{"./types":13,"./util":15}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1656,7 +1827,7 @@ exports.quantify = (tms, ty) => {
     return exports.TForall(tvs, ks, exports.prune(ty));
 };
 
-},{"./config":3,"./kinds":8,"./util":14}],13:[function(require,module,exports){
+},{"./config":3,"./kinds":8,"./util":15}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1710,7 +1881,7 @@ exports.unifyTFun = (env, ty) => {
     return fn;
 };
 
-},{"./config":3,"./kindInference":7,"./kinds":8,"./types":12,"./util":14}],14:[function(require,module,exports){
+},{"./config":3,"./kindInference":7,"./kinds":8,"./types":13,"./util":15}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -1736,7 +1907,7 @@ exports.skolemCheck = (sk, ty) => {
         return exports.skolemCheck(sk, ty.type);
 };
 
-},{"./kinds":8,"./types":12}],15:[function(require,module,exports){
+},{"./kinds":8,"./types":13}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -1794,4 +1965,4 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":10}]},{},[15]);
+},{"./repl":11}]},{},[16]);
