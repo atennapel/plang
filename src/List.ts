@@ -16,8 +16,11 @@ export default abstract class List<T> {
     return new Cons(head, tail);
   }
 
-  isEmpty(): boolean {
+  isEmpty(): this is Nil<T> {
     return this instanceof Nil;
+  }
+  isNonEmpty(): this is Cons<T> {
+    return this instanceof Cons;
   }
 
   take(amount: number = -1): T[] {
@@ -32,6 +35,16 @@ export default abstract class List<T> {
   }
 
   abstract case<R>(fnil: () => R, fcons: (head: T, tail: List<T>) => R): R;
+
+  toString(fn: (val: T) => string = x => `${x}`): string {
+    const r: string[] = [];
+    let l: List<T> = this;
+    while (l instanceof Cons) {
+      r.push(fn(l._head));
+      l = l._tail;
+    }
+    return `[${r.join(', ')}]`;
+  }
 
   each(fn: (val: T) => void): void {
     let l: List<T> = this;
@@ -122,6 +135,9 @@ export class Cons<T> extends List<T> {
   static new<T>(head: T, tail: List<T>): Cons<T> {
     return new Cons(head, tail);
   }
+
+  head(): T { return this._head }
+  tail(): List<T> { return this._tail }
 
   case<R>(fnil: () => R, fcons: (head: T, tail: List<T>) => R): R {
     return fcons(this._head, this._tail);

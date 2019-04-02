@@ -19,6 +19,9 @@ class List {
     isEmpty() {
         return this instanceof Nil;
     }
+    isNonEmpty() {
+        return this instanceof Cons;
+    }
     take(amount = -1) {
         let c = this;
         const r = [];
@@ -29,6 +32,15 @@ class List {
             c = c._tail;
         }
         return r;
+    }
+    toString(fn = x => `${x}`) {
+        const r = [];
+        let l = this;
+        while (l instanceof Cons) {
+            r.push(fn(l._head));
+            l = l._tail;
+        }
+        return `[${r.join(', ')}]`;
     }
     each(fn) {
         let l = this;
@@ -97,6 +109,8 @@ class Cons extends List {
     static new(head, tail) {
         return new Cons(head, tail);
     }
+    head() { return this._head; }
+    tail() { return this._tail; }
     case(fnil, fcons) {
         return fcons(this._head, this._tail);
     }
