@@ -1583,12 +1583,6 @@ exports.run = (_s, _cb) => {
         }
         if (_s.startsWith(':cek ')) {
             const _rest = _s.slice(4);
-            const _e = parser_1.parse(_s);
-            const _st = machine_1.runState(_e);
-            return _cb(machine_1.showState(_st));
-        }
-        if (_s.startsWith(':cek ')) {
-            const _rest = _s.slice(4);
             const _e = parser_1.parse(_rest);
             const _st = machine_1.runState(_e);
             return _cb(machine_1.showState(_st));

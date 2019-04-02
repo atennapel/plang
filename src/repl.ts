@@ -82,12 +82,6 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     }
     if (_s.startsWith(':cek ')) {
       const _rest = _s.slice(4);
-      const _e = parse(_s);
-      const _st = runState(_e);
-      return _cb(showState(_st));
-    }
-    if (_s.startsWith(':cek ')) {
-      const _rest = _s.slice(4);
       const _e = parse(_rest);
       const _st = runState(_e);
       return _cb(showState(_st));
