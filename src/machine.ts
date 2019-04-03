@@ -2,7 +2,7 @@ import { Name, impossible } from './util';
 import { Term, Pat } from './terms';
 import List from './List';
 
-type MTerm = MVar | MAbs | MApp | MConst | MInc;
+type MTerm = MVar | MAbs | MApp | MConst | MAppend;
 
 export interface MVar {
   readonly tag: 'MVar';
@@ -32,24 +32,25 @@ export const mabs = (ns: Name[], body: MTerm) =>
 
 export interface MConst {
   readonly tag: 'MConst';
-  readonly val: number;
+  readonly val: string;
 }
-export const MConst = (val: number): MConst =>
+export const MConst = (val: string): MConst =>
   ({ tag: 'MConst', val });
 
-export interface MInc {
-  readonly tag: 'MInc';
-  readonly term: MTerm;
+export interface MAppend {
+  readonly tag: 'MAppend';
+  readonly left: MTerm;
+  readonly right: MTerm;
 }
-export const MInc = (term: MTerm): MInc =>
-  ({ tag: 'MInc', term });
+export const MAppend = (left: MTerm, right: MTerm): MAppend =>
+  ({ tag: 'MAppend', left, right });
 
 export const showMTerm = (term: MTerm): string => {
   if (term.tag === 'MVar') return term.name;
-  if (term.tag === 'MConst') return `${term.val}`;
+  if (term.tag === 'MConst') return JSON.stringify(term.val);
   if (term.tag === 'MAbs') return `(\\${term.name} -> ${showMTerm(term.body)})`;
   if (term.tag === 'MApp') return `(${showMTerm(term.left)} ${showMTerm(term.right)})`;
-  if (term.tag === 'MInc') return `(inc ${showMTerm(term.term)})`;
+  if (term.tag === 'MAppend') return `(${showMTerm(term.left)} ++ ${showMTerm(term.right)})`;
   return impossible('showMTerm');
 };
 
@@ -58,7 +59,7 @@ const freeMTerm = (term: MTerm, fr: Free = {}): Free => {
   if (term.tag === 'MVar') { fr[term.name] = true; return fr }
   if (term.tag === 'MAbs') { freeMTerm(term.body, fr); fr[term.name] = false; return fr }
   if (term.tag === 'MApp') { freeMTerm(term.left, fr); return freeMTerm(term.right, fr) }
-  if (term.tag === 'MInc') return freeMTerm(term.term, fr);
+  if (term.tag === 'MAppend') { freeMTerm(term.left, fr); return freeMTerm(term.right, fr) }
   return fr;
 };
 
@@ -82,12 +83,12 @@ export const termToMachine = (term: Term): MTerm => {
 type Val = Clos | VConst;
 interface Clos { readonly tag: 'Clos', readonly abs: MAbs; readonly env: Env }
 const Clos = (abs: MAbs, env: Env): Clos => ({ tag: 'Clos', abs, env });
-interface VConst { readonly tag: 'VConst', readonly val: number }
-const VConst = (val: number): VConst => ({ tag: 'VConst', val });
+interface VConst { readonly tag: 'VConst', readonly val: string }
+const VConst = (val: string): VConst => ({ tag: 'VConst', val });
 export const showVal = (v: Val): string =>
-  v.tag === 'VConst' ? `${v.val}` : `Clos(${showMTerm(v.abs)}, ${showEnv(v.env)})`;
+  v.tag === 'VConst' ? v.val : `Clos(${showMTerm(v.abs)}, ${showEnv(v.env)})`;
 
-type Env = List<[Name, Val]>;
+export type Env = List<[Name, Val]>;
 const extend = (env: Env, k: Name, v: Val): Env =>
   List.cons([k, v], env);
 const lookup = (env: Env, k: Name): Val | null => {
@@ -97,17 +98,20 @@ const lookup = (env: Env, k: Name): Val | null => {
 };
 const showEnv = (env: Env): string => env.toString(([k, v]) => `${k} = ${showVal(v)}`);
 
-type Frame = FFun | FArg | FInc;
-interface FFun { readonly tag: 'FFun'; readonly fn: Clos }
-const FFun = (fn: Clos): FFun => ({ tag: 'FFun', fn });
+type Frame = FFun | FArg | FArgAppend | FFunAppend;
 interface FArg { readonly tag: 'FArg'; readonly term: MTerm; readonly env: Env }
 const FArg = (term: MTerm, env: Env): FArg => ({ tag: 'FArg', term, env });
-interface FInc { readonly tag: 'FInc' }
-const FInc: FInc = { tag: 'FInc' };
+interface FFun { readonly tag: 'FFun'; readonly fn: Clos }
+const FFun = (fn: Clos): FFun => ({ tag: 'FFun', fn });
+interface FArgAppend { readonly tag: 'FArgAppend'; readonly term: MTerm; readonly env: Env }
+const FArgAppend = (term: MTerm, env: Env): FArgAppend => ({ tag: 'FArgAppend', term, env });
+interface FFunAppend { readonly tag: 'FFunAppend'; readonly val: string }
+const FFunAppend = (val: string): FFunAppend => ({ tag: 'FFunAppend', val });
 const showFrame = (f: Frame): string => {
   if (f.tag === 'FFun') return `FFun(${showVal(f.fn)})`;
   if (f.tag === 'FArg') return `FArg(${showMTerm(f.term)}, ${showEnv(f.env)})`;
-  if (f.tag === 'FInc') return `FInc`;
+  if (f.tag === 'FFunAppend') return `FFun(${f.val})`;
+  if (f.tag === 'FArgAppend') return `FArg(${showMTerm(f.term)}, ${showEnv(f.env)})`;
   return impossible('showFrame');
 };
 
@@ -137,8 +141,8 @@ const step = (state: State): State | null => {
   }
   if (term.tag === 'MApp')
     return State(term.left, env, List.cons(FArg(term.right, env), stack));
-  if (term.tag === 'MInc')
-    return State(term.term, env, List.cons(FInc, stack));
+  if (term.tag === 'MAppend')
+    return State(term.left, env, List.cons(FArgAppend(term.right, env), stack));
   if (stack.isNonEmpty()) {
     const top = stack.head();
     const tail = stack.tail();
@@ -152,15 +156,16 @@ const step = (state: State): State | null => {
       const abs = top.fn.abs;
       return State(abs.body, extend(top.fn.env, abs.name, VConst(term.val)), tail);
     }
-    if (term.tag === 'MConst' && top.tag === 'FInc')
-      return State(MConst(term.val + 1), env, tail);
+    if (term.tag === 'MConst' && top.tag === 'FArgAppend')
+      return State(top.term, top.env, List.cons(FFunAppend(term.val), tail));
+    if (term.tag === 'MConst' && top.tag === 'FFunAppend')
+      return State(MConst(top.val + term.val), env, tail);
   }
   return null;
 };
 const steps = (state: State): State => {
   let c = state;
   while (true) {
-    // console.log(showState(c));
     const next = step(c);
     if (!next) return c;
     c = next;

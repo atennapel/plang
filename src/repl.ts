@@ -5,7 +5,8 @@ import { showTy, Type } from './types';
 import { compile, compileDefs } from './compiler';
 import { infer, inferDefs } from './inference';
 import { parse, parseDefs } from './parser';
-import { runState, runVal, showState, showVal } from './machine';
+import { runState, runVal, showState, showVal, Env } from './machine';
+import List from './List';
 
 const _showR = (x: any): string => {
   if (typeof x === 'function') return '[Fn]';
@@ -45,6 +46,7 @@ const _show = (x: any, t: Type): string => {
 };
 
 const _env = initialEnv;
+const _venv: Env = List.nil();
 const _global = typeof global === 'undefined' ? 'window' : 'global';
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   try {
