@@ -142,99 +142,6 @@ exports.Cons = Cons;
 },{}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const util_1 = require("./util");
-exports.compileName = (x) => {
-    return keywords.indexOf(x) >= 0 ? `${x}_` : x;
-};
-exports.compilePat = (pat) => {
-    if (pat.tag === 'PVar')
-        return pat.name;
-    if (pat.tag === 'PAnn')
-        return exports.compilePat(pat.pat);
-    if (pat.tag === 'PWildcard')
-        return '_';
-    if (pat.tag === 'PCon')
-        return exports.compilePat(pat.pat);
-    return util_1.impossible('compilePat');
-};
-exports.compile = (term) => {
-    if (term.tag === 'Var')
-        return exports.compileName(term.name);
-    if (term.tag === 'Abs')
-        return `(${exports.compilePat(term.pat)} => ${exports.compile(term.body)})`;
-    if (term.tag === 'App')
-        return `${exports.compile(term.left)}(${exports.compile(term.right)})`;
-    if (term.tag === 'Ann')
-        return exports.compile(term.term);
-    if (term.tag === 'Let')
-        return `(${exports.compileName(term.name)} => ${exports.compile(term.body)})(${exports.compile(term.val)})`;
-    return util_1.impossible('compile');
-};
-exports.compileDef = (def, prefix) => {
-    switch (def.tag) {
-        case 'DType': {
-            const con = `${prefix(exports.compileName(def.name))} = x => x;`;
-            return `${con}`;
-        }
-        case 'DLet':
-            return `${prefix(exports.compileName(def.name))} = ${def.args.map(exports.compilePat).join(' => ')}${def.args.length > 0 ? ' => ' : ''}${exports.compile(def.term)};`;
-    }
-};
-exports.compileDefs = (ds, prefix) => ds.map(d => exports.compileDef(d, prefix)).join('\n') + '\n';
-const keywords = `
-do
-if
-in
-for
-let
-new
-try
-var
-case
-else
-enum
-eval
-null
-this
-true
-void
-with
-await
-break
-catch
-class
-const
-false
-super
-throw
-while
-yield
-delete
-export
-import
-public
-return
-static
-switch
-typeof
-default
-extends
-finally
-package
-private
-continue
-debugger
-function
-arguments
-interface
-protected
-implements
-instanceof
-`.trim().split(/\s+/);
-
-},{"./util":15}],3:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = {
     debug: false,
     showKinds: false,
@@ -248,7 +155,7 @@ exports.log = (msg) => {
         console.log(msg);
 };
 
-},{}],4:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -273,7 +180,7 @@ exports.showDef = (def) => {
     }
 };
 
-},{"./kinds":8,"./terms":12,"./types":13}],5:[function(require,module,exports){
+},{"./kinds":7,"./terms":11,"./types":12}],4:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -320,7 +227,7 @@ exports.initialEnv = exports.Env({}, {
 });
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./List":1,"./kinds":8,"./types":13,"./util":15}],6:[function(require,module,exports){
+},{"./List":1,"./kinds":7,"./types":12,"./util":14}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -539,7 +446,7 @@ exports.inferDefs = (env, ds) => {
         exports.inferDef(env, ds[i]);
 };
 
-},{"./config":3,"./definitions":4,"./env":5,"./kindInference":7,"./kinds":8,"./terms":12,"./types":13,"./unification":14,"./util":15}],7:[function(require,module,exports){
+},{"./config":2,"./definitions":3,"./env":4,"./kindInference":6,"./kinds":7,"./terms":11,"./types":12,"./unification":13,"./util":14}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -654,7 +561,7 @@ exports.kindOf = (env, t) => {
     return util_1.terr(`unexpected type ${types_1.showTy(t)} in kindOf`);
 };
 
-},{"./env":5,"./kinds":8,"./types":13,"./util":15}],8:[function(require,module,exports){
+},{"./env":4,"./kinds":7,"./types":12,"./util":14}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -716,10 +623,11 @@ exports.eqKind = (a, b) => {
     return false;
 };
 
-},{"./util":15}],9:[function(require,module,exports){
+},{"./util":14}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
+const terms_1 = require("./terms");
 const List_1 = require("./List");
 exports.MVar = (name) => ({ tag: 'MVar', name });
 exports.MApp = (left, right) => ({ tag: 'MApp', left, right });
@@ -727,18 +635,18 @@ exports.mappFrom = (ts) => ts.reduce(exports.MApp);
 exports.MAbs = (name, body) => ({ tag: 'MAbs', name, body });
 exports.mabs = (ns, body) => ns.reduceRight((x, y) => exports.MAbs(y, x), body);
 exports.MConst = (val) => ({ tag: 'MConst', val });
-exports.MInc = (term) => ({ tag: 'MInc', term });
+exports.MAppend = (left, right) => ({ tag: 'MAppend', left, right });
 exports.showMTerm = (term) => {
     if (term.tag === 'MVar')
         return term.name;
     if (term.tag === 'MConst')
-        return `${term.val}`;
+        return JSON.stringify(term.val);
     if (term.tag === 'MAbs')
         return `(\\${term.name} -> ${exports.showMTerm(term.body)})`;
     if (term.tag === 'MApp')
         return `(${exports.showMTerm(term.left)} ${exports.showMTerm(term.right)})`;
-    if (term.tag === 'MInc')
-        return `(inc ${exports.showMTerm(term.term)})`;
+    if (term.tag === 'MAppend')
+        return `(${exports.showMTerm(term.left)} ++ ${exports.showMTerm(term.right)})`;
     return util_1.impossible('showMTerm');
 };
 const freeMTerm = (term, fr = {}) => {
@@ -755,8 +663,10 @@ const freeMTerm = (term, fr = {}) => {
         freeMTerm(term.left, fr);
         return freeMTerm(term.right, fr);
     }
-    if (term.tag === 'MInc')
-        return freeMTerm(term.term, fr);
+    if (term.tag === 'MAppend') {
+        freeMTerm(term.left, fr);
+        return freeMTerm(term.right, fr);
+    }
     return fr;
 };
 exports.patToMachine = (pat) => {
@@ -783,9 +693,9 @@ exports.termToMachine = (term) => {
         return exports.termToMachine(term.term);
     return util_1.impossible('termToMachine');
 };
-const Clos = (abs, env) => ({ tag: 'Clos', abs, env });
+exports.Clos = (abs, env) => ({ tag: 'Clos', abs, env });
 const VConst = (val) => ({ tag: 'VConst', val });
-exports.showVal = (v) => v.tag === 'VConst' ? `${v.val}` : `Clos(${exports.showMTerm(v.abs)}, ${showEnv(v.env)})`;
+exports.showVal = (v) => v.tag === 'VConst' ? v.val : `Clos(${exports.showMTerm(v.abs)}, ${showEnv(v.env)})`;
 const extend = (env, k, v) => List_1.default.cons([k, v], env);
 const lookup = (env, k) => {
     const r = env.first(([k2, _]) => k === k2);
@@ -794,24 +704,27 @@ const lookup = (env, k) => {
     return null;
 };
 const showEnv = (env) => env.toString(([k, v]) => `${k} = ${exports.showVal(v)}`);
-const FFun = (fn) => ({ tag: 'FFun', fn });
 const FArg = (term, env) => ({ tag: 'FArg', term, env });
-const FInc = { tag: 'FInc' };
+const FFun = (fn) => ({ tag: 'FFun', fn });
+const FArgAppend = (term, env) => ({ tag: 'FArgAppend', term, env });
+const FFunAppend = (val) => ({ tag: 'FFunAppend', val });
 const showFrame = (f) => {
     if (f.tag === 'FFun')
         return `FFun(${exports.showVal(f.fn)})`;
     if (f.tag === 'FArg')
         return `FArg(${exports.showMTerm(f.term)}, ${showEnv(f.env)})`;
-    if (f.tag === 'FInc')
-        return `FInc`;
+    if (f.tag === 'FFunAppend')
+        return `FFun(${f.val})`;
+    if (f.tag === 'FArgAppend')
+        return `FArg(${exports.showMTerm(f.term)}, ${showEnv(f.env)})`;
     return util_1.impossible('showFrame');
 };
-const State = (term, env = List_1.default.nil(), stack = List_1.default.nil()) => ({ term, env, stack });
+exports.State = (term, env = List_1.default.nil(), stack = List_1.default.nil()) => ({ term, env, stack });
 exports.showState = (s) => `State(${exports.showMTerm(s.term)}, ${showEnv(s.env)}, ${s.stack.toString(showFrame)})`;
 const makeClos = (term, env) => {
     const f = freeMTerm(term);
     const nenv = env.filter(([x, _]) => f[x]);
-    return Clos(term, nenv);
+    return exports.Clos(term, nenv);
 };
 const step = (state) => {
     const { term, env, stack } = state;
@@ -820,49 +733,66 @@ const step = (state) => {
         if (!v)
             return null;
         if (v.tag === 'VConst')
-            return State(exports.MConst(v.val), env, stack);
-        return State(v.abs, v.env, stack);
+            return exports.State(exports.MConst(v.val), env, stack);
+        return exports.State(v.abs, v.env, stack);
     }
     if (term.tag === 'MApp')
-        return State(term.left, env, List_1.default.cons(FArg(term.right, env), stack));
-    if (term.tag === 'MInc')
-        return State(term.term, env, List_1.default.cons(FInc, stack));
+        return exports.State(term.left, env, List_1.default.cons(FArg(term.right, env), stack));
+    if (term.tag === 'MAppend')
+        return exports.State(term.left, env, List_1.default.cons(FArgAppend(term.right, env), stack));
     if (stack.isNonEmpty()) {
         const top = stack.head();
         const tail = stack.tail();
         if (term.tag === 'MAbs' && top.tag === 'FArg')
-            return State(top.term, top.env, List_1.default.cons(FFun(makeClos(term, env)), tail));
+            return exports.State(top.term, top.env, List_1.default.cons(FFun(makeClos(term, env)), tail));
         if (term.tag === 'MAbs' && top.tag === 'FFun') {
             const abs = top.fn.abs;
-            return State(abs.body, extend(top.fn.env, abs.name, makeClos(term, env)), tail);
+            return exports.State(abs.body, extend(top.fn.env, abs.name, makeClos(term, env)), tail);
         }
         if (term.tag === 'MConst' && top.tag === 'FFun') {
             const abs = top.fn.abs;
-            return State(abs.body, extend(top.fn.env, abs.name, VConst(term.val)), tail);
+            return exports.State(abs.body, extend(top.fn.env, abs.name, VConst(term.val)), tail);
         }
-        if (term.tag === 'MConst' && top.tag === 'FInc')
-            return State(exports.MConst(term.val + 1), env, tail);
+        if (term.tag === 'MConst' && top.tag === 'FArgAppend')
+            return exports.State(top.term, top.env, List_1.default.cons(FFunAppend(term.val), tail));
+        if (term.tag === 'MConst' && top.tag === 'FFunAppend')
+            return exports.State(exports.MConst(top.val + term.val), env, tail);
     }
     return null;
 };
-const steps = (state) => {
+exports.steps = (state) => {
     let c = state;
     while (true) {
-        // console.log(showState(c));
         const next = step(c);
         if (!next)
             return c;
         c = next;
     }
 };
-exports.runState = (term) => steps(State(exports.termToMachine(term)));
-exports.runVal = (term) => {
-    const st = exports.runState(term);
+exports.runState = (term, env = List_1.default.nil()) => exports.steps(exports.State(exports.termToMachine(term), env));
+exports.runVal = (term, env = List_1.default.nil()) => {
+    const st = exports.runState(term, env);
     const t = st.term;
-    return t.tag === 'MConst' ? VConst(t.val) : Clos(t, st.env);
+    return t.tag === 'MConst' ? VConst(t.val) : exports.Clos(t, st.env);
+};
+exports.runEnv = (defs, env_ = List_1.default.nil()) => {
+    let env = env_;
+    for (let i = 0, l = defs.length; i < l; i++) {
+        const d = defs[i];
+        if (d.tag === 'DType') {
+            env = List_1.default.cons([d.name, exports.Clos(exports.MAbs('x', exports.MVar('x')), List_1.default.nil())], env);
+        }
+        else if (d.tag === 'DLet') {
+            const n = d.name;
+            const t = terms_1.abs(d.args, d.term);
+            const v = exports.runVal(t, env);
+            env = List_1.default.cons([n, v], env);
+        }
+    }
+    return env;
 };
 
-},{"./List":1,"./util":15}],10:[function(require,module,exports){
+},{"./List":1,"./terms":11,"./util":14}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1495,7 +1425,7 @@ exports.parseDefs = (sc) => {
     return ex;
 };
 
-},{"./config":3,"./definitions":4,"./kinds":8,"./terms":12,"./types":13}],11:[function(require,module,exports){
+},{"./config":2,"./definitions":3,"./kinds":7,"./terms":11,"./types":12}],10:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -1503,10 +1433,10 @@ const config_1 = require("./config");
 const env_1 = require("./env");
 const terms_1 = require("./terms");
 const types_1 = require("./types");
-const compiler_1 = require("./compiler");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
 const machine_1 = require("./machine");
+const List_1 = require("./List");
 const _showR = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
@@ -1545,7 +1475,26 @@ const _show = (x, t) => {
     }
     return _showR(x);
 };
+const matchTCon = (t, name) => t.tag === 'TCon' && t.name === name;
+const _showVal = (v, t) => {
+    if (matchTCon(t, 'Nat')) {
+        const cl = v;
+        const res = machine_1.steps(machine_1.State(machine_1.MApp(machine_1.MApp(cl.abs, machine_1.MAbs('x', machine_1.MAppend(machine_1.MConst('s'), machine_1.MVar('x')))), machine_1.MConst('')), cl.env));
+        return `${res.term.val.length}`;
+    }
+    if (matchTCon(t, 'Bool')) {
+        const cl = v;
+        const res = machine_1.steps(machine_1.State(machine_1.MApp(machine_1.MApp(cl.abs, machine_1.MConst('true')), machine_1.MConst('false')), cl.env));
+        return `${res.term.val}`;
+    }
+    if (v.tag === 'VConst')
+        return v.val;
+    if (v.tag === 'Clos')
+        return `Closure(${machine_1.showMTerm(v.abs)})`;
+    return '?';
+};
 const _env = env_1.initialEnv;
+let _venv = List_1.default.nil();
 const _global = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     try {
@@ -1566,8 +1515,9 @@ exports.run = (_s, _cb) => {
                 .then(_rest => {
                 const _ds = parser_1.parseDefs(_rest);
                 inference_1.inferDefs(_env, _ds);
-                const _c = compiler_1.compileDefs(_ds, n => `${_global}['${n}']`);
-                eval(`(() => {${_c}})()`);
+                //const _c = compileDefs(_ds, n => `${_global}['${n}']`);
+                //eval(`(() => {${_c}})()`);
+                _venv = machine_1.runEnv(_ds, _venv);
                 return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
             })
                 .catch(_err => _cb(`${_err}`, true));
@@ -1577,22 +1527,25 @@ exports.run = (_s, _cb) => {
             const _rest = _s.slice(1);
             const _ds = parser_1.parseDefs(_rest);
             inference_1.inferDefs(_env, _ds);
-            const _c = compiler_1.compileDefs(_ds, n => `${_global}['${n}']`);
-            eval(`(() => {${_c}})()`);
+            //const _c = compileDefs(_ds, n => `${_global}['${n}']`);
+            //eval(`(() => {${_c}})()`);
+            _venv = machine_1.runEnv(_ds, _venv);
             return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
         }
+        /*
         if (_s.startsWith(':cek ')) {
-            const _rest = _s.slice(4);
-            const _e = parser_1.parse(_rest);
-            const _st = machine_1.runState(_e);
-            return _cb(machine_1.showState(_st));
+          const _rest = _s.slice(4);
+          const _e = parse(_rest);
+          const _st = runState(_e);
+          return _cb(showState(_st));
         }
         if (_s.startsWith(':cekv ')) {
-            const _rest = _s.slice(5);
-            const _e = parser_1.parse(_rest);
-            const _st = machine_1.runVal(_e);
-            return _cb(machine_1.showVal(_st));
+          const _rest = _s.slice(5);
+          const _e = parse(_rest);
+          const _st = runVal(_e);
+          return _cb(showVal(_st));
         }
+        */
         if (_s.startsWith(':t')) {
             const _rest = _s.slice(2);
             const _e = parser_1.parse(_rest);
@@ -1603,11 +1556,12 @@ exports.run = (_s, _cb) => {
         config_1.log(terms_1.showTerm(_e));
         const _t = inference_1.infer(_env, _e);
         config_1.log(types_1.showTy(_t));
-        const _c = compiler_1.compile(_e);
-        config_1.log(_c);
+        const _v = machine_1.runVal(_e, _venv);
+        /*const _c = compile(_e);
+        log(_c);
         const _v = eval(_c);
-        config_1.log(_v);
-        return _cb(`${_show(_v, _t)} : ${types_1.showTy(_t)}`);
+        log(_v);*/
+        return _cb(`${_showVal(_v, _t)} : ${types_1.showTy(_t)}`);
     }
     catch (_err) {
         return _cb(`${_err}`, true);
@@ -1615,7 +1569,7 @@ exports.run = (_s, _cb) => {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./compiler":2,"./config":3,"./env":5,"./inference":6,"./machine":9,"./parser":10,"./terms":12,"./types":13}],12:[function(require,module,exports){
+},{"./List":1,"./config":2,"./env":4,"./inference":5,"./machine":8,"./parser":9,"./terms":11,"./types":12}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1656,7 +1610,7 @@ exports.showTerm = (t) => {
     return util_1.impossible('showTerm');
 };
 
-},{"./types":13,"./util":15}],13:[function(require,module,exports){
+},{"./types":12,"./util":14}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1821,7 +1775,7 @@ exports.quantify = (tms, ty) => {
     return exports.TForall(tvs, ks, exports.prune(ty));
 };
 
-},{"./config":3,"./kinds":8,"./util":15}],14:[function(require,module,exports){
+},{"./config":2,"./kinds":7,"./util":14}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1875,7 +1829,7 @@ exports.unifyTFun = (env, ty) => {
     return fn;
 };
 
-},{"./config":3,"./kindInference":7,"./kinds":8,"./types":13,"./util":15}],15:[function(require,module,exports){
+},{"./config":2,"./kindInference":6,"./kinds":7,"./types":12,"./util":14}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -1901,7 +1855,7 @@ exports.skolemCheck = (sk, ty) => {
         return exports.skolemCheck(sk, ty.type);
 };
 
-},{"./kinds":8,"./types":13}],16:[function(require,module,exports){
+},{"./kinds":7,"./types":12}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -1959,4 +1913,4 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":11}]},{},[16]);
+},{"./repl":10}]},{},[15]);

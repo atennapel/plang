@@ -1,6 +1,7 @@
 import { Name, impossible } from './util';
-import { Term, Pat } from './terms';
+import { Term, Pat, abs, Var } from './terms';
 import List from './List';
+import { Def } from './definitions';
 
 type MTerm = MVar | MAbs | MApp | MConst | MAppend;
 
@@ -80,9 +81,9 @@ export const termToMachine = (term: Term): MTerm => {
   return impossible('termToMachine');
 };
 
-type Val = Clos | VConst;
-interface Clos { readonly tag: 'Clos', readonly abs: MAbs; readonly env: Env }
-const Clos = (abs: MAbs, env: Env): Clos => ({ tag: 'Clos', abs, env });
+export type Val = Clos | VConst;
+export interface Clos { readonly tag: 'Clos', readonly abs: MAbs; readonly env: Env }
+export const Clos = (abs: MAbs, env: Env): Clos => ({ tag: 'Clos', abs, env });
 interface VConst { readonly tag: 'VConst', readonly val: string }
 const VConst = (val: string): VConst => ({ tag: 'VConst', val });
 export const showVal = (v: Val): string =>
@@ -120,7 +121,7 @@ interface State {
   readonly env: Env;
   readonly stack: List<Frame>;
 }
-const State = (term: MTerm, env: Env = List.nil(), stack: List<Frame> = List.nil()): State =>
+export const State = (term: MTerm, env: Env = List.nil(), stack: List<Frame> = List.nil()): State =>
   ({ term, env, stack });
 export const showState = (s: State): string =>
   `State(${showMTerm(s.term)}, ${showEnv(s.env)}, ${s.stack.toString(showFrame)})`;
@@ -163,7 +164,7 @@ const step = (state: State): State | null => {
   }
   return null;
 };
-const steps = (state: State): State => {
+export const steps = (state: State): State => {
   let c = state;
   while (true) {
     const next = step(c);
@@ -171,10 +172,26 @@ const steps = (state: State): State => {
     c = next;
   }
 };
-export const runState = (term: Term): State => steps(State(termToMachine(term)));
-export const runVal = (term: Term): Val => {
-  const st = runState(term);
+export const runState = (term: Term, env: Env = List.nil()): State =>
+  steps(State(termToMachine(term), env));
+export const runVal = (term: Term, env: Env = List.nil()): Val => {
+  const st = runState(term, env);
   const t = st.term;
   return t.tag === 'MConst' ? VConst(t.val) : Clos(t as MAbs, st.env);
+};
+export const runEnv = (defs: Def[], env_: Env = List.nil()): Env => {
+  let env: Env = env_;
+  for (let i = 0, l = defs.length; i < l; i++) {
+    const d = defs[i];
+    if (d.tag === 'DType') {
+      env = List.cons([d.name, Clos(MAbs('x', MVar('x')), List.nil())], env); 
+    } else if (d.tag === 'DLet') {
+      const n = d.name;
+      const t = abs(d.args, d.term);
+      const v = runVal(t, env);
+      env = List.cons([n, v], env);
+    }
+  }
+  return env;
 };
 

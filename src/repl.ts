@@ -5,8 +5,9 @@ import { showTy, Type } from './types';
 import { compile, compileDefs } from './compiler';
 import { infer, inferDefs } from './inference';
 import { parse, parseDefs } from './parser';
-import { runState, runVal, showState, showVal, Env } from './machine';
+import { runState, runVal, showState, showVal, Env, runEnv, Val, showMTerm, Clos, State, steps, MApp, MAppend, MConst, MVar, MAbs } from './machine';
 import List from './List';
+import { Name } from './util';
 
 const _showR = (x: any): string => {
   if (typeof x === 'function') return '[Fn]';
@@ -45,8 +46,25 @@ const _show = (x: any, t: Type): string => {
   return _showR(x);
 };
 
+const matchTCon = (t: Type, name: Name) => t.tag === 'TCon' && t.name === name;
+const _showVal = (v: Val, t: Type): string => {
+  if (matchTCon(t, 'Nat')) {
+    const cl = v as Clos;
+    const res = steps(State(MApp(MApp(cl.abs, MAbs('x', MAppend(MConst('s'), MVar('x')))), MConst('')), cl.env));
+    return `${(res.term as MConst).val.length}`;
+  }
+  if (matchTCon(t, 'Bool')) {
+    const cl = v as Clos;
+    const res = steps(State(MApp(MApp(cl.abs, MConst('true')), MConst('false')), cl.env));
+    return `${(res.term as MConst).val}`;
+  }
+  if (v.tag === 'VConst') return v.val;
+  if (v.tag === 'Clos') return `Closure(${showMTerm(v.abs)})`;
+  return '?';
+};
+
 const _env = initialEnv;
-const _venv: Env = List.nil();
+let _venv: Env = List.nil();
 const _global = typeof global === 'undefined' ? 'window' : 'global';
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   try {
@@ -67,8 +85,9 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
         .then(_rest => {
           const _ds = parseDefs(_rest);
           inferDefs(_env, _ds);
-          const _c = compileDefs(_ds, n => `${_global}['${n}']`);
-          eval(`(() => {${_c}})()`);
+          //const _c = compileDefs(_ds, n => `${_global}['${n}']`);
+          //eval(`(() => {${_c}})()`);
+          _venv = runEnv(_ds, _venv);
           return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
         })
         .catch(_err => _cb(`${_err}`, true));
@@ -78,10 +97,12 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       const _rest = _s.slice(1);
       const _ds = parseDefs(_rest);
       inferDefs(_env, _ds);
-      const _c = compileDefs(_ds, n => `${_global}['${n}']`);
-      eval(`(() => {${_c}})()`);
+      //const _c = compileDefs(_ds, n => `${_global}['${n}']`);
+      //eval(`(() => {${_c}})()`);
+      _venv = runEnv(_ds, _venv);
       return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
     }
+    /*
     if (_s.startsWith(':cek ')) {
       const _rest = _s.slice(4);
       const _e = parse(_rest);
@@ -94,6 +115,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       const _st = runVal(_e);
       return _cb(showVal(_st));
     }
+    */
     if (_s.startsWith(':t')) {
       const _rest = _s.slice(2);
       const _e = parse(_rest);
@@ -104,11 +126,12 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     log(showTerm(_e));
     const _t = infer(_env, _e);
     log(showTy(_t));
-    const _c = compile(_e);
+    const _v = runVal(_e, _venv);
+    /*const _c = compile(_e);
     log(_c);
     const _v = eval(_c);
-    log(_v);
-    return _cb(`${_show(_v, _t)} : ${showTy(_t)}`);
+    log(_v);*/
+    return _cb(`${_showVal(_v, _t)} : ${showTy(_t)}`);
   } catch (_err) {
     return _cb(`${_err}`, true);
   }
