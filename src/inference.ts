@@ -66,7 +66,7 @@ const inferRho = (env: Env, term: Term): Type => {
   return i.type;
 };
 const tcRho = (env: Env, term: Term, ex: Expected): void => {
-  log(`tcRho ${showTerm(term)} with ${showEx(ex)}`)
+  log(() => `tcRho ${showTerm(term)} with ${showEx(ex)}`)
   if (term.tag === 'Var') {
     const ty = lookupVar(env, term.name);
     if (!ty) return terr(`undefined var ${showTerm(term)}`);
@@ -168,7 +168,7 @@ const checkSigma = (env: Env, term: Term, ty: Type): void => {
 };
 
 const subsCheck = (env: Env, a: Type, b: Type): void => {
-  log(`subsCheck ${showTy(a)} <: ${showTy(b)}`);
+  log(() => `subsCheck ${showTy(a)} <: ${showTy(b)}`);
   const sk: TSkol[] = [];
   const rho = skolemise(b, sk);
   subsCheckRho(env, a, rho);
@@ -196,13 +196,13 @@ const instSigma = (env: Env, ty: Type, ex: Expected): void => {
 };
 
 export const infer = (env: Env, term: Term): Type => {
-  log(`infer ${showTerm(term)}`);
+  log(() => `infer ${showTerm(term)}`);
   resetId();
   return prune(inferSigma(env, term));
 };
 
 export const inferDef = (env: Env, def: Def): void => {
-  log(`inferDef ${showDef(def)}`);
+  log(() => `inferDef ${showDef(def)}`);
   if (def.tag === 'DType') {
     const tname = def.name;
     if (lookupTCon(env, tname))

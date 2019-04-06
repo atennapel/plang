@@ -21,7 +21,7 @@ const bindTMeta = (env: Env, x: TMeta, t: Type): void => {
   x.type = t;
 };
 export const unify = (env: Env, a: Type, b: Type): void => {
-  log(`unify ${showTy(a)} ~ ${showTy(b)}`);
+  log(() => `unify ${showTy(a)} ~ ${showTy(b)}`);
   if (a.tag === 'TVar' || b.tag === 'TVar')
     return terr(`tvar in unify: ${showTy(a)} ~ ${showTy(b)}`);
   if (a === b) return;

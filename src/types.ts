@@ -202,7 +202,7 @@ export const tbinders = (ty: Type, bs: Name[] = []): Name[] => {
 };
 
 export const quantify = (tms: TMeta[], ty: Type): Type => {
-  log(`quantify ${showTy(ty)} with [${tms.map(showTy).join(', ')}]`)
+  log(() => `quantify ${showTy(ty)} with [${tms.map(showTy).join(', ')}]`)
   const len = tms.length;
   if (len === 0) return ty;
   const used = tbinders(ty);

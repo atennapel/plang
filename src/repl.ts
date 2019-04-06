@@ -2,10 +2,24 @@ import { config, log } from './config';
 import { initialEnv, showEnv } from './env';
 import { showTerm } from './terms';
 import { showTy, Type } from './types';
-import { compile, compileDefs } from './compiler';
 import { infer, inferDefs } from './inference';
 import { parse, parseDefs } from './parser';
-import { runState, runVal, showState, showVal, Env, runEnv, Val, showMTerm, Clos, State, steps, MApp, MAppend, MConst, MVar, MAbs } from './machine';
+import {
+  runVal,
+  Env,
+  runEnv,
+  Val,
+  showMTerm,
+  Clos,
+  State,
+  steps,
+  MApp,
+  MConst,
+  MVar,
+  MAbs,
+  MAdd,
+  mapp,
+} from './machine';
 import List from './List';
 import { Name } from './util';
 
@@ -48,24 +62,28 @@ const _show = (x: any, t: Type): string => {
 
 const matchTCon = (t: Type, name: Name) => t.tag === 'TCon' && t.name === name;
 const _showVal = (v: Val, t: Type): string => {
-  if (matchTCon(t, 'Nat')) {
+  const isChar = matchTCon(t, 'Char');
+  if (isChar || matchTCon(t, 'Nat')) {
     const cl = v as Clos;
-    const res = steps(State(MApp(MApp(cl.abs, MAbs('x', MAppend(MConst('s'), MVar('x')))), MConst('')), cl.env));
-    return `${(res.term as MConst).val.length}`;
+    const env = cl.env.append(_venv);
+    const st = State(mapp(MVar('cataNat'), cl.abs, MAbs('x', MAdd(MVar('x'), MConst(1))), MConst(0)), env);
+    const res = steps(st);
+    const n = (res.term as MConst).val;
+    return isChar ? `'${JSON.stringify(String.fromCharCode(n)).slice(1, -1)}'` : `${n}`;
   }
   if (matchTCon(t, 'Bool')) {
     const cl = v as Clos;
-    const res = steps(State(MApp(MApp(cl.abs, MConst('true')), MConst('false')), cl.env));
-    return `${(res.term as MConst).val}`;
+    const res = steps(State(MApp(MApp(cl.abs, MConst(1)), MConst(0)), cl.env));
+    return `${(res.term as MConst).val ? 'true' : 'false'}`;
   }
-  if (v.tag === 'VConst') return v.val;
+  if (v.tag === 'VConst') return `${v.val}`;
   if (v.tag === 'Clos') return `Closure(${showMTerm(v.abs)})`;
   return '?';
 };
 
 const _env = initialEnv;
 let _venv: Env = List.nil();
-const _global = typeof global === 'undefined' ? 'window' : 'global';
+// const _global = typeof global === 'undefined' ? 'window' : 'global';
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   try {
     if (_s === ':env' || _s === ':e')
@@ -123,9 +141,9 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       return _cb(showTy(_t));
     }
     const _e = parse(_s);
-    log(showTerm(_e));
+    log(() => showTerm(_e));
     const _t = infer(_env, _e);
-    log(showTy(_t));
+    log(() => showTy(_t));
     const _v = runVal(_e, _venv);
     /*const _c = compile(_e);
     log(_c);
@@ -133,6 +151,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     log(_v);*/
     return _cb(`${_showVal(_v, _t)} : ${showTy(_t)}`);
   } catch (_err) {
+    console.log(_err);
     return _cb(`${_err}`, true);
   }
 };

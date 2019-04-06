@@ -66,7 +66,7 @@ const tokenize = (sc: string): Token[] => {
   for (let i = 0, l = sc.length; i <= l; i++) {
     const c = sc[i] || ' ';
     const next = sc[i + 1] || '';
-    log(`${i};${c};${next};${state};${showTokens(r)}`);
+    log(() => `${i};${c};${next};${state};${showTokens(r)}`);
     if (state === START) {
       if (SYM2.indexOf(c + next) >= 0) r.push(SymbolT(c + next)), i++;
       else if (SYM1.indexOf(c) >= 0) r.push(SymbolT(c));
@@ -132,7 +132,7 @@ const splitTokens = (a: Token[], fn: (t: Token) => boolean): Token[][] => {
 
 // kinds
 const parseTokenKind = (ts: Token): Kind => {
-  log(`parseTokenKind ${showToken(ts)}`);
+  log(() => `parseTokenKind ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': return KCon(ts.val);
     case 'SymbolT': return err(`stuck on ${ts.val}`);
@@ -143,7 +143,7 @@ const parseTokenKind = (ts: Token): Kind => {
 };
 
 const parseParensKind = (ts: Token[]): Kind => {
-  log(`parseParensKind ${showTokens(ts)}`);
+  log(() => `parseParensKind ${showTokens(ts)}`);
   if (ts.length === 0) return err('empty kind');
   if (ts.length === 1) return parseTokenKind(ts[0]);
   let args: Token[] = [];
@@ -170,7 +170,7 @@ const isCon = (x: Name): boolean =>
   /[A-Z]/.test(x[0]);
 
 const parseTokenType = (ts: Token): Type => {
-  log(`parseTokenType ${showToken(ts)}`);
+  log(() => `parseTokenType ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': {
       if (KEYWORDS_TYPE.indexOf(ts.val) >= 0) return err(`stuck on ${ts.val}`);
@@ -187,7 +187,7 @@ const parseTokenType = (ts: Token): Type => {
 };
 
 const parseTypePat = (ts: Token): [Name, Kind | null][] => {
-  log(`parseTypePat ${showToken(ts)}`);
+  log(() => `parseTypePat ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': {
       if (KEYWORDS_TYPE.indexOf(ts.val) >= 0 || isCon(ts.val)) return err(`stuck on ${ts.val}`);
@@ -211,7 +211,7 @@ const parseTypePat = (ts: Token): [Name, Kind | null][] => {
 };
 
 const parseParensType = (ts: Token[]): Type => {
-  log(`parseParensType ${showTokens(ts)}`);
+  log(() => `parseParensType ${showTokens(ts)}`);
   if (ts.length === 0) return err('empty type');
   if (ts.length === 1) return parseTokenType(ts[0]);
   if (matchVarT('forall', ts[0])) {
@@ -262,7 +262,7 @@ const parseParensType = (ts: Token[]): Type => {
 
 // terms
 const parseToken = (ts: Token): Term => {
-  log(`parseToken ${showToken(ts)}`);
+  log(() => `parseToken ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': {
       if (KEYWORDS.indexOf(ts.val) >= 0) return err(`stuck on ${ts.val}`);
@@ -307,7 +307,7 @@ const parseToken = (ts: Token): Term => {
         const n = r[i];
         let t: Term = Var('z');
         for (let j = 0; j < n; j++) t = App(s, t);
-        c = appFrom([cons, t, c]);
+        c = appFrom([cons, appFrom([Var('Char'), t]), c]);
       }
       return App(Var('Str'), c);
     }
@@ -324,7 +324,7 @@ const parseToken = (ts: Token): Term => {
 };
 
 const parsePat = (ts: Token): Pat[] => {
-  log(`parsePat ${showToken(ts)}`);
+  log(() => `parsePat ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': {
       if (KEYWORDS.indexOf(ts.val) >= 0 || isCon(ts.val))
@@ -364,7 +364,7 @@ const parsePat = (ts: Token): Pat[] => {
 };
 
 const parseParens = (ts: Token[]): Term => {
-  log(`parseParens ${showTokens(ts)}`);
+  log(() => `parseParens ${showTokens(ts)}`);
   if (ts.length === 0) return err('empty');
   if (ts.length === 1) return parseToken(ts[0]);
   if (contains(ts, t => matchSymbolT(':', t))) {

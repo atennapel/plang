@@ -28,6 +28,6 @@ try {
   const ev = eval(comp);
   console.log(ev);
 } catch (err) {
-  console.log(`${err}`);
+  console.log(() => `${err}`);
 }
 

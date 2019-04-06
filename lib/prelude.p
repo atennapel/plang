@@ -27,20 +27,17 @@ let if c a b = (cond c a b) unit
 
 type Nat = forall t. (t -> t) -> t -> t
 let foldNat (Nat f) = f
+let cataNat (Nat f) = f
 
 let z = Nat \f x -> x
 let s n = Nat \f x -> f (foldNat n f x)
 
 let isZero (Nat f) = f (\-> false) true
 
-let n0 = z
-let n1 = s n0
-let n2 = s n1
-let n3 = s n2
-let n4 = s n3
-let n5 = s n4
-
 let pow (a:Nat) (b:Nat) = Nat <| (foldNat b) (foldNat a)
+
+type Char = Nat
+let fromChar (Char n) = n
 
 type List t = forall r. r -> (t -> r -> r) -> r
 let caseList (List f) = f
@@ -50,7 +47,7 @@ let isNil l = caseList l true (\_ _ -> false)
 let foldr f i l = caseList l i f
 let append = flip (foldr cons)
 
-type Str = List Nat
+type Str = List Char
 let fromStr (Str l) = l
 let strLift2 f (Str a) (Str b) = Str (f a b)
 let strAppend = strLift2 append

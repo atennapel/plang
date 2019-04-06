@@ -152,7 +152,7 @@ exports.setConfig = (c) => {
 };
 exports.log = (msg) => {
     if (exports.config.debug)
-        console.log(msg);
+        console.log(msg());
 };
 
 },{}],3:[function(require,module,exports){
@@ -286,7 +286,7 @@ const inferRho = (env, term) => {
     return i.type;
 };
 const tcRho = (env, term, ex) => {
-    config_1.log(`tcRho ${terms_1.showTerm(term)} with ${showEx(ex)}`);
+    config_1.log(() => `tcRho ${terms_1.showTerm(term)} with ${showEx(ex)}`);
     if (term.tag === 'Var') {
         const ty = env_1.lookupVar(env, term.name);
         if (!ty)
@@ -383,7 +383,7 @@ const checkSigma = (env, term, ty) => {
     env_1.skolemCheckEnv(sk, env);
 };
 const subsCheck = (env, a, b) => {
-    config_1.log(`subsCheck ${types_1.showTy(a)} <: ${types_1.showTy(b)}`);
+    config_1.log(() => `subsCheck ${types_1.showTy(a)} <: ${types_1.showTy(b)}`);
     const sk = [];
     const rho = skolemise(b, sk);
     subsCheckRho(env, a, rho);
@@ -409,12 +409,12 @@ const instSigma = (env, ty, ex) => {
     ex.type = instantiate(ty);
 };
 exports.infer = (env, term) => {
-    config_1.log(`infer ${terms_1.showTerm(term)}`);
+    config_1.log(() => `infer ${terms_1.showTerm(term)}`);
     util_1.resetId();
     return types_1.prune(inferSigma(env, term));
 };
 exports.inferDef = (env, def) => {
-    config_1.log(`inferDef ${definitions_1.showDef(def)}`);
+    config_1.log(() => `inferDef ${definitions_1.showDef(def)}`);
     if (def.tag === 'DType') {
         const tname = def.name;
         if (env_1.lookupTCon(env, tname))
@@ -632,10 +632,13 @@ const List_1 = require("./List");
 exports.MVar = (name) => ({ tag: 'MVar', name });
 exports.MApp = (left, right) => ({ tag: 'MApp', left, right });
 exports.mappFrom = (ts) => ts.reduce(exports.MApp);
+function mapp(...ts) { return exports.mappFrom(ts); }
+exports.mapp = mapp;
+;
 exports.MAbs = (name, body) => ({ tag: 'MAbs', name, body });
 exports.mabs = (ns, body) => ns.reduceRight((x, y) => exports.MAbs(y, x), body);
 exports.MConst = (val) => ({ tag: 'MConst', val });
-exports.MAppend = (left, right) => ({ tag: 'MAppend', left, right });
+exports.MAdd = (left, right) => ({ tag: 'MAdd', left, right });
 exports.showMTerm = (term) => {
     if (term.tag === 'MVar')
         return term.name;
@@ -645,8 +648,8 @@ exports.showMTerm = (term) => {
         return `(\\${term.name} -> ${exports.showMTerm(term.body)})`;
     if (term.tag === 'MApp')
         return `(${exports.showMTerm(term.left)} ${exports.showMTerm(term.right)})`;
-    if (term.tag === 'MAppend')
-        return `(${exports.showMTerm(term.left)} ++ ${exports.showMTerm(term.right)})`;
+    if (term.tag === 'MAdd')
+        return `(${exports.showMTerm(term.left)} + ${exports.showMTerm(term.right)})`;
     return util_1.impossible('showMTerm');
 };
 const freeMTerm = (term, fr = {}) => {
@@ -663,7 +666,7 @@ const freeMTerm = (term, fr = {}) => {
         freeMTerm(term.left, fr);
         return freeMTerm(term.right, fr);
     }
-    if (term.tag === 'MAppend') {
+    if (term.tag === 'MAdd') {
         freeMTerm(term.left, fr);
         return freeMTerm(term.right, fr);
     }
@@ -695,7 +698,7 @@ exports.termToMachine = (term) => {
 };
 exports.Clos = (abs, env) => ({ tag: 'Clos', abs, env });
 const VConst = (val) => ({ tag: 'VConst', val });
-exports.showVal = (v) => v.tag === 'VConst' ? v.val : `Clos(${exports.showMTerm(v.abs)}, ${showEnv(v.env)})`;
+exports.showVal = (v) => v.tag === 'VConst' ? `${v.val}` : `Clos(${exports.showMTerm(v.abs)}, ${exports.showEnv(v.env)})`;
 const extend = (env, k, v) => List_1.default.cons([k, v], env);
 const lookup = (env, k) => {
     const r = env.first(([k2, _]) => k === k2);
@@ -703,24 +706,24 @@ const lookup = (env, k) => {
         return r[1];
     return null;
 };
-const showEnv = (env) => env.toString(([k, v]) => `${k} = ${exports.showVal(v)}`);
+exports.showEnv = (env) => env.toString(([k, v]) => `${k} = ${exports.showVal(v)}`);
 const FArg = (term, env) => ({ tag: 'FArg', term, env });
 const FFun = (fn) => ({ tag: 'FFun', fn });
-const FArgAppend = (term, env) => ({ tag: 'FArgAppend', term, env });
-const FFunAppend = (val) => ({ tag: 'FFunAppend', val });
+const FArgAdd = (term, env) => ({ tag: 'FArgAdd', term, env });
+const FFunAdd = (val) => ({ tag: 'FFunAdd', val });
 const showFrame = (f) => {
     if (f.tag === 'FFun')
         return `FFun(${exports.showVal(f.fn)})`;
     if (f.tag === 'FArg')
-        return `FArg(${exports.showMTerm(f.term)}, ${showEnv(f.env)})`;
-    if (f.tag === 'FFunAppend')
+        return `FArg(${exports.showMTerm(f.term)}, ${exports.showEnv(f.env)})`;
+    if (f.tag === 'FFunAdd')
         return `FFun(${f.val})`;
-    if (f.tag === 'FArgAppend')
-        return `FArg(${exports.showMTerm(f.term)}, ${showEnv(f.env)})`;
+    if (f.tag === 'FArgAdd')
+        return `FArg(${exports.showMTerm(f.term)}, ${exports.showEnv(f.env)})`;
     return util_1.impossible('showFrame');
 };
 exports.State = (term, env = List_1.default.nil(), stack = List_1.default.nil()) => ({ term, env, stack });
-exports.showState = (s) => `State(${exports.showMTerm(s.term)}, ${showEnv(s.env)}, ${s.stack.toString(showFrame)})`;
+exports.showState = (s) => `State(${exports.showMTerm(s.term)}, ${exports.showEnv(s.env)}, ${s.stack.toString(showFrame)})`;
 const makeClos = (term, env) => {
     const f = freeMTerm(term);
     const nenv = env.filter(([x, _]) => f[x]);
@@ -738,8 +741,8 @@ const step = (state) => {
     }
     if (term.tag === 'MApp')
         return exports.State(term.left, env, List_1.default.cons(FArg(term.right, env), stack));
-    if (term.tag === 'MAppend')
-        return exports.State(term.left, env, List_1.default.cons(FArgAppend(term.right, env), stack));
+    if (term.tag === 'MAdd')
+        return exports.State(term.left, env, List_1.default.cons(FArgAdd(term.right, env), stack));
     if (stack.isNonEmpty()) {
         const top = stack.head();
         const tail = stack.tail();
@@ -753,9 +756,9 @@ const step = (state) => {
             const abs = top.fn.abs;
             return exports.State(abs.body, extend(top.fn.env, abs.name, VConst(term.val)), tail);
         }
-        if (term.tag === 'MConst' && top.tag === 'FArgAppend')
-            return exports.State(top.term, top.env, List_1.default.cons(FFunAppend(term.val), tail));
-        if (term.tag === 'MConst' && top.tag === 'FFunAppend')
+        if (term.tag === 'MConst' && top.tag === 'FArgAdd')
+            return exports.State(top.term, top.env, List_1.default.cons(FFunAdd(term.val), tail));
+        if (term.tag === 'MConst' && top.tag === 'FFunAdd')
             return exports.State(exports.MConst(top.val + term.val), env, tail);
     }
     return null;
@@ -763,6 +766,7 @@ const step = (state) => {
 exports.steps = (state) => {
     let c = state;
     while (true) {
+        // console.log(showState(c));
         const next = step(c);
         if (!next)
             return c;
@@ -791,6 +795,15 @@ exports.runEnv = (defs, env_ = List_1.default.nil()) => {
     }
     return env;
 };
+// testing
+/*
+const v = MVar;
+const z = mabs(['f', 'x'], v('x'));
+const s = mabs(['n', 'f', 'x'], mapp(v('f'), mapp(v('n'), v('f'), v('x'))));
+const inc = mabs(['x'], MAdd(v('x'), MConst(1)));
+const st = mapp(mapp(s, z), inc, MConst(0));
+steps(State(st));
+*/
 
 },{"./List":1,"./terms":11,"./util":14}],9:[function(require,module,exports){
 "use strict";
@@ -843,7 +856,7 @@ const tokenize = (sc) => {
     for (let i = 0, l = sc.length; i <= l; i++) {
         const c = sc[i] || ' ';
         const next = sc[i + 1] || '';
-        config_1.log(`${i};${c};${next};${state};${showTokens(r)}`);
+        config_1.log(() => `${i};${c};${next};${state};${showTokens(r)}`);
         if (state === START) {
             if (SYM2.indexOf(c + next) >= 0)
                 r.push(SymbolT(c + next)), i++;
@@ -933,7 +946,7 @@ const splitTokens = (a, fn) => {
 };
 // kinds
 const parseTokenKind = (ts) => {
-    config_1.log(`parseTokenKind ${showToken(ts)}`);
+    config_1.log(() => `parseTokenKind ${showToken(ts)}`);
     switch (ts.tag) {
         case 'VarT': return kinds_1.KCon(ts.val);
         case 'SymbolT': return err(`stuck on ${ts.val}`);
@@ -943,7 +956,7 @@ const parseTokenKind = (ts) => {
     }
 };
 const parseParensKind = (ts) => {
-    config_1.log(`parseParensKind ${showTokens(ts)}`);
+    config_1.log(() => `parseParensKind ${showTokens(ts)}`);
     if (ts.length === 0)
         return err('empty kind');
     if (ts.length === 1)
@@ -971,7 +984,7 @@ const parseParensKind = (ts) => {
 // types
 const isCon = (x) => /[A-Z]/.test(x[0]);
 const parseTokenType = (ts) => {
-    config_1.log(`parseTokenType ${showToken(ts)}`);
+    config_1.log(() => `parseTokenType ${showToken(ts)}`);
     switch (ts.tag) {
         case 'VarT': {
             if (KEYWORDS_TYPE.indexOf(ts.val) >= 0)
@@ -989,7 +1002,7 @@ const parseTokenType = (ts) => {
     }
 };
 const parseTypePat = (ts) => {
-    config_1.log(`parseTypePat ${showToken(ts)}`);
+    config_1.log(() => `parseTypePat ${showToken(ts)}`);
     switch (ts.tag) {
         case 'VarT': {
             if (KEYWORDS_TYPE.indexOf(ts.val) >= 0 || isCon(ts.val))
@@ -1014,7 +1027,7 @@ const parseTypePat = (ts) => {
     }
 };
 const parseParensType = (ts) => {
-    config_1.log(`parseParensType ${showTokens(ts)}`);
+    config_1.log(() => `parseParensType ${showTokens(ts)}`);
     if (ts.length === 0)
         return err('empty type');
     if (ts.length === 1)
@@ -1072,7 +1085,7 @@ const parseParensType = (ts) => {
 };
 // terms
 const parseToken = (ts) => {
-    config_1.log(`parseToken ${showToken(ts)}`);
+    config_1.log(() => `parseToken ${showToken(ts)}`);
     switch (ts.tag) {
         case 'VarT': {
             if (KEYWORDS.indexOf(ts.val) >= 0)
@@ -1119,7 +1132,7 @@ const parseToken = (ts) => {
                 let t = terms_1.Var('z');
                 for (let j = 0; j < n; j++)
                     t = terms_1.App(s, t);
-                c = terms_1.appFrom([cons, t, c]);
+                c = terms_1.appFrom([cons, terms_1.appFrom([terms_1.Var('Char'), t]), c]);
             }
             return terms_1.App(terms_1.Var('Str'), c);
         }
@@ -1137,7 +1150,7 @@ const parseToken = (ts) => {
     }
 };
 const parsePat = (ts) => {
-    config_1.log(`parsePat ${showToken(ts)}`);
+    config_1.log(() => `parsePat ${showToken(ts)}`);
     switch (ts.tag) {
         case 'VarT': {
             if (KEYWORDS.indexOf(ts.val) >= 0 || isCon(ts.val))
@@ -1182,7 +1195,7 @@ const parsePat = (ts) => {
     }
 };
 const parseParens = (ts) => {
-    config_1.log(`parseParens ${showTokens(ts)}`);
+    config_1.log(() => `parseParens ${showTokens(ts)}`);
     if (ts.length === 0)
         return err('empty');
     if (ts.length === 1)
@@ -1426,7 +1439,6 @@ exports.parseDefs = (sc) => {
 };
 
 },{"./config":2,"./definitions":3,"./kinds":7,"./terms":11,"./types":12}],10:[function(require,module,exports){
-(function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1477,25 +1489,29 @@ const _show = (x, t) => {
 };
 const matchTCon = (t, name) => t.tag === 'TCon' && t.name === name;
 const _showVal = (v, t) => {
-    if (matchTCon(t, 'Nat')) {
+    const isChar = matchTCon(t, 'Char');
+    if (isChar || matchTCon(t, 'Nat')) {
         const cl = v;
-        const res = machine_1.steps(machine_1.State(machine_1.MApp(machine_1.MApp(cl.abs, machine_1.MAbs('x', machine_1.MAppend(machine_1.MConst('s'), machine_1.MVar('x')))), machine_1.MConst('')), cl.env));
-        return `${res.term.val.length}`;
+        const env = cl.env.append(_venv);
+        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataNat'), cl.abs, machine_1.MAbs('x', machine_1.MAdd(machine_1.MVar('x'), machine_1.MConst(1))), machine_1.MConst(0)), env);
+        const res = machine_1.steps(st);
+        const n = res.term.val;
+        return isChar ? `'${JSON.stringify(String.fromCharCode(n)).slice(1, -1)}'` : `${n}`;
     }
     if (matchTCon(t, 'Bool')) {
         const cl = v;
-        const res = machine_1.steps(machine_1.State(machine_1.MApp(machine_1.MApp(cl.abs, machine_1.MConst('true')), machine_1.MConst('false')), cl.env));
-        return `${res.term.val}`;
+        const res = machine_1.steps(machine_1.State(machine_1.MApp(machine_1.MApp(cl.abs, machine_1.MConst(1)), machine_1.MConst(0)), cl.env));
+        return `${res.term.val ? 'true' : 'false'}`;
     }
     if (v.tag === 'VConst')
-        return v.val;
+        return `${v.val}`;
     if (v.tag === 'Clos')
         return `Closure(${machine_1.showMTerm(v.abs)})`;
     return '?';
 };
 const _env = env_1.initialEnv;
 let _venv = List_1.default.nil();
-const _global = typeof global === 'undefined' ? 'window' : 'global';
+// const _global = typeof global === 'undefined' ? 'window' : 'global';
 exports.run = (_s, _cb) => {
     try {
         if (_s === ':env' || _s === ':e')
@@ -1553,9 +1569,9 @@ exports.run = (_s, _cb) => {
             return _cb(types_1.showTy(_t));
         }
         const _e = parser_1.parse(_s);
-        config_1.log(terms_1.showTerm(_e));
+        config_1.log(() => terms_1.showTerm(_e));
         const _t = inference_1.infer(_env, _e);
-        config_1.log(types_1.showTy(_t));
+        config_1.log(() => types_1.showTy(_t));
         const _v = machine_1.runVal(_e, _venv);
         /*const _c = compile(_e);
         log(_c);
@@ -1564,11 +1580,11 @@ exports.run = (_s, _cb) => {
         return _cb(`${_showVal(_v, _t)} : ${types_1.showTy(_t)}`);
     }
     catch (_err) {
+        console.log(_err);
         return _cb(`${_err}`, true);
     }
 };
 
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"./List":1,"./config":2,"./env":4,"./inference":5,"./machine":8,"./parser":9,"./terms":11,"./types":12}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -1747,7 +1763,7 @@ exports.tbinders = (ty, bs = []) => {
     return bs;
 };
 exports.quantify = (tms, ty) => {
-    config_1.log(`quantify ${exports.showTy(ty)} with [${tms.map(exports.showTy).join(', ')}]`);
+    config_1.log(() => `quantify ${exports.showTy(ty)} with [${tms.map(exports.showTy).join(', ')}]`);
     const len = tms.length;
     if (len === 0)
         return ty;
@@ -1802,7 +1818,7 @@ const bindTMeta = (env, x, t) => {
     x.type = t;
 };
 exports.unify = (env, a, b) => {
-    config_1.log(`unify ${types_1.showTy(a)} ~ ${types_1.showTy(b)}`);
+    config_1.log(() => `unify ${types_1.showTy(a)} ~ ${types_1.showTy(b)}`);
     if (a.tag === 'TVar' || b.tag === 'TVar')
         return util_1.terr(`tvar in unify: ${types_1.showTy(a)} ~ ${types_1.showTy(b)}`);
     if (a === b)
