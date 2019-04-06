@@ -3,7 +3,7 @@ import { Term, Pat, abs, Var } from './terms';
 import List from './List';
 import { Def } from './definitions';
 
-type MTerm = MVar | MAbs | MApp | MConst | MAdd;
+type MTerm = MVar | MAbs | MApp | MConst | MAdd | MEmit;
 
 export interface MVar {
   readonly tag: 'MVar';
@@ -47,12 +47,21 @@ export interface MAdd {
 export const MAdd = (left: MTerm, right: MTerm): MAdd =>
   ({ tag: 'MAdd', left, right });
 
+export interface MEmit {
+  readonly tag: 'MEmit';
+  readonly fn: (v: number) => void;
+  readonly term: MTerm;
+}
+export const MEmit = (fn: (v: number) => void, term: MTerm): MEmit =>
+  ({ tag: 'MEmit', fn, term });
+
 export const showMTerm = (term: MTerm): string => {
   if (term.tag === 'MVar') return term.name;
   if (term.tag === 'MConst') return JSON.stringify(term.val);
   if (term.tag === 'MAbs') return `(\\${term.name} -> ${showMTerm(term.body)})`;
   if (term.tag === 'MApp') return `(${showMTerm(term.left)} ${showMTerm(term.right)})`;
   if (term.tag === 'MAdd') return `(${showMTerm(term.left)} + ${showMTerm(term.right)})`;
+  if (term.tag === 'MEmit') return `(emit ${showMTerm(term.term)})`;
   return impossible('showMTerm');
 };
 
@@ -62,6 +71,7 @@ const freeMTerm = (term: MTerm, fr: Free = {}): Free => {
   if (term.tag === 'MAbs') { freeMTerm(term.body, fr); fr[term.name] = false; return fr }
   if (term.tag === 'MApp') { freeMTerm(term.left, fr); return freeMTerm(term.right, fr) }
   if (term.tag === 'MAdd') { freeMTerm(term.left, fr); return freeMTerm(term.right, fr) }
+  if (term.tag === 'MEmit') return freeMTerm(term.term, fr);
   return fr;
 };
 
@@ -100,7 +110,7 @@ const lookup = (env: Env, k: Name): Val | null => {
 };
 export const showEnv = (env: Env): string => env.toString(([k, v]) => `${k} = ${showVal(v)}`);
 
-type Frame = FFun | FArg | FFunAdd | FArgAdd;
+type Frame = FFun | FArg | FFunAdd | FArgAdd | FEmit;
 interface FArg { readonly tag: 'FArg'; readonly term: MTerm; readonly env: Env }
 const FArg = (term: MTerm, env: Env): FArg => ({ tag: 'FArg', term, env });
 interface FFun { readonly tag: 'FFun'; readonly fn: Clos }
@@ -109,11 +119,14 @@ interface FArgAdd { readonly tag: 'FArgAdd'; readonly term: MTerm; readonly env:
 const FArgAdd = (term: MTerm, env: Env): FArgAdd => ({ tag: 'FArgAdd', term, env });
 interface FFunAdd { readonly tag: 'FFunAdd'; readonly val: number }
 const FFunAdd = (val: number): FFunAdd => ({ tag: 'FFunAdd', val });
+interface FEmit { readonly tag: 'FEmit'; readonly fn: (val: number) => void }
+const FEmit = (fn: (val: number) => void): FEmit => ({ tag: 'FEmit', fn });
 const showFrame = (f: Frame): string => {
   if (f.tag === 'FFun') return `FFun(${showVal(f.fn)})`;
   if (f.tag === 'FArg') return `FArg(${showMTerm(f.term)}, ${showEnv(f.env)})`;
   if (f.tag === 'FFunAdd') return `FFun(${f.val})`;
   if (f.tag === 'FArgAdd') return `FArg(${showMTerm(f.term)}, ${showEnv(f.env)})`;
+  if (f.tag === 'FEmit') return f.tag;
   return impossible('showFrame');
 };
 
@@ -145,9 +158,15 @@ const step = (state: State): State | null => {
     return State(term.left, env, List.cons(FArg(term.right, env), stack));
   if (term.tag === 'MAdd')
     return State(term.left, env, List.cons(FArgAdd(term.right, env), stack));
+  if (term.tag === 'MEmit')
+    return State(term.term, env, List.cons(FEmit(term.fn), stack));
   if (stack.isNonEmpty()) {
     const top = stack.head();
     const tail = stack.tail();
+    if (term.tag === 'MConst' && top.tag === 'FEmit') {
+      top.fn(term.val);
+      return State(term, env, tail);
+    }
     if (term.tag === 'MAbs' && top.tag === 'FArg')
       return State(top.term, top.env, List.cons(FFun(makeClos(term, env)), tail));
     if (term.tag === 'MAbs' && top.tag === 'FFun') {

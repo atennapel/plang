@@ -41,6 +41,7 @@ let fromChar (Char n) = n
 
 type List t = forall r. r -> (t -> r -> r) -> r
 let caseList (List f) = f
+let cataList (List f) = f
 let nil = List \n c -> n
 let cons h t = List \n c -> c h (caseList t n c)
 let isNil l = caseList l true (\_ _ -> false)

@@ -19,6 +19,8 @@ import {
   MAbs,
   MAdd,
   mapp,
+  mabs,
+  MEmit,
 } from './machine';
 import List from './List';
 import { Name } from './util';
@@ -75,6 +77,15 @@ const _showVal = (v: Val, t: Type): string => {
     const cl = v as Clos;
     const res = steps(State(MApp(MApp(cl.abs, MConst(1)), MConst(0)), cl.env));
     return `${(res.term as MConst).val ? 'true' : 'false'}`;
+  }
+  if (matchTCon(t, 'Str')) {
+    const cl = v as Clos;
+    const env = cl.env.append(_venv);
+    const r: number[] = [];
+    const _s = (x: any) => mapp(MVar('cataNat'), x, MAbs('x', MAdd(MVar('x'), MConst(1))), MConst(0));
+    const st = mapp(MVar('cataList'), cl.abs, MConst(0), mabs(['h', 'r'], MEmit(n => r.push(n), _s(MVar('h')))));
+    const res = steps(State(st, env));
+    return JSON.stringify(r.reverse().map(n => String.fromCharCode(n)).join(''));
   }
   if (v.tag === 'VConst') return `${v.val}`;
   if (v.tag === 'Clos') return `Closure(${showMTerm(v.abs)})`;

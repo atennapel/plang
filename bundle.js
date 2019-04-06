@@ -639,6 +639,7 @@ exports.MAbs = (name, body) => ({ tag: 'MAbs', name, body });
 exports.mabs = (ns, body) => ns.reduceRight((x, y) => exports.MAbs(y, x), body);
 exports.MConst = (val) => ({ tag: 'MConst', val });
 exports.MAdd = (left, right) => ({ tag: 'MAdd', left, right });
+exports.MEmit = (fn, term) => ({ tag: 'MEmit', fn, term });
 exports.showMTerm = (term) => {
     if (term.tag === 'MVar')
         return term.name;
@@ -650,6 +651,8 @@ exports.showMTerm = (term) => {
         return `(${exports.showMTerm(term.left)} ${exports.showMTerm(term.right)})`;
     if (term.tag === 'MAdd')
         return `(${exports.showMTerm(term.left)} + ${exports.showMTerm(term.right)})`;
+    if (term.tag === 'MEmit')
+        return `(emit ${exports.showMTerm(term.term)})`;
     return util_1.impossible('showMTerm');
 };
 const freeMTerm = (term, fr = {}) => {
@@ -670,6 +673,8 @@ const freeMTerm = (term, fr = {}) => {
         freeMTerm(term.left, fr);
         return freeMTerm(term.right, fr);
     }
+    if (term.tag === 'MEmit')
+        return freeMTerm(term.term, fr);
     return fr;
 };
 exports.patToMachine = (pat) => {
@@ -711,6 +716,7 @@ const FArg = (term, env) => ({ tag: 'FArg', term, env });
 const FFun = (fn) => ({ tag: 'FFun', fn });
 const FArgAdd = (term, env) => ({ tag: 'FArgAdd', term, env });
 const FFunAdd = (val) => ({ tag: 'FFunAdd', val });
+const FEmit = (fn) => ({ tag: 'FEmit', fn });
 const showFrame = (f) => {
     if (f.tag === 'FFun')
         return `FFun(${exports.showVal(f.fn)})`;
@@ -720,6 +726,8 @@ const showFrame = (f) => {
         return `FFun(${f.val})`;
     if (f.tag === 'FArgAdd')
         return `FArg(${exports.showMTerm(f.term)}, ${exports.showEnv(f.env)})`;
+    if (f.tag === 'FEmit')
+        return f.tag;
     return util_1.impossible('showFrame');
 };
 exports.State = (term, env = List_1.default.nil(), stack = List_1.default.nil()) => ({ term, env, stack });
@@ -743,9 +751,15 @@ const step = (state) => {
         return exports.State(term.left, env, List_1.default.cons(FArg(term.right, env), stack));
     if (term.tag === 'MAdd')
         return exports.State(term.left, env, List_1.default.cons(FArgAdd(term.right, env), stack));
+    if (term.tag === 'MEmit')
+        return exports.State(term.term, env, List_1.default.cons(FEmit(term.fn), stack));
     if (stack.isNonEmpty()) {
         const top = stack.head();
         const tail = stack.tail();
+        if (term.tag === 'MConst' && top.tag === 'FEmit') {
+            top.fn(term.val);
+            return exports.State(term, env, tail);
+        }
         if (term.tag === 'MAbs' && top.tag === 'FArg')
             return exports.State(top.term, top.env, List_1.default.cons(FFun(makeClos(term, env)), tail));
         if (term.tag === 'MAbs' && top.tag === 'FFun') {
@@ -1502,6 +1516,15 @@ const _showVal = (v, t) => {
         const cl = v;
         const res = machine_1.steps(machine_1.State(machine_1.MApp(machine_1.MApp(cl.abs, machine_1.MConst(1)), machine_1.MConst(0)), cl.env));
         return `${res.term.val ? 'true' : 'false'}`;
+    }
+    if (matchTCon(t, 'Str')) {
+        const cl = v;
+        const env = cl.env.append(_venv);
+        const r = [];
+        const _s = (x) => machine_1.mapp(machine_1.MVar('cataNat'), x, machine_1.MAbs('x', machine_1.MAdd(machine_1.MVar('x'), machine_1.MConst(1))), machine_1.MConst(0));
+        const st = machine_1.mapp(machine_1.MVar('cataList'), cl.abs, machine_1.MConst(0), machine_1.mabs(['h', 'r'], machine_1.MEmit(n => r.push(n), _s(machine_1.MVar('h')))));
+        const res = machine_1.steps(machine_1.State(st, env));
+        return JSON.stringify(r.reverse().map(n => String.fromCharCode(n)).join(''));
     }
     if (v.tag === 'VConst')
         return `${v.val}`;
