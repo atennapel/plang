@@ -3,3 +3,5 @@ build
 node_modules/
 web/bundle.js
 log.txt
+hs/*.hi
+hs/*.o
