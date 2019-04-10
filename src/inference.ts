@@ -102,6 +102,22 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
     checkSigma(env, term.term, type);
     return instSigma(env, type, ex);
   }
+  if (term.tag === 'If') {
+    if (ex.tag === 'Check') {
+      checkRho(env, term.cond, TCon('Bool'));
+      tcRho(env, term.ifTrue, ex);
+      tcRho(env, term.ifFalse, ex);
+      return;
+    } else if (ex.tag === 'Infer') {
+      checkRho(env, term.cond, TCon('Bool'));
+      const t1 = inferRho(env, term.ifTrue);
+      const t2 = inferRho(env, term.ifFalse);
+      subsCheck(env, t1, t2);
+      subsCheck(env, t2, t1);
+      ex.type = t1;
+      return;
+    }
+  }
   return impossible('tcRho');
 };
 

@@ -6,7 +6,8 @@ export type Term
   | App
   | Abs
   | Let
-  | Ann;
+  | Ann
+  | If;
 
 export interface Var {
   readonly tag: 'Var';
@@ -50,6 +51,15 @@ export interface Ann {
 }
 export const Ann = (term: Term, type: Type): Ann =>
   ({ tag: 'Ann', term, type });
+
+export interface If {
+  readonly tag: 'If';
+  readonly cond: Term;
+  readonly ifTrue: Term;
+  readonly ifFalse: Term;
+}
+export const If = (cond: Term, ifTrue: Term, ifFalse: Term): If =>
+  ({ tag: 'If', cond, ifTrue, ifFalse });
 
 export type Pat
   = PVar
@@ -104,5 +114,7 @@ export const showTerm = (t: Term): string => {
     return `(${showTerm(t.term)} : ${showTy(t.type)})`;
   if (t.tag === 'Let')
     return `(let ${t.name} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
+  if (t.tag === 'If')
+    return `(if ${showTerm(t.cond)} then ${showTerm(t.ifTrue)} else ${showTerm(t.ifFalse)})`;
   return impossible('showTerm');
 };

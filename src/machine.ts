@@ -89,6 +89,8 @@ export const termToMachine = (term: Term): MTerm => {
   if (term.tag === 'App') return MApp(termToMachine(term.left), termToMachine(term.right));
   if (term.tag === 'Let') return MApp(MAbs(term.name, termToMachine(term.body)), termToMachine(term.val));
   if (term.tag === 'Ann') return termToMachine(term.term);
+  if (term.tag === 'If')
+    return MApp(MApp(MApp(MVar('if'), termToMachine(term.cond)), MAbs('_', termToMachine(term.ifTrue))), MAbs('_', termToMachine(term.ifFalse)));
   return impossible('termToMachine');
 };
 

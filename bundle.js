@@ -324,6 +324,23 @@ const tcRho = (env, term, ex) => {
         checkSigma(env, term.term, type);
         return instSigma(env, type, ex);
     }
+    if (term.tag === 'If') {
+        if (ex.tag === 'Check') {
+            checkRho(env, term.cond, types_1.TCon('Bool'));
+            tcRho(env, term.ifTrue, ex);
+            tcRho(env, term.ifFalse, ex);
+            return;
+        }
+        else if (ex.tag === 'Infer') {
+            checkRho(env, term.cond, types_1.TCon('Bool'));
+            const t1 = inferRho(env, term.ifTrue);
+            const t2 = inferRho(env, term.ifFalse);
+            subsCheck(env, t1, t2);
+            subsCheck(env, t2, t1);
+            ex.type = t1;
+            return;
+        }
+    }
     return util_1.impossible('tcRho');
 };
 const checkPat = (env, pat, ty) => tcPat(env, pat, Check(ty));
@@ -699,6 +716,8 @@ exports.termToMachine = (term) => {
         return exports.MApp(exports.MAbs(term.name, exports.termToMachine(term.body)), exports.termToMachine(term.val));
     if (term.tag === 'Ann')
         return exports.termToMachine(term.term);
+    if (term.tag === 'If')
+        return exports.MApp(exports.MApp(exports.MApp(exports.MVar('if'), exports.termToMachine(term.cond)), exports.MAbs('_', exports.termToMachine(term.ifTrue))), exports.MAbs('_', exports.termToMachine(term.ifFalse)));
     return util_1.impossible('termToMachine');
 };
 exports.Clos = (abs, env) => ({ tag: 'Clos', abs, env });
@@ -854,7 +873,7 @@ const matchingBracket = (c) => {
 };
 const SYM1 = ['\\', ':', '.', '=', '?', '_'];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
-const KEYWORDS = ['let', 'in', 'type'];
+const KEYWORDS = ['let', 'in', 'type', 'if', 'then', 'else'];
 const KEYWORDS_TYPE = ['forall', 'let', 'type'];
 const KEYWORDS_DEF = ['let', 'type'];
 const START = 0;
@@ -1271,6 +1290,31 @@ const parseParens = (ts) => {
         const rest = parseParens(ts.slice(i));
         return terms_1.Let(name, args.length > 0 ? terms_1.abs(args.slice(1), body) : body, rest);
     }
+    if (matchVarT('if', ts[0])) {
+        let i = 1;
+        const condts = [];
+        while (true) {
+            const c = ts[i++];
+            if (!c)
+                return err(`no then after if`);
+            if (matchVarT('then', c))
+                break;
+            condts.push(c);
+        }
+        const truets = [];
+        while (true) {
+            const c = ts[i++];
+            if (!c)
+                return err(`no else after then after if`);
+            if (matchVarT('else', c))
+                break;
+            truets.push(c);
+        }
+        const cond = parseParens(condts);
+        const true_ = parseParens(truets);
+        const false_ = parseParens(ts.slice(i));
+        return terms_1.If(cond, true_, false_);
+    }
     if (contains(ts, t => matchSymbolT('<|', t))) {
         const split = splitTokens(ts, t => matchSymbolT('<|', t));
         // special case
@@ -1620,6 +1664,7 @@ exports.Abs = (pat, body) => ({ tag: 'Abs', pat, body });
 exports.abs = (ns, body) => ns.reduceRight((x, y) => exports.Abs(y, x), body);
 exports.Let = (name, val, body) => ({ tag: 'Let', name, val, body });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
+exports.If = (cond, ifTrue, ifFalse) => ({ tag: 'If', cond, ifTrue, ifFalse });
 exports.PVar = (name) => ({ tag: 'PVar', name });
 exports.PWildcard = ({ tag: 'PWildcard' });
 exports.PAnn = (pat, type) => ({ tag: 'PAnn', pat, type });
@@ -1646,6 +1691,8 @@ exports.showTerm = (t) => {
         return `(${exports.showTerm(t.term)} : ${types_1.showTy(t.type)})`;
     if (t.tag === 'Let')
         return `(let ${t.name} = ${exports.showTerm(t.val)} in ${exports.showTerm(t.body)})`;
+    if (t.tag === 'If')
+        return `(if ${exports.showTerm(t.cond)} then ${exports.showTerm(t.ifTrue)} else ${exports.showTerm(t.ifFalse)})`;
     return util_1.impossible('showTerm');
 };
 

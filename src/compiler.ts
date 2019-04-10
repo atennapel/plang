@@ -20,6 +20,7 @@ export const compile = (term: Term): string => {
   if (term.tag === 'App') return `${compile(term.left)}(${compile(term.right)})`;
   if (term.tag === 'Ann') return compile(term.term);
   if (term.tag === 'Let') return `(${compileName(term.name)} => ${compile(term.body)})(${compile(term.val)})`;
+  if (term.tag === 'If') return `if_(${compile(term.cond)}, () => ${compile(term.ifTrue)}, () => ${compile(term.ifFalse)})`;
   return impossible('compile');
 };
 
