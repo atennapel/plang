@@ -14,6 +14,15 @@ export const Env = (
   local: List<[string, Type]> = List.nil(),
 ) => ({ global, tcons, local });
 
+const clone = <T>(o: { [key: string]: T }): { [key: string] : T } => {
+  const n: { [key: string]: T} = {};
+  for (let k in o) n[k] = o[k];
+  return n;
+};
+
+export const cloneEnv = (e: Env) =>
+  Env(clone(e.global), clone(e.tcons), e.local);
+
 export const showEnv = (env: Env) => {
   const r: string[] = [];
   for (let k in env.tcons)
@@ -54,9 +63,11 @@ export const tmetasEnv = (
   return tms;
 };
 
-export const initialEnv = Env(
+const initialEnv = Env(
   {},
   {
     '->': KFun(kType, KFun(kType, kType)),
   },
 );
+
+export const getInitialEnv = () => cloneEnv(initialEnv);

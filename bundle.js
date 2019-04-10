@@ -189,6 +189,13 @@ const kinds_1 = require("./kinds");
 const List_1 = require("./List");
 const util_1 = require("./util");
 exports.Env = (global = {}, tcons = {}, local = List_1.default.nil()) => ({ global, tcons, local });
+const clone = (o) => {
+    const n = {};
+    for (let k in o)
+        n[k] = o[k];
+    return n;
+};
+exports.cloneEnv = (e) => exports.Env(clone(e.global), clone(e.tcons), e.local);
 exports.showEnv = (env) => {
     const r = [];
     for (let k in env.tcons)
@@ -222,9 +229,10 @@ exports.tmetasEnv = (env, free = [], tms = []) => {
         types_1.tmetas(types_1.prune(vars[k]), free, tms);
     return tms;
 };
-exports.initialEnv = exports.Env({}, {
+const initialEnv = exports.Env({}, {
     '->': kinds_1.KFun(kinds_1.kType, kinds_1.KFun(kinds_1.kType, kinds_1.kType)),
 });
+exports.getInitialEnv = () => exports.cloneEnv(initialEnv);
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"./List":1,"./kinds":8,"./types":13,"./util":15}],5:[function(require,module,exports){
@@ -1571,6 +1579,10 @@ const parser_1 = require("./parser");
 const machine_1 = require("./machine");
 const List_1 = require("./List");
 const import_1 = require("./import");
+const cenv = {
+    tenv: env_1.getInitialEnv(),
+    venv: List_1.default.nil()
+};
 const _showR = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
@@ -1614,7 +1626,7 @@ const matchTApp = (t, name) => t.tag === 'TApp' && t.left.tag === 'TCon' && t.le
 const reify = (v, t) => {
     if (matchTCon(t, 'Nat')) {
         const cl = v;
-        const env = cl.env.append(_venv);
+        const env = cl.env.append(cenv.venv);
         const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataNat'), cl.abs, machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('S'), machine_1.MVar('x'))), machine_1.MAtom('Z')), env);
         let c = machine_1.stepsVal(st);
         let n = 0;
@@ -1626,7 +1638,7 @@ const reify = (v, t) => {
     }
     if (matchTCon(t, 'Bool')) {
         const cl = v;
-        const env = cl.env.append(_venv);
+        const env = cl.env.append(cenv.venv);
         const st = machine_1.State(machine_1.mapp(machine_1.MVar('cond'), cl.abs, machine_1.MAtom('T'), machine_1.MAtom('F')), env);
         let c = machine_1.stepsVal(st);
         return c.tag === 'VAtom' && c.val === 'T';
@@ -1637,7 +1649,7 @@ const reify = (v, t) => {
     }
     if (matchTApp(t, 'List')) {
         const cl = v;
-        const env = cl.env.append(_venv);
+        const env = cl.env.append(cenv.venv);
         const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataList'), cl.abs, machine_1.MAtom('Nil'), machine_1.mabs(['h', 'r'], machine_1.MPairC(machine_1.MVar('h'), machine_1.MVar('r')))), env);
         let c = machine_1.stepsVal(st);
         const r = [];
@@ -1672,12 +1684,10 @@ const _showVal = (v, t) => {
         return `*closure*`;
     return '?';
 };
-const _env = env_1.initialEnv;
-let _venv = List_1.default.nil();
 exports.run = (_s, _cb) => {
     try {
         if (_s === ':env' || _s === ':e')
-            return _cb(env_1.showEnv(_env));
+            return _cb(env_1.showEnv(cenv.tenv));
         if (_s === ':showkinds' || _s === ':k') {
             config_1.config.showKinds = !config_1.config.showKinds;
             return _cb(`showKinds: ${config_1.config.showKinds}`);
@@ -1686,14 +1696,19 @@ exports.run = (_s, _cb) => {
             config_1.config.debug = !config_1.config.debug;
             return _cb(`debug: ${config_1.config.debug}`);
         }
+        if (_s === ':reset' || _s === ':r') {
+            cenv.tenv = env_1.getInitialEnv();
+            cenv.venv = List_1.default.nil();
+            return _cb(`environment reset`);
+        }
         if (_s.startsWith(':import ') || _s.startsWith(':i ') || _s === ':i' || _s === ':import') {
             const _rest = (_s.startsWith(':load') ? _s.slice(5) : _s.slice(2)).trim();
             import_1.load(_rest, (err, _rest) => {
                 if (err)
                     return _cb(`${err}`, true);
                 parser_1.parseDefs(_rest).then(_ds => {
-                    inference_1.inferDefs(_env, _ds);
-                    _venv = machine_1.runEnv(_ds, _venv);
+                    inference_1.inferDefs(cenv.tenv, _ds);
+                    cenv.venv = machine_1.runEnv(_ds, cenv.venv);
                     return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
                 }).catch(err => _cb(`${err}`, true));
             });
@@ -1703,8 +1718,8 @@ exports.run = (_s, _cb) => {
         if (_s.startsWith(':let ') || _s.startsWith(':type ')) {
             const _rest = _s.slice(1);
             parser_1.parseDefs(_rest).then(_ds => {
-                inference_1.inferDefs(_env, _ds);
-                _venv = machine_1.runEnv(_ds, _venv);
+                inference_1.inferDefs(cenv.tenv, _ds);
+                cenv.venv = machine_1.runEnv(_ds, cenv.venv);
                 return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
             }).catch(err => _cb(`${err}`, true));
             return;
@@ -1712,14 +1727,14 @@ exports.run = (_s, _cb) => {
         if (_s.startsWith(':t')) {
             const _rest = _s.slice(2);
             const _e = parser_1.parse(_rest);
-            const _t = inference_1.infer(_env, _e);
+            const _t = inference_1.infer(cenv.tenv, _e);
             return _cb(types_1.showTy(_t));
         }
         const _e = parser_1.parse(_s);
         config_1.log(() => terms_1.showTerm(_e));
-        const _t = inference_1.infer(_env, _e);
+        const _t = inference_1.infer(cenv.tenv, _e);
         config_1.log(() => types_1.showTy(_t));
-        const _v = machine_1.runVal(_e, _venv);
+        const _v = machine_1.runVal(_e, cenv.venv);
         return _cb(`${_showVal(_v, _t)} : ${types_1.showTy(_t)}`);
     }
     catch (_err) {
@@ -2033,6 +2048,7 @@ function onresize() {
 window.addEventListener('resize', onresize);
 onresize();
 addResult("REPL");
+getOutput(':i', addResult);
 input.focus();
 input.onkeydown = function (keyEvent) {
     var val = input.value;

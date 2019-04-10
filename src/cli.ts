@@ -1,13 +1,13 @@
 import { run } from './repl';
 import { parseDefs } from './parser';
 import { inferDefs } from './inference';
-import { initialEnv } from './env';
+import { getInitialEnv } from './env';
 import { compileDefs } from './compiler';
 
 if (process.argv[2]) {
   const sc = require('fs').readFileSync(process.argv[2], 'utf8');
   parseDefs(sc).then(ds => {
-    inferDefs(initialEnv, ds);
+    inferDefs(getInitialEnv(), ds);
     const c = compileDefs(ds, x => `const ${x}`);
     console.log(c);
     process.exit();
@@ -28,4 +28,7 @@ function _input() {
     });
   });
 };
-_input();
+run(':i', (s: string, e?: boolean) => {
+  console.log(s);
+  _input();
+})
