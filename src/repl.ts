@@ -112,6 +112,7 @@ const reify = (v: Val, t: Type): any => {
   return '?';
 };
 const _showVal = (v: Val, t: Type): string => {
+  if (matchTCon(t, 'Unit')) return '()';
   if (matchTCon(t, 'Nat')) return `${reify(v, t)}`;
   if (matchTCon(t, 'Bool')) return `${reify(v, t)}`;
   if (matchTCon(t, 'Char')) return `'${JSON.stringify(reify(v, t)).slice(1, -1)}'`;

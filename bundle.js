@@ -1085,7 +1085,7 @@ const parseTypePat = (ts) => {
 const parseParensType = (ts) => {
     config_1.log(() => `parseParensType ${showTokens(ts)}`);
     if (ts.length === 0)
-        return err('empty type');
+        return types_1.TCon('Unit');
     if (ts.length === 1)
         return parseTokenType(ts[0]);
     if (matchVarT('forall', ts[0])) {
@@ -1220,8 +1220,10 @@ const parsePat = (ts) => {
         }
         case 'ParenT': {
             const a = ts.val;
+            if (a.length === 0)
+                return [terms_1.PAnn(terms_1.PWildcard, types_1.TCon('Unit'))];
             if (a.length === 1)
-                return [terms_1.PWildcard];
+                return parsePat(a[0]);
             if (a.length === 2 && a[0].tag === 'VarT' && isCon(a[0].val)) {
                 const con = a[0].val;
                 const pat = parsePat(a[1]);
@@ -1253,7 +1255,7 @@ const parsePat = (ts) => {
 const parseParens = (ts) => {
     config_1.log(() => `parseParens ${showTokens(ts)}`);
     if (ts.length === 0)
-        return err('empty');
+        return terms_1.Var('unit');
     if (ts.length === 1)
         return parseToken(ts[0]);
     if (contains(ts, t => matchSymbolT(':', t))) {
@@ -1615,6 +1617,8 @@ const reify = (v, t) => {
     return '?';
 };
 const _showVal = (v, t) => {
+    if (matchTCon(t, 'Unit'))
+        return '()';
     if (matchTCon(t, 'Nat'))
         return `${reify(v, t)}`;
     if (matchTCon(t, 'Bool'))

@@ -212,7 +212,7 @@ const parseTypePat = (ts: Token): [Name, Kind | null][] => {
 
 const parseParensType = (ts: Token[]): Type => {
   log(() => `parseParensType ${showTokens(ts)}`);
-  if (ts.length === 0) return err('empty type');
+  if (ts.length === 0) return TCon('Unit');
   if (ts.length === 1) return parseTokenType(ts[0]);
   if (matchVarT('forall', ts[0])) {
     const args: [Name, Kind | null][] = [];
@@ -337,7 +337,8 @@ const parsePat = (ts: Token): Pat[] => {
     }
     case 'ParenT': {
       const a = ts.val;
-      if (a.length === 1) return [PWildcard];
+      if (a.length === 0) return [PAnn(PWildcard, TCon('Unit'))];
+      if (a.length === 1) return parsePat(a[0]);
       if (a.length === 2 && a[0].tag === 'VarT' && isCon(a[0].val as string)) {
         const con = a[0].val as string;
         const pat = parsePat(a[1]);
@@ -365,7 +366,7 @@ const parsePat = (ts: Token): Pat[] => {
 
 const parseParens = (ts: Token[]): Term => {
   log(() => `parseParens ${showTokens(ts)}`);
-  if (ts.length === 0) return err('empty');
+  if (ts.length === 0) return Var('unit');
   if (ts.length === 1) return parseToken(ts[0]);
   if (contains(ts, t => matchSymbolT(':', t))) {
     const parts = splitTokens(ts, t => matchSymbolT(':', t));
