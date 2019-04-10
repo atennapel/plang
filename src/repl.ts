@@ -81,6 +81,13 @@ const reify = (v: Val, t: Type): any => {
     }
     return n;
   }
+  if (matchTCon(t, 'Bool')) {
+    const cl = v as Clos;
+    const env = cl.env.append(_venv);
+    const st = State(mapp(MVar('cond'), cl.abs, MAtom('T'), MAtom('F')), env);
+    let c = stepsVal(st);
+    return c.tag === 'VAtom' && c.val === 'T'; 
+  }
   if (matchTCon(t, 'Char')) {
     const n = reify(v, TCon('Nat'));
     return String.fromCharCode(n);
@@ -106,6 +113,7 @@ const reify = (v: Val, t: Type): any => {
 };
 const _showVal = (v: Val, t: Type): string => {
   if (matchTCon(t, 'Nat')) return `${reify(v, t)}`;
+  if (matchTCon(t, 'Bool')) return `${reify(v, t)}`;
   if (matchTCon(t, 'Char')) return `'${JSON.stringify(reify(v, t)).slice(1, -1)}'`;
   if (matchTApp(t, 'List')) return `[${reify(v, t).map((x: Val) => _showVal(x, t.right)).join(', ')}]`;
   if (matchTCon(t, 'Str')) return JSON.stringify(reify(v, t));

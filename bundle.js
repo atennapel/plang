@@ -1583,6 +1583,13 @@ const reify = (v, t) => {
         }
         return n;
     }
+    if (matchTCon(t, 'Bool')) {
+        const cl = v;
+        const env = cl.env.append(_venv);
+        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cond'), cl.abs, machine_1.MAtom('T'), machine_1.MAtom('F')), env);
+        let c = machine_1.stepsVal(st);
+        return c.tag === 'VAtom' && c.val === 'T';
+    }
     if (matchTCon(t, 'Char')) {
         const n = reify(v, types_1.TCon('Nat'));
         return String.fromCharCode(n);
@@ -1609,6 +1616,8 @@ const reify = (v, t) => {
 };
 const _showVal = (v, t) => {
     if (matchTCon(t, 'Nat'))
+        return `${reify(v, t)}`;
+    if (matchTCon(t, 'Bool'))
         return `${reify(v, t)}`;
     if (matchTCon(t, 'Char'))
         return `'${JSON.stringify(reify(v, t)).slice(1, -1)}'`;
