@@ -5,7 +5,6 @@ Start REPL with `npm start`.
 Compile file with `npm start FILENAME`.
 
 TODO
-- show pairs and sums
 - positivity check OR general recursion
 - nat constants
 - char constants

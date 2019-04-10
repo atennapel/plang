@@ -23,6 +23,8 @@ import {
   MTerm,
   MPair,
   stepsVal,
+  VPair,
+  VAtom,
 } from './machine';
 import List from './List';
 import { Name } from './util';
@@ -74,6 +76,9 @@ const matchTCon = (t: Type, name: Name): t is TCon =>
   t.tag === 'TCon' && t.name === name;
 const matchTApp = (t: Type, name: Name): t is TApp =>
   t.tag === 'TApp' && t.left.tag === 'TCon' && t.left.name === name;
+const matchTApp2 = (t: Type, name: Name): t is TApp =>
+  t.tag === 'TApp' && t.left.tag === 'TApp' && t.left.left.tag === 'TCon' &&
+    t.left.left.name === name;
 const reify = (v: Val, t: Type): any => {
   if (matchTCon(t, 'Nat')) {
     const cl = v as Clos;
@@ -114,6 +119,21 @@ const reify = (v: Val, t: Type): any => {
     const l = reify(v, TApp(TCon('List'), TCon('Nat')));
     return l.map((v: Val) => String.fromCharCode(reify(v, TCon('Nat')))).join('');
   }
+  if (matchTApp2(t, 'Pair')) {
+    const cl = v as Clos;
+    const env = cl.env.append(cenv.venv);
+    const st = State(mapp(cl.abs, mabs(['x', 'y'], MPairC(MVar('x'), MVar('y')))), env);
+    const c = stepsVal(st) as VPair;
+    return [c.left, c.right];
+  }
+  if (matchTApp2(t, 'Sum')) {
+    const cl = v as Clos;
+    const env = cl.env.append(cenv.venv);
+    const st = State(mapp(cl.abs, mabs(['x'], MPairC(MAtom('L'), MVar('x'))), mabs(['x'], MPairC(MAtom('R'), MVar('x')))), env);
+    const c = stepsVal(st) as VPair;
+    const tag = (c.left as VAtom).val;
+    return [tag, c.right];
+  }
   if (v.tag === 'Clos') return `*closure*`;
   return '?';
 };
@@ -124,6 +144,18 @@ const _showVal = (v: Val, t: Type): string => {
   if (matchTCon(t, 'Char')) return `'${JSON.stringify(reify(v, t)).slice(1, -1)}'`;
   if (matchTApp(t, 'List')) return `[${reify(v, t).map((x: Val) => _showVal(x, t.right)).join(', ')}]`;
   if (matchTCon(t, 'Str')) return JSON.stringify(reify(v, t));
+  if (matchTApp2(t, 'Pair')) {
+    const [a, b] = reify(v, t);
+    const sa = _showVal(a, (t.left as any).right);
+    const sb = _showVal(b, t.right);
+    return `(${sa}, ${sb})`;
+  }
+  if (matchTApp2(t, 'Sum')) {
+    const [tag, val] = reify(v, t);
+    const str = tag === 'L' ?
+      _showVal(val, (t.left as any).right) : _showVal(val, t.right);
+    return `(${tag} ${str})`;
+  }
   if (v.tag === 'Clos') return `*closure*`;
   return '?';
 };

@@ -1623,6 +1623,8 @@ const _show = (x, t) => {
 };
 const matchTCon = (t, name) => t.tag === 'TCon' && t.name === name;
 const matchTApp = (t, name) => t.tag === 'TApp' && t.left.tag === 'TCon' && t.left.name === name;
+const matchTApp2 = (t, name) => t.tag === 'TApp' && t.left.tag === 'TApp' && t.left.left.tag === 'TCon' &&
+    t.left.left.name === name;
 const reify = (v, t) => {
     if (matchTCon(t, 'Nat')) {
         const cl = v;
@@ -1663,6 +1665,21 @@ const reify = (v, t) => {
         const l = reify(v, types_1.TApp(types_1.TCon('List'), types_1.TCon('Nat')));
         return l.map((v) => String.fromCharCode(reify(v, types_1.TCon('Nat')))).join('');
     }
+    if (matchTApp2(t, 'Pair')) {
+        const cl = v;
+        const env = cl.env.append(cenv.venv);
+        const st = machine_1.State(machine_1.mapp(cl.abs, machine_1.mabs(['x', 'y'], machine_1.MPairC(machine_1.MVar('x'), machine_1.MVar('y')))), env);
+        const c = machine_1.stepsVal(st);
+        return [c.left, c.right];
+    }
+    if (matchTApp2(t, 'Sum')) {
+        const cl = v;
+        const env = cl.env.append(cenv.venv);
+        const st = machine_1.State(machine_1.mapp(cl.abs, machine_1.mabs(['x'], machine_1.MPairC(machine_1.MAtom('L'), machine_1.MVar('x'))), machine_1.mabs(['x'], machine_1.MPairC(machine_1.MAtom('R'), machine_1.MVar('x')))), env);
+        const c = machine_1.stepsVal(st);
+        const tag = c.left.val;
+        return [tag, c.right];
+    }
     if (v.tag === 'Clos')
         return `*closure*`;
     return '?';
@@ -1680,6 +1697,18 @@ const _showVal = (v, t) => {
         return `[${reify(v, t).map((x) => _showVal(x, t.right)).join(', ')}]`;
     if (matchTCon(t, 'Str'))
         return JSON.stringify(reify(v, t));
+    if (matchTApp2(t, 'Pair')) {
+        const [a, b] = reify(v, t);
+        const sa = _showVal(a, t.left.right);
+        const sb = _showVal(b, t.right);
+        return `(${sa}, ${sb})`;
+    }
+    if (matchTApp2(t, 'Sum')) {
+        const [tag, val] = reify(v, t);
+        const str = tag === 'L' ?
+            _showVal(val, t.left.right) : _showVal(val, t.right);
+        return `(${tag} ${str})`;
+    }
     if (v.tag === 'Clos')
         return `*closure*`;
     return '?';
