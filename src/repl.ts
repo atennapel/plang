@@ -124,7 +124,17 @@ const _showVal = (v: Val, t: Type): string => {
 
 const _env = initialEnv;
 let _venv: Env = List.nil();
-// const _global = typeof global === 'undefined' ? 'window' : 'global';
+// const _global = typeof window === 'undefined' ? 'global' : 'window';
+const isBrowser = typeof window !== 'undefined';
+const load = (lib: string, cb: (err: Error | null, file: string) => void): void => {
+  if (isBrowser) {
+    fetch(`lib/${lib || 'prelude'}.p`)
+      .then(x => x.text()).then(x => cb(null, x))
+      .catch(err => cb(err, ''));
+  } else {
+    require('fs').readFile(`./lib/${lib || 'prelude'}.p`, 'utf8', cb);
+  }
+};
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   try {
     if (_s === ':env' || _s === ':e')
@@ -139,42 +149,23 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     }
     if (_s.startsWith(':load ') || _s.startsWith(':l ') || _s === ':l' || _s === ':load') {
       const _rest = (_s.startsWith(':load') ? _s.slice(5) : _s.slice(2)).trim();
-      fetch(`lib/${_rest || 'prelude.p'}`)
-        .then(res => res.text())
-        .then(_rest => {
-          const _ds = parseDefs(_rest);
-          inferDefs(_env, _ds);
-          //const _c = compileDefs(_ds, n => `${_global}['${n}']`);
-          //eval(`(() => {${_c}})()`);
-          _venv = runEnv(_ds, _venv);
-          return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
-        })
-        .catch(_err => _cb(`${_err}`, true));
+      load(_rest, (err, _rest) => {
+        if (err) return _cb(`${err}`, true);
+        const _ds = parseDefs(_rest);
+        inferDefs(_env, _ds);
+        _venv = runEnv(_ds, _venv);
+        return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+      });
       return;
     }
+    _s = _s + '\n';
     if (_s.startsWith(':let ') || _s.startsWith(':type ')) {
       const _rest = _s.slice(1);
       const _ds = parseDefs(_rest);
       inferDefs(_env, _ds);
-      //const _c = compileDefs(_ds, n => `${_global}['${n}']`);
-      //eval(`(() => {${_c}})()`);
       _venv = runEnv(_ds, _venv);
       return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
     }
-    /*
-    if (_s.startsWith(':cek ')) {
-      const _rest = _s.slice(4);
-      const _e = parse(_rest);
-      const _st = runState(_e);
-      return _cb(showState(_st));
-    }
-    if (_s.startsWith(':cekv ')) {
-      const _rest = _s.slice(5);
-      const _e = parse(_rest);
-      const _st = runVal(_e);
-      return _cb(showVal(_st));
-    }
-    */
     if (_s.startsWith(':t')) {
       const _rest = _s.slice(2);
       const _e = parse(_rest);
@@ -186,13 +177,9 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     const _t = infer(_env, _e);
     log(() => showTy(_t));
     const _v = runVal(_e, _venv);
-    /*const _c = compile(_e);
-    log(_c);
-    const _v = eval(_c);
-    log(_v);*/
     return _cb(`${_showVal(_v, _t)} : ${showTy(_t)}`);
   } catch (_err) {
-    console.log(_err);
+    log(() => _err);
     return _cb(`${_err}`, true);
   }
 };
