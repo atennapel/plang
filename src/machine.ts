@@ -1,9 +1,9 @@
 import { Name, impossible } from './util';
-import { Term, Pat, abs, Var } from './terms';
+import { Term, Pat, abs } from './terms';
 import List from './List';
 import { Def } from './definitions';
 
-type MTerm = MVar | MAbs | MApp | MConst | MAdd | MEmit;
+export type MTerm = MVar | MAbs | MApp | MAtom | MPair | MPairC;
 
 export interface MVar {
   readonly tag: 'MVar';
@@ -32,36 +32,36 @@ export const MAbs = (name: Name, body: MTerm): MAbs =>
 export const mabs = (ns: Name[], body: MTerm) =>
   ns.reduceRight((x, y) => MAbs(y, x), body);
 
-export interface MConst {
-  readonly tag: 'MConst';
-  readonly val: number;
+export interface MAtom {
+  readonly tag: 'MAtom';
+  readonly val: string;
 }
-export const MConst = (val: number): MConst =>
-  ({ tag: 'MConst', val });
+export const MAtom = (val: string): MAtom =>
+  ({ tag: 'MAtom', val });
 
-export interface MAdd {
-  readonly tag: 'MAdd';
+export interface MPair {
+  readonly tag: 'MPair';
+  readonly left: Val;
+  readonly right: Val;
+}
+export const MPair = (left: Val, right: Val): MPair =>
+  ({ tag: 'MPair', left, right });
+
+export interface MPairC {
+  readonly tag: 'MPairC';
   readonly left: MTerm;
   readonly right: MTerm;
 }
-export const MAdd = (left: MTerm, right: MTerm): MAdd =>
-  ({ tag: 'MAdd', left, right });
-
-export interface MEmit {
-  readonly tag: 'MEmit';
-  readonly fn: (v: number) => void;
-  readonly term: MTerm;
-}
-export const MEmit = (fn: (v: number) => void, term: MTerm): MEmit =>
-  ({ tag: 'MEmit', fn, term });
+export const MPairC = (left: MTerm, right: MTerm): MPairC =>
+  ({ tag: 'MPairC', left, right });
 
 export const showMTerm = (term: MTerm): string => {
   if (term.tag === 'MVar') return term.name;
-  if (term.tag === 'MConst') return JSON.stringify(term.val);
+  if (term.tag === 'MAtom') return term.val;
   if (term.tag === 'MAbs') return `(\\${term.name} -> ${showMTerm(term.body)})`;
   if (term.tag === 'MApp') return `(${showMTerm(term.left)} ${showMTerm(term.right)})`;
-  if (term.tag === 'MAdd') return `(${showMTerm(term.left)} + ${showMTerm(term.right)})`;
-  if (term.tag === 'MEmit') return `(emit ${showMTerm(term.term)})`;
+  if (term.tag === 'MPair') return `(${showVal(term.left)}, ${showVal(term.right)})`;
+  if (term.tag === 'MPairC') return `(${showMTerm(term.left)}, ${showMTerm(term.right)})`;
   return impossible('showMTerm');
 };
 
@@ -70,8 +70,7 @@ const freeMTerm = (term: MTerm, fr: Free = {}): Free => {
   if (term.tag === 'MVar') { fr[term.name] = true; return fr }
   if (term.tag === 'MAbs') { freeMTerm(term.body, fr); fr[term.name] = false; return fr }
   if (term.tag === 'MApp') { freeMTerm(term.left, fr); return freeMTerm(term.right, fr) }
-  if (term.tag === 'MAdd') { freeMTerm(term.left, fr); return freeMTerm(term.right, fr) }
-  if (term.tag === 'MEmit') return freeMTerm(term.term, fr);
+  if (term.tag === 'MPairC') { freeMTerm(term.left, fr); return freeMTerm(term.right, fr) }
   return fr;
 };
 
@@ -94,13 +93,17 @@ export const termToMachine = (term: Term): MTerm => {
   return impossible('termToMachine');
 };
 
-export type Val = Clos | VConst;
+export type Val = Clos | VAtom | VPair;
 export interface Clos { readonly tag: 'Clos', readonly abs: MAbs; readonly env: Env }
 export const Clos = (abs: MAbs, env: Env): Clos => ({ tag: 'Clos', abs, env });
-interface VConst { readonly tag: 'VConst', readonly val: number }
-const VConst = (val: number): VConst => ({ tag: 'VConst', val });
+export interface VAtom { readonly tag: 'VAtom', readonly val: string }
+export const VAtom = (val: string): VAtom => ({ tag: 'VAtom', val });
+export interface VPair { readonly tag: 'VPair', readonly left: Val, readonly right: Val }
+export const VPair = (left: Val, right: Val): VPair => ({ tag: 'VPair', left, right });
 export const showVal = (v: Val): string =>
-  v.tag === 'VConst' ? `${v.val}` : `Clos(${showMTerm(v.abs)}, ${showEnv(v.env)})`;
+  v.tag === 'VAtom' ? v.val :
+  v.tag === 'VPair' ? `(${showVal(v.left)}, ${showVal(v.right)})` :
+  `Clos(${showMTerm(v.abs)}, ${showEnv(v.env)})`;
 
 export type Env = List<[Name, Val]>;
 const extend = (env: Env, k: Name, v: Val): Env =>
@@ -112,23 +115,20 @@ const lookup = (env: Env, k: Name): Val | null => {
 };
 export const showEnv = (env: Env): string => env.toString(([k, v]) => `${k} = ${showVal(v)}`);
 
-type Frame = FFun | FArg | FFunAdd | FArgAdd | FEmit;
+type Frame = FFun | FArg | FFst | FSnd;
 interface FArg { readonly tag: 'FArg'; readonly term: MTerm; readonly env: Env }
 const FArg = (term: MTerm, env: Env): FArg => ({ tag: 'FArg', term, env });
-interface FFun { readonly tag: 'FFun'; readonly fn: Clos }
-const FFun = (fn: Clos): FFun => ({ tag: 'FFun', fn });
-interface FArgAdd { readonly tag: 'FArgAdd'; readonly term: MTerm; readonly env: Env }
-const FArgAdd = (term: MTerm, env: Env): FArgAdd => ({ tag: 'FArgAdd', term, env });
-interface FFunAdd { readonly tag: 'FFunAdd'; readonly val: number }
-const FFunAdd = (val: number): FFunAdd => ({ tag: 'FFunAdd', val });
-interface FEmit { readonly tag: 'FEmit'; readonly fn: (val: number) => void }
-const FEmit = (fn: (val: number) => void): FEmit => ({ tag: 'FEmit', fn });
+interface FFun { readonly tag: 'FFun'; readonly abs: MAbs; readonly env: Env }
+const FFun = (abs: MAbs, env: Env): FFun => ({ tag: 'FFun', abs, env });
+interface FFst { readonly tag: 'FFst'; readonly term: MTerm; readonly env: Env }
+const FFst = (term: MTerm, env: Env): FFst => ({ tag: 'FFst', term, env });
+interface FSnd { readonly tag: 'FSnd'; readonly val: Val }
+const FSnd = (val: Val): FSnd => ({ tag: 'FSnd', val });
 const showFrame = (f: Frame): string => {
-  if (f.tag === 'FFun') return `FFun(${showVal(f.fn)})`;
+  if (f.tag === 'FFun') return `FFun(${showMTerm(f.abs)}, ${showEnv(f.env)})`;
   if (f.tag === 'FArg') return `FArg(${showMTerm(f.term)}, ${showEnv(f.env)})`;
-  if (f.tag === 'FFunAdd') return `FFun(${f.val})`;
-  if (f.tag === 'FArgAdd') return `FArg(${showMTerm(f.term)}, ${showEnv(f.env)})`;
-  if (f.tag === 'FEmit') return f.tag;
+  if (f.tag === 'FFst') return `FFst(${showMTerm(f.term)}, ${showEnv(f.env)})`;
+  if (f.tag === 'FSnd') return `FSnd(${showVal(f.val)})`;
   return impossible('showFrame');
 };
 
@@ -153,36 +153,49 @@ const step = (state: State): State | null => {
   if (term.tag === 'MVar') {
     const v = lookup(env, term.name);
     if (!v) return null;
-    if (v.tag === 'VConst') return State(MConst(v.val), env, stack);
-    return State(v.abs, v.env, stack); 
+    if (v.tag === 'Clos') return State(v.abs, v.env, stack);
+    return State(v.tag === 'VAtom' ? MAtom(v.val) : MPair(v.left, v.right), env, stack); 
   }
   if (term.tag === 'MApp')
     return State(term.left, env, List.cons(FArg(term.right, env), stack));
-  if (term.tag === 'MAdd')
-    return State(term.left, env, List.cons(FArgAdd(term.right, env), stack));
-  if (term.tag === 'MEmit')
-    return State(term.term, env, List.cons(FEmit(term.fn), stack));
-  if (stack.isNonEmpty()) {
-    const top = stack.head();
-    const tail = stack.tail();
-    if (term.tag === 'MConst' && top.tag === 'FEmit') {
-      top.fn(term.val);
-      return State(term, env, tail);
+  if (term.tag === 'MPairC')
+    return State(term.left, env, List.cons(FFst(term.right, env), stack));
+  if (!stack.isNonEmpty()) return null;
+  const top = stack.head();
+  const tail = stack.tail();
+  if (term.tag === 'MAbs') {
+    if (top.tag === 'FArg')
+      return State(top.term, top.env, List.cons(FFun(term, env), tail));
+    if (top.tag === 'FFun') {
+      const { name, body } = top.abs;
+      return State(body, extend(top.env, name, makeClos(term, env)), tail);
     }
-    if (term.tag === 'MAbs' && top.tag === 'FArg')
-      return State(top.term, top.env, List.cons(FFun(makeClos(term, env)), tail));
-    if (term.tag === 'MAbs' && top.tag === 'FFun') {
-      const abs = top.fn.abs;
-      return State(abs.body, extend(top.fn.env, abs.name, makeClos(term, env)), tail);
+    if (top.tag === 'FFst')
+      return State(top.term, top.env, List.cons(FSnd(makeClos(term, env)), tail));
+    if (top.tag === 'FSnd')
+      return State(MPair(top.val, makeClos(term, env)), env, tail);
+  }
+  if (term.tag === 'MAtom') {
+    if (top.tag === 'FArg') return null;
+    if (top.tag === 'FFun') {
+      const { name, body } = top.abs;
+      return State(body, extend(top.env, name, VAtom(term.val)), tail);
     }
-    if (term.tag === 'MConst' && top.tag === 'FFun') {
-      const abs = top.fn.abs;
-      return State(abs.body, extend(top.fn.env, abs.name, VConst(term.val)), tail);
+    if (top.tag === 'FFst')
+      return State(top.term, top.env, List.cons(FSnd(VAtom(term.val)), tail));
+    if (top.tag === 'FSnd')
+      return State(MPair(top.val, VAtom(term.val)), env, tail);
+  }
+  if (term.tag === 'MPair') {
+    if (top.tag === 'FArg') return null;
+    if (top.tag === 'FFun') {
+      const { name, body } = top.abs;
+      return State(body, extend(top.env, name, VPair(term.left, term.right)), tail);
     }
-    if (term.tag === 'MConst' && top.tag === 'FArgAdd')
-      return State(top.term, top.env, List.cons(FFunAdd(term.val), tail));
-    if (term.tag === 'MConst' && top.tag === 'FFunAdd')
-      return State(MConst(top.val + term.val), env, tail);
+    if (top.tag === 'FFst')
+      return State(top.term, top.env, List.cons(FSnd(VPair(term.left, term.right)), tail));
+    if (top.tag === 'FSnd')
+      return State(MPair(top.val, VPair(term.left, term.right)), env, tail);
   }
   return null;
 };
@@ -195,12 +208,21 @@ export const steps = (state: State): State => {
     c = next;
   }
 };
+export const stepsVal = (state: State): Val => {
+  const st = steps(state);
+  const t = st.term;
+  return t.tag === 'MAtom' ? VAtom(t.val) :
+    t.tag === 'MPair' ? VPair(t.left, t.right) :
+    Clos(t as MAbs, st.env);
+};
 export const runState = (term: Term, env: Env = List.nil()): State =>
   steps(State(termToMachine(term), env));
 export const runVal = (term: Term, env: Env = List.nil()): Val => {
   const st = runState(term, env);
   const t = st.term;
-  return t.tag === 'MConst' ? VConst(t.val) : Clos(t as MAbs, st.env);
+  return t.tag === 'MAtom' ? VAtom(t.val) :
+    t.tag === 'MPair' ? VPair(t.left, t.right) :
+    Clos(t as MAbs, st.env);
 };
 export const runEnv = (defs: Def[], env_: Env = List.nil()): Env => {
   let env: Env = env_;
@@ -218,12 +240,13 @@ export const runEnv = (defs: Def[], env_: Env = List.nil()): Env => {
   return env;
 };
 
-// testing
 /*
+// testing
 const v = MVar;
 const z = mabs(['f', 'x'], v('x'));
 const s = mabs(['n', 'f', 'x'], mapp(v('f'), mapp(v('n'), v('f'), v('x'))));
-const inc = mabs(['x'], MAdd(v('x'), MConst(1)));
-const st = mapp(mapp(s, z), inc, MConst(0));
+const inc = mabs(['x'], MPairC(MAtom('S'), v('x')));
+const st = mapp(mapp(s, mapp(s, z)), inc, MAtom('Z'));
 steps(State(st));
 */
+

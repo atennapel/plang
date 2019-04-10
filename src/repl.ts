@@ -1,7 +1,7 @@
 import { config, log } from './config';
 import { initialEnv, showEnv } from './env';
 import { showTerm } from './terms';
-import { showTy, Type } from './types';
+import { showTy, Type, TCon, TApp } from './types';
 import { infer, inferDefs } from './inference';
 import { parse, parseDefs } from './parser';
 import {
@@ -14,13 +14,15 @@ import {
   State,
   steps,
   MApp,
-  MConst,
   MVar,
   MAbs,
-  MAdd,
   mapp,
   mabs,
-  MEmit,
+  MPairC,
+  MAtom,
+  MTerm,
+  MPair,
+  stepsVal,
 } from './machine';
 import List from './List';
 import { Name } from './util';
@@ -62,33 +64,52 @@ const _show = (x: any, t: Type): string => {
   return _showR(x);
 };
 
-const matchTCon = (t: Type, name: Name) => t.tag === 'TCon' && t.name === name;
-const _showVal = (v: Val, t: Type): string => {
-  const isChar = matchTCon(t, 'Char');
-  if (isChar || matchTCon(t, 'Nat')) {
+const matchTCon = (t: Type, name: Name): t is TCon =>
+  t.tag === 'TCon' && t.name === name;
+const matchTApp = (t: Type, name: Name): t is TApp =>
+  t.tag === 'TApp' && t.left.tag === 'TCon' && t.left.name === name;
+const reify = (v: Val, t: Type): any => {
+  if (matchTCon(t, 'Nat')) {
     const cl = v as Clos;
     const env = cl.env.append(_venv);
-    const st = State(mapp(MVar('cataNat'), cl.abs, MAbs('x', MAdd(MVar('x'), MConst(1))), MConst(0)), env);
-    const res = steps(st);
-    const n = (res.term as MConst).val;
-    return isChar ? `'${JSON.stringify(String.fromCharCode(n)).slice(1, -1)}'` : `${n}`;
+    const st = State(mapp(MVar('cataNat'), cl.abs, MAbs('x', MPairC(MAtom('S'), MVar('x'))), MAtom('Z')), env);
+    let c = stepsVal(st);
+    let n = 0;
+    while (c.tag === 'VPair') {
+      n++;
+      c = c.right;
+    }
+    return n;
   }
-  if (matchTCon(t, 'Bool')) {
+  if (matchTCon(t, 'Char')) {
+    const n = reify(v, TCon('Nat'));
+    return String.fromCharCode(n);
+  }
+  if (matchTApp(t, 'List')) {
     const cl = v as Clos;
-    const res = steps(State(MApp(MApp(cl.abs, MConst(1)), MConst(0)), cl.env));
-    return `${(res.term as MConst).val ? 'true' : 'false'}`;
+    const env = cl.env.append(_venv);
+    const st = State(mapp(MVar('cataList'), cl.abs, MAtom('Nil'), mabs(['h', 'r'], MPairC(MVar('h'), MVar('r')))), env);
+    let c = stepsVal(st);
+    const r: Val[] = [];
+    while (c.tag === 'VPair') {
+      r.push(c.left);
+      c = c.right;
+    }
+    return r;
   }
   if (matchTCon(t, 'Str')) {
-    const cl = v as Clos;
-    const env = cl.env.append(_venv);
-    const r: number[] = [];
-    const _s = (x: any) => mapp(MVar('cataNat'), x, MAbs('x', MAdd(MVar('x'), MConst(1))), MConst(0));
-    const st = mapp(MVar('cataList'), cl.abs, MConst(0), mabs(['h', 'r'], MEmit(n => r.push(n), _s(MVar('h')))));
-    const res = steps(State(st, env));
-    return JSON.stringify(r.reverse().map(n => String.fromCharCode(n)).join(''));
+    const l = reify(v, TApp(TCon('List'), TCon('Nat')));
+    return l.map((v: Val) => String.fromCharCode(reify(v, TCon('Nat')))).join('');
   }
-  if (v.tag === 'VConst') return `${v.val}`;
-  if (v.tag === 'Clos') return `Closure(${showMTerm(v.abs)})`;
+  if (v.tag === 'Clos') return `*closure*`;
+  return '?';
+};
+const _showVal = (v: Val, t: Type): string => {
+  if (matchTCon(t, 'Nat')) return `${reify(v, t)}`;
+  if (matchTCon(t, 'Char')) return `'${JSON.stringify(reify(v, t)).slice(1, -1)}'`;
+  if (matchTApp(t, 'List')) return `[${reify(v, t).map((x: Val) => _showVal(x, t.right)).join(', ')}]`;
+  if (matchTCon(t, 'Str')) return JSON.stringify(reify(v, t));
+  if (v.tag === 'Clos') return `*closure*`;
   return '?';
 };
 
