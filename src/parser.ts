@@ -4,6 +4,7 @@ import { Type, TVar, TCon, tFun, tforall, TApp, tfunFrom, tappFrom } from './typ
 import { Name } from './util';
 import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If } from './terms';
 import { Def, DLet, DType } from './definitions';
+import { load, loadPromise } from './import';
 
 const err = (msg: string) => { throw new SyntaxError(msg) };
 
@@ -49,9 +50,10 @@ const matchingBracket = (c: Bracket): Bracket => {
 const SYM1 = ['\\', ':', '.', '=', '?', '_'];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
 
-const KEYWORDS = ['let', 'in', 'type', 'if', 'then', 'else'];
-const KEYWORDS_TYPE = ['forall', 'let', 'type'];
-const KEYWORDS_DEF = ['let', 'type'];
+
+const KEYWORDS_DEF = ['let', 'type', 'import'];
+const KEYWORDS = ['let', 'in', 'if', 'then', 'else'].concat(KEYWORDS_DEF);
+const KEYWORDS_TYPE = ['forall'].concat(KEYWORDS_DEF);
 
 const START = 0;
 const NAME = 1;
@@ -530,8 +532,22 @@ const parseParens = (ts: Token[]): Term => {
 };
 
 // definitions
-const parseParensDefs = (ts: Token[]): Def[] => {
+type ImportMap = { [key: string]: boolean }
+const parseParensDefs = async (ts: Token[], map: ImportMap = {}): Promise<Def[]> => {
   if (ts.length === 0) return [];
+  if (matchVarT('import', ts[0])) {
+    if (ts[1].tag !== 'VarT')
+      return err(`invalid import name: ${ts[1].val}`);
+    const name = ts[1].val as string;
+    let ds: Def[];
+    if (!map[name]) {
+      map[name] = true;
+      const file = await loadPromise(name);
+      ds = await parseParensDefs(tokenize(file));
+    } else ds = [];
+    const rest = await parseParensDefs(ts.slice(2));
+    return ds.concat(rest);
+  }
   if (matchVarT('type', ts[0])) {
     if (ts[1].tag !== 'VarT' || !isCon(ts[1].val as string))
       return err(`invalid type name: ${ts[1].val}`);
@@ -552,7 +568,7 @@ const parseParensDefs = (ts: Token[]): Def[] => {
       bodyts.push(c);
     }
     const body = parseParensType(bodyts);
-    const rest = parseParensDefs(ts.slice(i - 1));
+    const rest = await parseParensDefs(ts.slice(i - 1));
     return [DType(tname, args, body) as Def].concat(rest);
   }
   if (matchVarT('let', ts[0])) {
@@ -576,7 +592,7 @@ const parseParensDefs = (ts: Token[]): Def[] => {
       bodyts.push(c);
     }
     const body = parseParens(bodyts);
-    const rest = parseParensDefs(ts.slice(i - 1));
+    const rest = await parseParensDefs(ts.slice(i - 1));
     return [DLet(name, args, body) as Def].concat(rest);
   }
   return err(`def stuck on ${ts[0].val}`);
@@ -598,9 +614,7 @@ export const parse = (sc: string): Term => {
   const ex = parseParens(ts);
   return ex;
 };
-export const parseDefs = (sc: string): Def[] => {
+export const parseDefs = (sc: string): Promise<Def[]> => {
   const ts = tokenize(sc);
-  const ex = parseParensDefs(ts);
-  return ex;
+  return parseParensDefs(ts);
 };
-

@@ -180,7 +180,7 @@ exports.showDef = (def) => {
     }
 };
 
-},{"./kinds":7,"./terms":11,"./types":12}],4:[function(require,module,exports){
+},{"./kinds":8,"./terms":12,"./types":13}],4:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -227,7 +227,23 @@ exports.initialEnv = exports.Env({}, {
 });
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./List":1,"./kinds":7,"./types":12,"./util":14}],5:[function(require,module,exports){
+},{"./List":1,"./kinds":8,"./types":13,"./util":15}],5:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.isBrowser = typeof window !== 'undefined';
+exports.load = (lib, cb) => {
+    if (exports.isBrowser) {
+        fetch(`lib/${lib || 'prelude'}.p`)
+            .then(x => x.text()).then(x => cb(null, x))
+            .catch(err => cb(err, ''));
+    }
+    else {
+        require('fs').readFile(`./lib/${lib || 'prelude'}.p`, 'utf8', cb);
+    }
+};
+exports.loadPromise = (lib) => new Promise((resolve, reject) => exports.load(lib, (err, file) => err ? reject(err) : resolve(file)));
+
+},{"fs":17}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -463,7 +479,7 @@ exports.inferDefs = (env, ds) => {
         exports.inferDef(env, ds[i]);
 };
 
-},{"./config":2,"./definitions":3,"./env":4,"./kindInference":6,"./kinds":7,"./terms":11,"./types":12,"./unification":13,"./util":14}],6:[function(require,module,exports){
+},{"./config":2,"./definitions":3,"./env":4,"./kindInference":7,"./kinds":8,"./terms":12,"./types":13,"./unification":14,"./util":15}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -578,7 +594,7 @@ exports.kindOf = (env, t) => {
     return util_1.terr(`unexpected type ${types_1.showTy(t)} in kindOf`);
 };
 
-},{"./env":4,"./kinds":7,"./types":12,"./util":14}],7:[function(require,module,exports){
+},{"./env":4,"./kinds":8,"./types":13,"./util":15}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -640,7 +656,7 @@ exports.eqKind = (a, b) => {
     return false;
 };
 
-},{"./util":14}],8:[function(require,module,exports){
+},{"./util":15}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -861,14 +877,23 @@ const st = mapp(mapp(s, mapp(s, z)), inc, MAtom('Z'));
 steps(State(st));
 */
 
-},{"./List":1,"./terms":11,"./util":14}],9:[function(require,module,exports){
+},{"./List":1,"./terms":12,"./util":15}],10:[function(require,module,exports){
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
 const kinds_1 = require("./kinds");
 const types_1 = require("./types");
 const terms_1 = require("./terms");
 const definitions_1 = require("./definitions");
+const import_1 = require("./import");
 const err = (msg) => { throw new SyntaxError(msg); };
 const VarT = (val) => ({ tag: 'VarT', val });
 const matchVarT = (val, t) => t.tag === 'VarT' && t.val === val;
@@ -896,9 +921,9 @@ const matchingBracket = (c) => {
 };
 const SYM1 = ['\\', ':', '.', '=', '?', '_'];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
-const KEYWORDS = ['let', 'in', 'type', 'if', 'then', 'else'];
-const KEYWORDS_TYPE = ['forall', 'let', 'type'];
-const KEYWORDS_DEF = ['let', 'type'];
+const KEYWORDS_DEF = ['let', 'type', 'import'];
+const KEYWORDS = ['let', 'in', 'if', 'then', 'else'].concat(KEYWORDS_DEF);
+const KEYWORDS_TYPE = ['forall'].concat(KEYWORDS_DEF);
 const START = 0;
 const NAME = 1;
 const STRING = 2;
@@ -1437,10 +1462,24 @@ const parseParens = (ts) => {
     }
     return terms_1.appFrom(args);
 };
-// definitions
-const parseParensDefs = (ts) => {
+const parseParensDefs = (ts, map = {}) => __awaiter(this, void 0, void 0, function* () {
     if (ts.length === 0)
         return [];
+    if (matchVarT('import', ts[0])) {
+        if (ts[1].tag !== 'VarT')
+            return err(`invalid import name: ${ts[1].val}`);
+        const name = ts[1].val;
+        let ds;
+        if (!map[name]) {
+            map[name] = true;
+            const file = yield import_1.loadPromise(name);
+            ds = yield parseParensDefs(tokenize(file));
+        }
+        else
+            ds = [];
+        const rest = yield parseParensDefs(ts.slice(2));
+        return ds.concat(rest);
+    }
     if (matchVarT('type', ts[0])) {
         if (ts[1].tag !== 'VarT' || !isCon(ts[1].val))
             return err(`invalid type name: ${ts[1].val}`);
@@ -1465,7 +1504,7 @@ const parseParensDefs = (ts) => {
             bodyts.push(c);
         }
         const body = parseParensType(bodyts);
-        const rest = parseParensDefs(ts.slice(i - 1));
+        const rest = yield parseParensDefs(ts.slice(i - 1));
         return [definitions_1.DType(tname, args, body)].concat(rest);
     }
     if (matchVarT('let', ts[0])) {
@@ -1494,11 +1533,11 @@ const parseParensDefs = (ts) => {
             bodyts.push(c);
         }
         const body = parseParens(bodyts);
-        const rest = parseParensDefs(ts.slice(i - 1));
+        const rest = yield parseParensDefs(ts.slice(i - 1));
         return [definitions_1.DLet(name, args, body)].concat(rest);
     }
     return err(`def stuck on ${ts[0].val}`);
-};
+});
 // parsing
 exports.parseKind = (sc) => {
     const ts = tokenize(sc);
@@ -1517,11 +1556,10 @@ exports.parse = (sc) => {
 };
 exports.parseDefs = (sc) => {
     const ts = tokenize(sc);
-    const ex = parseParensDefs(ts);
-    return ex;
+    return parseParensDefs(ts);
 };
 
-},{"./config":2,"./definitions":3,"./kinds":7,"./terms":11,"./types":12}],10:[function(require,module,exports){
+},{"./config":2,"./definitions":3,"./import":5,"./kinds":8,"./terms":12,"./types":13}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1532,6 +1570,7 @@ const inference_1 = require("./inference");
 const parser_1 = require("./parser");
 const machine_1 = require("./machine");
 const List_1 = require("./List");
+const import_1 = require("./import");
 const _showR = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
@@ -1635,18 +1674,6 @@ const _showVal = (v, t) => {
 };
 const _env = env_1.initialEnv;
 let _venv = List_1.default.nil();
-// const _global = typeof window === 'undefined' ? 'global' : 'window';
-const isBrowser = typeof window !== 'undefined';
-const load = (lib, cb) => {
-    if (isBrowser) {
-        fetch(`lib/${lib || 'prelude'}.p`)
-            .then(x => x.text()).then(x => cb(null, x))
-            .catch(err => cb(err, ''));
-    }
-    else {
-        require('fs').readFile(`./lib/${lib || 'prelude'}.p`, 'utf8', cb);
-    }
-};
 exports.run = (_s, _cb) => {
     try {
         if (_s === ':env' || _s === ':e')
@@ -1659,25 +1686,28 @@ exports.run = (_s, _cb) => {
             config_1.config.debug = !config_1.config.debug;
             return _cb(`debug: ${config_1.config.debug}`);
         }
-        if (_s.startsWith(':load ') || _s.startsWith(':l ') || _s === ':l' || _s === ':load') {
+        if (_s.startsWith(':import ') || _s.startsWith(':i ') || _s === ':i' || _s === ':import') {
             const _rest = (_s.startsWith(':load') ? _s.slice(5) : _s.slice(2)).trim();
-            load(_rest, (err, _rest) => {
+            import_1.load(_rest, (err, _rest) => {
                 if (err)
                     return _cb(`${err}`, true);
-                const _ds = parser_1.parseDefs(_rest);
-                inference_1.inferDefs(_env, _ds);
-                _venv = machine_1.runEnv(_ds, _venv);
-                return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+                parser_1.parseDefs(_rest).then(_ds => {
+                    inference_1.inferDefs(_env, _ds);
+                    _venv = machine_1.runEnv(_ds, _venv);
+                    return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+                }).catch(err => _cb(`${err}`, true));
             });
             return;
         }
         _s = _s + '\n';
         if (_s.startsWith(':let ') || _s.startsWith(':type ')) {
             const _rest = _s.slice(1);
-            const _ds = parser_1.parseDefs(_rest);
-            inference_1.inferDefs(_env, _ds);
-            _venv = machine_1.runEnv(_ds, _venv);
-            return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+            parser_1.parseDefs(_rest).then(_ds => {
+                inference_1.inferDefs(_env, _ds);
+                _venv = machine_1.runEnv(_ds, _venv);
+                return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+            }).catch(err => _cb(`${err}`, true));
+            return;
         }
         if (_s.startsWith(':t')) {
             const _rest = _s.slice(2);
@@ -1698,7 +1728,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./List":1,"./config":2,"./env":4,"./inference":5,"./machine":8,"./parser":9,"./terms":11,"./types":12,"fs":16}],11:[function(require,module,exports){
+},{"./List":1,"./config":2,"./env":4,"./import":5,"./inference":6,"./machine":9,"./parser":10,"./terms":12,"./types":13}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1742,7 +1772,7 @@ exports.showTerm = (t) => {
     return util_1.impossible('showTerm');
 };
 
-},{"./types":12,"./util":14}],12:[function(require,module,exports){
+},{"./types":13,"./util":15}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1907,7 +1937,7 @@ exports.quantify = (tms, ty) => {
     return exports.TForall(tvs, ks, exports.prune(ty));
 };
 
-},{"./config":2,"./kinds":7,"./util":14}],13:[function(require,module,exports){
+},{"./config":2,"./kinds":8,"./util":15}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1961,7 +1991,7 @@ exports.unifyTFun = (env, ty) => {
     return fn;
 };
 
-},{"./config":2,"./kindInference":6,"./kinds":7,"./types":12,"./util":14}],14:[function(require,module,exports){
+},{"./config":2,"./kindInference":7,"./kinds":8,"./types":13,"./util":15}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -1987,7 +2017,7 @@ exports.skolemCheck = (sk, ty) => {
         return exports.skolemCheck(sk, ty.type);
 };
 
-},{"./kinds":7,"./types":12}],15:[function(require,module,exports){
+},{"./kinds":8,"./types":13}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -2045,6 +2075,6 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":10}],16:[function(require,module,exports){
+},{"./repl":11}],17:[function(require,module,exports){
 
-},{}]},{},[15]);
+},{}]},{},[16]);

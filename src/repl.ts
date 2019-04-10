@@ -26,6 +26,7 @@ import {
 } from './machine';
 import List from './List';
 import { Name } from './util';
+import { load } from './import';
 
 const _showR = (x: any): string => {
   if (typeof x === 'function') return '[Fn]';
@@ -124,17 +125,6 @@ const _showVal = (v: Val, t: Type): string => {
 
 const _env = initialEnv;
 let _venv: Env = List.nil();
-// const _global = typeof window === 'undefined' ? 'global' : 'window';
-const isBrowser = typeof window !== 'undefined';
-const load = (lib: string, cb: (err: Error | null, file: string) => void): void => {
-  if (isBrowser) {
-    fetch(`lib/${lib || 'prelude'}.p`)
-      .then(x => x.text()).then(x => cb(null, x))
-      .catch(err => cb(err, ''));
-  } else {
-    require('fs').readFile(`./lib/${lib || 'prelude'}.p`, 'utf8', cb);
-  }
-};
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   try {
     if (_s === ':env' || _s === ':e')
@@ -147,24 +137,27 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       config.debug = !config.debug;
       return _cb(`debug: ${config.debug}`);
     }
-    if (_s.startsWith(':load ') || _s.startsWith(':l ') || _s === ':l' || _s === ':load') {
+    if (_s.startsWith(':import ') || _s.startsWith(':i ') || _s === ':i' || _s === ':import') {
       const _rest = (_s.startsWith(':load') ? _s.slice(5) : _s.slice(2)).trim();
       load(_rest, (err, _rest) => {
         if (err) return _cb(`${err}`, true);
-        const _ds = parseDefs(_rest);
-        inferDefs(_env, _ds);
-        _venv = runEnv(_ds, _venv);
-        return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+        parseDefs(_rest).then(_ds => {
+          inferDefs(_env, _ds);
+          _venv = runEnv(_ds, _venv);
+          return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+        }).catch(err => _cb(`${err}`, true));
       });
       return;
     }
     _s = _s + '\n';
     if (_s.startsWith(':let ') || _s.startsWith(':type ')) {
       const _rest = _s.slice(1);
-      const _ds = parseDefs(_rest);
-      inferDefs(_env, _ds);
-      _venv = runEnv(_ds, _venv);
-      return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+      parseDefs(_rest).then(_ds => {
+        inferDefs(_env, _ds);
+        _venv = runEnv(_ds, _venv);
+        return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+      }).catch(err => _cb(`${err}`, true));
+      return;
     }
     if (_s.startsWith(':t')) {
       const _rest = _s.slice(2);

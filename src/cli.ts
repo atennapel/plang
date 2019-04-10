@@ -6,11 +6,15 @@ import { compileDefs } from './compiler';
 
 if (process.argv[2]) {
   const sc = require('fs').readFileSync(process.argv[2], 'utf8');
-  const ds = parseDefs(sc);
-  inferDefs(initialEnv, ds);
-  const c = compileDefs(ds, x => `const ${x}`);
-  console.log(c);
-  process.exit();
+  parseDefs(sc).then(ds => {
+    inferDefs(initialEnv, ds);
+    const c = compileDefs(ds, x => `const ${x}`);
+    console.log(c);
+    process.exit();
+  }).catch(err => {
+    console.error(err);
+    process.exit();
+  });
 }
 
 const _readline = require('readline').createInterface(process.stdin, process.stdout);
