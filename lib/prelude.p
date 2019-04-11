@@ -1,17 +1,7 @@
 import combinators
 import basic
 import bool
-
-type Nat = forall t. (t -> t) -> t -> t
-let foldNat (Nat f) = f
-let cataNat (Nat f) = f
-
-let z = Nat \f x -> x
-let s n = Nat \f x -> f (foldNat n f x)
-
-let isZero (Nat f) = f (\-> false) true
-
-let pow (a:Nat) (b:Nat) = Nat <| (foldNat b) (foldNat a)
+import nat
 
 type Char = Nat
 let fromChar (Char n) = n
