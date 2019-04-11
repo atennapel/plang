@@ -1,3 +1,5 @@
+import combinators
+
 type Eq a b = forall f. f a -> f b
 
 let refl = Eq \x -> x

@@ -1,143 +1,35 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-// immutable singly-linked list
-class List {
-    static from(a) {
-        let c = Nil.new();
-        for (let i = a.length - 1; i >= 0; i--)
-            c = new Cons(a[i], c);
-        return c;
+exports.Nil = { tag: 'Nil' };
+exports.Cons = (head, tail) => ({ tag: 'Cons', head, tail });
+exports.toString = (l, fn = x => `${x}`) => {
+    const r = [];
+    let c = l;
+    while (c.tag === 'Cons') {
+        r.push(fn(c.head));
+        c = c.tail;
     }
-    static of(...a) { return List.from(a); }
-    static nil() {
-        return Nil.new();
+    return `[${r.join(', ')}]`;
+};
+exports.filter = (l, fn) => l.tag === 'Cons' ? (fn(l.head) ? exports.Cons(l.head, exports.filter(l.tail, fn)) : exports.filter(l.tail, fn)) : l;
+exports.first = (l, fn) => {
+    let c = l;
+    while (c.tag === 'Cons') {
+        if (fn(c.head))
+            return c.head;
+        c = c.tail;
     }
-    static cons(head, tail) {
-        return new Cons(head, tail);
+    return null;
+};
+exports.each = (l, fn) => {
+    let c = l;
+    while (c.tag === 'Cons') {
+        fn(c.head);
+        c = c.tail;
     }
-    isEmpty() {
-        return this instanceof Nil;
-    }
-    isNonEmpty() {
-        return this instanceof Cons;
-    }
-    take(amount = -1) {
-        let c = this;
-        const r = [];
-        while (c instanceof Cons) {
-            if (amount >= 0 && r.length >= amount)
-                break;
-            r.push(c._head);
-            c = c._tail;
-        }
-        return r;
-    }
-    toString(fn = x => `${x}`) {
-        const r = [];
-        let l = this;
-        while (l instanceof Cons) {
-            r.push(fn(l._head));
-            l = l._tail;
-        }
-        return `[${r.join(', ')}]`;
-    }
-    each(fn) {
-        let l = this;
-        while (l instanceof Cons) {
-            fn(l._head);
-            l = l._tail;
-        }
-    }
-    first(fn) {
-        let l = this;
-        while (l instanceof Cons) {
-            const h = l._head;
-            if (fn(h))
-                return h;
-            l = l._tail;
-        }
-        return null;
-    }
-    foldl(fcons, fnil) {
-        let l = this;
-        let c = fnil;
-        while (l instanceof Cons) {
-            c = fcons(c, l._head);
-            l = l._tail;
-        }
-        return c;
-    }
-}
-exports.default = List;
-class Nil extends List {
-    constructor() { super(); }
-    static new() { return Nil._nil; }
-    case(fnil, fcons) {
-        return fnil();
-    }
-    foldr(fcons, fnil) {
-        return fnil;
-    }
-    map(fn) {
-        return this;
-    }
-    filter(fn) {
-        return this;
-    }
-    mapMaybe(fn) {
-        return this;
-    }
-    append(other) {
-        return other;
-    }
-    flatMap(fn) {
-        return this;
-    }
-    zip(other) {
-        return this;
-    }
-}
-Nil._nil = new Nil();
-exports.Nil = Nil;
-class Cons extends List {
-    constructor(_head, _tail) {
-        super();
-        this._head = _head;
-        this._tail = _tail;
-    }
-    static new(head, tail) {
-        return new Cons(head, tail);
-    }
-    head() { return this._head; }
-    tail() { return this._tail; }
-    case(fnil, fcons) {
-        return fcons(this._head, this._tail);
-    }
-    foldr(fcons, fnil) {
-        return fcons(this._head, this._tail.foldr(fcons, fnil));
-    }
-    map(fn) {
-        return new Cons(fn(this._head), this._tail.map(fn));
-    }
-    filter(fn) {
-        return fn(this._head) ? new Cons(this._head, this._tail.filter(fn)) : this._tail.filter(fn);
-    }
-    mapMaybe(fn) {
-        const x = fn(this._head);
-        return x === null ? this._tail.mapMaybe(fn) : new Cons(x, this._tail.mapMaybe(fn));
-    }
-    append(other) {
-        return new Cons(this._head, this._tail.append(other));
-    }
-    flatMap(fn) {
-        return fn(this._head).append(this._tail.flatMap(fn));
-    }
-    zip(other) {
-        return other.case(() => other, (h, t) => new Cons([this._head, h], this._tail.zip(t)));
-    }
-}
-exports.Cons = Cons;
+};
+exports.append = (a, b) => a.tag === 'Cons' ? exports.Cons(a.head, exports.append(a.tail, b)) : b;
 
 },{}],2:[function(require,module,exports){
 "use strict";
@@ -188,7 +80,7 @@ const types_1 = require("./types");
 const kinds_1 = require("./kinds");
 const List_1 = require("./List");
 const util_1 = require("./util");
-exports.Env = (global = {}, tcons = {}, local = List_1.default.nil()) => ({ global, tcons, local });
+exports.Env = (global = {}, tcons = {}, local = List_1.Nil) => ({ global, tcons, local });
 const clone = (o) => {
     const n = {};
     for (let k in o)
@@ -204,26 +96,26 @@ exports.showEnv = (env) => {
         r.push(`${k} : ${types_1.showTy(env.global[k])}`);
     return r.join('\n');
 };
-exports.extendVar = (env, x, t) => exports.Env(env.global, env.tcons, List_1.default.cons([x, t], env.local));
+exports.extendVar = (env, x, t) => exports.Env(env.global, env.tcons, List_1.Cons([x, t], env.local));
 exports.extendVars = (env, vs) => {
-    const local = vs.reduce((l, kv) => List_1.default.cons(kv, l), env.local);
+    const local = vs.reduce((l, kv) => List_1.Cons(kv, l), env.local);
     return exports.Env(env.global, env.tcons, local);
 };
 exports.lookupVar = (env, x) => {
-    const t = env.local.first(([k, _]) => x === k);
+    const t = List_1.first(env.local, ([k, _]) => x === k);
     if (t)
         return t[1];
     return env.global[x] || null;
 };
 exports.lookupTCon = (env, x) => env.tcons[x] || null;
 exports.skolemCheckEnv = (sk, env) => {
-    env.local.each(([_, t]) => util_1.skolemCheck(sk, types_1.prune(t)));
+    List_1.each(env.local, ([_, t]) => util_1.skolemCheck(sk, types_1.prune(t)));
     const vars = env.global;
     for (let k in vars)
         util_1.skolemCheck(sk, types_1.prune(vars[k]));
 };
 exports.tmetasEnv = (env, free = [], tms = []) => {
-    env.local.each(([_, t]) => types_1.tmetas(types_1.prune(t), free, tms));
+    List_1.each(env.local, ([_, t]) => types_1.tmetas(types_1.prune(t), free, tms));
     const vars = env.global;
     for (let k in vars)
         types_1.tmetas(types_1.prune(vars[k]), free, tms);
@@ -250,6 +142,32 @@ exports.load = (lib, cb) => {
     }
 };
 exports.loadPromise = (lib) => new Promise((resolve, reject) => exports.load(lib, (err, file) => err ? reject(err) : resolve(file)));
+exports.store = (state) => {
+    const doc = JSON.stringify(state);
+    if (typeof localStorage === 'undefined') {
+        require('fs').writeFileSync('_repl', doc, 'utf8');
+    }
+    else {
+        localStorage.setItem('replstate', doc);
+    }
+};
+exports.restore = () => {
+    try {
+        let doc = null;
+        if (typeof localStorage === 'undefined') {
+            doc = require('fs').readFileSync('.repl', 'utf8');
+        }
+        else {
+            doc = localStorage.getItem('replstate');
+        }
+        if (!doc)
+            return null;
+        return JSON.parse(doc);
+    }
+    catch (err) {
+        return null;
+    }
+};
 
 },{"fs":17}],6:[function(require,module,exports){
 "use strict";
@@ -748,14 +666,14 @@ exports.VPair = (left, right) => ({ tag: 'VPair', left, right });
 exports.showVal = (v) => v.tag === 'VAtom' ? v.val :
     v.tag === 'VPair' ? `(${exports.showVal(v.left)}, ${exports.showVal(v.right)})` :
         `Clos(${exports.showMTerm(v.abs)}, ${exports.showEnv(v.env)})`;
-const extend = (env, k, v) => List_1.default.cons([k, v], env);
+const extend = (env, k, v) => List_1.Cons([k, v], env);
 const lookup = (env, k) => {
-    const r = env.first(([k2, _]) => k === k2);
+    const r = List_1.first(env, ([k2, _]) => k === k2);
     if (r)
         return r[1];
     return null;
 };
-exports.showEnv = (env) => env.toString(([k, v]) => `${k} = ${exports.showVal(v)}`);
+exports.showEnv = (env) => List_1.toString(env, ([k, v]) => `${k} = ${exports.showVal(v)}`);
 const FArg = (term, env) => ({ tag: 'FArg', term, env });
 const FFun = (abs, env) => ({ tag: 'FFun', abs, env });
 const FFst = (term, env) => ({ tag: 'FFst', term, env });
@@ -771,11 +689,11 @@ const showFrame = (f) => {
         return `FSnd(${exports.showVal(f.val)})`;
     return util_1.impossible('showFrame');
 };
-exports.State = (term, env = List_1.default.nil(), stack = List_1.default.nil()) => ({ term, env, stack });
-exports.showState = (s) => `State(${exports.showMTerm(s.term)}, ${exports.showEnv(s.env)}, ${s.stack.toString(showFrame)})`;
+exports.State = (term, env = List_1.Nil, stack = List_1.Nil) => ({ term, env, stack });
+exports.showState = (s) => `State(${exports.showMTerm(s.term)}, ${exports.showEnv(s.env)}, ${List_1.toString(s.stack, showFrame)})`;
 const makeClos = (term, env) => {
     const f = freeMTerm(term);
-    const nenv = env.filter(([x, _]) => f[x]);
+    const nenv = List_1.filter(env, ([x, _]) => f[x]);
     return exports.Clos(term, nenv);
 };
 const step = (state) => {
@@ -789,22 +707,22 @@ const step = (state) => {
         return exports.State(v.tag === 'VAtom' ? exports.MAtom(v.val) : exports.MPair(v.left, v.right), env, stack);
     }
     if (term.tag === 'MApp')
-        return exports.State(term.left, env, List_1.default.cons(FArg(term.right, env), stack));
+        return exports.State(term.left, env, List_1.Cons(FArg(term.right, env), stack));
     if (term.tag === 'MPairC')
-        return exports.State(term.left, env, List_1.default.cons(FFst(term.right, env), stack));
-    if (!stack.isNonEmpty())
+        return exports.State(term.left, env, List_1.Cons(FFst(term.right, env), stack));
+    if (stack.tag === 'Nil')
         return null;
-    const top = stack.head();
-    const tail = stack.tail();
+    const top = stack.head;
+    const tail = stack.tail;
     if (term.tag === 'MAbs') {
         if (top.tag === 'FArg')
-            return exports.State(top.term, top.env, List_1.default.cons(FFun(term, env), tail));
+            return exports.State(top.term, top.env, List_1.Cons(FFun(term, env), tail));
         if (top.tag === 'FFun') {
             const { name, body } = top.abs;
             return exports.State(body, extend(top.env, name, makeClos(term, env)), tail);
         }
         if (top.tag === 'FFst')
-            return exports.State(top.term, top.env, List_1.default.cons(FSnd(makeClos(term, env)), tail));
+            return exports.State(top.term, top.env, List_1.Cons(FSnd(makeClos(term, env)), tail));
         if (top.tag === 'FSnd')
             return exports.State(exports.MPair(top.val, makeClos(term, env)), env, tail);
     }
@@ -816,7 +734,7 @@ const step = (state) => {
             return exports.State(body, extend(top.env, name, exports.VAtom(term.val)), tail);
         }
         if (top.tag === 'FFst')
-            return exports.State(top.term, top.env, List_1.default.cons(FSnd(exports.VAtom(term.val)), tail));
+            return exports.State(top.term, top.env, List_1.Cons(FSnd(exports.VAtom(term.val)), tail));
         if (top.tag === 'FSnd')
             return exports.State(exports.MPair(top.val, exports.VAtom(term.val)), env, tail);
     }
@@ -828,7 +746,7 @@ const step = (state) => {
             return exports.State(body, extend(top.env, name, exports.VPair(term.left, term.right)), tail);
         }
         if (top.tag === 'FFst')
-            return exports.State(top.term, top.env, List_1.default.cons(FSnd(exports.VPair(term.left, term.right)), tail));
+            return exports.State(top.term, top.env, List_1.Cons(FSnd(exports.VPair(term.left, term.right)), tail));
         if (top.tag === 'FSnd')
             return exports.State(exports.MPair(top.val, exports.VPair(term.left, term.right)), env, tail);
     }
@@ -851,26 +769,26 @@ exports.stepsVal = (state) => {
         t.tag === 'MPair' ? exports.VPair(t.left, t.right) :
             exports.Clos(t, st.env);
 };
-exports.runState = (term, env = List_1.default.nil()) => exports.steps(exports.State(exports.termToMachine(term), env));
-exports.runVal = (term, env = List_1.default.nil()) => {
+exports.runState = (term, env = List_1.Nil) => exports.steps(exports.State(exports.termToMachine(term), env));
+exports.runVal = (term, env = List_1.Nil) => {
     const st = exports.runState(term, env);
     const t = st.term;
     return t.tag === 'MAtom' ? exports.VAtom(t.val) :
         t.tag === 'MPair' ? exports.VPair(t.left, t.right) :
             exports.Clos(t, st.env);
 };
-exports.runEnv = (defs, env_ = List_1.default.nil()) => {
+exports.runEnv = (defs, env_ = List_1.Nil) => {
     let env = env_;
     for (let i = 0, l = defs.length; i < l; i++) {
         const d = defs[i];
         if (d.tag === 'DType') {
-            env = List_1.default.cons([d.name, exports.Clos(exports.MAbs('x', exports.MVar('x')), List_1.default.nil())], env);
+            env = List_1.Cons([d.name, exports.Clos(exports.MAbs('x', exports.MVar('x')), List_1.Nil)], env);
         }
         else if (d.tag === 'DLet') {
             const n = d.name;
             const t = terms_1.abs(d.args, d.term);
             const v = exports.runVal(t, env);
-            env = List_1.default.cons([n, v], env);
+            env = List_1.Cons([n, v], env);
         }
     }
     return env;
@@ -1470,7 +1388,7 @@ const parseParens = (ts) => {
     }
     return terms_1.appFrom(args);
 };
-const parseParensDefs = (ts, map = {}) => __awaiter(this, void 0, void 0, function* () {
+const parseParensDefs = (ts, map) => __awaiter(this, void 0, void 0, function* () {
     if (ts.length === 0)
         return [];
     if (matchVarT('import', ts[0])) {
@@ -1481,11 +1399,11 @@ const parseParensDefs = (ts, map = {}) => __awaiter(this, void 0, void 0, functi
         if (!map[name]) {
             map[name] = true;
             const file = yield import_1.loadPromise(name);
-            ds = yield parseParensDefs(tokenize(file));
+            ds = yield parseParensDefs(tokenize(file), map);
         }
         else
             ds = [];
-        const rest = yield parseParensDefs(ts.slice(2));
+        const rest = yield parseParensDefs(ts.slice(2), map);
         return ds.concat(rest);
     }
     if (matchVarT('type', ts[0])) {
@@ -1512,7 +1430,7 @@ const parseParensDefs = (ts, map = {}) => __awaiter(this, void 0, void 0, functi
             bodyts.push(c);
         }
         const body = parseParensType(bodyts);
-        const rest = yield parseParensDefs(ts.slice(i - 1));
+        const rest = yield parseParensDefs(ts.slice(i - 1), map);
         return [definitions_1.DType(tname, args, body)].concat(rest);
     }
     if (matchVarT('let', ts[0])) {
@@ -1541,7 +1459,7 @@ const parseParensDefs = (ts, map = {}) => __awaiter(this, void 0, void 0, functi
             bodyts.push(c);
         }
         const body = parseParens(bodyts);
-        const rest = yield parseParensDefs(ts.slice(i - 1));
+        const rest = yield parseParensDefs(ts.slice(i - 1), map);
         return [definitions_1.DLet(name, args, body)].concat(rest);
     }
     return err(`def stuck on ${ts[0].val}`);
@@ -1562,9 +1480,9 @@ exports.parse = (sc) => {
     const ex = parseParens(ts);
     return ex;
 };
-exports.parseDefs = (sc) => {
+exports.parseDefs = (sc, map) => {
     const ts = tokenize(sc);
-    return parseParensDefs(ts);
+    return parseParensDefs(ts, map);
 };
 
 },{"./config":2,"./definitions":3,"./import":5,"./kinds":8,"./terms":12,"./types":13}],11:[function(require,module,exports){
@@ -1578,10 +1496,10 @@ const inference_1 = require("./inference");
 const parser_1 = require("./parser");
 const machine_1 = require("./machine");
 const List_1 = require("./List");
-const import_1 = require("./import");
 const cenv = {
+    importmap: {},
     tenv: env_1.getInitialEnv(),
-    venv: List_1.default.nil()
+    venv: List_1.Nil,
 };
 const _showR = (x) => {
     if (typeof x === 'function')
@@ -1628,7 +1546,7 @@ const matchTApp2 = (t, name) => t.tag === 'TApp' && t.left.tag === 'TApp' && t.l
 const reify = (v, t) => {
     if (matchTCon(t, 'Nat')) {
         const cl = v;
-        const env = cl.env.append(cenv.venv);
+        const env = List_1.append(cl.env, cenv.venv);
         const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataNat'), cl.abs, machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('S'), machine_1.MVar('x'))), machine_1.MAtom('Z')), env);
         let c = machine_1.stepsVal(st);
         let n = 0;
@@ -1640,7 +1558,7 @@ const reify = (v, t) => {
     }
     if (matchTCon(t, 'Bool')) {
         const cl = v;
-        const env = cl.env.append(cenv.venv);
+        const env = List_1.append(cl.env, cenv.venv);
         const st = machine_1.State(machine_1.mapp(machine_1.MVar('cond'), cl.abs, machine_1.MAtom('T'), machine_1.MAtom('F')), env);
         let c = machine_1.stepsVal(st);
         return c.tag === 'VAtom' && c.val === 'T';
@@ -1651,7 +1569,7 @@ const reify = (v, t) => {
     }
     if (matchTApp(t, 'List')) {
         const cl = v;
-        const env = cl.env.append(cenv.venv);
+        const env = List_1.append(cl.env, cenv.venv);
         const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataList'), cl.abs, machine_1.MAtom('Nil'), machine_1.mabs(['h', 'r'], machine_1.MPairC(machine_1.MVar('h'), machine_1.MVar('r')))), env);
         let c = machine_1.stepsVal(st);
         const r = [];
@@ -1667,14 +1585,14 @@ const reify = (v, t) => {
     }
     if (matchTApp2(t, 'Pair')) {
         const cl = v;
-        const env = cl.env.append(cenv.venv);
+        const env = List_1.append(cl.env, cenv.venv);
         const st = machine_1.State(machine_1.mapp(cl.abs, machine_1.mabs(['x', 'y'], machine_1.MPairC(machine_1.MVar('x'), machine_1.MVar('y')))), env);
         const c = machine_1.stepsVal(st);
         return [c.left, c.right];
     }
     if (matchTApp2(t, 'Sum')) {
         const cl = v;
-        const env = cl.env.append(cenv.venv);
+        const env = List_1.append(cl.env, cenv.venv);
         const st = machine_1.State(machine_1.mapp(cl.abs, machine_1.mabs(['x'], machine_1.MPairC(machine_1.MAtom('L'), machine_1.MVar('x'))), machine_1.mabs(['x'], machine_1.MPairC(machine_1.MAtom('R'), machine_1.MVar('x')))), env);
         const c = machine_1.stepsVal(st);
         const tag = c.left.val;
@@ -1713,6 +1631,7 @@ const _showVal = (v, t) => {
         return `*closure*`;
     return '?';
 };
+exports.init = () => { };
 exports.run = (_s, _cb) => {
     try {
         if (_s === ':env' || _s === ':e')
@@ -1726,27 +1645,15 @@ exports.run = (_s, _cb) => {
             return _cb(`debug: ${config_1.config.debug}`);
         }
         if (_s === ':reset' || _s === ':r') {
+            cenv.importmap = {};
             cenv.tenv = env_1.getInitialEnv();
-            cenv.venv = List_1.default.nil();
+            cenv.venv = List_1.Nil;
             return _cb(`environment reset`);
         }
-        if (_s.startsWith(':import ') || _s.startsWith(':i ') || _s === ':i' || _s === ':import') {
-            const _rest = (_s.startsWith(':load') ? _s.slice(5) : _s.slice(2)).trim();
-            import_1.load(_rest, (err, _rest) => {
-                if (err)
-                    return _cb(`${err}`, true);
-                parser_1.parseDefs(_rest).then(_ds => {
-                    inference_1.inferDefs(cenv.tenv, _ds);
-                    cenv.venv = machine_1.runEnv(_ds, cenv.venv);
-                    return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
-                }).catch(err => _cb(`${err}`, true));
-            });
-            return;
-        }
         _s = _s + '\n';
-        if (_s.startsWith(':let ') || _s.startsWith(':type ')) {
+        if (_s.startsWith(':let ') || _s.startsWith(':type ') || _s.startsWith(':import ')) {
             const _rest = _s.slice(1);
-            parser_1.parseDefs(_rest).then(_ds => {
+            parser_1.parseDefs(_rest, cenv.importmap).then(_ds => {
                 inference_1.inferDefs(cenv.tenv, _ds);
                 cenv.venv = machine_1.runEnv(_ds, cenv.venv);
                 return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
@@ -1772,7 +1679,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./List":1,"./config":2,"./env":4,"./import":5,"./inference":6,"./machine":9,"./parser":10,"./terms":12,"./types":13}],12:[function(require,module,exports){
+},{"./List":1,"./config":2,"./env":4,"./inference":6,"./machine":9,"./parser":10,"./terms":12,"./types":13}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -2077,7 +1984,8 @@ function onresize() {
 window.addEventListener('resize', onresize);
 onresize();
 addResult("REPL");
-getOutput(':i', addResult);
+// getOutput(':i', addResult);
+repl_1.init();
 input.focus();
 input.onkeydown = function (keyEvent) {
     var val = input.value;

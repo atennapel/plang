@@ -1,4 +1,4 @@
-import { run } from './repl';
+import { run, init } from './repl';
 
 function getOutput(s: string, cb: (msg: string, err?: boolean) => void): void {
   run(s, cb);
@@ -13,7 +13,8 @@ function onresize() {
 window.addEventListener('resize', onresize);
 onresize();
 addResult("REPL");
-getOutput(':i', addResult);
+// getOutput(':i', addResult);
+init();
 input.focus();
 input.onkeydown = function(keyEvent: any) {
 	var val = input.value;

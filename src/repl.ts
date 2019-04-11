@@ -1,38 +1,34 @@
 import { config, log } from './config';
-import { Env as TEnv, showEnv, cloneEnv, getInitialEnv } from './env';
+import { Env as TEnv, showEnv, getInitialEnv } from './env';
 import { showTerm } from './terms';
 import { showTy, Type, TCon, TApp } from './types';
 import { infer, inferDefs } from './inference';
-import { parse, parseDefs } from './parser';
+import { parse, parseDefs, ImportMap } from './parser';
 import {
   runVal,
   Env,
   runEnv,
   Val,
-  showMTerm,
   Clos,
   State,
-  steps,
-  MApp,
   MVar,
   MAbs,
   mapp,
   mabs,
   MPairC,
   MAtom,
-  MTerm,
-  MPair,
   stepsVal,
   VPair,
   VAtom,
 } from './machine';
-import List from './List';
+import { Nil, append } from './List';
 import { Name } from './util';
-import { load } from './import';
 
-const cenv: { tenv: TEnv, venv: Env } = {
+export type ReplState = { importmap: ImportMap, tenv: TEnv, venv: Env };
+const cenv: ReplState = {
+  importmap: {},
   tenv: getInitialEnv(),
-  venv: List.nil()
+  venv: Nil,
 };
 
 const _showR = (x: any): string => {
@@ -82,7 +78,7 @@ const matchTApp2 = (t: Type, name: Name): t is TApp =>
 const reify = (v: Val, t: Type): any => {
   if (matchTCon(t, 'Nat')) {
     const cl = v as Clos;
-    const env = cl.env.append(cenv.venv);
+    const env = append(cl.env, cenv.venv);
     const st = State(mapp(MVar('cataNat'), cl.abs, MAbs('x', MPairC(MAtom('S'), MVar('x'))), MAtom('Z')), env);
     let c = stepsVal(st);
     let n = 0;
@@ -94,7 +90,7 @@ const reify = (v: Val, t: Type): any => {
   }
   if (matchTCon(t, 'Bool')) {
     const cl = v as Clos;
-    const env = cl.env.append(cenv.venv);
+    const env = append(cl.env, cenv.venv);
     const st = State(mapp(MVar('cond'), cl.abs, MAtom('T'), MAtom('F')), env);
     let c = stepsVal(st);
     return c.tag === 'VAtom' && c.val === 'T'; 
@@ -105,7 +101,7 @@ const reify = (v: Val, t: Type): any => {
   }
   if (matchTApp(t, 'List')) {
     const cl = v as Clos;
-    const env = cl.env.append(cenv.venv);
+    const env = append(cl.env, cenv.venv);
     const st = State(mapp(MVar('cataList'), cl.abs, MAtom('Nil'), mabs(['h', 'r'], MPairC(MVar('h'), MVar('r')))), env);
     let c = stepsVal(st);
     const r: Val[] = [];
@@ -121,14 +117,14 @@ const reify = (v: Val, t: Type): any => {
   }
   if (matchTApp2(t, 'Pair')) {
     const cl = v as Clos;
-    const env = cl.env.append(cenv.venv);
+    const env = append(cl.env, cenv.venv);
     const st = State(mapp(cl.abs, mabs(['x', 'y'], MPairC(MVar('x'), MVar('y')))), env);
     const c = stepsVal(st) as VPair;
     return [c.left, c.right];
   }
   if (matchTApp2(t, 'Sum')) {
     const cl = v as Clos;
-    const env = cl.env.append(cenv.venv);
+    const env = append(cl.env, cenv.venv);
     const st = State(mapp(cl.abs, mabs(['x'], MPairC(MAtom('L'), MVar('x'))), mabs(['x'], MPairC(MAtom('R'), MVar('x')))), env);
     const c = stepsVal(st) as VPair;
     const tag = (c.left as VAtom).val;
@@ -160,6 +156,7 @@ const _showVal = (v: Val, t: Type): string => {
   return '?';
 };
 
+export const init = () => {};
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
   try {
     if (_s === ':env' || _s === ':e')
@@ -173,26 +170,15 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       return _cb(`debug: ${config.debug}`);
     }
     if (_s === ':reset' || _s === ':r') {
+      cenv.importmap = {};
       cenv.tenv = getInitialEnv();
-      cenv.venv = List.nil();
+      cenv.venv = Nil;
       return _cb(`environment reset`);
     }
-    if (_s.startsWith(':import ') || _s.startsWith(':i ') || _s === ':i' || _s === ':import') {
-      const _rest = (_s.startsWith(':load') ? _s.slice(5) : _s.slice(2)).trim();
-      load(_rest, (err, _rest) => {
-        if (err) return _cb(`${err}`, true);
-        parseDefs(_rest).then(_ds => {
-          inferDefs(cenv.tenv, _ds);
-          cenv.venv = runEnv(_ds, cenv.venv);
-          return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
-        }).catch(err => _cb(`${err}`, true));
-      });
-      return;
-    }
     _s = _s + '\n';
-    if (_s.startsWith(':let ') || _s.startsWith(':type ')) {
+    if (_s.startsWith(':let ') || _s.startsWith(':type ') || _s.startsWith(':import ')) {
       const _rest = _s.slice(1);
-      parseDefs(_rest).then(_ds => {
+      parseDefs(_rest, cenv.importmap).then(_ds => {
         inferDefs(cenv.tenv, _ds);
         cenv.venv = runEnv(_ds, cenv.venv);
         return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);

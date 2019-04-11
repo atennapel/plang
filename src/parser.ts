@@ -532,8 +532,8 @@ const parseParens = (ts: Token[]): Term => {
 };
 
 // definitions
-type ImportMap = { [key: string]: boolean }
-const parseParensDefs = async (ts: Token[], map: ImportMap = {}): Promise<Def[]> => {
+export type ImportMap = { [key: string]: boolean }
+const parseParensDefs = async (ts: Token[], map: ImportMap): Promise<Def[]> => {
   if (ts.length === 0) return [];
   if (matchVarT('import', ts[0])) {
     if (ts[1].tag !== 'VarT')
@@ -543,9 +543,9 @@ const parseParensDefs = async (ts: Token[], map: ImportMap = {}): Promise<Def[]>
     if (!map[name]) {
       map[name] = true;
       const file = await loadPromise(name);
-      ds = await parseParensDefs(tokenize(file));
+      ds = await parseParensDefs(tokenize(file), map);
     } else ds = [];
-    const rest = await parseParensDefs(ts.slice(2));
+    const rest = await parseParensDefs(ts.slice(2), map);
     return ds.concat(rest);
   }
   if (matchVarT('type', ts[0])) {
@@ -568,7 +568,7 @@ const parseParensDefs = async (ts: Token[], map: ImportMap = {}): Promise<Def[]>
       bodyts.push(c);
     }
     const body = parseParensType(bodyts);
-    const rest = await parseParensDefs(ts.slice(i - 1));
+    const rest = await parseParensDefs(ts.slice(i - 1), map);
     return [DType(tname, args, body) as Def].concat(rest);
   }
   if (matchVarT('let', ts[0])) {
@@ -592,7 +592,7 @@ const parseParensDefs = async (ts: Token[], map: ImportMap = {}): Promise<Def[]>
       bodyts.push(c);
     }
     const body = parseParens(bodyts);
-    const rest = await parseParensDefs(ts.slice(i - 1));
+    const rest = await parseParensDefs(ts.slice(i - 1), map);
     return [DLet(name, args, body) as Def].concat(rest);
   }
   return err(`def stuck on ${ts[0].val}`);
@@ -614,7 +614,7 @@ export const parse = (sc: string): Term => {
   const ex = parseParens(ts);
   return ex;
 };
-export const parseDefs = (sc: string): Promise<Def[]> => {
+export const parseDefs = (sc: string, map: ImportMap): Promise<Def[]> => {
   const ts = tokenize(sc);
-  return parseParensDefs(ts);
+  return parseParensDefs(ts, map);
 };

@@ -1,6 +1,6 @@
 import { Type, TMeta, tmetas, prune, TSkol, showTy } from './types';
 import { Kind, KFun, kType, showKind } from './kinds';
-import List from './List';
+import { List, Nil, Cons, first, each } from './List';
 import { Name, skolemCheck } from './util';
 
 export interface Env {
@@ -11,7 +11,7 @@ export interface Env {
 export const Env = (
   global: { [key: string]: Type } = {},
   tcons: { [key: string]: Kind } = {},
-  local: List<[string, Type]> = List.nil(),
+  local: List<[string, Type]> = Nil,
 ) => ({ global, tcons, local });
 
 const clone = <T>(o: { [key: string]: T }): { [key: string] : T } => {
@@ -33,13 +33,13 @@ export const showEnv = (env: Env) => {
 };
 
 export const extendVar = (env: Env, x: Name, t: Type): Env =>
-  Env(env.global, env.tcons, List.cons([x, t], env.local));
+  Env(env.global, env.tcons, Cons([x, t], env.local));
 export const extendVars = (env: Env, vs: [Name, Type][]): Env => {
-  const local = vs.reduce((l, kv) => List.cons(kv, l), env.local);
+  const local = vs.reduce((l, kv) => Cons(kv, l), env.local);
   return Env(env.global, env.tcons, local);
 };
 export const lookupVar = (env: Env, x: Name): Type | null => {
-  const t = env.local.first(([k, _]) => x === k);
+  const t = first(env.local, ([k, _]) => x === k);
   if (t) return t[1];
   return env.global[x] || null;
 };
@@ -47,7 +47,7 @@ export const lookupTCon = (env: Env, x: Name): Kind | null =>
   env.tcons[x] || null;
 
 export const skolemCheckEnv = (sk: TSkol[], env: Env): void => {
-  env.local.each(([_, t]) => skolemCheck(sk, prune(t)));
+  each(env.local, ([_, t]) => skolemCheck(sk, prune(t)));
   const vars = env.global;
   for (let k in vars) skolemCheck(sk, prune(vars[k]));
 };
@@ -57,7 +57,7 @@ export const tmetasEnv = (
   free: TMeta[] = [],
   tms: TMeta[] = [],
 ): TMeta[] => {
-  env.local.each(([_, t]) => tmetas(prune(t), free, tms));
+  each(env.local, ([_, t]) => tmetas(prune(t), free, tms));
   const vars = env.global;
   for (let k in vars) tmetas(prune(vars[k]), free, tms);
   return tms;

@@ -1,7 +1,7 @@
 import { Name, impossible } from './util';
 import { Term, Pat, abs } from './terms';
-import List from './List';
 import { Def } from './definitions';
+import { List, Cons, Nil, filter, first, toString } from './List';
 
 export type MTerm = MVar | MAbs | MApp | MAtom | MPair | MPairC;
 
@@ -106,14 +106,14 @@ export const showVal = (v: Val): string =>
   `Clos(${showMTerm(v.abs)}, ${showEnv(v.env)})`;
 
 export type Env = List<[Name, Val]>;
-const extend = (env: Env, k: Name, v: Val): Env =>
-  List.cons([k, v], env);
+const extend = (env: Env, k: Name, v: Val): Env => Cons([k, v], env);
 const lookup = (env: Env, k: Name): Val | null => {
-  const r = env.first(([k2, _]) => k === k2);
+  const r = first(env, ([k2, _]) => k === k2);
   if (r) return r[1];
   return null;
 };
-export const showEnv = (env: Env): string => env.toString(([k, v]) => `${k} = ${showVal(v)}`);
+export const showEnv = (env: Env): string =>
+  toString(env, ([k, v]) => `${k} = ${showVal(v)}`);
 
 type Frame = FFun | FArg | FFst | FSnd;
 interface FArg { readonly tag: 'FArg'; readonly term: MTerm; readonly env: Env }
@@ -137,14 +137,14 @@ interface State {
   readonly env: Env;
   readonly stack: List<Frame>;
 }
-export const State = (term: MTerm, env: Env = List.nil(), stack: List<Frame> = List.nil()): State =>
+export const State = (term: MTerm, env: Env = Nil, stack: List<Frame> = Nil): State =>
   ({ term, env, stack });
 export const showState = (s: State): string =>
-  `State(${showMTerm(s.term)}, ${showEnv(s.env)}, ${s.stack.toString(showFrame)})`;
+  `State(${showMTerm(s.term)}, ${showEnv(s.env)}, ${toString(s.stack, showFrame)})`;
 
 const makeClos = (term: MAbs, env: Env): Clos => {
   const f = freeMTerm(term);
-  const nenv = env.filter(([x, _]) => f[x]);
+  const nenv = filter(env, ([x, _]) => f[x]);
   return Clos(term, nenv);
 };
 
@@ -157,21 +157,21 @@ const step = (state: State): State | null => {
     return State(v.tag === 'VAtom' ? MAtom(v.val) : MPair(v.left, v.right), env, stack); 
   }
   if (term.tag === 'MApp')
-    return State(term.left, env, List.cons(FArg(term.right, env), stack));
+    return State(term.left, env, Cons(FArg(term.right, env), stack));
   if (term.tag === 'MPairC')
-    return State(term.left, env, List.cons(FFst(term.right, env), stack));
-  if (!stack.isNonEmpty()) return null;
-  const top = stack.head();
-  const tail = stack.tail();
+    return State(term.left, env, Cons(FFst(term.right, env), stack));
+  if (stack.tag === 'Nil') return null;
+  const top = stack.head;
+  const tail = stack.tail;
   if (term.tag === 'MAbs') {
     if (top.tag === 'FArg')
-      return State(top.term, top.env, List.cons(FFun(term, env), tail));
+      return State(top.term, top.env, Cons(FFun(term, env), tail));
     if (top.tag === 'FFun') {
       const { name, body } = top.abs;
       return State(body, extend(top.env, name, makeClos(term, env)), tail);
     }
     if (top.tag === 'FFst')
-      return State(top.term, top.env, List.cons(FSnd(makeClos(term, env)), tail));
+      return State(top.term, top.env, Cons(FSnd(makeClos(term, env)), tail));
     if (top.tag === 'FSnd')
       return State(MPair(top.val, makeClos(term, env)), env, tail);
   }
@@ -182,7 +182,7 @@ const step = (state: State): State | null => {
       return State(body, extend(top.env, name, VAtom(term.val)), tail);
     }
     if (top.tag === 'FFst')
-      return State(top.term, top.env, List.cons(FSnd(VAtom(term.val)), tail));
+      return State(top.term, top.env, Cons(FSnd(VAtom(term.val)), tail));
     if (top.tag === 'FSnd')
       return State(MPair(top.val, VAtom(term.val)), env, tail);
   }
@@ -193,7 +193,7 @@ const step = (state: State): State | null => {
       return State(body, extend(top.env, name, VPair(term.left, term.right)), tail);
     }
     if (top.tag === 'FFst')
-      return State(top.term, top.env, List.cons(FSnd(VPair(term.left, term.right)), tail));
+      return State(top.term, top.env, Cons(FSnd(VPair(term.left, term.right)), tail));
     if (top.tag === 'FSnd')
       return State(MPair(top.val, VPair(term.left, term.right)), env, tail);
   }
@@ -215,26 +215,26 @@ export const stepsVal = (state: State): Val => {
     t.tag === 'MPair' ? VPair(t.left, t.right) :
     Clos(t as MAbs, st.env);
 };
-export const runState = (term: Term, env: Env = List.nil()): State =>
+export const runState = (term: Term, env: Env = Nil): State =>
   steps(State(termToMachine(term), env));
-export const runVal = (term: Term, env: Env = List.nil()): Val => {
+export const runVal = (term: Term, env: Env = Nil): Val => {
   const st = runState(term, env);
   const t = st.term;
   return t.tag === 'MAtom' ? VAtom(t.val) :
     t.tag === 'MPair' ? VPair(t.left, t.right) :
     Clos(t as MAbs, st.env);
 };
-export const runEnv = (defs: Def[], env_: Env = List.nil()): Env => {
+export const runEnv = (defs: Def[], env_: Env = Nil): Env => {
   let env: Env = env_;
   for (let i = 0, l = defs.length; i < l; i++) {
     const d = defs[i];
     if (d.tag === 'DType') {
-      env = List.cons([d.name, Clos(MAbs('x', MVar('x')), List.nil())], env); 
+      env = Cons([d.name, Clos(MAbs('x', MVar('x')), Nil)], env); 
     } else if (d.tag === 'DLet') {
       const n = d.name;
       const t = abs(d.args, d.term);
       const v = runVal(t, env);
-      env = List.cons([n, v], env);
+      env = Cons([n, v], env);
     }
   }
   return env;
