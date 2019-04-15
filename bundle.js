@@ -608,6 +608,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
 const terms_1 = require("./terms");
 const List_1 = require("./List");
+const config_1 = require("./config");
 exports.MVar = (name) => ({ tag: 'MVar', name });
 exports.MApp = (left, right) => ({ tag: 'MApp', left, right });
 exports.mappFrom = (ts) => ts.reduce(exports.MApp);
@@ -732,6 +733,7 @@ const showFrame = (f) => {
 };
 exports.State = (term, env = List_1.Nil, stack = List_1.Nil) => ({ term, env, stack });
 exports.showState = (s) => `State(${exports.showMTerm(s.term)}, ${exports.showEnv(s.env)}, ${List_1.toString(s.stack, showFrame)})`;
+exports.showStateMin = (s) => `State(${exports.showMTerm(s.term)}, ${s.stack.tag === 'Nil' ? '[]' : s.stack.head.tag})`;
 const makeClos = (term, env) => {
     const f = freeMTerm(term);
     const nenv = List_1.filter(env, ([x, _]) => f[x]);
@@ -798,7 +800,7 @@ exports.resetStepCount = () => { exports.stepCount = 0; };
 exports.steps = (state) => {
     let c = state;
     while (true) {
-        // console.log(showState(c));
+        config_1.log(() => `${exports.stepCount}: ${exports.showStateMin(c)}`);
         const next = step(c);
         if (!next)
             return c;
@@ -847,7 +849,7 @@ const st = mapp(mapp(s, mapp(s, z)), inc, MAtom('Z'));
 steps(State(st));
 */
 
-},{"./List":1,"./terms":13,"./util":16}],10:[function(require,module,exports){
+},{"./List":1,"./config":2,"./terms":13,"./util":16}],10:[function(require,module,exports){
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     return new (P || (P = Promise))(function (resolve, reject) {

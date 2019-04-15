@@ -2,6 +2,7 @@ import { Name, impossible } from './util';
 import { Term, Pat, abs, LitChar } from './terms';
 import { Def } from './definitions';
 import { List, Cons, Nil, filter, first, toString } from './List';
+import { log } from './config';
 
 export type MTerm = MVar | MAbs | MApp | MAtom | MPair | MPairC;
 
@@ -160,6 +161,8 @@ export const State = (term: MTerm, env: Env = Nil, stack: List<Frame> = Nil): St
   ({ term, env, stack });
 export const showState = (s: State): string =>
   `State(${showMTerm(s.term)}, ${showEnv(s.env)}, ${toString(s.stack, showFrame)})`;
+export const showStateMin = (s: State): string =>
+  `State(${showMTerm(s.term)}, ${s.stack.tag === 'Nil' ? '[]' : s.stack.head.tag})`;
 
 const makeClos = (term: MAbs, env: Env): Clos => {
   const f = freeMTerm(term);
@@ -223,7 +226,7 @@ export const resetStepCount = () => { stepCount = 0 };
 export const steps = (state: State): State => {
   let c = state;
   while (true) {
-    // console.log(showState(c));
+    log(() => `${stepCount}: ${showStateMin(c)}`);
     const next = step(c);
     if (!next) return c;
     stepCount++;
