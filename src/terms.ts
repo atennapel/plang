@@ -7,7 +7,8 @@ export type Term
   | Abs
   | Let
   | Ann
-  | If;
+  | If
+  | LitNat;
 
 export interface Var {
   readonly tag: 'Var';
@@ -60,6 +61,13 @@ export interface If {
 }
 export const If = (cond: Term, ifTrue: Term, ifFalse: Term): If =>
   ({ tag: 'If', cond, ifTrue, ifFalse });
+
+export interface LitNat {
+  readonly tag: 'LitNat';
+  readonly val: number;
+}
+export const LitNat = (val: number): LitNat =>
+  ({ tag: 'LitNat', val });
 
 export type Pat
   = PVar
@@ -116,5 +124,7 @@ export const showTerm = (t: Term): string => {
     return `(let ${t.name} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'If')
     return `(if ${showTerm(t.cond)} then ${showTerm(t.ifTrue)} else ${showTerm(t.ifFalse)})`;
+  if (t.tag === 'LitNat')
+    return `${t.val}`;
   return impossible('showTerm');
 };

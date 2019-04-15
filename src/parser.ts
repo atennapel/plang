@@ -2,7 +2,7 @@ import { log } from './config';
 import { Kind, KCon, kfunFrom } from './kinds';
 import { Type, TVar, TCon, tFun, tforall, TApp, tfunFrom, tappFrom } from './types';
 import { Name } from './util';
-import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If } from './terms';
+import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If, LitNat } from './terms';
 import { Def, DLet, DType } from './definitions';
 import { load, loadPromise } from './import';
 
@@ -316,11 +316,8 @@ const parseToken = (ts: Token): Term => {
     case 'NumberT': {
       const val = ts.val;
       const n = parseInt(val, 10);
-      if (isNaN(n) || n < 0) return err(`invalid number: ${val}`);
-      let c: Term = Var('z');
-      const s = Var('s');
-      for (let i = 0; i < n; i++) c = App(s, c);
-      return c;
+      if (isNaN(n) || n < 0 || !isFinite(n)) return err(`invalid number: ${val}`);
+      return LitNat(n);
     }
   }
 };

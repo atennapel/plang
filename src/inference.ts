@@ -8,6 +8,9 @@ import { kType, Kind, pruneKind } from './kinds';
 import { log } from './config';
 import { Def, showDef } from './definitions';
 
+const tNat = TCon('Nat');
+const tBool = TCon('Bool');
+
 type Expected = Check | Infer;
 interface Check {
   readonly tag: 'Check';
@@ -104,12 +107,12 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
   }
   if (term.tag === 'If') {
     if (ex.tag === 'Check') {
-      checkRho(env, term.cond, TCon('Bool'));
+      checkRho(env, term.cond, tBool);
       tcRho(env, term.ifTrue, ex);
       tcRho(env, term.ifFalse, ex);
       return;
     } else if (ex.tag === 'Infer') {
-      checkRho(env, term.cond, TCon('Bool'));
+      checkRho(env, term.cond, tBool);
       const t1 = inferRho(env, term.ifTrue);
       const t2 = inferRho(env, term.ifFalse);
       subsCheck(env, t1, t2);
@@ -117,6 +120,10 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
       ex.type = t1;
       return;
     }
+  }
+  if (term.tag === 'LitNat') {
+    instSigma(env, tNat, ex);
+    return;
   }
   return impossible('tcRho');
 };

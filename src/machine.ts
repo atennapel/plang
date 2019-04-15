@@ -90,6 +90,12 @@ export const termToMachine = (term: Term): MTerm => {
   if (term.tag === 'Ann') return termToMachine(term.term);
   if (term.tag === 'If')
     return MApp(MApp(MApp(MVar('if'), termToMachine(term.cond)), MAbs('_', termToMachine(term.ifTrue))), MAbs('_', termToMachine(term.ifFalse)));
+  if (term.tag === 'LitNat') {
+    const n = term.val;
+    let c: MTerm = MVar('z');
+    for (let i = 0; i < n; i++) c = MApp(MVar('s'), c);
+    return c;
+  }
   return impossible('termToMachine');
 };
 

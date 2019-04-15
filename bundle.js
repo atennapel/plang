@@ -181,6 +181,8 @@ const kindInference_1 = require("./kindInference");
 const kinds_1 = require("./kinds");
 const config_1 = require("./config");
 const definitions_1 = require("./definitions");
+const tNat = types_1.TCon('Nat');
+const tBool = types_1.TCon('Bool');
 const Check = (type) => ({ tag: 'Check', type });
 const Infer = () => ({ tag: 'Infer', type: null });
 const showEx = (ex) => {
@@ -268,13 +270,13 @@ const tcRho = (env, term, ex) => {
     }
     if (term.tag === 'If') {
         if (ex.tag === 'Check') {
-            checkRho(env, term.cond, types_1.TCon('Bool'));
+            checkRho(env, term.cond, tBool);
             tcRho(env, term.ifTrue, ex);
             tcRho(env, term.ifFalse, ex);
             return;
         }
         else if (ex.tag === 'Infer') {
-            checkRho(env, term.cond, types_1.TCon('Bool'));
+            checkRho(env, term.cond, tBool);
             const t1 = inferRho(env, term.ifTrue);
             const t2 = inferRho(env, term.ifFalse);
             subsCheck(env, t1, t2);
@@ -282,6 +284,10 @@ const tcRho = (env, term, ex) => {
             ex.type = t1;
             return;
         }
+    }
+    if (term.tag === 'LitNat') {
+        instSigma(env, tNat, ex);
+        return;
     }
     return util_1.impossible('tcRho');
 };
@@ -658,6 +664,13 @@ exports.termToMachine = (term) => {
         return exports.termToMachine(term.term);
     if (term.tag === 'If')
         return exports.MApp(exports.MApp(exports.MApp(exports.MVar('if'), exports.termToMachine(term.cond)), exports.MAbs('_', exports.termToMachine(term.ifTrue))), exports.MAbs('_', exports.termToMachine(term.ifFalse)));
+    if (term.tag === 'LitNat') {
+        const n = term.val;
+        let c = exports.MVar('z');
+        for (let i = 0; i < n; i++)
+            c = exports.MApp(exports.MVar('s'), c);
+        return c;
+    }
     return util_1.impossible('termToMachine');
 };
 exports.Clos = (abs, env) => ({ tag: 'Clos', abs, env });
@@ -1146,13 +1159,9 @@ const parseToken = (ts) => {
         case 'NumberT': {
             const val = ts.val;
             const n = parseInt(val, 10);
-            if (isNaN(n) || n < 0)
+            if (isNaN(n) || n < 0 || !isFinite(n))
                 return err(`invalid number: ${val}`);
-            let c = terms_1.Var('z');
-            const s = terms_1.Var('s');
-            for (let i = 0; i < n; i++)
-                c = terms_1.App(s, c);
-            return c;
+            return terms_1.LitNat(n);
         }
     }
 };
@@ -1692,6 +1701,7 @@ exports.abs = (ns, body) => ns.reduceRight((x, y) => exports.Abs(y, x), body);
 exports.Let = (name, val, body) => ({ tag: 'Let', name, val, body });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.If = (cond, ifTrue, ifFalse) => ({ tag: 'If', cond, ifTrue, ifFalse });
+exports.LitNat = (val) => ({ tag: 'LitNat', val });
 exports.PVar = (name) => ({ tag: 'PVar', name });
 exports.PWildcard = ({ tag: 'PWildcard' });
 exports.PAnn = (pat, type) => ({ tag: 'PAnn', pat, type });
@@ -1720,6 +1730,8 @@ exports.showTerm = (t) => {
         return `(let ${t.name} = ${exports.showTerm(t.val)} in ${exports.showTerm(t.body)})`;
     if (t.tag === 'If')
         return `(if ${exports.showTerm(t.cond)} then ${exports.showTerm(t.ifTrue)} else ${exports.showTerm(t.ifFalse)})`;
+    if (t.tag === 'LitNat')
+        return `${t.val}`;
     return util_1.impossible('showTerm');
 };
 

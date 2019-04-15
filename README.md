@@ -6,9 +6,7 @@ Compile file with `npm start FILENAME`.
 
 TODO
 - positivity check OR general recursion
-- nat constants
 - char constants
 - string constants
 - pseudo-typeclass for Show
-- serialization of machine state
-- serialization of repl state
+- patterns for pairs and sums
