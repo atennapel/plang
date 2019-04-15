@@ -9,7 +9,8 @@ export type Term
   | Ann
   | If
   | LitNat
-  | LitChar;
+  | LitChar
+  | LitStr;
 
 export interface Var {
   readonly tag: 'Var';
@@ -77,6 +78,13 @@ export interface LitChar {
 export const LitChar = (val: string): LitChar =>
   ({ tag: 'LitChar', val });
 
+export interface LitStr {
+  readonly tag: 'LitStr';
+  readonly val: string;
+}
+export const LitStr = (val: string): LitStr =>
+  ({ tag: 'LitStr', val });
+
 export type Pat
   = PVar
   | PWildcard
@@ -136,5 +144,7 @@ export const showTerm = (t: Term): string => {
     return `${t.val}`;
   if (t.tag === 'LitChar')
     return `'${JSON.stringify(t.val).slice(1, -1)}'`;
+  if (t.tag === 'LitStr')
+    return JSON.stringify(t.val);
   return impossible('showTerm');
 };

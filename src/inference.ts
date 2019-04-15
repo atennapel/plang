@@ -11,6 +11,7 @@ import { Def, showDef } from './definitions';
 const tBool = TCon('Bool');
 const tNat = TCon('Nat');
 const tChar = TCon('Char');
+const tStr = TCon('Str');
 
 type Expected = Check | Infer;
 interface Check {
@@ -128,6 +129,10 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
   }
   if (term.tag === 'LitChar') {
     instSigma(env, tChar, ex);
+    return;
+  }
+  if (term.tag === 'LitStr') {
+    instSigma(env, tStr, ex);
     return;
   }
   return impossible('tcRho');

@@ -6,6 +6,6 @@ Compile file with `npm start FILENAME`.
 
 TODO
 - positivity check OR general recursion
-- string literals
 - pseudo-typeclass for Show
 - patterns for pairs and sums
+- utf8 instead of js chars

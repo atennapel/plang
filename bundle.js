@@ -184,6 +184,7 @@ const definitions_1 = require("./definitions");
 const tBool = types_1.TCon('Bool');
 const tNat = types_1.TCon('Nat');
 const tChar = types_1.TCon('Char');
+const tStr = types_1.TCon('Str');
 const Check = (type) => ({ tag: 'Check', type });
 const Infer = () => ({ tag: 'Infer', type: null });
 const showEx = (ex) => {
@@ -292,6 +293,10 @@ const tcRho = (env, term, ex) => {
     }
     if (term.tag === 'LitChar') {
         instSigma(env, tChar, ex);
+        return;
+    }
+    if (term.tag === 'LitStr') {
+        instSigma(env, tStr, ex);
         return;
     }
     return util_1.impossible('tcRho');
@@ -681,6 +686,13 @@ exports.termToMachine = (term) => {
         let c = exports.MVar('z');
         for (let i = 0; i < n; i++)
             c = exports.MApp(exports.MVar('s'), c);
+        return c;
+    }
+    if (term.tag === 'LitStr') {
+        const val = term.val;
+        let c = exports.MVar('nil');
+        for (let i = val.length - 1; i >= 0; i--)
+            c = exports.MApp(exports.MApp(exports.MVar('cons'), exports.termToMachine(terms_1.LitChar(val[i]))), c);
         return c;
     }
     return util_1.impossible('termToMachine');
@@ -1185,22 +1197,7 @@ const parseToken = (ts) => {
         }
         case 'ParenT': return parseParens(ts.val);
         case 'StringT': {
-            const val = ts.val;
-            const r = Array(val.length);
-            const l = val.length;
-            for (let i = 0; i < l; i++)
-                r[i] = val.charCodeAt(i);
-            let c = terms_1.Var('nil');
-            const cons = terms_1.Var('cons');
-            const s = terms_1.Var('s');
-            for (let i = l - 1; i >= 0; i--) {
-                const n = r[i];
-                let t = terms_1.Var('z');
-                for (let j = 0; j < n; j++)
-                    t = terms_1.App(s, t);
-                c = terms_1.appFrom([cons, terms_1.appFrom([terms_1.Var('Char'), t]), c]);
-            }
-            return terms_1.App(terms_1.Var('Str'), c);
+            return terms_1.LitStr(ts.val);
         }
         case 'NumberT': {
             const val = ts.val;
@@ -1751,6 +1748,7 @@ exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.If = (cond, ifTrue, ifFalse) => ({ tag: 'If', cond, ifTrue, ifFalse });
 exports.LitNat = (val) => ({ tag: 'LitNat', val });
 exports.LitChar = (val) => ({ tag: 'LitChar', val });
+exports.LitStr = (val) => ({ tag: 'LitStr', val });
 exports.PVar = (name) => ({ tag: 'PVar', name });
 exports.PWildcard = ({ tag: 'PWildcard' });
 exports.PAnn = (pat, type) => ({ tag: 'PAnn', pat, type });
@@ -1783,6 +1781,8 @@ exports.showTerm = (t) => {
         return `${t.val}`;
     if (t.tag === 'LitChar')
         return `'${JSON.stringify(t.val).slice(1, -1)}'`;
+    if (t.tag === 'LitStr')
+        return JSON.stringify(t.val);
     return util_1.impossible('showTerm');
 };
 

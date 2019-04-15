@@ -2,7 +2,7 @@ import { log } from './config';
 import { Kind, KCon, kfunFrom } from './kinds';
 import { Type, TVar, TCon, tFun, tforall, TApp, tfunFrom, tappFrom } from './types';
 import { Name } from './util';
-import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If, LitNat, LitChar } from './terms';
+import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If, LitNat, LitChar, LitStr } from './terms';
 import { Def, DLet, DType } from './definitions';
 import { load, loadPromise } from './import';
 
@@ -319,21 +319,7 @@ const parseToken = (ts: Token): Term => {
     }
     case 'ParenT': return parseParens(ts.val);
     case 'StringT': {
-      const val = ts.val;
-      const r: number[] = Array(val.length);
-      const l = val.length;
-      for (let i = 0; i < l; i++)
-        r[i] = val.charCodeAt(i);
-      let c: Term = Var('nil');
-      const cons = Var('cons');
-      const s = Var('s');
-      for (let i = l - 1; i >= 0; i--) {
-        const n = r[i];
-        let t: Term = Var('z');
-        for (let j = 0; j < n; j++) t = App(s, t);
-        c = appFrom([cons, appFrom([Var('Char'), t]), c]);
-      }
-      return App(Var('Str'), c);
+      return LitStr(ts.val);
     }
     case 'NumberT': {
       const val = ts.val;

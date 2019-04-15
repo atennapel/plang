@@ -1,4 +1,4 @@
-import { Term, Pat } from './terms';
+import { Term, Pat, LitChar } from './terms';
 import { Name, impossible } from './util';
 import { Def } from './definitions';
 
@@ -31,7 +31,16 @@ export const compile = (term: Term): string => {
     const n = term.val.charCodeAt(0);
     let c = 'z';
     for (let i = 0; i < n; i++) c = `s(${c})`;
-    return `Char(c)`;
+    return `Char(${c})`;
+  }
+  if (term.tag === 'LitStr') {
+    const v = term.val;
+    let c = 'nil';
+    for (let i = v.length - 1; i >= 0; i--) {
+      const char = compile(LitChar(v[i]));
+      c = `cons(${char})(${c})`;
+    }
+    return `Str(${c})`;
   }
   return impossible('compile');
 };

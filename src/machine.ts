@@ -1,5 +1,5 @@
 import { Name, impossible } from './util';
-import { Term, Pat, abs } from './terms';
+import { Term, Pat, abs, LitChar } from './terms';
 import { Def } from './definitions';
 import { List, Cons, Nil, filter, first, toString } from './List';
 
@@ -100,6 +100,13 @@ export const termToMachine = (term: Term): MTerm => {
     const n = term.val.charCodeAt(0);
     let c: MTerm = MVar('z');
     for (let i = 0; i < n; i++) c = MApp(MVar('s'), c);
+    return c;
+  }
+  if (term.tag === 'LitStr') {
+    const val = term.val;
+    let c: MTerm = MVar('nil');
+    for (let i = val.length - 1; i >= 0; i--)
+      c = MApp(MApp(MVar('cons'), termToMachine(LitChar(val[i]))), c);
     return c;
   }
   return impossible('termToMachine');
