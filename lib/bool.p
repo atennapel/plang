@@ -1,3 +1,5 @@
+import monoid
+
 type Bool = forall t. t -> t -> t
 let cond (Bool f) = f
 let true = Bool \a b -> a
@@ -7,3 +9,7 @@ let if c a b = (cond c a b) unit
 let not b = if b then false else true
 let or a b = if a then true else b
 let and a b = if a then b else false
+let xor a b = if a then (not b) else b
+
+let monoidOr = monoid false or
+let monoidAnd = monoid true and

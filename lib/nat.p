@@ -1,6 +1,7 @@
 ; parigot-encoded unary natural numbers
 import basic
 import bool
+import monoid
 
 type Nat = forall t. (() -> t) -> (Nat -> t -> t) -> t
 let recNat (Nat f) = f
@@ -16,6 +17,9 @@ let add n m = cataNat n s m
 let mul n m = cataNat n (add m) z
 let sub n m = cataNat m pred n
 let pow n m = cataNat m (mul n) (s z)
+
+let monoidAdd = monoid z add
+let monoidMul = monoid (s z) mul
 
 let isZero n = caseNat n (\() -> true) (\_ -> false)
 let isPositive n = not (isZero n)
