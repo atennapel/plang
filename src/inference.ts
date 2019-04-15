@@ -8,8 +8,9 @@ import { kType, Kind, pruneKind } from './kinds';
 import { log } from './config';
 import { Def, showDef } from './definitions';
 
-const tNat = TCon('Nat');
 const tBool = TCon('Bool');
+const tNat = TCon('Nat');
+const tChar = TCon('Char');
 
 type Expected = Check | Infer;
 interface Check {
@@ -123,6 +124,10 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
   }
   if (term.tag === 'LitNat') {
     instSigma(env, tNat, ex);
+    return;
+  }
+  if (term.tag === 'LitChar') {
+    instSigma(env, tChar, ex);
     return;
   }
   return impossible('tcRho');

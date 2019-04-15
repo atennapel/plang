@@ -27,6 +27,12 @@ export const compile = (term: Term): string => {
     for (let i = 0; i < n; i++) c = `s(${c})`;
     return c;
   }
+  if (term.tag === 'LitChar') {
+    const n = term.val.charCodeAt(0);
+    let c = 'z';
+    for (let i = 0; i < n; i++) c = `s(${c})`;
+    return `Char(c)`;
+  }
   return impossible('compile');
 };
 

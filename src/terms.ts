@@ -8,7 +8,8 @@ export type Term
   | Let
   | Ann
   | If
-  | LitNat;
+  | LitNat
+  | LitChar;
 
 export interface Var {
   readonly tag: 'Var';
@@ -69,6 +70,13 @@ export interface LitNat {
 export const LitNat = (val: number): LitNat =>
   ({ tag: 'LitNat', val });
 
+export interface LitChar {
+  readonly tag: 'LitChar';
+  readonly val: string;
+}
+export const LitChar = (val: string): LitChar =>
+  ({ tag: 'LitChar', val });
+
 export type Pat
   = PVar
   | PWildcard
@@ -126,5 +134,7 @@ export const showTerm = (t: Term): string => {
     return `(if ${showTerm(t.cond)} then ${showTerm(t.ifTrue)} else ${showTerm(t.ifFalse)})`;
   if (t.tag === 'LitNat')
     return `${t.val}`;
+  if (t.tag === 'LitChar')
+    return `'${JSON.stringify(t.val).slice(1, -1)}'`;
   return impossible('showTerm');
 };

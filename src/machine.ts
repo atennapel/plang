@@ -96,6 +96,12 @@ export const termToMachine = (term: Term): MTerm => {
     for (let i = 0; i < n; i++) c = MApp(MVar('s'), c);
     return c;
   }
+  if (term.tag === 'LitChar') {
+    const n = term.val.charCodeAt(0);
+    let c: MTerm = MVar('z');
+    for (let i = 0; i < n; i++) c = MApp(MVar('s'), c);
+    return c;
+  }
   return impossible('termToMachine');
 };
 

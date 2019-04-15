@@ -2,7 +2,7 @@ import { log } from './config';
 import { Kind, KCon, kfunFrom } from './kinds';
 import { Type, TVar, TCon, tFun, tforall, TApp, tfunFrom, tappFrom } from './types';
 import { Name } from './util';
-import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If, LitNat } from './terms';
+import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If, LitNat, LitChar } from './terms';
 import { Def, DLet, DType } from './definitions';
 import { load, loadPromise } from './import';
 
@@ -13,6 +13,7 @@ type Token
   = VarT
   | SymbolT
   | StringT
+  | CharT
   | NumberT
   | ParenT;
 
@@ -24,6 +25,8 @@ const SymbolT = (val: string): SymbolT => ({ tag: 'SymbolT', val });
 const matchSymbolT = (val: string, t: Token): boolean => t.tag === 'SymbolT' && t.val === val;
 interface StringT { readonly tag: 'StringT'; readonly val: string }
 const StringT = (val: string): StringT => ({ tag: 'StringT', val });
+interface CharT { readonly tag: 'CharT'; readonly val: string }
+const CharT = (val: string): CharT => ({ tag: 'CharT', val });
 interface NumberT { readonly tag: 'NumberT'; readonly val: string }
 const NumberT = (val: string): NumberT => ({ tag: 'NumberT', val });
 interface ParenT { readonly tag: 'ParenT'; readonly val: Token[] }
@@ -34,6 +37,7 @@ const showToken = (t: Token): string => {
     case 'SymbolT':
     case 'VarT': return t.val;
     case 'StringT': return JSON.stringify(t.val);
+    case 'CharT': return `'JSON.stringify(t.val).slice(1, -1)'`;
     case 'ParenT': return `(${t.val.map(showToken).join(' ')})`;
     case 'NumberT': return t.val;
   }
@@ -55,15 +59,23 @@ const KEYWORDS_DEF = ['let', 'type', 'import'];
 const KEYWORDS = ['let', 'in', 'if', 'then', 'else'].concat(KEYWORDS_DEF);
 const KEYWORDS_TYPE = ['forall'].concat(KEYWORDS_DEF);
 
+const ESCAPES: { [key: string]: string } = {
+  'n': '\n',
+  't': '\t',
+  'r': '\r',
+};
+
 const START = 0;
 const NAME = 1;
 const STRING = 2;
 const COMMENT = 3;
 const NUMBER = 4;
+const CHAR = 5;
 const tokenize = (sc: string): Token[] => {
   let state = START;
   let r: Token[] = [];
   let t = '';
+  let esc = false;
   let p: Token[][] = [], b: Bracket[] = [];
   for (let i = 0, l = sc.length; i <= l; i++) {
     const c = sc[i] || ' ';
@@ -74,6 +86,7 @@ const tokenize = (sc: string): Token[] => {
       else if (SYM1.indexOf(c) >= 0) r.push(SymbolT(c));
       else if (c === ';') state = COMMENT;
       else if (c === '"') state = STRING;
+      else if (c === "'") state = CHAR;
       else if (/[a-z]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/i.test(c)) t += c, state = NUMBER;
       else if(c === '(') b.push(c), p.push(r), r = [];
@@ -98,8 +111,19 @@ const tokenize = (sc: string): Token[] => {
         t = '', i--, state = START;
       } else t += c;
     } else if (state === STRING) {
-      if (c === '"') {
+      if (esc) { t += ESCAPES[c] || c; esc = false }
+      else if (c === '\\') esc = true;
+      else if (c === '"') {
         r.push(StringT(t));
+        t = '', state = START;
+      } else t += c;
+    } else if (state === CHAR) {
+      if (esc) { t += ESCAPES[c] || c; esc = false }
+      else if (c === '\\') esc = true;
+      else if (c === "'") {
+        if (t.length === 0 || t.length > 1)
+          return err(`invalid char literal: '${JSON.stringify(t).slice(1, -1)}'`);
+        r.push(CharT(t));
         t = '', state = START;
       } else t += c;
     } else if (state === COMMENT) {
@@ -107,7 +131,10 @@ const tokenize = (sc: string): Token[] => {
     }
   }
   if (b.length > 0) return err(`unclosed brackets: ${b.join(' ')}`);
+  if (state === STRING) return err(`unclosed string: "${t}`);
+  if (state === CHAR) return err(`unclosed char: '${t}`)
   if (state !== START) return err('invalid tokenize end state');
+  if (esc) return err(`escape is true after tokenize`);
   return r;
 };
 
@@ -137,10 +164,8 @@ const parseTokenKind = (ts: Token): Kind => {
   log(() => `parseTokenKind ${showToken(ts)}`);
   switch (ts.tag) {
     case 'VarT': return KCon(ts.val);
-    case 'SymbolT': return err(`stuck on ${ts.val}`);
     case 'ParenT': return parseParensKind(ts.val);
-    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
-    case 'NumberT': return err(`stuck on ${ts.val}`);
+    default: return err(`stuck on ${showToken(ts)} in kind`);
   }
 };
 
@@ -183,8 +208,7 @@ const parseTokenType = (ts: Token): Type => {
       return err(`stuck on ${ts.val}`);
     }
     case 'ParenT': return parseParensType(ts.val);
-    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
-    case 'NumberT': return err(`stuck on ${ts.val}`);
+    default: return err(`stuck on ${showToken(ts)} in type`);
   }
 };
 
@@ -195,7 +219,6 @@ const parseTypePat = (ts: Token): [Name, Kind | null][] => {
       if (KEYWORDS_TYPE.indexOf(ts.val) >= 0 || isCon(ts.val)) return err(`stuck on ${ts.val}`);
       return [[ts.val, null]];
     }
-    case 'SymbolT': return err(`stuck on ${ts.val}`);
     case 'ParenT': {
       const parts = splitTokens(ts.val, t => matchSymbolT(':', t));
       if (parts.length !== 2) return err(`invalid use of : in forall argument`);
@@ -207,8 +230,7 @@ const parseTypePat = (ts: Token): [Name, Kind | null][] => {
       const ki = parseParensKind(parts[1]);
       return as.map(x => [x, ki]);
     }
-    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
-    case 'NumberT': return err(`stuck on ${ts.val}`);
+    default: return err(`stuck on ${showToken(ts)} in forall pattern`);
   }
 };
 
@@ -319,6 +341,9 @@ const parseToken = (ts: Token): Term => {
       if (isNaN(n) || n < 0 || !isFinite(n)) return err(`invalid number: ${val}`);
       return LitNat(n);
     }
+    case 'CharT': {
+      return LitChar(ts.val);
+    }
   }
 };
 
@@ -358,8 +383,7 @@ const parsePat = (ts: Token): Pat[] => {
       const ty = parseParensType(a.slice(i));
       return args.map(p => PAnn(p, ty));
     }
-    case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
-    case 'NumberT': return err(`stuck on ${ts.val}`);
+    default: return err(`stuck on ${showToken(ts)} in pattern`);
   }
 };
 

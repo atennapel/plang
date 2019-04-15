@@ -181,8 +181,9 @@ const kindInference_1 = require("./kindInference");
 const kinds_1 = require("./kinds");
 const config_1 = require("./config");
 const definitions_1 = require("./definitions");
-const tNat = types_1.TCon('Nat');
 const tBool = types_1.TCon('Bool');
+const tNat = types_1.TCon('Nat');
+const tChar = types_1.TCon('Char');
 const Check = (type) => ({ tag: 'Check', type });
 const Infer = () => ({ tag: 'Infer', type: null });
 const showEx = (ex) => {
@@ -287,6 +288,10 @@ const tcRho = (env, term, ex) => {
     }
     if (term.tag === 'LitNat') {
         instSigma(env, tNat, ex);
+        return;
+    }
+    if (term.tag === 'LitChar') {
+        instSigma(env, tChar, ex);
         return;
     }
     return util_1.impossible('tcRho');
@@ -671,6 +676,13 @@ exports.termToMachine = (term) => {
             c = exports.MApp(exports.MVar('s'), c);
         return c;
     }
+    if (term.tag === 'LitChar') {
+        const n = term.val.charCodeAt(0);
+        let c = exports.MVar('z');
+        for (let i = 0; i < n; i++)
+            c = exports.MApp(exports.MVar('s'), c);
+        return c;
+    }
     return util_1.impossible('termToMachine');
 };
 exports.Clos = (abs, env) => ({ tag: 'Clos', abs, env });
@@ -839,6 +851,7 @@ const matchVarT = (val, t) => t.tag === 'VarT' && t.val === val;
 const SymbolT = (val) => ({ tag: 'SymbolT', val });
 const matchSymbolT = (val, t) => t.tag === 'SymbolT' && t.val === val;
 const StringT = (val) => ({ tag: 'StringT', val });
+const CharT = (val) => ({ tag: 'CharT', val });
 const NumberT = (val) => ({ tag: 'NumberT', val });
 const ParenT = (val) => ({ tag: 'ParenT', val });
 const showToken = (t) => {
@@ -846,6 +859,7 @@ const showToken = (t) => {
         case 'SymbolT':
         case 'VarT': return t.val;
         case 'StringT': return JSON.stringify(t.val);
+        case 'CharT': return `'JSON.stringify(t.val).slice(1, -1)'`;
         case 'ParenT': return `(${t.val.map(showToken).join(' ')})`;
         case 'NumberT': return t.val;
     }
@@ -863,15 +877,22 @@ const SYM2 = ['->', '<|', '|>', '<<', '>>'];
 const KEYWORDS_DEF = ['let', 'type', 'import'];
 const KEYWORDS = ['let', 'in', 'if', 'then', 'else'].concat(KEYWORDS_DEF);
 const KEYWORDS_TYPE = ['forall'].concat(KEYWORDS_DEF);
+const ESCAPES = {
+    'n': '\n',
+    't': '\t',
+    'r': '\r',
+};
 const START = 0;
 const NAME = 1;
 const STRING = 2;
 const COMMENT = 3;
 const NUMBER = 4;
+const CHAR = 5;
 const tokenize = (sc) => {
     let state = START;
     let r = [];
     let t = '';
+    let esc = false;
     let p = [], b = [];
     for (let i = 0, l = sc.length; i <= l; i++) {
         const c = sc[i] || ' ';
@@ -886,6 +907,8 @@ const tokenize = (sc) => {
                 state = COMMENT;
             else if (c === '"')
                 state = STRING;
+            else if (c === "'")
+                state = CHAR;
             else if (/[a-z]/i.test(c))
                 t += c, state = NAME;
             else if (/[0-9]/i.test(c))
@@ -924,8 +947,30 @@ const tokenize = (sc) => {
                 t += c;
         }
         else if (state === STRING) {
-            if (c === '"') {
+            if (esc) {
+                t += ESCAPES[c] || c;
+                esc = false;
+            }
+            else if (c === '\\')
+                esc = true;
+            else if (c === '"') {
                 r.push(StringT(t));
+                t = '', state = START;
+            }
+            else
+                t += c;
+        }
+        else if (state === CHAR) {
+            if (esc) {
+                t += ESCAPES[c] || c;
+                esc = false;
+            }
+            else if (c === '\\')
+                esc = true;
+            else if (c === "'") {
+                if (t.length === 0 || t.length > 1)
+                    return err(`invalid char literal: '${JSON.stringify(t).slice(1, -1)}'`);
+                r.push(CharT(t));
                 t = '', state = START;
             }
             else
@@ -938,8 +983,14 @@ const tokenize = (sc) => {
     }
     if (b.length > 0)
         return err(`unclosed brackets: ${b.join(' ')}`);
+    if (state === STRING)
+        return err(`unclosed string: "${t}`);
+    if (state === CHAR)
+        return err(`unclosed char: '${t}`);
     if (state !== START)
         return err('invalid tokenize end state');
+    if (esc)
+        return err(`escape is true after tokenize`);
     return r;
 };
 const indexOf = (a, fn) => {
@@ -969,10 +1020,8 @@ const parseTokenKind = (ts) => {
     config_1.log(() => `parseTokenKind ${showToken(ts)}`);
     switch (ts.tag) {
         case 'VarT': return kinds_1.KCon(ts.val);
-        case 'SymbolT': return err(`stuck on ${ts.val}`);
         case 'ParenT': return parseParensKind(ts.val);
-        case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
-        case 'NumberT': return err(`stuck on ${ts.val}`);
+        default: return err(`stuck on ${showToken(ts)} in kind`);
     }
 };
 const parseParensKind = (ts) => {
@@ -1017,8 +1066,7 @@ const parseTokenType = (ts) => {
             return err(`stuck on ${ts.val}`);
         }
         case 'ParenT': return parseParensType(ts.val);
-        case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
-        case 'NumberT': return err(`stuck on ${ts.val}`);
+        default: return err(`stuck on ${showToken(ts)} in type`);
     }
 };
 const parseTypePat = (ts) => {
@@ -1029,7 +1077,6 @@ const parseTypePat = (ts) => {
                 return err(`stuck on ${ts.val}`);
             return [[ts.val, null]];
         }
-        case 'SymbolT': return err(`stuck on ${ts.val}`);
         case 'ParenT': {
             const parts = splitTokens(ts.val, t => matchSymbolT(':', t));
             if (parts.length !== 2)
@@ -1042,8 +1089,7 @@ const parseTypePat = (ts) => {
             const ki = parseParensKind(parts[1]);
             return as.map(x => [x, ki]);
         }
-        case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
-        case 'NumberT': return err(`stuck on ${ts.val}`);
+        default: return err(`stuck on ${showToken(ts)} in forall pattern`);
     }
 };
 const parseParensType = (ts) => {
@@ -1163,6 +1209,9 @@ const parseToken = (ts) => {
                 return err(`invalid number: ${val}`);
             return terms_1.LitNat(n);
         }
+        case 'CharT': {
+            return terms_1.LitChar(ts.val);
+        }
     }
 };
 const parsePat = (ts) => {
@@ -1208,8 +1257,7 @@ const parsePat = (ts) => {
             const ty = parseParensType(a.slice(i));
             return args.map(p => terms_1.PAnn(p, ty));
         }
-        case 'StringT': return err(`stuck on ${JSON.stringify(ts.val)}`);
-        case 'NumberT': return err(`stuck on ${ts.val}`);
+        default: return err(`stuck on ${showToken(ts)} in pattern`);
     }
 };
 const parseParens = (ts) => {
@@ -1702,6 +1750,7 @@ exports.Let = (name, val, body) => ({ tag: 'Let', name, val, body });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.If = (cond, ifTrue, ifFalse) => ({ tag: 'If', cond, ifTrue, ifFalse });
 exports.LitNat = (val) => ({ tag: 'LitNat', val });
+exports.LitChar = (val) => ({ tag: 'LitChar', val });
 exports.PVar = (name) => ({ tag: 'PVar', name });
 exports.PWildcard = ({ tag: 'PWildcard' });
 exports.PAnn = (pat, type) => ({ tag: 'PAnn', pat, type });
@@ -1732,6 +1781,8 @@ exports.showTerm = (t) => {
         return `(if ${exports.showTerm(t.cond)} then ${exports.showTerm(t.ifTrue)} else ${exports.showTerm(t.ifFalse)})`;
     if (t.tag === 'LitNat')
         return `${t.val}`;
+    if (t.tag === 'LitChar')
+        return `'${JSON.stringify(t.val).slice(1, -1)}'`;
     return util_1.impossible('showTerm');
 };
 

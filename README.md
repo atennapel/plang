@@ -6,7 +6,6 @@ Compile file with `npm start FILENAME`.
 
 TODO
 - positivity check OR general recursion
-- char constants
-- string constants
+- string literals
 - pseudo-typeclass for Show
 - patterns for pairs and sums
