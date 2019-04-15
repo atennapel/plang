@@ -37,6 +37,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = {
     debug: false,
     showKinds: false,
+    time: false,
 };
 exports.setConfig = (c) => {
     for (let k in c)
@@ -792,6 +793,8 @@ const step = (state) => {
     }
     return null;
 };
+exports.stepCount = 0;
+exports.resetStepCount = () => { exports.stepCount = 0; };
 exports.steps = (state) => {
     let c = state;
     while (true) {
@@ -799,6 +802,7 @@ exports.steps = (state) => {
         const next = step(c);
         if (!next)
             return c;
+        exports.stepCount++;
         c = next;
     }
 };
@@ -1582,6 +1586,9 @@ const inference_1 = require("./inference");
 const parser_1 = require("./parser");
 const machine_1 = require("./machine");
 const List_1 = require("./List");
+const HELP = `
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t
+`.trim();
 const cenv = {
     importmap: {},
     tenv: env_1.getInitialEnv(),
@@ -1720,6 +1727,8 @@ const _showVal = (v, t) => {
 exports.init = () => { };
 exports.run = (_s, _cb) => {
     try {
+        if (_s === ':help' || _s === ':h')
+            return _cb(HELP);
         if (_s === ':env' || _s === ':e')
             return _cb(env_1.showEnv(cenv.tenv));
         if (_s === ':showkinds' || _s === ':k') {
@@ -1730,6 +1739,10 @@ exports.run = (_s, _cb) => {
             config_1.config.debug = !config_1.config.debug;
             return _cb(`debug: ${config_1.config.debug}`);
         }
+        if (_s === ':time') {
+            config_1.config.time = !config_1.config.time;
+            return _cb(`time: ${config_1.config.time}`);
+        }
         if (_s === ':reset' || _s === ':r') {
             cenv.importmap = {};
             cenv.tenv = env_1.getInitialEnv();
@@ -1739,25 +1752,50 @@ exports.run = (_s, _cb) => {
         _s = _s + '\n';
         if (_s.startsWith(':let ') || _s.startsWith(':type ') || _s.startsWith(':import ')) {
             const _rest = _s.slice(1);
+            let ptime = Date.now();
             parser_1.parseDefs(_rest, cenv.importmap).then(_ds => {
+                ptime = Date.now() - ptime;
+                let itime = Date.now();
                 inference_1.inferDefs(cenv.tenv, _ds);
+                itime = Date.now() - itime;
+                machine_1.resetStepCount();
+                let etime = Date.now();
                 cenv.venv = machine_1.runEnv(_ds, cenv.venv);
-                return _cb(`defined ${_ds.map(d => d.name).join(' ')}`);
+                const esteps = machine_1.stepCount;
+                etime = Date.now() - etime;
+                return _cb(`defined ${_ds.map(d => d.name).join(' ')}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/total:${ptime + itime + etime}ms(${esteps}steps))` : ''}`);
             }).catch(err => _cb(`${err}`, true));
             return;
         }
         if (_s.startsWith(':t')) {
             const _rest = _s.slice(2);
+            let ptime = Date.now();
             const _e = parser_1.parse(_rest);
+            ptime = Date.now() - ptime;
+            let itime = Date.now();
             const _t = inference_1.infer(cenv.tenv, _e);
-            return _cb(types_1.showTy(_t));
+            itime = Date.now() - itime;
+            return _cb(`${types_1.showTy(_t)}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/total:${ptime + itime}ms)` : ''}`);
         }
+        let ptime = Date.now();
         const _e = parser_1.parse(_s);
+        ptime = Date.now() - ptime;
         config_1.log(() => terms_1.showTerm(_e));
+        let itime = Date.now();
         const _t = inference_1.infer(cenv.tenv, _e);
+        itime = Date.now() - itime;
         config_1.log(() => types_1.showTy(_t));
+        machine_1.resetStepCount();
+        let etime = Date.now();
         const _v = machine_1.runVal(_e, cenv.venv);
-        return _cb(`${_showVal(_v, _t)} : ${types_1.showTy(_t)}`);
+        etime = Date.now() - etime;
+        const esteps = machine_1.stepCount;
+        machine_1.resetStepCount();
+        let rtime = Date.now();
+        const rv = _showVal(_v, _t);
+        const rsteps = machine_1.stepCount;
+        rtime = Date.now() - rtime;
+        return _cb(`${rv} : ${types_1.showTy(_t)}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/reification:${rtime}ms(${rsteps}steps)/total:${ptime + itime + etime + rtime}ms(${esteps + rsteps}steps))` : ''}`);
     }
     catch (_err) {
         config_1.log(() => _err);

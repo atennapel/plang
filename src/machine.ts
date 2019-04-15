@@ -218,12 +218,15 @@ const step = (state: State): State | null => {
   }
   return null;
 };
+export let stepCount = 0;
+export const resetStepCount = () => { stepCount = 0 };
 export const steps = (state: State): State => {
   let c = state;
   while (true) {
     // console.log(showState(c));
     const next = step(c);
     if (!next) return c;
+    stepCount++;
     c = next;
   }
 };
