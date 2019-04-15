@@ -10,3 +10,7 @@ TODO
 - patterns for pairs and sums
 - utf8 instead of js chars
 - check that positivity check is correct
+
+PROBLEMS
+- (cataNat n nil cons)
+

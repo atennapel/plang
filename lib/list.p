@@ -6,13 +6,13 @@ import monoid
 import functor
 import nat
 
-type List t = forall r. (() -> r) -> (t -> List t -> r -> r) -> r
+type List t = forall r. (() -> r) -> (t -> List t -> (() -> r) -> r) -> r
 let recList (List f) = f
 let caseList l fn fc = recList l fn (\h t _ -> fc h t)
-let cataList l fn fc = recList l (\() -> fn) (\h _ r -> fc h r)
+let cataList l fn fc = recList l (\() -> fn) (\h _ r -> fc h (r ()))
 
 let nil = List \fn fc -> fn ()
-let cons h t = List \fn fc -> fc h t (recList t fn fc)
+let cons h t = List \fn fc -> fc h t (\() -> recList t fn fc)
 
 let tail l = caseList l (\() -> nil) (\_ t -> t)
 
@@ -32,7 +32,8 @@ let mapList f l = foldr (\h r -> cons (f h) r) nil l
 let functorList = Functor mapList
 
 let repeat n x = cataNat n (cons x) nil
-let range n = reverse (recNat n (\() -> nil) cons)
+let range n = reverse (recNat n (\() -> nil) (\n r -> cons n (r ())))
 
 let sum = foldr add z
 let product = foldr mul (s z)
+
