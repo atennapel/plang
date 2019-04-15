@@ -1,12 +1,13 @@
 import { Type, showTy, TVMap, substTVar, TSkol, isTFun, TFun, prune, tmetas, quantify, tfunFrom, tappFrom, TCon, TVar, tforall } from './types';
 import { impossible, freshTMeta, freshTSkol, terr, resetId, skolemCheck, Name, freshKMeta } from './util';
-import { Env, tmetasEnv, skolemCheckEnv, lookupVar, extendVar, extendVars, lookupTCon } from './env';
+import { Env, tmetasEnv, skolemCheckEnv, lookupVar, extendVar, extendVars, lookupTCon, cloneEnv } from './env';
 import { Term, showTerm, Pat, showPat, abs } from './terms';
 import { unifyTFun, unify } from './unification';
 import { inferKind } from './kindInference';
 import { kType, Kind, pruneKind } from './kinds';
 import { log } from './config';
 import { Def, showDef } from './definitions';
+import { positivityCheck } from './positivity';
 
 const tBool = TCon('Bool');
 const tNat = TCon('Nat');
@@ -242,14 +243,16 @@ export const inferDef = (env: Env, def: Def): void => {
       return terr(`type ${tname} is already defined`);
     if (lookupVar(env, tname))
       return terr(`constructor ${tname} is already defined`);
-    env.tcons[tname] = freshKMeta();
     const t = def.type;
     const tc = TCon(tname);
     const b = tfunFrom([t, tappFrom([tc as Type].concat(def.args.map(([x, _]) => TVar(x))))]);
     const ty = tforall(def.args, b);
-    const ti = inferKind(env, ty);
+    const nenv = cloneEnv(env);
+    nenv.tcons[tname] = freshKMeta();
+    const ti = inferKind(nenv, ty);
+    positivityCheck(tname, ty);
     env.global[tname] = ti;
-    env.tcons[tname] = pruneKind(env.tcons[tname]);
+    env.tcons[tname] = pruneKind(nenv.tcons[tname]);
     return;
   }
   if (def.tag === 'DLet') {

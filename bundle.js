@@ -72,7 +72,7 @@ exports.showDef = (def) => {
     }
 };
 
-},{"./kinds":8,"./terms":12,"./types":13}],4:[function(require,module,exports){
+},{"./kinds":8,"./terms":13,"./types":14}],4:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -127,7 +127,7 @@ const initialEnv = exports.Env({}, {
 exports.getInitialEnv = () => exports.cloneEnv(initialEnv);
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./List":1,"./kinds":8,"./types":13,"./util":15}],5:[function(require,module,exports){
+},{"./List":1,"./kinds":8,"./types":14,"./util":16}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isBrowser = typeof window !== 'undefined';
@@ -169,7 +169,7 @@ exports.restore = () => {
     }
 };
 
-},{"fs":17}],6:[function(require,module,exports){
+},{"fs":18}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -181,6 +181,7 @@ const kindInference_1 = require("./kindInference");
 const kinds_1 = require("./kinds");
 const config_1 = require("./config");
 const definitions_1 = require("./definitions");
+const positivity_1 = require("./positivity");
 const tBool = types_1.TCon('Bool');
 const tNat = types_1.TCon('Nat');
 const tChar = types_1.TCon('Char');
@@ -396,14 +397,16 @@ exports.inferDef = (env, def) => {
             return util_1.terr(`type ${tname} is already defined`);
         if (env_1.lookupVar(env, tname))
             return util_1.terr(`constructor ${tname} is already defined`);
-        env.tcons[tname] = util_1.freshKMeta();
         const t = def.type;
         const tc = types_1.TCon(tname);
         const b = types_1.tfunFrom([t, types_1.tappFrom([tc].concat(def.args.map(([x, _]) => types_1.TVar(x))))]);
         const ty = types_1.tforall(def.args, b);
-        const ti = kindInference_1.inferKind(env, ty);
+        const nenv = env_1.cloneEnv(env);
+        nenv.tcons[tname] = util_1.freshKMeta();
+        const ti = kindInference_1.inferKind(nenv, ty);
+        positivity_1.positivityCheck(tname, ty);
         env.global[tname] = ti;
-        env.tcons[tname] = kinds_1.pruneKind(env.tcons[tname]);
+        env.tcons[tname] = kinds_1.pruneKind(nenv.tcons[tname]);
         return;
     }
     if (def.tag === 'DLet') {
@@ -421,7 +424,7 @@ exports.inferDefs = (env, ds) => {
         exports.inferDef(env, ds[i]);
 };
 
-},{"./config":2,"./definitions":3,"./env":4,"./kindInference":7,"./kinds":8,"./terms":12,"./types":13,"./unification":14,"./util":15}],7:[function(require,module,exports){
+},{"./config":2,"./definitions":3,"./env":4,"./kindInference":7,"./kinds":8,"./positivity":11,"./terms":13,"./types":14,"./unification":15,"./util":16}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -536,7 +539,7 @@ exports.kindOf = (env, t) => {
     return util_1.terr(`unexpected type ${types_1.showTy(t)} in kindOf`);
 };
 
-},{"./env":4,"./kinds":8,"./types":13,"./util":15}],8:[function(require,module,exports){
+},{"./env":4,"./kinds":8,"./types":14,"./util":16}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -598,7 +601,7 @@ exports.eqKind = (a, b) => {
     return false;
 };
 
-},{"./util":15}],9:[function(require,module,exports){
+},{"./util":16}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -840,7 +843,7 @@ const st = mapp(mapp(s, mapp(s, z)), inc, MAtom('Z'));
 steps(State(st));
 */
 
-},{"./List":1,"./terms":12,"./util":15}],10:[function(require,module,exports){
+},{"./List":1,"./terms":13,"./util":16}],10:[function(require,module,exports){
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -1539,7 +1542,36 @@ exports.parseDefs = (sc, map) => {
     return parseParensDefs(ts, map);
 };
 
-},{"./config":2,"./definitions":3,"./import":5,"./kinds":8,"./terms":12,"./types":13}],11:[function(require,module,exports){
+},{"./config":2,"./definitions":3,"./import":5,"./kinds":8,"./terms":13,"./types":14}],11:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const types_1 = require("./types");
+const util_1 = require("./util");
+exports.positivityCheckArg = (c, t, b = true) => {
+    if (types_1.isTFun(t)) {
+        exports.positivityCheckArg(c, t.left.right, !b);
+        exports.positivityCheckArg(c, t.right, b);
+        return;
+    }
+    if (t.tag === 'TApp') {
+        exports.positivityCheckArg(c, t.left, b);
+        exports.positivityCheckArg(c, t.right, b);
+        return;
+    }
+    if (t.tag === 'TCon' && t.name === c) {
+        if (!b)
+            return util_1.terr(`positivity check failed: ${c}`);
+        return;
+    }
+};
+exports.positivityCheck = (c, t) => {
+    const ty = t.tag === 'TForall' ? t.type : t;
+    const args = types_1.flattenTFun(ty).slice(0, -1);
+    for (let i = 0; i < args.length; i++)
+        exports.positivityCheckArg(c, args[i]);
+};
+
+},{"./types":14,"./util":16}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1733,7 +1765,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./List":1,"./config":2,"./env":4,"./inference":6,"./machine":9,"./parser":10,"./terms":12,"./types":13}],12:[function(require,module,exports){
+},{"./List":1,"./config":2,"./env":4,"./inference":6,"./machine":9,"./parser":10,"./terms":13,"./types":14}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1786,7 +1818,7 @@ exports.showTerm = (t) => {
     return util_1.impossible('showTerm');
 };
 
-},{"./types":13,"./util":15}],13:[function(require,module,exports){
+},{"./types":14,"./util":16}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1794,6 +1826,8 @@ const kinds_1 = require("./kinds");
 const config_1 = require("./config");
 exports.TForall = (names, kinds, type) => ({ tag: 'TForall', names, kinds, type });
 exports.tforall = (ns, type) => {
+    if (ns.length === 0)
+        return type;
     const [names, kinds] = ns.reduce((c, [x, k]) => {
         c[0].push(x);
         c[1].push(k);
@@ -1951,7 +1985,7 @@ exports.quantify = (tms, ty) => {
     return exports.TForall(tvs, ks, exports.prune(ty));
 };
 
-},{"./config":2,"./kinds":8,"./util":15}],14:[function(require,module,exports){
+},{"./config":2,"./kinds":8,"./util":16}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -2005,7 +2039,7 @@ exports.unifyTFun = (env, ty) => {
     return fn;
 };
 
-},{"./config":2,"./kindInference":7,"./kinds":8,"./types":13,"./util":15}],15:[function(require,module,exports){
+},{"./config":2,"./kindInference":7,"./kinds":8,"./types":14,"./util":16}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -2031,7 +2065,7 @@ exports.skolemCheck = (sk, ty) => {
         return exports.skolemCheck(sk, ty.type);
 };
 
-},{"./kinds":8,"./types":13}],16:[function(require,module,exports){
+},{"./kinds":8,"./types":14}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -2091,6 +2125,6 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":11}],17:[function(require,module,exports){
+},{"./repl":12}],18:[function(require,module,exports){
 
-},{}]},{},[16]);
+},{}]},{},[17]);

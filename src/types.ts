@@ -1,5 +1,5 @@
 import { Name, Id, impossible } from './util';
-import { Kind, showKind, kType } from './kinds';
+import { Kind, showKind } from './kinds';
 import { log, config } from './config';
 
 export type Type
@@ -22,6 +22,7 @@ export const TForall = (
   type: Type
 ): TForall => ({ tag: 'TForall', names, kinds, type });
 export const tforall = (ns: [Name, Kind | null][], type: Type) => {
+  if (ns.length === 0) return type;
   const [names, kinds] = ns.reduce((c, [x, k]) => {
     c[0].push(x);
     c[1].push(k);
