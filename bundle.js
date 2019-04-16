@@ -301,6 +301,12 @@ const tcRho = (env, term, ex) => {
         instSigma(env, tStr, ex);
         return;
     }
+    if (term.tag === 'Hole') {
+        const ty = util_1.freshTMeta(kinds_1.kType);
+        holes.push([term.name, ty]);
+        instSigma(env, ty, ex);
+        return;
+    }
     return util_1.impossible('tcRho');
 };
 const checkPat = (env, pat, ty) => tcPat(env, pat, Check(ty));
@@ -385,10 +391,15 @@ const instSigma = (env, ty, ex) => {
         return subsCheckRho(env, ty, ex.type);
     ex.type = instantiate(ty);
 };
+let holes;
 exports.infer = (env, term) => {
     config_1.log(() => `infer ${terms_1.showTerm(term)}`);
     util_1.resetId();
-    return types_1.prune(inferSigma(env, term));
+    holes = [];
+    const ty = types_1.prune(inferSigma(env, term));
+    if (holes.length > 0)
+        return util_1.terr(`holes found:\n${holes.map(([n, t]) => `_${n} : ${types_1.showTy(types_1.prune(t))}`).join('\n')}`);
+    return ty;
 };
 exports.inferDef = (env, def) => {
     config_1.log(() => `inferDef ${definitions_1.showDef(def)}`);
@@ -875,10 +886,12 @@ const StringT = (val) => ({ tag: 'StringT', val });
 const CharT = (val) => ({ tag: 'CharT', val });
 const NumberT = (val) => ({ tag: 'NumberT', val });
 const ParenT = (val) => ({ tag: 'ParenT', val });
+const HoleT = (val) => ({ tag: 'HoleT', val });
 const showToken = (t) => {
     switch (t.tag) {
         case 'SymbolT':
         case 'VarT': return t.val;
+        case 'HoleT': return `_${t.val}`;
         case 'StringT': return JSON.stringify(t.val);
         case 'CharT': return `'JSON.stringify(t.val).slice(1, -1)'`;
         case 'ParenT': return `(${t.val.map(showToken).join(' ')})`;
@@ -893,7 +906,7 @@ const matchingBracket = (c) => {
         return '(';
     return err(`invalid bracket: ${c}`);
 };
-const SYM1 = ['\\', ':', '.', '=', '?', '_'];
+const SYM1 = ['\\', ':', '.', '=', '?'];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
 const KEYWORDS_DEF = ['let', 'type', 'import'];
 const KEYWORDS = ['let', 'in', 'if', 'then', 'else'].concat(KEYWORDS_DEF);
@@ -930,7 +943,7 @@ const tokenize = (sc) => {
                 state = STRING;
             else if (c === "'")
                 state = CHAR;
-            else if (/[a-z]/i.test(c))
+            else if (/[\_a-z]/i.test(c))
                 t += c, state = NAME;
             else if (/[0-9]/i.test(c))
                 t += c, state = NUMBER;
@@ -953,7 +966,7 @@ const tokenize = (sc) => {
         }
         else if (state === NAME) {
             if (!/[a-z0-9]/i.test(c)) {
-                r.push(VarT(t));
+                r.push(t === '_' ? SymbolT(t) : t[0] === '_' ? HoleT(t.slice(1)) : VarT(t));
                 t = '', i--, state = START;
             }
             else
@@ -1217,6 +1230,9 @@ const parseToken = (ts) => {
         }
         case 'CharT': {
             return terms_1.LitChar(ts.val);
+        }
+        case 'HoleT': {
+            return terms_1.Hole(ts.val);
         }
     }
 };
@@ -1821,6 +1837,7 @@ exports.If = (cond, ifTrue, ifFalse) => ({ tag: 'If', cond, ifTrue, ifFalse });
 exports.LitNat = (val) => ({ tag: 'LitNat', val });
 exports.LitChar = (val) => ({ tag: 'LitChar', val });
 exports.LitStr = (val) => ({ tag: 'LitStr', val });
+exports.Hole = (name) => ({ tag: 'Hole', name });
 exports.PVar = (name) => ({ tag: 'PVar', name });
 exports.PWildcard = ({ tag: 'PWildcard' });
 exports.PAnn = (pat, type) => ({ tag: 'PAnn', pat, type });
@@ -1855,6 +1872,8 @@ exports.showTerm = (t) => {
         return `'${JSON.stringify(t.val).slice(1, -1)}'`;
     if (t.tag === 'LitStr')
         return JSON.stringify(t.val);
+    if (t.tag === 'Hole')
+        return `_${t.name}`;
     return util_1.impossible('showTerm');
 };
 

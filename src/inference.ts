@@ -136,6 +136,12 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
     instSigma(env, tStr, ex);
     return;
   }
+  if (term.tag === 'Hole') {
+    const ty = freshTMeta(kType);
+    holes.push([term.name, ty]);
+    instSigma(env, ty, ex);
+    return;
+  }
   return impossible('tcRho');
 };
 
@@ -229,10 +235,15 @@ const instSigma = (env: Env, ty: Type, ex: Expected): void => {
   ex.type = instantiate(ty);
 };
 
+let holes: [string, Type][];
 export const infer = (env: Env, term: Term): Type => {
   log(() => `infer ${showTerm(term)}`);
   resetId();
-  return prune(inferSigma(env, term));
+  holes = [];
+  const ty = prune(inferSigma(env, term));
+  if (holes.length > 0)
+    return terr(`holes found:\n${holes.map(([n, t]) => `_${n} : ${showTy(prune(t))}`).join('\n')}`);
+  return ty;
 };
 
 export const inferDef = (env: Env, def: Def): void => {

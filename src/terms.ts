@@ -10,7 +10,8 @@ export type Term
   | If
   | LitNat
   | LitChar
-  | LitStr;
+  | LitStr
+  | Hole;
 
 export interface Var {
   readonly tag: 'Var';
@@ -85,6 +86,13 @@ export interface LitStr {
 export const LitStr = (val: string): LitStr =>
   ({ tag: 'LitStr', val });
 
+export interface Hole {
+  readonly tag: 'Hole';
+  readonly name: string;
+}
+export const Hole = (name: string): Hole =>
+  ({ tag: 'Hole', name });
+
 export type Pat
   = PVar
   | PWildcard
@@ -146,5 +154,7 @@ export const showTerm = (t: Term): string => {
     return `'${JSON.stringify(t.val).slice(1, -1)}'`;
   if (t.tag === 'LitStr')
     return JSON.stringify(t.val);
+  if (t.tag === 'Hole')
+    return `_${t.name}`;
   return impossible('showTerm');
 };

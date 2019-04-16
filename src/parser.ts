@@ -2,7 +2,7 @@ import { log } from './config';
 import { Kind, KCon, kfunFrom } from './kinds';
 import { Type, TVar, TCon, tFun, tforall, TApp, tfunFrom, tappFrom } from './types';
 import { Name } from './util';
-import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If, LitNat, LitChar, LitStr } from './terms';
+import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If, LitNat, LitChar, LitStr, Hole } from './terms';
 import { Def, DLet, DType } from './definitions';
 import { load, loadPromise } from './import';
 
@@ -15,7 +15,8 @@ type Token
   | StringT
   | CharT
   | NumberT
-  | ParenT;
+  | ParenT
+  | HoleT;
 
 interface VarT { readonly tag: 'VarT'; readonly val: string }
 const VarT = (val: string): VarT => ({ tag: 'VarT', val });
@@ -31,11 +32,14 @@ interface NumberT { readonly tag: 'NumberT'; readonly val: string }
 const NumberT = (val: string): NumberT => ({ tag: 'NumberT', val });
 interface ParenT { readonly tag: 'ParenT'; readonly val: Token[] }
 const ParenT = (val: Token[]): ParenT => ({ tag: 'ParenT', val });
+interface HoleT { readonly tag: 'HoleT'; readonly val: string }
+const HoleT = (val: string): HoleT => ({ tag: 'HoleT', val });
 
 const showToken = (t: Token): string => {
   switch (t.tag) {
     case 'SymbolT':
     case 'VarT': return t.val;
+    case 'HoleT': return `_${t.val}`;
     case 'StringT': return JSON.stringify(t.val);
     case 'CharT': return `'JSON.stringify(t.val).slice(1, -1)'`;
     case 'ParenT': return `(${t.val.map(showToken).join(' ')})`;
@@ -51,7 +55,7 @@ const matchingBracket = (c: Bracket): Bracket => {
   return err(`invalid bracket: ${c}`);
 }
 
-const SYM1 = ['\\', ':', '.', '=', '?', '_'];
+const SYM1 = ['\\', ':', '.', '=', '?'];
 const SYM2 = ['->', '<|', '|>', '<<', '>>'];
 
 
@@ -87,7 +91,7 @@ const tokenize = (sc: string): Token[] => {
       else if (c === ';') state = COMMENT;
       else if (c === '"') state = STRING;
       else if (c === "'") state = CHAR;
-      else if (/[a-z]/i.test(c)) t += c, state = NAME;
+      else if (/[\_a-z]/i.test(c)) t += c, state = NAME;
       else if (/[0-9]/i.test(c)) t += c, state = NUMBER;
       else if(c === '(') b.push(c), p.push(r), r = [];
       else if(c === ')') {
@@ -102,7 +106,7 @@ const tokenize = (sc: string): Token[] => {
       else return err(`invalid char ${c} in tokenize`);
     } else if (state === NAME) {
       if (!/[a-z0-9]/i.test(c)) {
-        r.push(VarT(t));
+        r.push(t === '_' ? SymbolT(t) : t[0] === '_' ? HoleT(t.slice(1)) : VarT(t));
         t = '', i--, state = START;
       } else t += c;
     } else if (state === NUMBER) {
@@ -329,6 +333,9 @@ const parseToken = (ts: Token): Term => {
     }
     case 'CharT': {
       return LitChar(ts.val);
+    }
+    case 'HoleT': {
+      return Hole(ts.val);
     }
   }
 };
