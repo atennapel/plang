@@ -5,6 +5,7 @@ Start REPL with `npm start`.
 Compile file with `npm start FILENAME`.
 
 TODO
+- improve holes
 - list literals
 - pseudo-typeclass for Show
 - patterns for pairs and sums

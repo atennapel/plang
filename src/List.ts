@@ -41,5 +41,15 @@ export const each = <T>(l: List<T>, fn: (val: T) => void): void => {
   }
 };
 
+export const toArray = <T, R>(l: List<T>, fn: (val: T) => R): R[] => {
+  let c = l;
+  const r = [];
+  while (c.tag === 'Cons') {
+    r.push(fn(c.head));
+    c = c.tail;
+  }
+  return r;
+};
+
 export const append = <T>(a: List<T>, b: List<T>): List<T> =>
   a.tag === 'Cons' ? Cons(a.head, append(a.tail, b)) : b;

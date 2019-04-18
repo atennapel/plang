@@ -8,6 +8,7 @@ import { kType, Kind, pruneKind } from './kinds';
 import { log } from './config';
 import { Def, showDef } from './definitions';
 import { positivityCheck } from './positivity';
+import { List, toArray } from './List';
 
 const tBool = TCon('Bool');
 const tNat = TCon('Nat');
@@ -138,7 +139,7 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
   }
   if (term.tag === 'Hole') {
     const ty = freshTMeta(kType);
-    holes.push([term.name, ty]);
+    holes.push([term.name, ty, env.local]);
     instSigma(env, ty, ex);
     return;
   }
@@ -235,14 +236,15 @@ const instSigma = (env: Env, ty: Type, ex: Expected): void => {
   ex.type = instantiate(ty);
 };
 
-let holes: [string, Type][];
+let holes: [string, Type, List<[string, Type]>][];
 export const infer = (env: Env, term: Term): Type => {
   log(() => `infer ${showTerm(term)}`);
   resetId();
   holes = [];
-  const ty = prune(inferSigma(env, term));
+  const nty = inferSigma(env, term);
+  const ty = prune(nty);
   if (holes.length > 0)
-    return terr(`holes found:\n${holes.map(([n, t]) => `_${n} : ${showTy(prune(t))}`).join('\n')}`);
+    return terr(`${showTy(ty)}\nholes:\n\n${holes.map(([n, t, e]) => `_${n} : ${showTy(prune(t))}\n${toArray(e, ([x, t]) => `${x} : ${showTy(t)}`).join('\n')}`).join('\n\n')}`);
   return ty;
 };
 

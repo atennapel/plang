@@ -29,6 +29,15 @@ exports.each = (l, fn) => {
         c = c.tail;
     }
 };
+exports.toArray = (l, fn) => {
+    let c = l;
+    const r = [];
+    while (c.tag === 'Cons') {
+        r.push(fn(c.head));
+        c = c.tail;
+    }
+    return r;
+};
 exports.append = (a, b) => a.tag === 'Cons' ? exports.Cons(a.head, exports.append(a.tail, b)) : b;
 
 },{}],2:[function(require,module,exports){
@@ -183,6 +192,7 @@ const kinds_1 = require("./kinds");
 const config_1 = require("./config");
 const definitions_1 = require("./definitions");
 const positivity_1 = require("./positivity");
+const List_1 = require("./List");
 const tBool = types_1.TCon('Bool');
 const tNat = types_1.TCon('Nat');
 const tChar = types_1.TCon('Char');
@@ -303,7 +313,7 @@ const tcRho = (env, term, ex) => {
     }
     if (term.tag === 'Hole') {
         const ty = util_1.freshTMeta(kinds_1.kType);
-        holes.push([term.name, ty]);
+        holes.push([term.name, ty, env.local]);
         instSigma(env, ty, ex);
         return;
     }
@@ -396,9 +406,10 @@ exports.infer = (env, term) => {
     config_1.log(() => `infer ${terms_1.showTerm(term)}`);
     util_1.resetId();
     holes = [];
-    const ty = types_1.prune(inferSigma(env, term));
+    const nty = inferSigma(env, term);
+    const ty = types_1.prune(nty);
     if (holes.length > 0)
-        return util_1.terr(`holes found:\n${holes.map(([n, t]) => `_${n} : ${types_1.showTy(types_1.prune(t))}`).join('\n')}`);
+        return util_1.terr(`${types_1.showTy(ty)}\nholes:\n\n${holes.map(([n, t, e]) => `_${n} : ${types_1.showTy(types_1.prune(t))}\n${List_1.toArray(e, ([x, t]) => `${x} : ${types_1.showTy(t)}`).join('\n')}`).join('\n\n')}`);
     return ty;
 };
 exports.inferDef = (env, def) => {
@@ -436,7 +447,7 @@ exports.inferDefs = (env, ds) => {
         exports.inferDef(env, ds[i]);
 };
 
-},{"./config":2,"./definitions":3,"./env":4,"./kindInference":7,"./kinds":8,"./positivity":11,"./terms":13,"./types":14,"./unification":15,"./util":16}],7:[function(require,module,exports){
+},{"./List":1,"./config":2,"./definitions":3,"./env":4,"./kindInference":7,"./kinds":8,"./positivity":11,"./terms":13,"./types":14,"./unification":15,"./util":16}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1995,6 +2006,8 @@ exports.prune = (ty) => {
 exports.occursTMeta = (x, t) => {
     if (x === t)
         return true;
+    if (t.tag === 'TMeta' && t.type)
+        return exports.occursTMeta(x, t.type);
     if (t.tag === 'TApp')
         return exports.occursTMeta(x, t.left) || exports.occursTMeta(x, t.right);
     if (t.tag === 'TForall')

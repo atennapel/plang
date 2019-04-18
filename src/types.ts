@@ -182,6 +182,8 @@ export const prune = (ty: Type): Type => {
 
 export const occursTMeta = (x: TMeta, t: Type): boolean => {
   if (x === t) return true;
+  if (t.tag === 'TMeta' && t.type)
+    return occursTMeta(x, t.type);
   if (t.tag === 'TApp')
     return occursTMeta(x, t.left) || occursTMeta(x, t.right);
   if (t.tag === 'TForall') return occursTMeta(x, t.type);
