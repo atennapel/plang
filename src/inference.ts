@@ -244,7 +244,7 @@ export const infer = (env: Env, term: Term): Type => {
   const nty = inferSigma(env, term);
   const ty = prune(nty);
   if (holes.length > 0)
-    return terr(`${showTy(ty)}\nholes:\n\n${holes.map(([n, t, e]) => `_${n} : ${showTy(prune(t))}\n${toArray(e, ([x, t]) => `${x} : ${showTy(t)}`).join('\n')}`).join('\n\n')}`);
+    return terr(`${showTy(ty)}\nholes:\n\n${holes.map(([n, t, e]) => `_${n} : ${showTy(prune(t))}\n${toArray(e, ([x, t]) => `${x} : ${showTy(prune(t))}`).join('\n')}`).join('\n\n')}`);
   return ty;
 };
 

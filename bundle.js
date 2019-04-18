@@ -409,7 +409,7 @@ exports.infer = (env, term) => {
     const nty = inferSigma(env, term);
     const ty = types_1.prune(nty);
     if (holes.length > 0)
-        return util_1.terr(`${types_1.showTy(ty)}\nholes:\n\n${holes.map(([n, t, e]) => `_${n} : ${types_1.showTy(types_1.prune(t))}\n${List_1.toArray(e, ([x, t]) => `${x} : ${types_1.showTy(t)}`).join('\n')}`).join('\n\n')}`);
+        return util_1.terr(`${types_1.showTy(ty)}\nholes:\n\n${holes.map(([n, t, e]) => `_${n} : ${types_1.showTy(types_1.prune(t))}\n${List_1.toArray(e, ([x, t]) => `${x} : ${types_1.showTy(types_1.prune(t))}`).join('\n')}`).join('\n\n')}`);
     return ty;
 };
 exports.inferDef = (env, def) => {
