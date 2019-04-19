@@ -22,6 +22,7 @@ import {
   VAtom,
   stepCount,
   resetStepCount,
+  GEnv,
 } from './machine';
 import { Nil, append } from './List';
 import { Name } from './util';
@@ -30,11 +31,11 @@ const HELP = `
   commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf
 `.trim();
 
-export type ReplState = { importmap: ImportMap, tenv: TEnv, venv: Env };
+export type ReplState = { importmap: ImportMap, tenv: TEnv, venv: GEnv };
 const cenv: ReplState = {
   importmap: {},
   tenv: getInitialEnv(),
-  venv: Nil,
+  venv: {},
 };
 
 const _showR = (x: any): string => {
@@ -84,9 +85,8 @@ const matchTApp2 = (t: Type, name: Name): t is TApp =>
 const reify = (v: Val, t: Type): any => {
   if (matchTCon(t, 'Nat')) {
     const cl = v as Clos;
-    const env = append(cl.env, cenv.venv);
-    const st = State(mapp(MVar('cataNat'), cl.abs, MAbs('x', MPairC(MAtom('S'), MVar('x'))), MAtom('Z')), env);
-    let c = stepsVal(st);
+    const st = State(mapp(MVar('cataNat'), cl.abs, MAbs('x', MPairC(MAtom('S'), MVar('x'))), MAtom('Z')), cl.env);
+    let c = stepsVal(st, cenv.venv);
     let n = 0;
     while (c.tag === 'VPair') {
       n++;
@@ -96,9 +96,8 @@ const reify = (v: Val, t: Type): any => {
   }
   if (matchTCon(t, 'Bool')) {
     const cl = v as Clos;
-    const env = append(cl.env, cenv.venv);
-    const st = State(mapp(MVar('cond'), cl.abs, MAtom('T'), MAtom('F')), env);
-    let c = stepsVal(st);
+    const st = State(mapp(MVar('cond'), cl.abs, MAtom('T'), MAtom('F')), cl.env);
+    let c = stepsVal(st, cenv.venv);
     return c.tag === 'VAtom' && c.val === 'T'; 
   }
   if (matchTCon(t, 'Char')) {
@@ -107,9 +106,8 @@ const reify = (v: Val, t: Type): any => {
   }
   if (matchTApp(t, 'List')) {
     const cl = v as Clos;
-    const env = append(cl.env, cenv.venv);
-    const st = State(mapp(MVar('cataList'), cl.abs, MAtom('Nil'), mabs(['h', 'r'], MPairC(MVar('h'), MVar('r')))), env);
-    let c = stepsVal(st);
+    const st = State(mapp(MVar('cataList'), cl.abs, MAtom('Nil'), mabs(['h', 'r'], MPairC(MVar('h'), MVar('r')))), cl.env);
+    let c = stepsVal(st, cenv.venv);
     const r: Val[] = [];
     while (c.tag === 'VPair') {
       r.push(c.left);
@@ -123,16 +121,14 @@ const reify = (v: Val, t: Type): any => {
   }
   if (matchTApp2(t, 'Pair')) {
     const cl = v as Clos;
-    const env = append(cl.env, cenv.venv);
-    const st = State(mapp(cl.abs, mabs(['x', 'y'], MPairC(MVar('x'), MVar('y')))), env);
-    const c = stepsVal(st) as VPair;
+    const st = State(mapp(cl.abs, mabs(['x', 'y'], MPairC(MVar('x'), MVar('y')))), cl.env);
+    const c = stepsVal(st, cenv.venv) as VPair;
     return [c.left, c.right];
   }
   if (matchTApp2(t, 'Sum')) {
     const cl = v as Clos;
-    const env = append(cl.env, cenv.venv);
-    const st = State(mapp(cl.abs, mabs(['x'], MPairC(MAtom('L'), MVar('x'))), mabs(['x'], MPairC(MAtom('R'), MVar('x')))), env);
-    const c = stepsVal(st) as VPair;
+    const st = State(mapp(cl.abs, mabs(['x'], MPairC(MAtom('L'), MVar('x'))), mabs(['x'], MPairC(MAtom('R'), MVar('x')))), cl.env);
+    const c = stepsVal(st, cenv.venv) as VPair;
     const tag = (c.left as VAtom).val;
     return [tag, c.right];
   }
@@ -184,7 +180,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     if (_s === ':reset' || _s === ':r') {
       cenv.importmap = {};
       cenv.tenv = getInitialEnv();
-      cenv.venv = Nil;
+      cenv.venv = {};
       return _cb(`environment reset`);
     }
     _s = _s + '\n';
@@ -198,7 +194,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
         itime = Date.now() - itime;
         resetStepCount();
         let etime = Date.now();
-        cenv.venv = runEnv(_ds, cenv.venv);
+        runEnv(_ds, cenv.venv);
         const esteps = stepCount;
         etime = Date.now() - etime;
         return _cb(`defined ${_ds.map(d => d.name).join(' ')}${config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/total:${ptime+itime+etime}ms(${esteps}steps))` : ''}`);

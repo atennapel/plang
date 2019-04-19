@@ -170,10 +170,12 @@ const makeClos = (term: MAbs, env: Env): Clos => {
   return Clos(term, nenv);
 };
 
-const step = (state: State): State | null => {
+export type GEnv = { [key: string]: Val };
+
+const step = (state: State, global: GEnv): State | null => {
   const { term, env, stack } = state;
   if (term.tag === 'MVar') {
-    const v = lookup(env, term.name);
+    let v = lookup(env, term.name) || global[term.name];
     if (!v) return null;
     if (v.tag === 'Clos') return State(v.abs, v.env, stack);
     return State(v.tag === 'VAtom' ? MAtom(v.val) : MPair(v.left, v.right), env, stack); 
@@ -223,46 +225,44 @@ const step = (state: State): State | null => {
 };
 export let stepCount = 0;
 export const resetStepCount = () => { stepCount = 0 };
-export const steps = (state: State): State => {
+export const steps = (state: State, global: GEnv): State => {
   let c = state;
   while (true) {
     log(() => `${stepCount}: ${showStateMin(c)}`);
-    const next = step(c);
+    const next = step(c, global);
     if (!next) return c;
     stepCount++;
     c = next;
   }
 };
-export const stepsVal = (state: State): Val => {
-  const st = steps(state);
+export const stepsVal = (state: State, global: GEnv): Val => {
+  const st = steps(state, global);
   const t = st.term;
   return t.tag === 'MAtom' ? VAtom(t.val) :
     t.tag === 'MPair' ? VPair(t.left, t.right) :
-    Clos(t as MAbs, st.env);
+    makeClos(t as MAbs, st.env);
 };
-export const runState = (term: Term, env: Env = Nil): State =>
-  steps(State(termToMachine(term), env));
-export const runVal = (term: Term, env: Env = Nil): Val => {
-  const st = runState(term, env);
+export const runState = (term: Term, global: GEnv): State =>
+  steps(State(termToMachine(term)), global);
+export const runVal = (term: Term, global: GEnv): Val => {
+  const st = runState(term, global);
   const t = st.term;
   return t.tag === 'MAtom' ? VAtom(t.val) :
     t.tag === 'MPair' ? VPair(t.left, t.right) :
-    Clos(t as MAbs, st.env);
+    makeClos(t as MAbs, st.env);
 };
-export const runEnv = (defs: Def[], env_: Env = Nil): Env => {
-  let env: Env = env_;
+export const runEnv = (defs: Def[], global: GEnv): void => {
   for (let i = 0, l = defs.length; i < l; i++) {
     const d = defs[i];
     if (d.tag === 'DType') {
-      env = Cons([d.name, Clos(MAbs('x', MVar('x')), Nil)], env); 
+      global[d.name] = Clos(MAbs('x', MVar('x')), Nil);
     } else if (d.tag === 'DLet') {
       const n = d.name;
       const t = abs(d.args, d.term);
-      const v = runVal(t, env);
-      env = Cons([n, v], env);
+      const v = runVal(t, global);
+      global[n] = v;
     }
   }
-  return env;
 };
 
 /*

@@ -761,10 +761,10 @@ const makeClos = (term, env) => {
     const nenv = List_1.filter(env, ([x, _]) => f[x]);
     return exports.Clos(term, nenv);
 };
-const step = (state) => {
+const step = (state, global) => {
     const { term, env, stack } = state;
     if (term.tag === 'MVar') {
-        const v = lookup(env, term.name);
+        let v = lookup(env, term.name) || global[term.name];
         if (!v)
             return null;
         if (v.tag === 'Clos')
@@ -819,47 +819,45 @@ const step = (state) => {
 };
 exports.stepCount = 0;
 exports.resetStepCount = () => { exports.stepCount = 0; };
-exports.steps = (state) => {
+exports.steps = (state, global) => {
     let c = state;
     while (true) {
         config_1.log(() => `${exports.stepCount}: ${exports.showStateMin(c)}`);
-        const next = step(c);
+        const next = step(c, global);
         if (!next)
             return c;
         exports.stepCount++;
         c = next;
     }
 };
-exports.stepsVal = (state) => {
-    const st = exports.steps(state);
+exports.stepsVal = (state, global) => {
+    const st = exports.steps(state, global);
     const t = st.term;
     return t.tag === 'MAtom' ? exports.VAtom(t.val) :
         t.tag === 'MPair' ? exports.VPair(t.left, t.right) :
-            exports.Clos(t, st.env);
+            makeClos(t, st.env);
 };
-exports.runState = (term, env = List_1.Nil) => exports.steps(exports.State(exports.termToMachine(term), env));
-exports.runVal = (term, env = List_1.Nil) => {
-    const st = exports.runState(term, env);
+exports.runState = (term, global) => exports.steps(exports.State(exports.termToMachine(term)), global);
+exports.runVal = (term, global) => {
+    const st = exports.runState(term, global);
     const t = st.term;
     return t.tag === 'MAtom' ? exports.VAtom(t.val) :
         t.tag === 'MPair' ? exports.VPair(t.left, t.right) :
-            exports.Clos(t, st.env);
+            makeClos(t, st.env);
 };
-exports.runEnv = (defs, env_ = List_1.Nil) => {
-    let env = env_;
+exports.runEnv = (defs, global) => {
     for (let i = 0, l = defs.length; i < l; i++) {
         const d = defs[i];
         if (d.tag === 'DType') {
-            env = List_1.Cons([d.name, exports.Clos(exports.MAbs('x', exports.MVar('x')), List_1.Nil)], env);
+            global[d.name] = exports.Clos(exports.MAbs('x', exports.MVar('x')), List_1.Nil);
         }
         else if (d.tag === 'DLet') {
             const n = d.name;
             const t = terms_1.abs(d.args, d.term);
-            const v = exports.runVal(t, env);
-            env = List_1.Cons([n, v], env);
+            const v = exports.runVal(t, global);
+            global[n] = v;
         }
     }
-    return env;
 };
 /*
 // testing
@@ -1614,14 +1612,13 @@ const types_1 = require("./types");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
 const machine_1 = require("./machine");
-const List_1 = require("./List");
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf
 `.trim();
 const cenv = {
     importmap: {},
     tenv: env_1.getInitialEnv(),
-    venv: List_1.Nil,
+    venv: {},
 };
 const _showR = (x) => {
     if (typeof x === 'function')
@@ -1668,9 +1665,8 @@ const matchTApp2 = (t, name) => t.tag === 'TApp' && t.left.tag === 'TApp' && t.l
 const reify = (v, t) => {
     if (matchTCon(t, 'Nat')) {
         const cl = v;
-        const env = List_1.append(cl.env, cenv.venv);
-        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataNat'), cl.abs, machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('S'), machine_1.MVar('x'))), machine_1.MAtom('Z')), env);
-        let c = machine_1.stepsVal(st);
+        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataNat'), cl.abs, machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('S'), machine_1.MVar('x'))), machine_1.MAtom('Z')), cl.env);
+        let c = machine_1.stepsVal(st, cenv.venv);
         let n = 0;
         while (c.tag === 'VPair') {
             n++;
@@ -1680,9 +1676,8 @@ const reify = (v, t) => {
     }
     if (matchTCon(t, 'Bool')) {
         const cl = v;
-        const env = List_1.append(cl.env, cenv.venv);
-        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cond'), cl.abs, machine_1.MAtom('T'), machine_1.MAtom('F')), env);
-        let c = machine_1.stepsVal(st);
+        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cond'), cl.abs, machine_1.MAtom('T'), machine_1.MAtom('F')), cl.env);
+        let c = machine_1.stepsVal(st, cenv.venv);
         return c.tag === 'VAtom' && c.val === 'T';
     }
     if (matchTCon(t, 'Char')) {
@@ -1691,9 +1686,8 @@ const reify = (v, t) => {
     }
     if (matchTApp(t, 'List')) {
         const cl = v;
-        const env = List_1.append(cl.env, cenv.venv);
-        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataList'), cl.abs, machine_1.MAtom('Nil'), machine_1.mabs(['h', 'r'], machine_1.MPairC(machine_1.MVar('h'), machine_1.MVar('r')))), env);
-        let c = machine_1.stepsVal(st);
+        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataList'), cl.abs, machine_1.MAtom('Nil'), machine_1.mabs(['h', 'r'], machine_1.MPairC(machine_1.MVar('h'), machine_1.MVar('r')))), cl.env);
+        let c = machine_1.stepsVal(st, cenv.venv);
         const r = [];
         while (c.tag === 'VPair') {
             r.push(c.left);
@@ -1707,16 +1701,14 @@ const reify = (v, t) => {
     }
     if (matchTApp2(t, 'Pair')) {
         const cl = v;
-        const env = List_1.append(cl.env, cenv.venv);
-        const st = machine_1.State(machine_1.mapp(cl.abs, machine_1.mabs(['x', 'y'], machine_1.MPairC(machine_1.MVar('x'), machine_1.MVar('y')))), env);
-        const c = machine_1.stepsVal(st);
+        const st = machine_1.State(machine_1.mapp(cl.abs, machine_1.mabs(['x', 'y'], machine_1.MPairC(machine_1.MVar('x'), machine_1.MVar('y')))), cl.env);
+        const c = machine_1.stepsVal(st, cenv.venv);
         return [c.left, c.right];
     }
     if (matchTApp2(t, 'Sum')) {
         const cl = v;
-        const env = List_1.append(cl.env, cenv.venv);
-        const st = machine_1.State(machine_1.mapp(cl.abs, machine_1.mabs(['x'], machine_1.MPairC(machine_1.MAtom('L'), machine_1.MVar('x'))), machine_1.mabs(['x'], machine_1.MPairC(machine_1.MAtom('R'), machine_1.MVar('x')))), env);
-        const c = machine_1.stepsVal(st);
+        const st = machine_1.State(machine_1.mapp(cl.abs, machine_1.mabs(['x'], machine_1.MPairC(machine_1.MAtom('L'), machine_1.MVar('x'))), machine_1.mabs(['x'], machine_1.MPairC(machine_1.MAtom('R'), machine_1.MVar('x')))), cl.env);
+        const c = machine_1.stepsVal(st, cenv.venv);
         const tag = c.left.val;
         return [tag, c.right];
     }
@@ -1775,7 +1767,7 @@ exports.run = (_s, _cb) => {
         if (_s === ':reset' || _s === ':r') {
             cenv.importmap = {};
             cenv.tenv = env_1.getInitialEnv();
-            cenv.venv = List_1.Nil;
+            cenv.venv = {};
             return _cb(`environment reset`);
         }
         _s = _s + '\n';
@@ -1789,7 +1781,7 @@ exports.run = (_s, _cb) => {
                 itime = Date.now() - itime;
                 machine_1.resetStepCount();
                 let etime = Date.now();
-                cenv.venv = machine_1.runEnv(_ds, cenv.venv);
+                machine_1.runEnv(_ds, cenv.venv);
                 const esteps = machine_1.stepCount;
                 etime = Date.now() - etime;
                 return _cb(`defined ${_ds.map(d => d.name).join(' ')}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/total:${ptime + itime + etime}ms(${esteps}steps))` : ''}`);
@@ -1853,7 +1845,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./List":1,"./config":2,"./env":4,"./inference":6,"./machine":9,"./parser":10,"./terms":13,"./types":14}],13:[function(require,module,exports){
+},{"./config":2,"./env":4,"./inference":6,"./machine":9,"./parser":10,"./terms":13,"./types":14}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
