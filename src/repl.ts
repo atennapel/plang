@@ -1,6 +1,6 @@
 import { config, log } from './config';
 import { Env as TEnv, showEnv, getInitialEnv } from './env';
-import { showTerm } from './terms';
+import { showTerm, App, LitNat } from './terms';
 import { showTy, Type, TCon, TApp } from './types';
 import { infer, inferDefs } from './inference';
 import { parse, parseDefs, ImportMap } from './parser';
@@ -27,7 +27,7 @@ import { Nil, append } from './List';
 import { Name } from './util';
 
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf
 `.trim();
 
 export type ReplState = { importmap: ImportMap, tenv: TEnv, venv: Env };
@@ -205,8 +205,38 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       }).catch(err => _cb(`${err}`, true));
       return;
     }
-    if (_s.startsWith(':t')) {
-      const _rest = _s.slice(2);
+    if (_s.startsWith(':perf ')) {
+      const rest = _s.slice(6);
+      const p = parse(rest);
+      const res: {
+        val: number,
+        evaltime: number,
+        reify: number,
+        evalSteps: number,
+        reifySteps: number,
+        total: number,
+        totalSteps: number,
+      }[] = [];
+      for (let i = 0; i < 100; i++) {
+        const e = App(p, LitNat(i));
+        const t = infer(cenv.tenv, e);
+        resetStepCount();
+        let et = Date.now();
+        const v = runVal(e, cenv.venv);
+        et = Date.now() - et;
+        const esteps = stepCount;
+        resetStepCount();
+        let vt = Date.now();
+        const r = _showVal(v, t);
+        vt = Date.now() - vt;
+        const vsteps = stepCount;
+        res.push({ val: i, evaltime: et, reify: vt, evalSteps: esteps, reifySteps: vsteps, total: et+vt, totalSteps: esteps+vsteps });
+      }
+      return _cb(res.map(({ val, evaltime, reify, evalSteps, reifySteps, total, totalSteps }) =>
+        [val, evaltime, evalSteps, reify, reifySteps, total, totalSteps].join(',')).join('\n'));
+    }
+    if (_s.startsWith(':t ')) {
+      const _rest = _s.slice(3);
       let ptime = Date.now();
       const _e = parse(_rest);
       ptime = Date.now() - ptime;

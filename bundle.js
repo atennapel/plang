@@ -1796,8 +1796,29 @@ exports.run = (_s, _cb) => {
             }).catch(err => _cb(`${err}`, true));
             return;
         }
-        if (_s.startsWith(':t')) {
-            const _rest = _s.slice(2);
+        if (_s.startsWith(':perf ')) {
+            const rest = _s.slice(6);
+            const p = parser_1.parse(rest);
+            const res = [];
+            for (let i = 0; i < 100; i++) {
+                const e = terms_1.App(p, terms_1.LitNat(i));
+                const t = inference_1.infer(cenv.tenv, e);
+                machine_1.resetStepCount();
+                let et = Date.now();
+                const v = machine_1.runVal(e, cenv.venv);
+                et = Date.now() - et;
+                const esteps = machine_1.stepCount;
+                machine_1.resetStepCount();
+                let vt = Date.now();
+                const r = _showVal(v, t);
+                vt = Date.now() - vt;
+                const vsteps = machine_1.stepCount;
+                res.push({ val: i, evaltime: et, reify: vt, evalSteps: esteps, reifySteps: vsteps, total: et + vt, totalSteps: esteps + vsteps });
+            }
+            return _cb(res.map(({ val, evaltime, reify, evalSteps, reifySteps, total, totalSteps }) => [val, evaltime, evalSteps, reify, reifySteps, total, totalSteps].join(',')).join('\n'));
+        }
+        if (_s.startsWith(':t ')) {
+            const _rest = _s.slice(3);
             let ptime = Date.now();
             const _e = parser_1.parse(_rest);
             ptime = Date.now() - ptime;
