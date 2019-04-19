@@ -83,6 +83,14 @@ export const patToMachine = (pat: Pat): Name => {
   return impossible('patToMachine');
 };
 
+const tZ = MVar('z');
+const tS = MVar('s');
+const tNil = MVar('nil');
+const tCons = MVar('cons');
+const tBZ = MVar('bz');
+const tBT = MVar('bt');
+const tBTI = MVar('bti');
+
 export const termToMachine = (term: Term): MTerm => {
   if (term.tag === 'Var') return MVar(term.name);
   if (term.tag === 'Abs') return MAbs(patToMachine(term.pat), termToMachine(term.body));
@@ -92,22 +100,34 @@ export const termToMachine = (term: Term): MTerm => {
   if (term.tag === 'If')
     return MApp(MApp(MApp(MVar('if'), termToMachine(term.cond)), MAbs('_', termToMachine(term.ifTrue))), MAbs('_', termToMachine(term.ifFalse)));
   if (term.tag === 'LitNat') {
-    const n = term.val;
-    let c: MTerm = MVar('z');
-    for (let i = 0; i < n; i++) c = MApp(MVar('s'), c);
-    return c;
+    if (term.binary) {
+      let n = term.val;
+      const r: MTerm[] = [];
+      while (n > 0) {
+        if (n % 2 === 0) { n /= 2; r.push(tBT) }
+        else { n = (n - 1) / 2; r.push(tBTI) }
+      }
+      let c: MTerm = tBZ;
+      for (let i = r.length - 1; i >= 0; i--) c = MApp(r[i], c);
+      return c;
+    } else {
+      const n = term.val;
+      let c: MTerm = tZ;
+      for (let i = 0; i < n; i++) c = MApp(tS, c);
+      return c;
+    }
   }
   if (term.tag === 'LitChar') {
     const n = term.val.charCodeAt(0);
-    let c: MTerm = MVar('z');
-    for (let i = 0; i < n; i++) c = MApp(MVar('s'), c);
+    let c: MTerm = tZ;
+    for (let i = 0; i < n; i++) c = MApp(tS, c);
     return c;
   }
   if (term.tag === 'LitStr') {
     const val = term.val;
-    let c: MTerm = MVar('nil');
+    let c: MTerm = tNil;
     for (let i = val.length - 1; i >= 0; i--)
-      c = MApp(MApp(MVar('cons'), termToMachine(LitChar(val[i]))), c);
+      c = MApp(MApp(tCons, termToMachine(LitChar(val[i]))), c);
     return c;
   }
   return impossible('termToMachine');

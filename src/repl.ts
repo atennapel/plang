@@ -23,6 +23,7 @@ import {
   stepCount,
   resetStepCount,
   GEnv,
+  showVal,
 } from './machine';
 import { Nil, append } from './List';
 import { Name } from './util';
@@ -94,6 +95,20 @@ const reify = (v: Val, t: Type): any => {
     }
     return n;
   }
+  if (matchTCon(t, 'BNat')) {
+    const cl = v as Clos;
+    const st = State(mapp(MVar('cataBNat'), cl.abs, MAtom('Z'), MAbs('x', MPairC(MAtom('T'), MVar('x'))), MAbs('x', MPairC(MAtom('TI'), MVar('x')))), cl.env);
+    let c = stepsVal(st, cenv.venv);
+    const ar = [];
+    while (c.tag === 'VPair') {
+      let a = (c.left as VAtom).val;
+      ar.push(a === 'T' ? 0 : a === 'TI' ? 1 : 0);
+      c = c.right;
+    }
+    let n = 0;
+    for (let i = ar.length - 1; i >= 0; i--) n = (n * 2) + ar[i];
+    return n;
+  }
   if (matchTCon(t, 'Bool')) {
     const cl = v as Clos;
     const st = State(mapp(MVar('cond'), cl.abs, MAtom('T'), MAtom('F')), cl.env);
@@ -138,6 +153,7 @@ const reify = (v: Val, t: Type): any => {
 const _showVal = (v: Val, t: Type): string => {
   if (matchTCon(t, 'Unit')) return '()';
   if (matchTCon(t, 'Nat')) return `${reify(v, t)}`;
+  if (matchTCon(t, 'BNat')) return `${reify(v, t)}`;
   if (matchTCon(t, 'Bool')) return `${reify(v, t)}`;
   if (matchTCon(t, 'Char')) return `'${JSON.stringify(reify(v, t)).slice(1, -1)}'`;
   if (matchTApp(t, 'List')) return `[${reify(v, t).map((x: Val) => _showVal(x, t.right)).join(', ')}]`;
@@ -214,7 +230,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
         totalSteps: number,
       }[] = [];
       for (let i = 0; i < 100; i++) {
-        const e = App(p, LitNat(i));
+        const e = App(p, LitNat(i, false));
         const t = infer(cenv.tenv, e);
         resetStepCount();
         let et = Date.now();

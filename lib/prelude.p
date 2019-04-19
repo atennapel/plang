@@ -4,5 +4,6 @@ import functor
 import monoid
 import bool
 import nat
+import bnat
 import list
 import str

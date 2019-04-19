@@ -12,6 +12,7 @@ import { List, toArray } from './List';
 
 const tBool = TCon('Bool');
 const tNat = TCon('Nat');
+const tBNat = TCon('BNat');
 const tChar = TCon('Char');
 const tStr = TCon('Str');
 
@@ -126,7 +127,7 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
     }
   }
   if (term.tag === 'LitNat') {
-    instSigma(env, tNat, ex);
+    instSigma(env, term.binary ? tBNat : tNat, ex);
     return;
   }
   if (term.tag === 'LitChar') {

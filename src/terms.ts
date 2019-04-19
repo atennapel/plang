@@ -68,9 +68,10 @@ export const If = (cond: Term, ifTrue: Term, ifFalse: Term): If =>
 export interface LitNat {
   readonly tag: 'LitNat';
   readonly val: number;
+  readonly binary: boolean;
 }
-export const LitNat = (val: number): LitNat =>
-  ({ tag: 'LitNat', val });
+export const LitNat = (val: number, binary: boolean): LitNat =>
+  ({ tag: 'LitNat', val, binary });
 
 export interface LitChar {
   readonly tag: 'LitChar';
@@ -149,7 +150,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'If')
     return `(if ${showTerm(t.cond)} then ${showTerm(t.ifTrue)} else ${showTerm(t.ifFalse)})`;
   if (t.tag === 'LitNat')
-    return `${t.val}`;
+    return `${t.val}${t.binary ? 'b' : ''}`;
   if (t.tag === 'LitChar')
     return `'${JSON.stringify(t.val).slice(1, -1)}'`;
   if (t.tag === 'LitStr')
