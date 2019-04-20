@@ -81,6 +81,22 @@ exports.showDef = (def) => {
         }
     }
 };
+exports.findDef = (ds, name) => {
+    for (let i = ds.length - 1; i >= 0; i--) {
+        const d = ds[i];
+        if (d.tag === 'DLet' && d.name === name)
+            return d;
+    }
+    return null;
+};
+exports.findDefType = (ds, name) => {
+    for (let i = ds.length - 1; i >= 0; i--) {
+        const d = ds[i];
+        if (d.tag === 'DType' && d.name === name)
+            return d;
+    }
+    return null;
+};
 
 },{"./kinds":8,"./terms":13,"./types":14}],4:[function(require,module,exports){
 (function (global){
@@ -1641,13 +1657,15 @@ const types_1 = require("./types");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
 const machine_1 = require("./machine");
+const definitions_1 = require("./definitions");
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype
 `.trim();
 const cenv = {
     importmap: {},
     tenv: env_1.getInitialEnv(),
     venv: {},
+    defs: [],
 };
 const _showR = (x) => {
     if (typeof x === 'function')
@@ -1814,7 +1832,25 @@ exports.run = (_s, _cb) => {
             cenv.importmap = {};
             cenv.tenv = env_1.getInitialEnv();
             cenv.venv = {};
+            cenv.defs = [];
             return _cb(`environment reset`);
+        }
+        if (_s === ':showdefs') {
+            return _cb(cenv.defs.map(definitions_1.showDef).join('\n'));
+        }
+        if (_s.startsWith(':showdef ')) {
+            const name = _s.slice(8).trim();
+            const def = definitions_1.findDef(cenv.defs, name);
+            if (!def)
+                return _cb(`def not found: ${name}`);
+            return _cb(definitions_1.showDef(def));
+        }
+        if (_s.startsWith(':showtype')) {
+            const name = _s.slice(9).trim();
+            const def = definitions_1.findDefType(cenv.defs, name);
+            if (!def)
+                return _cb(`type not found: ${name}`);
+            return _cb(definitions_1.showDef(def));
         }
         _s = _s + '\n';
         if (_s.startsWith(':let ') || _s.startsWith(':type ') || _s.startsWith(':import ')) {
@@ -1827,6 +1863,7 @@ exports.run = (_s, _cb) => {
                 itime = Date.now() - itime;
                 machine_1.resetStepCount();
                 let etime = Date.now();
+                cenv.defs = cenv.defs.concat(_ds);
                 machine_1.runEnv(_ds, cenv.venv);
                 const esteps = machine_1.stepCount;
                 etime = Date.now() - etime;
@@ -1891,7 +1928,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./config":2,"./env":4,"./inference":6,"./machine":9,"./parser":10,"./terms":13,"./types":14}],13:[function(require,module,exports){
+},{"./config":2,"./definitions":3,"./env":4,"./inference":6,"./machine":9,"./parser":10,"./terms":13,"./types":14}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");

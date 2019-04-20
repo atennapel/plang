@@ -41,3 +41,18 @@ export const showDef = (def: Def): string => {
     }
   }
 };
+
+export const findDef = (ds: Def[], name: Name): Def | null => {
+  for (let i = ds.length - 1; i >= 0; i--) {
+    const d = ds[i];
+    if (d.tag === 'DLet' && d.name === name) return d;
+  }
+  return null;
+};
+export const findDefType = (ds: Def[], name: Name): Def | null => {
+  for (let i = ds.length - 1; i >= 0; i--) {
+    const d = ds[i];
+    if (d.tag === 'DType' && d.name === name) return d;
+  }
+  return null;
+};

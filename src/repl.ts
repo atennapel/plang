@@ -27,16 +27,18 @@ import {
 } from './machine';
 import { Nil, append } from './List';
 import { Name } from './util';
+import { Def, showDef, findDef, findDefType } from './definitions';
 
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype
 `.trim();
 
-export type ReplState = { importmap: ImportMap, tenv: TEnv, venv: GEnv };
+export type ReplState = { importmap: ImportMap, tenv: TEnv, venv: GEnv, defs: Def[] };
 const cenv: ReplState = {
   importmap: {},
   tenv: getInitialEnv(),
   venv: {},
+  defs: [],
 };
 
 const _showR = (x: any): string => {
@@ -197,7 +199,23 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       cenv.importmap = {};
       cenv.tenv = getInitialEnv();
       cenv.venv = {};
+      cenv.defs = [];
       return _cb(`environment reset`);
+    }
+    if (_s === ':showdefs') {
+      return _cb(cenv.defs.map(showDef).join('\n'));
+    }
+    if (_s.startsWith(':showdef ')) {
+      const name = _s.slice(8).trim();
+      const def = findDef(cenv.defs, name);
+      if (!def) return _cb(`def not found: ${name}`);
+      return _cb(showDef(def));
+    }
+    if (_s.startsWith(':showtype')) {
+      const name = _s.slice(9).trim();
+      const def = findDefType(cenv.defs, name);
+      if (!def) return _cb(`type not found: ${name}`);
+      return _cb(showDef(def));
     }
     _s = _s + '\n';
     if (_s.startsWith(':let ') || _s.startsWith(':type ') || _s.startsWith(':import ')) {
@@ -210,6 +228,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
         itime = Date.now() - itime;
         resetStepCount();
         let etime = Date.now();
+        cenv.defs = cenv.defs.concat(_ds);
         runEnv(_ds, cenv.venv);
         const esteps = stepCount;
         etime = Date.now() - etime;
