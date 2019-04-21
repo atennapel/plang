@@ -24,7 +24,7 @@ let pred n = recNat n (\() -> bz) (\_ r -> bti (r ())) (\n _ -> caseNat n (\() -
 let succ n = recNat n (\() -> bti bz) (\n _ -> bti n) (\_ r -> bt (r ()))
 
 let iterNat n f x = recNat n (\() -> id) (\_ r -> let rr = r () in comp rr rr) (\_ r -> let rr = r () in comp3 f rr rr) x
-let recCNat n f x = recNat n (\() -> id) (\_ r -> let rr = r () in comp rr rr) (\n r -> let rr = r () in comp3 (f (bti n)) rr rr) x
+let recCNat n f x = snd (iterNat n (\r -> let m = fst r in pair (succ m) (f m (snd r))) (pair bz x))
 
 let add n m = iterNat n succ m
 let mul n m = iterNat n (add m) bz

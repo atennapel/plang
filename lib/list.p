@@ -36,4 +36,3 @@ let range n = reverse (recCNat n (\n r -> cons n r) nil)
 
 let sum = foldr add zero
 let product = foldr mul one
-
