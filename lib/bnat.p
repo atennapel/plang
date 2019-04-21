@@ -20,7 +20,7 @@ let twicePlusOne = bti
 
 let div2 n = caseBNat n (\() -> bz) (\n -> n) (\n -> n) 
 
-let pred n = recBNat n (\() -> bz) (\_ r -> bti (r ())) (\n _ -> bt n)
+let pred n = recBNat n (\() -> bz) (\_ r -> bti (r ())) (\n _ -> caseBNat n (\() -> bz) (\_ -> bt n) (\_ -> bt n))
 let succ n = recBNat n (\() -> bti bz) (\n _ -> bti n) (\_ r -> bt (r ()))
 
 let iterBNat n f x = recBNat n (\() -> id) (\_ r -> let rr = r () in comp rr rr) (\_ r -> let rr = r () in comp3 f rr rr) x

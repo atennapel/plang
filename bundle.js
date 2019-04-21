@@ -881,7 +881,10 @@ exports.stepsVal = (state, global) => {
         t.tag === 'MPair' ? exports.VPair(t.left, t.right) :
             makeClos(t, st.env);
 };
-exports.runState = (term, global) => exports.steps(exports.State(exports.termToMachine(term)), global);
+exports.runState = (term, global) => {
+    const m = exports.termToMachine(term);
+    return exports.steps(exports.State(m), global);
+};
 exports.runVal = (term, global) => {
     const st = exports.runState(term, global);
     const t = st.term;
@@ -1805,8 +1808,9 @@ const _showVal = (v, t) => {
             _showVal(val, t.left.right) : _showVal(val, t.right);
         return `(${tag} ${str})`;
     }
-    if (v.tag === 'Clos')
+    if (v.tag === 'Clos') {
         return `*closure*`;
+    }
     return '?';
 };
 exports.init = () => { };

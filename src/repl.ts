@@ -172,7 +172,9 @@ const _showVal = (v: Val, t: Type): string => {
       _showVal(val, (t.left as any).right) : _showVal(val, t.right);
     return `(${tag} ${str})`;
   }
-  if (v.tag === 'Clos') return `*closure*`;
+  if (v.tag === 'Clos') {
+    return `*closure*`;
+  }
   return '?';
 };
 

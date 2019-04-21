@@ -262,8 +262,10 @@ export const stepsVal = (state: State, global: GEnv): Val => {
     t.tag === 'MPair' ? VPair(t.left, t.right) :
     makeClos(t as MAbs, st.env);
 };
-export const runState = (term: Term, global: GEnv): State =>
-  steps(State(termToMachine(term)), global);
+export const runState = (term: Term, global: GEnv): State => {
+  const m = termToMachine(term);
+  return steps(State(m), global);
+};
 export const runVal = (term: Term, global: GEnv): Val => {
   const st = runState(term, global);
   const t = st.term;
