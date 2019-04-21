@@ -211,7 +211,6 @@ const positivity_1 = require("./positivity");
 const List_1 = require("./List");
 const tBool = types_1.TCon('Bool');
 const tNat = types_1.TCon('Nat');
-const tBNat = types_1.TCon('BNat');
 const tChar = types_1.TCon('Char');
 const tStr = types_1.TCon('Str');
 const Check = (type) => ({ tag: 'Check', type });
@@ -317,7 +316,7 @@ const tcRho = (env, term, ex) => {
         }
     }
     if (term.tag === 'LitNat') {
-        instSigma(env, term.binary ? tBNat : tNat, ex);
+        instSigma(env, tNat, ex);
         return;
     }
     if (term.tag === 'LitChar') {
@@ -726,31 +725,22 @@ exports.termToMachine = (term) => {
     if (term.tag === 'If')
         return exports.MApp(exports.MApp(exports.MApp(exports.MVar('if'), exports.termToMachine(term.cond)), exports.MAbs('_', exports.termToMachine(term.ifTrue))), exports.MAbs('_', exports.termToMachine(term.ifFalse)));
     if (term.tag === 'LitNat') {
-        if (term.binary) {
-            let n = term.val;
-            const r = [];
-            while (n > 0) {
-                if (n % 2 === 0) {
-                    n /= 2;
-                    r.push(tBT);
-                }
-                else {
-                    n = (n - 1) / 2;
-                    r.push(tBTI);
-                }
+        let n = term.val;
+        const r = [];
+        while (n > 0) {
+            if (n % 2 === 0) {
+                n /= 2;
+                r.push(tBT);
             }
-            let c = tBZ;
-            for (let i = r.length - 1; i >= 0; i--)
-                c = exports.MApp(r[i], c);
-            return c;
+            else {
+                n = (n - 1) / 2;
+                r.push(tBTI);
+            }
         }
-        else {
-            const n = term.val;
-            let c = tZ;
-            for (let i = 0; i < n; i++)
-                c = exports.MApp(tS, c);
-            return c;
-        }
+        let c = tBZ;
+        for (let i = r.length - 1; i >= 0; i--)
+            c = exports.MApp(r[i], c);
+        return c;
     }
     if (term.tag === 'LitChar') {
         const n = term.val.charCodeAt(0);
@@ -1279,11 +1269,10 @@ const parseToken = (ts) => {
         }
         case 'NumberT': {
             const val = ts.val;
-            const bin = val[0] === '0';
             const n = parseInt(val, 10);
             if (isNaN(n) || n < 0 || !isFinite(n))
                 return err(`invalid number: ${val}`);
-            return terms_1.LitNat(n, bin);
+            return terms_1.LitNat(n);
         }
         case 'CharT': {
             return terms_1.LitChar(ts.val);
@@ -1713,20 +1702,22 @@ const matchTApp = (t, name) => t.tag === 'TApp' && t.left.tag === 'TCon' && t.le
 const matchTApp2 = (t, name) => t.tag === 'TApp' && t.left.tag === 'TApp' && t.left.left.tag === 'TCon' &&
     t.left.left.name === name;
 const reify = (v, t) => {
+    /*
+    if (matchTCon(t, 'Nat')) {
+      const cl = v as Clos;
+      const st = State(mapp(MVar('cataNat'), cl.abs, MAbs('x', MPairC(MAtom('S'), MVar('x'))), MAtom('Z')), cl.env);
+      let c = stepsVal(st, cenv.venv);
+      let n = 0;
+      while (c.tag === 'VPair') {
+        n++;
+        c = c.right;
+      }
+      return n;
+    }
+    */
     if (matchTCon(t, 'Nat')) {
         const cl = v;
-        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataNat'), cl.abs, machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('S'), machine_1.MVar('x'))), machine_1.MAtom('Z')), cl.env);
-        let c = machine_1.stepsVal(st, cenv.venv);
-        let n = 0;
-        while (c.tag === 'VPair') {
-            n++;
-            c = c.right;
-        }
-        return n;
-    }
-    if (matchTCon(t, 'BNat')) {
-        const cl = v;
-        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataBNat'), cl.abs, machine_1.MAtom('Z'), machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('T'), machine_1.MVar('x'))), machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('TI'), machine_1.MVar('x')))), cl.env);
+        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataNat'), cl.abs, machine_1.MAtom('Z'), machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('T'), machine_1.MVar('x'))), machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('TI'), machine_1.MVar('x')))), cl.env);
         let c = machine_1.stepsVal(st, cenv.venv);
         const ar = [];
         while (c.tag === 'VPair') {
@@ -1785,8 +1776,6 @@ const _showVal = (v, t) => {
     if (matchTCon(t, 'Unit'))
         return '()';
     if (matchTCon(t, 'Nat'))
-        return `${reify(v, t)}`;
-    if (matchTCon(t, 'BNat'))
         return `${reify(v, t)}`;
     if (matchTCon(t, 'Bool'))
         return `${reify(v, t)}`;
@@ -1880,7 +1869,7 @@ exports.run = (_s, _cb) => {
             const p = parser_1.parse(rest);
             const res = [];
             for (let i = 0; i < 100; i++) {
-                const e = terms_1.App(p, terms_1.LitNat(i, false));
+                const e = terms_1.App(p, terms_1.LitNat(i));
                 const t = inference_1.infer(cenv.tenv, e);
                 machine_1.resetStepCount();
                 let et = Date.now();
@@ -1945,7 +1934,7 @@ exports.abs = (ns, body) => ns.reduceRight((x, y) => exports.Abs(y, x), body);
 exports.Let = (name, val, body) => ({ tag: 'Let', name, val, body });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.If = (cond, ifTrue, ifFalse) => ({ tag: 'If', cond, ifTrue, ifFalse });
-exports.LitNat = (val, binary) => ({ tag: 'LitNat', val, binary });
+exports.LitNat = (val) => ({ tag: 'LitNat', val });
 exports.LitChar = (val) => ({ tag: 'LitChar', val });
 exports.LitStr = (val) => ({ tag: 'LitStr', val });
 exports.Hole = (name) => ({ tag: 'Hole', name });
@@ -1978,7 +1967,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'If')
         return `(if ${exports.showTerm(t.cond)} then ${exports.showTerm(t.ifTrue)} else ${exports.showTerm(t.ifFalse)})`;
     if (t.tag === 'LitNat')
-        return `${t.val}${t.binary ? 'b' : ''}`;
+        return `${t.val}`;
     if (t.tag === 'LitChar')
         return `'${JSON.stringify(t.val).slice(1, -1)}'`;
     if (t.tag === 'LitStr')

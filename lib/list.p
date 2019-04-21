@@ -31,9 +31,9 @@ let fold m = foldr (mappend m) (munit m)
 let mapList f l = foldr (\h r -> cons (f h) r) nil l
 let functorList = Functor mapList
 
-let repeat n x = cataNat n (cons x) nil
-let range n = reverse (recNat n (\() -> nil) (\n r -> cons n (r ())))
+let repeat n x = iterNat n (cons x) nil
+let range n = reverse (recCNat n (\n r -> cons n r) nil)
 
-let sum = foldr add z
-let product = foldr mul (s z)
+let sum = foldr add zero
+let product = foldr mul one
 

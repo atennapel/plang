@@ -327,10 +327,9 @@ const parseToken = (ts: Token): Term => {
     }
     case 'NumberT': {
       const val = ts.val;
-      const bin = val[0] === '0';
       const n = parseInt(val, 10);
       if (isNaN(n) || n < 0 || !isFinite(n)) return err(`invalid number: ${val}`);
-      return LitNat(n, bin);
+      return LitNat(n);
     }
     case 'CharT': {
       return LitChar(ts.val);

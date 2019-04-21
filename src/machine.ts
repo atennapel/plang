@@ -100,22 +100,15 @@ export const termToMachine = (term: Term): MTerm => {
   if (term.tag === 'If')
     return MApp(MApp(MApp(MVar('if'), termToMachine(term.cond)), MAbs('_', termToMachine(term.ifTrue))), MAbs('_', termToMachine(term.ifFalse)));
   if (term.tag === 'LitNat') {
-    if (term.binary) {
-      let n = term.val;
-      const r: MTerm[] = [];
-      while (n > 0) {
-        if (n % 2 === 0) { n /= 2; r.push(tBT) }
-        else { n = (n - 1) / 2; r.push(tBTI) }
-      }
-      let c: MTerm = tBZ;
-      for (let i = r.length - 1; i >= 0; i--) c = MApp(r[i], c);
-      return c;
-    } else {
-      const n = term.val;
-      let c: MTerm = tZ;
-      for (let i = 0; i < n; i++) c = MApp(tS, c);
-      return c;
+    let n = term.val;
+    const r: MTerm[] = [];
+    while (n > 0) {
+      if (n % 2 === 0) { n /= 2; r.push(tBT) }
+      else { n = (n - 1) / 2; r.push(tBTI) }
     }
+    let c: MTerm = tBZ;
+    for (let i = r.length - 1; i >= 0; i--) c = MApp(r[i], c);
+    return c;
   }
   if (term.tag === 'LitChar') {
     const n = term.val.charCodeAt(0);
