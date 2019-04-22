@@ -744,10 +744,7 @@ exports.termToMachine = (term) => {
     }
     if (term.tag === 'LitChar') {
         const n = term.val.charCodeAt(0);
-        let c = tZ;
-        for (let i = 0; i < n; i++)
-            c = exports.MApp(tS, c);
-        return c;
+        return exports.termToMachine(terms_1.LitNat(n));
     }
     if (term.tag === 'LitStr') {
         const val = term.val;

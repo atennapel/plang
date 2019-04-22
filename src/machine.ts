@@ -1,5 +1,5 @@
 import { Name, impossible } from './util';
-import { Term, Pat, abs, LitChar } from './terms';
+import { Term, Pat, abs, LitChar, LitNat } from './terms';
 import { Def } from './definitions';
 import { List, Cons, Nil, filter, first, toString } from './List';
 import { log } from './config';
@@ -112,9 +112,7 @@ export const termToMachine = (term: Term): MTerm => {
   }
   if (term.tag === 'LitChar') {
     const n = term.val.charCodeAt(0);
-    let c: MTerm = tZ;
-    for (let i = 0; i < n; i++) c = MApp(tS, c);
-    return c;
+    return termToMachine(LitNat(n));
   }
   if (term.tag === 'LitStr') {
     const val = term.val;

@@ -5,7 +5,6 @@ Start REPL with `npm start`.
 Compile file with `npm start FILENAME`.
 
 TODO
-- fix strings
 - clean up naming in nat.p
 - termination checker/structural recursion
 - list literals
