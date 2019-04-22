@@ -792,7 +792,19 @@ exports.showState = (s) => `State(${exports.showMTerm(s.term)}, ${exports.showEn
 exports.showStateMin = (s) => `State(${exports.showMTerm(s.term)}, ${s.stack.tag === 'Nil' ? '[]' : s.stack.head.tag})`;
 const makeClos = (term, env) => {
     const f = freeMTerm(term);
-    const nenv = List_1.filter(env, ([x, _]) => f[x]);
+    const got = {};
+    const nenv = List_1.filter(env, ([x, _]) => {
+        const free = f[x];
+        if (free) {
+            if (!got[x]) {
+                got[x] = true;
+                return true;
+            }
+            return false;
+        }
+        return false;
+    });
+    // const nenv = filter(env, ([x, _]) => f[x]);
     return exports.Clos(term, nenv);
 };
 const step = (state, global) => {
@@ -1650,8 +1662,10 @@ const inference_1 = require("./inference");
 const parser_1 = require("./parser");
 const machine_1 = require("./machine");
 const definitions_1 = require("./definitions");
+const kinds_1 = require("./kinds");
+const List_1 = require("./List");
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval
 `.trim();
 const cenv = {
     importmap: {},
@@ -1659,6 +1673,14 @@ const cenv = {
     venv: {},
     defs: [],
 };
+const _part = machine_1.MAbs('x', machine_1.MApp(machine_1.MVar('f'), machine_1.MAbs('v', machine_1.MApp(machine_1.MApp(machine_1.MVar('x'), machine_1.MVar('x')), machine_1.MVar('v')))));
+const _ycomb = machine_1.MAbs('f', machine_1.MApp(_part, _part));
+const _yval = machine_1.Clos(_ycomb, List_1.Nil);
+const setupEnv = () => {
+    cenv.tenv.global.unsafeFix = types_1.tforall([['t', kinds_1.kType]], types_1.tfunFrom([types_1.tfunFrom([types_1.TVar('t'), types_1.TVar('t')]), types_1.TVar('t')]));
+    cenv.venv.unsafeFix = _yval;
+};
+setupEnv();
 const _showR = (x) => {
     if (typeof x === 'function')
         return '[Fn]';
@@ -1826,6 +1848,7 @@ exports.run = (_s, _cb) => {
             cenv.tenv = env_1.getInitialEnv();
             cenv.venv = {};
             cenv.defs = [];
+            setupEnv();
             return _cb(`environment reset`);
         }
         if (_s === ':showdefs') {
@@ -1895,6 +1918,18 @@ exports.run = (_s, _cb) => {
             itime = Date.now() - itime;
             return _cb(`${types_1.showTy(_t)}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/total:${ptime + itime}ms)` : ''}`);
         }
+        if (_s.startsWith(':eval ')) {
+            const rest = _s.slice(5);
+            let ptime = Date.now();
+            const _e = parser_1.parse(rest);
+            ptime = Date.now() - ptime;
+            machine_1.resetStepCount();
+            let etime = Date.now();
+            const _v = machine_1.runVal(_e, cenv.venv);
+            etime = Date.now() - etime;
+            const esteps = machine_1.stepCount;
+            return _cb(`${machine_1.showVal(_v)}${config_1.config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
+        }
         let ptime = Date.now();
         const _e = parser_1.parse(_s);
         ptime = Date.now() - ptime;
@@ -1921,7 +1956,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./config":2,"./definitions":3,"./env":4,"./inference":6,"./machine":9,"./parser":10,"./terms":13,"./types":14}],13:[function(require,module,exports){
+},{"./List":1,"./config":2,"./definitions":3,"./env":4,"./inference":6,"./kinds":8,"./machine":9,"./parser":10,"./terms":13,"./types":14}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");

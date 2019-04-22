@@ -179,7 +179,19 @@ export const showStateMin = (s: State): string =>
 
 const makeClos = (term: MAbs, env: Env): Clos => {
   const f = freeMTerm(term);
-  const nenv = filter(env, ([x, _]) => f[x]);
+  const got: { [key: string]: boolean } = {};
+  const nenv = filter(env, ([x, _]) => {
+    const free = f[x];
+    if (free) {
+      if (!got[x]) {
+        got[x] = true;
+        return true;
+      }
+      return false;
+    }
+    return false;
+  });
+  // const nenv = filter(env, ([x, _]) => f[x]);
   return Clos(term, nenv);
 };
 

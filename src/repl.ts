@@ -1,12 +1,11 @@
 import { config, log } from './config';
 import { Env as TEnv, showEnv, getInitialEnv } from './env';
 import { showTerm, App, LitNat } from './terms';
-import { showTy, Type, TCon, TApp } from './types';
+import { showTy, Type, TCon, TApp, tforall, tfunFrom, TVar } from './types';
 import { infer, inferDefs } from './inference';
 import { parse, parseDefs, ImportMap } from './parser';
 import {
   runVal,
-  Env,
   runEnv,
   Val,
   Clos,
@@ -24,13 +23,15 @@ import {
   resetStepCount,
   GEnv,
   showVal,
+  MApp,
 } from './machine';
-import { Nil, append } from './List';
 import { Name } from './util';
 import { Def, showDef, findDef, findDefType } from './definitions';
+import { kType } from './kinds';
+import { Nil } from './List';
 
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval
 `.trim();
 
 export type ReplState = { importmap: ImportMap, tenv: TEnv, venv: GEnv, defs: Def[] };
@@ -40,6 +41,15 @@ const cenv: ReplState = {
   venv: {},
   defs: [],
 };
+
+const _part = MAbs('x', MApp(MVar('f'), MAbs('v', MApp(MApp(MVar('x'), MVar('x')), MVar('v')))));
+const _ycomb = MAbs('f', MApp(_part, _part));
+const _yval = Clos(_ycomb, Nil);
+const setupEnv = () => {
+  cenv.tenv.global.unsafeFix = tforall([['t', kType]], tfunFrom([tfunFrom([TVar('t'), TVar('t')]), TVar('t')]));
+  cenv.venv.unsafeFix = _yval;
+};
+setupEnv();
 
 const _showR = (x: any): string => {
   if (typeof x === 'function') return '[Fn]';
@@ -203,6 +213,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       cenv.tenv = getInitialEnv();
       cenv.venv = {};
       cenv.defs = [];
+      setupEnv();
       return _cb(`environment reset`);
     }
     if (_s === ':showdefs') {
@@ -278,6 +289,18 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       const _t = infer(cenv.tenv, _e);
       itime = Date.now() - itime;
       return _cb(`${showTy(_t)}${config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/total:${ptime+itime}ms)` : ''}`);
+    }
+    if (_s.startsWith(':eval ')) {
+      const rest = _s.slice(5);
+      let ptime = Date.now();
+      const _e = parse(rest);
+      ptime = Date.now() - ptime;
+      resetStepCount();
+      let etime = Date.now();
+      const _v = runVal(_e, cenv.venv);
+      etime = Date.now() - etime;
+      const esteps = stepCount;
+      return _cb(`${showVal(_v)}${config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
     }
     let ptime = Date.now();
     const _e = parse(_s);

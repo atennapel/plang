@@ -11,3 +11,5 @@ let fix f = GR \fix -> fix f
 let fix1 f x = GR \fix -> fix f x
 let fix2 f x y = GR \fix -> fix f x y
 let fix3 f x y z = GR \fix -> fix f x y z
+
+let unsafeRunGR (GR f) = f unsafeFix
