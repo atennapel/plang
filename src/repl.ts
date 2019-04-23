@@ -235,7 +235,8 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     if (_s.startsWith(':let ') || _s.startsWith(':type ') || _s.startsWith(':import ')) {
       const _rest = _s.slice(1);
       let ptime = Date.now();
-      parseDefs(_rest, cenv.importmap).then(_ds => {
+      const importmap = Object.assign({}, cenv.importmap);
+      parseDefs(_rest, importmap).then(_ds => {
         ptime = Date.now() - ptime;
         let itime = Date.now();
         inferDefs(cenv.tenv, _ds);
@@ -246,6 +247,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
         runEnv(_ds, cenv.venv);
         const esteps = stepCount;
         etime = Date.now() - etime;
+        cenv.importmap = importmap;
         return _cb(`defined ${_ds.map(d => d.name).join(' ')}${config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/total:${ptime+itime+etime}ms(${esteps}steps))` : ''}`);
       }).catch(err => _cb(`${err}`, true));
       return;

@@ -31,6 +31,30 @@ let mul n m = iterNat n (add m) bz
 let sub n m = iterNat m pred n
 let pow n m = iterNat m (mul n) (bti bz)
 
+let fastadd = unsafeFix \rec n m ->
+  caseNat n
+    (\() -> m)
+    (\nn -> caseNat m
+      (\() -> n)
+      (\mm -> bt (rec nn mm))
+      (\mm -> bti (rec nn mm)))
+    (\nn -> caseNat m
+      (\() -> n)
+      (\mm -> bti (rec nn mm))
+      (\mm -> succ (bti (rec nn mm))))
+
+let fastmul = unsafeFix \rec n m ->
+  caseNat n
+    (\() -> bz)
+    (\nn -> caseNat m
+      (\() -> bz)
+      (\mm -> bt (bt (rec nn mm)))
+      (\mm -> bt (rec nn m)))
+    (\nn -> caseNat m
+      (\() -> bz)
+      (\mm -> bt (rec mm n))
+      (\mm -> add m (add (bt nn) (bt (bt (rec nn mm))))))
+
 let monoidAdd = monoid bz add
 let monoidMul = monoid (bti bz) mul
 

@@ -1869,7 +1869,8 @@ exports.run = (_s, _cb) => {
         if (_s.startsWith(':let ') || _s.startsWith(':type ') || _s.startsWith(':import ')) {
             const _rest = _s.slice(1);
             let ptime = Date.now();
-            parser_1.parseDefs(_rest, cenv.importmap).then(_ds => {
+            const importmap = Object.assign({}, cenv.importmap);
+            parser_1.parseDefs(_rest, importmap).then(_ds => {
                 ptime = Date.now() - ptime;
                 let itime = Date.now();
                 inference_1.inferDefs(cenv.tenv, _ds);
@@ -1880,6 +1881,7 @@ exports.run = (_s, _cb) => {
                 machine_1.runEnv(_ds, cenv.venv);
                 const esteps = machine_1.stepCount;
                 etime = Date.now() - etime;
+                cenv.importmap = importmap;
                 return _cb(`defined ${_ds.map(d => d.name).join(' ')}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/total:${ptime + itime + etime}ms(${esteps}steps))` : ''}`);
             }).catch(err => _cb(`${err}`, true));
             return;
