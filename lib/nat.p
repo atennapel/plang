@@ -53,7 +53,7 @@ let fastmul = unsafeFix \rec n m ->
     (\nn -> caseNat m
       (\() -> bz)
       (\mm -> bt (rec mm n))
-      (\mm -> add m (add (bt nn) (bt (bt (rec nn mm))))))
+      (\mm -> fastadd m (fastadd (bt nn) (bt (bt (rec nn mm))))))
 
 let monoidAdd = monoid bz add
 let monoidMul = monoid (bti bz) mul
@@ -84,3 +84,5 @@ let divmod n m =
       (pair bz n)
 let div n m = fst (divmod n m)
 let mod n m = snd (divmod n m)
+
+let fac n = iterNat n (\n r -> fastmul (succ n) r) 1
