@@ -1066,7 +1066,7 @@ const tokenize = (sc) => {
         return err(`unclosed string: "${t}`);
     if (state === CHAR)
         return err(`unclosed char: '${t}`);
-    if (state !== START)
+    if (state !== START && state !== COMMENT)
         return err('invalid tokenize end state');
     if (esc)
         return err(`escape is true after tokenize`);

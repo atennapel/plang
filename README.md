@@ -5,6 +5,7 @@ Start REPL with `npm start`.
 Compile file with `npm start FILENAME`.
 
 TODO
+- figure out better division algorithm
 - clean up naming in nat.p
 - termination checker/structural recursion
 - list literals

@@ -14,9 +14,6 @@ let unsafeBT n = Nat \z t ti -> t n
 let BT n = caseBNat n (\() -> BZ) (\_ -> unsafeBT n) (\_ -> unsafeBT n)
 let BTI n = Nat \z t ti -> ti n
 
-let isZero n = caseBNat n (\() -> true) (\_ -> false) (\_ -> false)
-let isPositive n = not (isZero n)
-
 let recBNat = unsafeFix \rec n fz ft fti ->
   caseBNat n fz (\m -> ft m (\() -> rec m fz ft fti)) (\m -> fti m (\() -> rec m fz ft fti))
 let iterBNat n fz ft fti = recBNat n fz (\_ -> ft) (\_ -> fti)
@@ -32,6 +29,10 @@ let zero = BZ
 let one = BTI BZ
 let twice = BT
 let twicePlusOne = BTI
+
+let isZero n = caseBNat n (\() -> true) (\_ -> false) (\_ -> false)
+let isPositive n = not (isZero n)
+let isOne n = caseBNat n (\() -> false) (\_ -> false) isZero
 
 let div2 n = caseBNat n (\() -> zero) id id
 
@@ -111,16 +112,37 @@ let eq = unsafeFix \rec n m ->
       (\mm -> false)
       (\mm -> rec nn mm))
 
-let divmod n m =
-  if isZero m then
-    pair zero zero
-  else
-    iterNat n
-      (\r ->
-        if lt (snd r) m then
-          r
+let div = unsafeFix \rec n m ->
+  caseBNat n
+    (\() -> zero)
+    (\nn -> caseBNat m
+      (\() -> zero)
+      (\mm -> rec nn mm)
+      (\mm ->
+        if isZero mm then
+          n
         else
-          pair (succ (fst r)) (sub (snd r) m))
-      (pair zero n)
-let div n m = fst (divmod n m)
-let mod n m = snd (divmod n m)
+          let rest = sub n m in
+          if isZero rest then
+            zero
+          else
+            succ (rec rest m)))
+    (\nn -> caseBNat m
+      (\() -> zero)
+      (\mm -> rec nn mm)
+      (\mm ->
+        let z = isZero mm in
+        if z then
+          n
+        else
+          if eq nn mm then
+            one
+          else
+            let rest = sub n m in
+            if isZero rest then
+              rec rest m
+            else
+              succ (rec rest m)))
+let mod n m = sub n (mul (div n m) m)
+let divmod n m =
+  (let d = div n m in pair d (sub n (mul d m)))

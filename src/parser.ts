@@ -137,7 +137,8 @@ const tokenize = (sc: string): Token[] => {
   if (b.length > 0) return err(`unclosed brackets: ${b.join(' ')}`);
   if (state === STRING) return err(`unclosed string: "${t}`);
   if (state === CHAR) return err(`unclosed char: '${t}`)
-  if (state !== START) return err('invalid tokenize end state');
+  if (state !== START && state !== COMMENT)
+    return err('invalid tokenize end state');
   if (esc) return err(`escape is true after tokenize`);
   return r;
 };
