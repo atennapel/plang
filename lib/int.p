@@ -31,13 +31,14 @@ let addi a b = caseInt2 a b \a b c d -> makeInt (add a c) (add b d)
 let subi a b = addi a (negi b)
 let muli a b = caseInt2 a b \a b c d -> makeInt (add (mul a c) (mul b d)) (add (mul a d) (mul b c))
 
-let divi a b = caseInt2 a b \a b c d ->
-  (let m = sub c d in
-  if isZero m then
-    let x = sub d c in
-    negi (makeInt (div a x) (div b x))
-  else
-    makeInt (div a m) (div b m))
+let spliti n = caseInt n \a b ->
+  (let m = sub a b in if isZero m then pair true (sub b a) else pair false m)
+
+let divi a b =
+  (let sa = spliti a in
+   let sb = spliti b in
+   (if eqb (fst sa) (fst sb) then id else negi)
+    (nat2int (div (snd sa) (snd sb))))
 let remi n m = subi n (muli (divi n m) m)
 let divremi n m =
   (let d = divi n m in pair d (subi n (muli d m)))
