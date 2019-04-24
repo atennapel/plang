@@ -1,88 +1,107 @@
-; parigot-encoded binary natural numbers
+; scott-encoded binary natural numbers
+; uses unsafeFix
+
 import combinators
 import basic
 import bool
 import monoid
 
-type Nat = forall t. (() -> t) -> (Nat -> (() -> t) -> t) -> (Nat -> (() -> t) -> t) -> t
-let recNat (Nat f) = f
-let caseNat n fz ft fti = recNat n fz (\n _ -> ft n) (\n _ -> fti n)
-let cataNat n fz ft fti = recNat n (\() -> fz) (\_ r -> ft (r ())) (\_ r -> fti (r ()))
+type Nat = forall t. (() -> t) -> (Nat -> t) -> (Nat -> t) -> t
+let caseBNat (Nat f) = f
 
-let bz = Nat \fz ft fti -> fz ()
-let bt n = Nat \fz ft fti -> ft n (\() -> recNat n fz ft fti)
-let bti n = Nat \fz ft fti -> fti n (\() -> recNat n fz ft fti)
+let BZ = Nat \z t ti -> z ()
+let unsafeBT n = Nat \z t ti -> t n
+let BT n = caseBNat n (\() -> BZ) (\_ -> unsafeBT n) (\_ -> unsafeBT n)
+let BTI n = Nat \z t ti -> ti n
 
-let zero = bz
-let one = bti bz
-let twice = bt
-let twicePlusOne = bti
-
-let div2 n = caseNat n (\() -> bz) (\n -> n) (\n -> n) 
-
-let pred n = recNat n (\() -> bz) (\_ r -> bti (r ())) (\n _ -> caseNat n (\() -> bz) (\_ -> bt n) (\_ -> bt n))
-let succ n = recNat n (\() -> bti bz) (\n _ -> bti n) (\_ r -> bt (r ()))
-
-let iterNat n f x = recNat n (\() -> id) (\_ r -> let rr = r () in comp rr rr) (\_ r -> let rr = r () in comp3 f rr rr) x
-let recCNat n f x = snd (iterNat n (\r -> let m = fst r in pair (succ m) (f m (snd r))) (pair bz x))
-
-let add n m = iterNat n succ m
-let mul n m = iterNat n (add m) bz
-let sub n m = iterNat m pred n
-let pow n m = iterNat m (mul n) (bti bz)
-
-let fastadd = unsafeFix \rec n m ->
-  caseNat n
-    (\() -> m)
-    (\nn -> caseNat m
-      (\() -> n)
-      (\mm -> bt (rec nn mm))
-      (\mm -> bti (rec nn mm)))
-    (\nn -> caseNat m
-      (\() -> n)
-      (\mm -> bti (rec nn mm))
-      (\mm -> succ (bti (rec nn mm))))
-
-let fastmul = unsafeFix \rec n m ->
-  caseNat n
-    (\() -> bz)
-    (\nn -> caseNat m
-      (\() -> bz)
-      (\mm -> bt (bt (rec nn mm)))
-      (\mm -> bt (rec nn m)))
-    (\nn -> caseNat m
-      (\() -> bz)
-      (\mm -> bt (rec mm n))
-      (\mm -> fastadd m (fastadd (bt nn) (bt (bt (rec nn mm))))))
-
-let monoidAdd = monoid bz add
-let monoidMul = monoid (bti bz) mul
-
-let isZero n = recNat n (\() -> true) (\_ r -> r ()) (\_ _ -> false)
+let isZero n = caseBNat n (\() -> true) (\_ -> false) (\_ -> false)
 let isPositive n = not (isZero n)
 
-let lteq n m = isZero (sub n m)
-let gteq n m = isZero (sub m n)
-let gt n m = not (lteq n m)
-let lt n m = not (gteq n m)
+let recBNat = unsafeFix \rec n fz ft fti ->
+  caseBNat n fz (\m -> ft m (\() -> rec m fz ft fti)) (\m -> fti m (\() -> rec m fz ft fti))
+let iterBNat n fz ft fti = recBNat n fz (\_ -> ft) (\_ -> fti)
 
-let eq n m = and (lteq n m) (lteq m n)
+; for reification
+let bz = BZ
+let bt = BT
+let bti = BTI
+let cataNat n fz ft fti = recBNat n (\() -> fz) (\_ r -> ft (r ())) (\_ r -> fti (r ()))
+; end
+
+let zero = BZ
+let one = BTI BZ
+let twice = BT
+let twicePlusOne = BTI
+
+let div2 n = caseBNat n (\() -> zero) id id
+
+let succ n = recBNat n (\() -> one) (\n _ -> BTI n) (\_ r -> BT (r ()))
+let pred n = recBNat n (\() -> zero) (\_ r -> BTI (r ())) (\n _ -> BT n)
+
+let iterNat n f x = recBNat n (\() -> id) (\_ r -> let rr = r () in comp rr rr) (\_ r -> let rr = r () in comp3 f rr rr) x
+let recNat n f x = snd (iterNat n (\r -> let m = fst r in pair (succ m) (f m (snd r))) (pair BZ x))
 
 let isEven n = iterNat n not true
 let isOdd n = not (isEven n)
 
-let divmod n m =
-  if isZero m then
-    pair bz bz
-  else
-    iterNat n
-      (\r ->
-        if lt (snd r) m then
-          r
-        else
-          pair (succ (fst r)) (sub (snd r) m))
-      (pair bz n)
-let div n m = fst (divmod n m)
-let mod n m = snd (divmod n m)
+let add = unsafeFix \rec n m ->
+  caseBNat n
+    (\() -> m)
+    (\nn -> caseBNat m
+      (\() -> n)
+      (\mm -> BT (rec nn mm))
+      (\mm -> BTI (rec nn mm)))
+    (\nn -> caseBNat m
+      (\() -> n)
+      (\mm -> BTI (rec nn mm))
+      (\mm -> succ (BTI (rec nn mm))))
 
-let fac n = iterNat n (\n r -> fastmul (succ n) r) 1
+let mul = unsafeFix \rec n m ->
+  caseBNat n
+    (\() -> BZ)
+    (\nn -> caseBNat m
+      (\() -> BZ)
+      (\mm -> BT (BT (rec nn mm)))
+      (\mm -> BT (rec nn m)))
+    (\nn -> caseBNat m
+      (\() -> BZ)
+      (\mm -> BT (rec mm n))
+      (\mm -> add m (add (BT nn) (BT (BT (rec nn mm))))))
+
+let monoidAdd = monoid zero add
+let monoidMul = monoid one mul
+
+let sq n = mul n n
+let pow2 n = iterNat n unsafeBT one
+let fib n = fst (iterNat n (\r -> let m = snd r in pair m (add (fst r) m)) (pair zero one))
+let fac n = recNat n (\n r -> mul (succ n) r) one
+
+let sub = unsafeFix \rec n m ->
+  caseBNat n
+    (\() -> BZ)
+    (\nn -> caseBNat m
+      (\() -> n)
+      (\mm -> BT (rec nn mm))
+      (\mm -> pred (BT (rec nn mm))))
+    (\nn -> caseBNat m
+      (\() -> n)
+      (\mm -> pred (BT (rec (succ nn) mm)))
+      (\mm -> BT (rec nn mm)))
+
+let pow n = unsafeFix \rec m ->
+  caseBNat m
+    (\() -> one)
+    (\mm -> sq (rec mm))
+    (\mm -> mul n (sq (rec mm)))
+
+; divmod
+; div
+; mod
+
+; lt
+; lteq
+; gt
+; gteq
+; eq
+
+
