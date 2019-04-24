@@ -94,10 +94,6 @@ let pow n = unsafeFix \rec m ->
     (\mm -> sq (rec mm))
     (\mm -> mul n (sq (rec mm)))
 
-; divmod
-; div
-; mod
-
 let lteq n m = isZero (sub n m)
 let gteq n m = isZero (sub m n)
 let gt n m = not (lteq n m)
@@ -114,3 +110,17 @@ let eq = unsafeFix \rec n m ->
       (\() -> false)
       (\mm -> false)
       (\mm -> rec nn mm))
+
+let divmod n m =
+  if isZero m then
+    pair zero zero
+  else
+    iterNat n
+      (\r ->
+        if lt (snd r) m then
+          r
+        else
+          pair (succ (fst r)) (sub (snd r) m))
+      (pair zero n)
+let div n m = fst (divmod n m)
+let mod n m = snd (divmod n m)
