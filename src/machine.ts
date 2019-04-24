@@ -1,5 +1,5 @@
 import { Name, impossible } from './util';
-import { Term, Pat, abs, LitChar, LitNat } from './terms';
+import { Term, Pat, abs, LitChar, LitNat, LitInt } from './terms';
 import { Def } from './definitions';
 import { List, Cons, Nil, filter, first, toString } from './List';
 import { log } from './config';
@@ -85,9 +85,11 @@ export const patToMachine = (pat: Pat): Name => {
 
 const tNil = MVar('nil');
 const tCons = MVar('cons');
-const tBZ = MVar('bz');
-const tBT = MVar('bt');
-const tBTI = MVar('bti');
+const tBZ = MVar('BZ');
+const tBT = MVar('unsafeBT');
+const tBTI = MVar('BTI');
+const tMakeInt = MVar('makeInt');
+const tRat = MVar('rat');
 
 export const termToMachine = (term: Term): MTerm => {
   if (term.tag === 'Var') return MVar(term.name);
@@ -107,6 +109,15 @@ export const termToMachine = (term: Term): MTerm => {
     let c: MTerm = tBZ;
     for (let i = r.length - 1; i >= 0; i--) c = MApp(r[i], c);
     return c;
+  }
+  if (term.tag === 'LitInt') {
+    let t = termToMachine(LitNat(term.val));
+    return term.neg ? MApp(MApp(tMakeInt, tBZ), t) : MApp(MApp(tMakeInt, t), tBZ);
+  }
+  if (term.tag === 'LitRat') {
+    const a = termToMachine(LitInt(term.val1, term.neg));
+    const b = termToMachine(LitNat(term.val2));
+    return MApp(MApp(tRat, a), b);
   }
   if (term.tag === 'LitChar') {
     const n = term.val.charCodeAt(0);
@@ -197,7 +208,7 @@ const step = (state: State, global: GEnv): State | null => {
   const { term, env, stack } = state;
   if (term.tag === 'MVar') {
     let v = lookup(env, term.name) || global[term.name];
-    if (!v) return null;
+    if (!v) throw new Error(`undefined var: ${term.name}`);
     if (v.tag === 'Clos') return State(v.abs, v.env, stack);
     return State(v.tag === 'VAtom' ? MAtom(v.val) : MPair(v.left, v.right), env, stack); 
   }

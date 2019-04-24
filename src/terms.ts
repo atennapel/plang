@@ -9,6 +9,8 @@ export type Term
   | Ann
   | If
   | LitNat
+  | LitInt
+  | LitRat
   | LitChar
   | LitStr
   | Hole;
@@ -71,6 +73,23 @@ export interface LitNat {
 }
 export const LitNat = (val: string): LitNat =>
   ({ tag: 'LitNat', val });
+
+export interface LitInt {
+  readonly tag: 'LitInt';
+  readonly val: string;
+  readonly neg: boolean;
+}
+export const LitInt = (val: string, neg: boolean): LitInt =>
+  ({ tag: 'LitInt', val, neg });
+
+export interface LitRat {
+  readonly tag: 'LitRat';
+  readonly val1: string;
+  readonly val2: string;
+  readonly neg: boolean;
+}
+export const LitRat = (val1: string, val2: string, neg: boolean): LitRat =>
+  ({ tag: 'LitRat', val1, val2, neg });
 
 export interface LitChar {
   readonly tag: 'LitChar';
@@ -150,6 +169,10 @@ export const showTerm = (t: Term): string => {
     return `(if ${showTerm(t.cond)} then ${showTerm(t.ifTrue)} else ${showTerm(t.ifFalse)})`;
   if (t.tag === 'LitNat')
     return `${t.val}`;
+  if (t.tag === 'LitInt')
+    return `${t.neg ? '-' : ''}${t.val}`;
+  if (t.tag === 'LitRat')
+    return `${t.neg ? '-' : ''}${t.val1}/${t.val2}`;
   if (t.tag === 'LitChar')
     return `'${JSON.stringify(t.val).slice(1, -1)}'`;
   if (t.tag === 'LitStr')

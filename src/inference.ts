@@ -12,6 +12,8 @@ import { List, toArray } from './List';
 
 const tBool = TCon('Bool');
 const tNat = TCon('Nat');
+const tInt = TCon('Int');
+const tRat = TCon('Rat');
 const tChar = TCon('Char');
 const tStr = TCon('Str');
 
@@ -127,6 +129,14 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
   }
   if (term.tag === 'LitNat') {
     instSigma(env, tNat, ex);
+    return;
+  }
+  if (term.tag === 'LitInt') {
+    instSigma(env, tInt, ex);
+    return;
+  }
+  if (term.tag === 'LitRat') {
+    instSigma(env, tRat, ex);
     return;
   }
   if (term.tag === 'LitChar') {

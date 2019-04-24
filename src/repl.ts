@@ -96,19 +96,6 @@ const matchTApp2 = (t: Type, name: Name): t is TApp =>
   t.tag === 'TApp' && t.left.tag === 'TApp' && t.left.left.tag === 'TCon' &&
     t.left.left.name === name;
 const reify = (v: Val, t: Type): any => {
-  /*
-  if (matchTCon(t, 'Nat')) {
-    const cl = v as Clos;
-    const st = State(mapp(MVar('cataNat'), cl.abs, MAbs('x', MPairC(MAtom('S'), MVar('x'))), MAtom('Z')), cl.env);
-    let c = stepsVal(st, cenv.venv);
-    let n = 0;
-    while (c.tag === 'VPair') {
-      n++;
-      c = c.right;
-    }
-    return n;
-  }
-  */
   if (matchTCon(t, 'Nat')) {
     const cl = v as Clos;
     const st = State(mapp(MVar('cataNat'), cl.abs, MAtom('Z'), MAbs('x', MPairC(MAtom('T'), MVar('x'))), MAbs('x', MPairC(MAtom('TI'), MVar('x')))), cl.env);
@@ -132,6 +119,18 @@ const reify = (v: Val, t: Type): any => {
   if (matchTCon(t, 'Char')) {
     const n = reify(v, TCon('Nat'));
     return String.fromCharCode(n);
+  }
+  if (matchTCon(t, 'Int')) {
+    const [a, b] = reify(v, TApp(TApp(TCon('Pair'), TCon('Nat')), TCon('Nat')));
+    const na = reify(a, TCon('Nat'));
+    const nb = reify(b, TCon('Nat'));
+    return na - nb;
+  }
+  if (matchTCon(t, 'Rat')) {
+    const [a, b] = reify(v, TApp(TApp(TCon('Pair'), TCon('Int')), TCon('Nat')));
+    const na = reify(a, TCon('Int'));
+    const nb = reify(b, TCon('Nat'));
+    return [na, nb + 1n];
   }
   if (matchTApp(t, 'List')) {
     const cl = v as Clos;
@@ -167,6 +166,11 @@ const reify = (v: Val, t: Type): any => {
 const _showVal = (v: Val, t: Type): string => {
   if (matchTCon(t, 'Unit')) return '()';
   if (matchTCon(t, 'Nat')) return `${reify(v, t)}`;
+  if (matchTCon(t, 'Int')) return `${reify(v, t)}`;
+  if (matchTCon(t, 'Rat')) {
+    const [a, b] = reify(v, t);
+    return `${a}/${b}`;
+  }
   if (matchTCon(t, 'Bool')) return `${reify(v, t)}`;
   if (matchTCon(t, 'Char')) return `'${JSON.stringify(reify(v, t)).slice(1, -1)}'`;
   if (matchTApp(t, 'List')) return `[${reify(v, t).map((x: Val) => _showVal(x, t.right)).join(', ')}]`;

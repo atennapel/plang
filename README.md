@@ -6,10 +6,10 @@ Compile file with `npm start FILENAME`.
 
 TODO
 - figure out better division algorithm
-- clean up naming in nat.p
+- fix positivity check
+- implicit conversions: nat -> int, int -> rat
 - termination checker/structural recursion
 - list literals
 - pseudo-typeclass for Show
 - patterns for pairs and sums
 - utf8 instead of js chars
-- check that positivity check is correct

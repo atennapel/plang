@@ -19,11 +19,7 @@ let recBNat = unsafeFix \rec n fz ft fti ->
 let iterBNat n fz ft fti = recBNat n fz (\_ -> ft) (\_ -> fti)
 
 ; for reification
-let bz = BZ
-let bt = BT
-let bti = BTI
 let cataNat n fz ft fti = recBNat n (\() -> fz) (\_ r -> ft (r ())) (\_ r -> fti (r ()))
-; end
 
 let zero = BZ
 let one = BTI BZ
@@ -111,6 +107,13 @@ let eq = unsafeFix \rec n m ->
       (\() -> false)
       (\mm -> false)
       (\mm -> rec nn mm))
+
+let divx n = (unsafeFix \rec n m ->
+  let x = sub n m in
+  if isZero x then
+    zero
+  else
+    succ (rec x m)) (succ n)
 
 let div = unsafeFix \rec n m ->
   caseBNat n

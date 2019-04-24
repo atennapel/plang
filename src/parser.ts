@@ -2,7 +2,7 @@ import { log } from './config';
 import { Kind, KCon, kfunFrom } from './kinds';
 import { Type, TVar, TCon, tFun, tforall, TApp, tfunFrom, tappFrom } from './types';
 import { Name } from './util';
-import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If, LitNat, LitChar, LitStr, Hole } from './terms';
+import { Term, Var, abs, PVar, appFrom, App, Ann, Pat, PWildcard, Let, PAnn, PCon, If, LitNat, LitChar, LitStr, Hole, LitInt, LitRat } from './terms';
 import { Def, DLet, DType } from './definitions';
 import { load, loadPromise } from './import';
 
@@ -105,13 +105,18 @@ const tokenize = (sc: string): Token[] => {
       else if (/\s/.test(c)) continue;
       else return err(`invalid char ${c} in tokenize`);
     } else if (state === NAME) {
-      if (!/[a-z0-9]/i.test(c)) {
-        r.push(t === '_' ? SymbolT(t) : t[0] === '_' ? HoleT(t.slice(1)) : VarT(t));
+      if (!/[a-z0-9\_]/i.test(c)) {
+        if (t === '_') r.push(SymbolT(t));
+        else if (t[0] === '_') {
+          if (/[0-9]/.test(t[1]))
+            r.push(NumberT(t));
+          else r.push(HoleT(t.slice(1)));
+        } else r.push(VarT(t));
         t = '', i--, state = START;
       } else t += c;
     } else if (state === NUMBER) {
-      if (!/[0-9]/.test(c)) {
-        r.push(NumberT(t));
+      if (!/[0-9a-z\_]/i.test(c)) {
+        r.push(NumberT(t.toLowerCase()));
         t = '', i--, state = START;
       } else t += c;
     } else if (state === STRING) {
@@ -327,14 +332,22 @@ const parseToken = (ts: Token): Term => {
       return LitStr(ts.val);
     }
     case 'NumberT': {
-      const val = ts.val;
-      try {
-        const n = BigInt(val);
-        if (n < 0) throw err('');
-      } catch (err) {
-        return err(`invalid number: ${val}`);
+      let val = ts.val;
+      let neg = val[0] === '_';
+      val = (neg ? val.slice(1) : val).replace(/\_/g, '');
+      if (/^[0-9]+$/.test(val)) {
+        if (neg) return err(`natural number cannot be negative: ${ts.val}`);
+        return LitNat(val);
       }
-      return LitNat(val);
+      if (/^[0-9]+i$/.test(val)) {
+        const num = val.slice(0, -1);
+        return LitInt(num, neg);
+      }
+      if (/^[0-9]+r[0-9]*$/.test(val)) {
+        const [a, b] = val.split('r');
+        return LitRat(a, b || '1', neg);
+      }
+      return err(`invalid number: ${ts.val}`);
     }
     case 'CharT': {
       return LitChar(ts.val);

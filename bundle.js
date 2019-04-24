@@ -211,6 +211,8 @@ const positivity_1 = require("./positivity");
 const List_1 = require("./List");
 const tBool = types_1.TCon('Bool');
 const tNat = types_1.TCon('Nat');
+const tInt = types_1.TCon('Int');
+const tRat = types_1.TCon('Rat');
 const tChar = types_1.TCon('Char');
 const tStr = types_1.TCon('Str');
 const Check = (type) => ({ tag: 'Check', type });
@@ -317,6 +319,14 @@ const tcRho = (env, term, ex) => {
     }
     if (term.tag === 'LitNat') {
         instSigma(env, tNat, ex);
+        return;
+    }
+    if (term.tag === 'LitInt') {
+        instSigma(env, tInt, ex);
+        return;
+    }
+    if (term.tag === 'LitRat') {
+        instSigma(env, tRat, ex);
         return;
     }
     if (term.tag === 'LitChar') {
@@ -706,9 +716,11 @@ exports.patToMachine = (pat) => {
 };
 const tNil = exports.MVar('nil');
 const tCons = exports.MVar('cons');
-const tBZ = exports.MVar('bz');
-const tBT = exports.MVar('bt');
-const tBTI = exports.MVar('bti');
+const tBZ = exports.MVar('BZ');
+const tBT = exports.MVar('unsafeBT');
+const tBTI = exports.MVar('BTI');
+const tMakeInt = exports.MVar('makeInt');
+const tRat = exports.MVar('rat');
 exports.termToMachine = (term) => {
     if (term.tag === 'Var')
         return exports.MVar(term.name);
@@ -739,6 +751,15 @@ exports.termToMachine = (term) => {
         for (let i = r.length - 1; i >= 0; i--)
             c = exports.MApp(r[i], c);
         return c;
+    }
+    if (term.tag === 'LitInt') {
+        let t = exports.termToMachine(terms_1.LitNat(term.val));
+        return term.neg ? exports.MApp(exports.MApp(tMakeInt, tBZ), t) : exports.MApp(exports.MApp(tMakeInt, t), tBZ);
+    }
+    if (term.tag === 'LitRat') {
+        const a = exports.termToMachine(terms_1.LitInt(term.val1, term.neg));
+        const b = exports.termToMachine(terms_1.LitNat(term.val2));
+        return exports.MApp(exports.MApp(tRat, a), b);
     }
     if (term.tag === 'LitChar') {
         const n = term.val.charCodeAt(0);
@@ -807,7 +828,7 @@ const step = (state, global) => {
     if (term.tag === 'MVar') {
         let v = lookup(env, term.name) || global[term.name];
         if (!v)
-            return null;
+            throw new Error(`undefined var: ${term.name}`);
         if (v.tag === 'Clos')
             return exports.State(v.abs, v.env, stack);
         return exports.State(v.tag === 'VAtom' ? exports.MAtom(v.val) : exports.MPair(v.left, v.right), env, stack);
@@ -1010,16 +1031,25 @@ const tokenize = (sc) => {
                 return err(`invalid char ${c} in tokenize`);
         }
         else if (state === NAME) {
-            if (!/[a-z0-9]/i.test(c)) {
-                r.push(t === '_' ? SymbolT(t) : t[0] === '_' ? HoleT(t.slice(1)) : VarT(t));
+            if (!/[a-z0-9\_]/i.test(c)) {
+                if (t === '_')
+                    r.push(SymbolT(t));
+                else if (t[0] === '_') {
+                    if (/[0-9]/.test(t[1]))
+                        r.push(NumberT(t));
+                    else
+                        r.push(HoleT(t.slice(1)));
+                }
+                else
+                    r.push(VarT(t));
                 t = '', i--, state = START;
             }
             else
                 t += c;
         }
         else if (state === NUMBER) {
-            if (!/[0-9]/.test(c)) {
-                r.push(NumberT(t));
+            if (!/[0-9a-z\_]/i.test(c)) {
+                r.push(NumberT(t.toLowerCase()));
                 t = '', i--, state = START;
             }
             else
@@ -1267,16 +1297,23 @@ const parseToken = (ts) => {
             return terms_1.LitStr(ts.val);
         }
         case 'NumberT': {
-            const val = ts.val;
-            try {
-                const n = BigInt(val);
-                if (n < 0)
-                    throw err('');
+            let val = ts.val;
+            let neg = val[0] === '_';
+            val = (neg ? val.slice(1) : val).replace(/\_/g, '');
+            if (/^[0-9]+$/.test(val)) {
+                if (neg)
+                    return err(`natural number cannot be negative: ${ts.val}`);
+                return terms_1.LitNat(val);
             }
-            catch (err) {
-                return err(`invalid number: ${val}`);
+            if (/^[0-9]+i$/.test(val)) {
+                const num = val.slice(0, -1);
+                return terms_1.LitInt(num, neg);
             }
-            return terms_1.LitNat(val);
+            if (/^[0-9]+r[0-9]*$/.test(val)) {
+                const [a, b] = val.split('r');
+                return terms_1.LitRat(a, b || '1', neg);
+            }
+            return err(`invalid number: ${ts.val}`);
         }
         case 'CharT': {
             return terms_1.LitChar(ts.val);
@@ -1716,19 +1753,6 @@ const matchTApp = (t, name) => t.tag === 'TApp' && t.left.tag === 'TCon' && t.le
 const matchTApp2 = (t, name) => t.tag === 'TApp' && t.left.tag === 'TApp' && t.left.left.tag === 'TCon' &&
     t.left.left.name === name;
 const reify = (v, t) => {
-    /*
-    if (matchTCon(t, 'Nat')) {
-      const cl = v as Clos;
-      const st = State(mapp(MVar('cataNat'), cl.abs, MAbs('x', MPairC(MAtom('S'), MVar('x'))), MAtom('Z')), cl.env);
-      let c = stepsVal(st, cenv.venv);
-      let n = 0;
-      while (c.tag === 'VPair') {
-        n++;
-        c = c.right;
-      }
-      return n;
-    }
-    */
     if (matchTCon(t, 'Nat')) {
         const cl = v;
         const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataNat'), cl.abs, machine_1.MAtom('Z'), machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('T'), machine_1.MVar('x'))), machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('TI'), machine_1.MVar('x')))), cl.env);
@@ -1753,6 +1777,18 @@ const reify = (v, t) => {
     if (matchTCon(t, 'Char')) {
         const n = reify(v, types_1.TCon('Nat'));
         return String.fromCharCode(n);
+    }
+    if (matchTCon(t, 'Int')) {
+        const [a, b] = reify(v, types_1.TApp(types_1.TApp(types_1.TCon('Pair'), types_1.TCon('Nat')), types_1.TCon('Nat')));
+        const na = reify(a, types_1.TCon('Nat'));
+        const nb = reify(b, types_1.TCon('Nat'));
+        return na - nb;
+    }
+    if (matchTCon(t, 'Rat')) {
+        const [a, b] = reify(v, types_1.TApp(types_1.TApp(types_1.TCon('Pair'), types_1.TCon('Int')), types_1.TCon('Nat')));
+        const na = reify(a, types_1.TCon('Int'));
+        const nb = reify(b, types_1.TCon('Nat'));
+        return [na, nb + 1n];
     }
     if (matchTApp(t, 'List')) {
         const cl = v;
@@ -1791,6 +1827,12 @@ const _showVal = (v, t) => {
         return '()';
     if (matchTCon(t, 'Nat'))
         return `${reify(v, t)}`;
+    if (matchTCon(t, 'Int'))
+        return `${reify(v, t)}`;
+    if (matchTCon(t, 'Rat')) {
+        const [a, b] = reify(v, t);
+        return `${a}/${b}`;
+    }
     if (matchTCon(t, 'Bool'))
         return `${reify(v, t)}`;
     if (matchTCon(t, 'Char'))
@@ -1943,6 +1985,8 @@ exports.Let = (name, val, body) => ({ tag: 'Let', name, val, body });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.If = (cond, ifTrue, ifFalse) => ({ tag: 'If', cond, ifTrue, ifFalse });
 exports.LitNat = (val) => ({ tag: 'LitNat', val });
+exports.LitInt = (val, neg) => ({ tag: 'LitInt', val, neg });
+exports.LitRat = (val1, val2, neg) => ({ tag: 'LitRat', val1, val2, neg });
 exports.LitChar = (val) => ({ tag: 'LitChar', val });
 exports.LitStr = (val) => ({ tag: 'LitStr', val });
 exports.Hole = (name) => ({ tag: 'Hole', name });
@@ -1976,6 +2020,10 @@ exports.showTerm = (t) => {
         return `(if ${exports.showTerm(t.cond)} then ${exports.showTerm(t.ifTrue)} else ${exports.showTerm(t.ifFalse)})`;
     if (t.tag === 'LitNat')
         return `${t.val}`;
+    if (t.tag === 'LitInt')
+        return `${t.neg ? '-' : ''}${t.val}`;
+    if (t.tag === 'LitRat')
+        return `${t.neg ? '-' : ''}${t.val1}/${t.val2}`;
     if (t.tag === 'LitChar')
         return `'${JSON.stringify(t.val).slice(1, -1)}'`;
     if (t.tag === 'LitStr')
