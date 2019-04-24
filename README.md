@@ -5,6 +5,7 @@ Start REPL with `npm start`.
 Compile file with `npm start FILENAME`.
 
 TODO
+- fix `divremi (makeInt 64 13) 64i`
 - fix positivity check
 - implicit conversions: nat -> int, int -> rat
 - termination checker/structural recursion

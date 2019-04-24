@@ -133,6 +133,6 @@ let div = unsafeFix \rec n m ->
           n
         else
           divOdd n m))
-let mod n m = sub n (mul (div n m) m)
-let divmod n m =
+let rem n m = sub n (mul (div n m) m)
+let divrem n m =
   (let d = div n m in pair d (sub n (mul d m)))

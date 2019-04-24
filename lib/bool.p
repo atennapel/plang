@@ -10,6 +10,7 @@ let not b = if b then false else true
 let or a b = if a then true else b
 let and a b = if a then b else false
 let xor a b = if a then (not b) else b
+let eqb a b = not (xor a b)
 
 let monoidOr = monoid false or
 let monoidAnd = monoid true and
