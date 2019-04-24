@@ -41,7 +41,7 @@ let pred n = recBNat n (\() -> zero) (\_ r -> BTI (r ())) (\n _ -> BT n)
 let iterNat n f x = recBNat n (\() -> id) (\_ r -> let rr = r () in comp rr rr) (\_ r -> let rr = r () in comp3 f rr rr) x
 let recNat n f x = snd (iterNat n (\r -> let m = fst r in pair (succ m) (f m (snd r))) (pair BZ x))
 
-let isEven n = iterNat n not true
+let isEven n = caseBNat n (\() -> true) (\_ -> true) (\_ -> false)
 let isOdd n = not (isEven n)
 
 let add = unsafeFix \rec n m ->
@@ -98,10 +98,19 @@ let pow n = unsafeFix \rec m ->
 ; div
 ; mod
 
-; lt
-; lteq
-; gt
-; gteq
-; eq
+let lteq n m = isZero (sub n m)
+let gteq n m = isZero (sub m n)
+let gt n m = not (lteq n m)
+let lt n m = not (gteq n m)
 
-
+let eq = unsafeFix \rec n m ->
+  caseBNat n
+    (\() -> isZero m)
+    (\nn -> caseBNat m
+      (\() -> false)
+      (\mm -> rec nn mm)
+      (\mm -> false))
+    (\nn -> caseBNat m
+      (\() -> false)
+      (\mm -> false)
+      (\mm -> rec nn mm))
