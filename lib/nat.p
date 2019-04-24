@@ -108,13 +108,12 @@ let eq = unsafeFix \rec n m ->
       (\mm -> false)
       (\mm -> rec nn mm))
 
-let divx n = (unsafeFix \rec n m ->
+let divOdd n = (unsafeFix \rec n m ->
   let x = sub n m in
   if isZero x then
     zero
   else
     succ (rec x m)) (succ n)
-
 let div = unsafeFix \rec n m ->
   caseBNat n
     (\() -> zero)
@@ -125,27 +124,15 @@ let div = unsafeFix \rec n m ->
         if isZero mm then
           n
         else
-          let rest = sub n m in
-          if isZero rest then
-            zero
-          else
-            succ (rec rest m)))
+          divOdd n m))
     (\nn -> caseBNat m
       (\() -> zero)
       (\mm -> rec nn mm)
       (\mm ->
-        let z = isZero mm in
-        if z then
+        if isZero mm then
           n
         else
-          if eq nn mm then
-            one
-          else
-            let rest = sub n m in
-            if isZero rest then
-              rec rest m
-            else
-              succ (rec rest m)))
+          divOdd n m))
 let mod n m = sub n (mul (div n m) m)
 let divmod n m =
   (let d = div n m in pair d (sub n (mul d m)))

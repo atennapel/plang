@@ -5,7 +5,6 @@ Start REPL with `npm start`.
 Compile file with `npm start FILENAME`.
 
 TODO
-- figure out better division algorithm
 - fix positivity check
 - implicit conversions: nat -> int, int -> rat
 - termination checker/structural recursion
