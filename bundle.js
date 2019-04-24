@@ -704,8 +704,6 @@ exports.patToMachine = (pat) => {
         return exports.patToMachine(pat.pat);
     return util_1.impossible('patToMachine');
 };
-const tZ = exports.MVar('z');
-const tS = exports.MVar('s');
 const tNil = exports.MVar('nil');
 const tCons = exports.MVar('cons');
 const tBZ = exports.MVar('bz');
@@ -725,15 +723,15 @@ exports.termToMachine = (term) => {
     if (term.tag === 'If')
         return exports.MApp(exports.MApp(exports.MApp(exports.MVar('if'), exports.termToMachine(term.cond)), exports.MAbs('_', exports.termToMachine(term.ifTrue))), exports.MAbs('_', exports.termToMachine(term.ifFalse)));
     if (term.tag === 'LitNat') {
-        let n = term.val;
+        let n = BigInt(term.val);
         const r = [];
-        while (n > 0) {
-            if (n % 2 === 0) {
-                n /= 2;
+        while (n > 0n) {
+            if (n % 2n === 0n) {
+                n /= 2n;
                 r.push(tBT);
             }
             else {
-                n = (n - 1) / 2;
+                n = (n - 1n) / 2n;
                 r.push(tBTI);
             }
         }
@@ -744,7 +742,7 @@ exports.termToMachine = (term) => {
     }
     if (term.tag === 'LitChar') {
         const n = term.val.charCodeAt(0);
-        return exports.termToMachine(terms_1.LitNat(n));
+        return exports.termToMachine(terms_1.LitNat(`${n}`));
     }
     if (term.tag === 'LitStr') {
         const val = term.val;
@@ -917,14 +915,6 @@ steps(State(st));
 
 },{"./List":1,"./config":2,"./terms":13,"./util":16}],10:[function(require,module,exports){
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
 const kinds_1 = require("./kinds");
@@ -1278,10 +1268,15 @@ const parseToken = (ts) => {
         }
         case 'NumberT': {
             const val = ts.val;
-            const n = parseInt(val, 10);
-            if (isNaN(n) || n < 0 || !isFinite(n))
+            try {
+                const n = BigInt(val);
+                if (n < 0)
+                    throw err('');
+            }
+            catch (err) {
                 return err(`invalid number: ${val}`);
-            return terms_1.LitNat(n);
+            }
+            return terms_1.LitNat(val);
         }
         case 'CharT': {
             return terms_1.LitChar(ts.val);
@@ -1522,7 +1517,7 @@ const parseParens = (ts) => {
     }
     return terms_1.appFrom(args);
 };
-const parseParensDefs = (ts, map) => __awaiter(this, void 0, void 0, function* () {
+const parseParensDefs = async (ts, map) => {
     if (ts.length === 0)
         return [];
     if (matchVarT('import', ts[0])) {
@@ -1532,12 +1527,12 @@ const parseParensDefs = (ts, map) => __awaiter(this, void 0, void 0, function* (
         let ds;
         if (!map[name]) {
             map[name] = true;
-            const file = yield import_1.loadPromise(name);
-            ds = yield parseParensDefs(tokenize(file), map);
+            const file = await import_1.loadPromise(name);
+            ds = await parseParensDefs(tokenize(file), map);
         }
         else
             ds = [];
-        const rest = yield parseParensDefs(ts.slice(2), map);
+        const rest = await parseParensDefs(ts.slice(2), map);
         return ds.concat(rest);
     }
     if (matchVarT('type', ts[0])) {
@@ -1564,7 +1559,7 @@ const parseParensDefs = (ts, map) => __awaiter(this, void 0, void 0, function* (
             bodyts.push(c);
         }
         const body = parseParensType(bodyts);
-        const rest = yield parseParensDefs(ts.slice(i - 1), map);
+        const rest = await parseParensDefs(ts.slice(i - 1), map);
         return [definitions_1.DType(tname, args, body)].concat(rest);
     }
     if (matchVarT('let', ts[0])) {
@@ -1593,11 +1588,11 @@ const parseParensDefs = (ts, map) => __awaiter(this, void 0, void 0, function* (
             bodyts.push(c);
         }
         const body = parseParens(bodyts);
-        const rest = yield parseParensDefs(ts.slice(i - 1), map);
+        const rest = await parseParensDefs(ts.slice(i - 1), map);
         return [definitions_1.DLet(name, args, body)].concat(rest);
     }
     return err(`def stuck on ${ts[0].val}`);
-});
+};
 // parsing
 exports.parseKind = (sc) => {
     const ts = tokenize(sc);
@@ -1741,12 +1736,12 @@ const reify = (v, t) => {
         const ar = [];
         while (c.tag === 'VPair') {
             let a = c.left.val;
-            ar.push(a === 'T' ? 0 : a === 'TI' ? 1 : 0);
+            ar.push(a === 'T' ? 0n : a === 'TI' ? 1n : 0n);
             c = c.right;
         }
-        let n = 0;
+        let n = 0n;
         for (let i = ar.length - 1; i >= 0; i--)
-            n = (n * 2) + ar[i];
+            n = (n * 2n) + ar[i];
         return n;
     }
     if (matchTCon(t, 'Bool')) {
@@ -1885,27 +1880,6 @@ exports.run = (_s, _cb) => {
                 return _cb(`defined ${_ds.map(d => d.name).join(' ')}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/total:${ptime + itime + etime}ms(${esteps}steps))` : ''}`);
             }).catch(err => _cb(`${err}`, true));
             return;
-        }
-        if (_s.startsWith(':perf ')) {
-            const rest = _s.slice(6);
-            const p = parser_1.parse(rest);
-            const res = [];
-            for (let i = 0; i < 100; i++) {
-                const e = terms_1.App(p, terms_1.LitNat(i));
-                const t = inference_1.infer(cenv.tenv, e);
-                machine_1.resetStepCount();
-                let et = Date.now();
-                const v = machine_1.runVal(e, cenv.venv);
-                et = Date.now() - et;
-                const esteps = machine_1.stepCount;
-                machine_1.resetStepCount();
-                let vt = Date.now();
-                const r = _showVal(v, t);
-                vt = Date.now() - vt;
-                const vsteps = machine_1.stepCount;
-                res.push({ val: i, evaltime: et, reify: vt, evalSteps: esteps, reifySteps: vsteps, total: et + vt, totalSteps: esteps + vsteps });
-            }
-            return _cb(res.map(({ val, evaltime, reify, evalSteps, reifySteps, total, totalSteps }) => [val, evaltime, evalSteps, reify, reifySteps, total, totalSteps].join(',')).join('\n'));
         }
         if (_s.startsWith(':t ')) {
             const _rest = _s.slice(3);

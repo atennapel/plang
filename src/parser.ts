@@ -327,9 +327,13 @@ const parseToken = (ts: Token): Term => {
     }
     case 'NumberT': {
       const val = ts.val;
-      const n = parseInt(val, 10);
-      if (isNaN(n) || n < 0 || !isFinite(n)) return err(`invalid number: ${val}`);
-      return LitNat(n);
+      try {
+        const n = BigInt(val);
+        if (n < 0) throw err('');
+      } catch (err) {
+        return err(`invalid number: ${val}`);
+      }
+      return LitNat(val);
     }
     case 'CharT': {
       return LitChar(ts.val);

@@ -67,9 +67,9 @@ export const If = (cond: Term, ifTrue: Term, ifFalse: Term): If =>
 
 export interface LitNat {
   readonly tag: 'LitNat';
-  readonly val: number;
+  readonly val: string;
 }
-export const LitNat = (val: number): LitNat =>
+export const LitNat = (val: string): LitNat =>
   ({ tag: 'LitNat', val });
 
 export interface LitChar {

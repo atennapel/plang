@@ -113,14 +113,14 @@ const reify = (v: Val, t: Type): any => {
     const cl = v as Clos;
     const st = State(mapp(MVar('cataNat'), cl.abs, MAtom('Z'), MAbs('x', MPairC(MAtom('T'), MVar('x'))), MAbs('x', MPairC(MAtom('TI'), MVar('x')))), cl.env);
     let c = stepsVal(st, cenv.venv);
-    const ar = [];
+    const ar: bigint[] = [];
     while (c.tag === 'VPair') {
       let a = (c.left as VAtom).val;
-      ar.push(a === 'T' ? 0 : a === 'TI' ? 1 : 0);
+      ar.push(a === 'T' ? 0n : a === 'TI' ? 1n : 0n);
       c = c.right;
     }
-    let n = 0;
-    for (let i = ar.length - 1; i >= 0; i--) n = (n * 2) + ar[i];
+    let n = 0n;
+    for (let i = ar.length - 1; i >= 0; i--) n = (n * 2n) + ar[i];
     return n;
   }
   if (matchTCon(t, 'Bool')) {
@@ -251,36 +251,6 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
         return _cb(`defined ${_ds.map(d => d.name).join(' ')}${config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/total:${ptime+itime+etime}ms(${esteps}steps))` : ''}`);
       }).catch(err => _cb(`${err}`, true));
       return;
-    }
-    if (_s.startsWith(':perf ')) {
-      const rest = _s.slice(6);
-      const p = parse(rest);
-      const res: {
-        val: number,
-        evaltime: number,
-        reify: number,
-        evalSteps: number,
-        reifySteps: number,
-        total: number,
-        totalSteps: number,
-      }[] = [];
-      for (let i = 0; i < 100; i++) {
-        const e = App(p, LitNat(i));
-        const t = infer(cenv.tenv, e);
-        resetStepCount();
-        let et = Date.now();
-        const v = runVal(e, cenv.venv);
-        et = Date.now() - et;
-        const esteps = stepCount;
-        resetStepCount();
-        let vt = Date.now();
-        const r = _showVal(v, t);
-        vt = Date.now() - vt;
-        const vsteps = stepCount;
-        res.push({ val: i, evaltime: et, reify: vt, evalSteps: esteps, reifySteps: vsteps, total: et+vt, totalSteps: esteps+vsteps });
-      }
-      return _cb(res.map(({ val, evaltime, reify, evalSteps, reifySteps, total, totalSteps }) =>
-        [val, evaltime, evalSteps, reify, reifySteps, total, totalSteps].join(',')).join('\n'));
     }
     if (_s.startsWith(':t ')) {
       const _rest = _s.slice(3);

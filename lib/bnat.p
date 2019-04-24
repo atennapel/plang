@@ -16,6 +16,12 @@ let recBNat = unsafeFix \rec n fz ft fti ->
   caseBNat n fz (\m -> ft m (\() -> rec m fz ft fti)) (\m -> fti m (\() -> rec m fz ft fti))
 let iterBNat n fz ft fti = recBNat n fz (\_ -> ft) (\_ -> fti)
 
+; for reification
+let bz = BZ
+let bt = BT
+let bti = BTI
+let cataNat n fz ft fti = recBNat n (\() -> fz) (\_ r -> ft (r ())) (\_ r -> fti (r ()))
+
 let zero = BZ
 let one = BTI BZ
 let twice = BT
@@ -52,3 +58,6 @@ let mul = unsafeFix \rec n m ->
       (\() -> BZ)
       (\mm -> BT (rec mm n))
       (\mm -> add m (add (BT nn) (BT (BT (rec nn mm))))))
+
+let fib n = fst (iterNat n (\r -> let m = snd r in pair m (add (fst r) m)) (pair zero one))
+let fac n = recNat n (\n r -> mul (succ n) r) one

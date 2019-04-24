@@ -22,10 +22,7 @@ export const compile = (term: Term): string => {
   if (term.tag === 'Let') return `(${compileName(term.name)} => ${compile(term.body)})(${compile(term.val)})`;
   if (term.tag === 'If') return `if_(${compile(term.cond)}, () => ${compile(term.ifTrue)}, () => ${compile(term.ifFalse)})`;
   if (term.tag === 'LitNat') {
-    const n = term.val;
-    let c = 'z';
-    for (let i = 0; i < n; i++) c = `s(${c})`;
-    return c;
+    return impossible('not implemented compiler LitNat');
   }
   if (term.tag === 'LitChar') {
     const n = term.val.charCodeAt(0);

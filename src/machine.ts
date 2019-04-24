@@ -83,8 +83,6 @@ export const patToMachine = (pat: Pat): Name => {
   return impossible('patToMachine');
 };
 
-const tZ = MVar('z');
-const tS = MVar('s');
 const tNil = MVar('nil');
 const tCons = MVar('cons');
 const tBZ = MVar('bz');
@@ -100,11 +98,11 @@ export const termToMachine = (term: Term): MTerm => {
   if (term.tag === 'If')
     return MApp(MApp(MApp(MVar('if'), termToMachine(term.cond)), MAbs('_', termToMachine(term.ifTrue))), MAbs('_', termToMachine(term.ifFalse)));
   if (term.tag === 'LitNat') {
-    let n = term.val;
+    let n = BigInt(term.val);
     const r: MTerm[] = [];
-    while (n > 0) {
-      if (n % 2 === 0) { n /= 2; r.push(tBT) }
-      else { n = (n - 1) / 2; r.push(tBTI) }
+    while (n > 0n) {
+      if (n % 2n === 0n) { n /= 2n; r.push(tBT) }
+      else { n = (n - 1n) / 2n; r.push(tBTI) }
     }
     let c: MTerm = tBZ;
     for (let i = r.length - 1; i >= 0; i--) c = MApp(r[i], c);
@@ -112,7 +110,7 @@ export const termToMachine = (term: Term): MTerm => {
   }
   if (term.tag === 'LitChar') {
     const n = term.val.charCodeAt(0);
-    return termToMachine(LitNat(n));
+    return termToMachine(LitNat(`${n}`));
   }
   if (term.tag === 'LitStr') {
     const val = term.val;
