@@ -24,9 +24,13 @@ let succi n = caseInt n \a b -> makeInt (succ a) b
 let predi n = caseInt n \a b -> makeInt a (succ b)
 
 let isEveni n = caseInt n \a b -> eqb (isEven a) (isEven b)
-let isNoti n = not (isEveni n)
+let isOddi n = not (isEveni n)
 
 let negi n = caseInt n \a b -> makeInt b a
+let negifi b n = if b then negi n else n
+let negifnat b n = if b then makeInt zero n else makeInt n zero
+let negonei = negi onei
+
 let addi a b = caseInt2 a b \a b c d -> makeInt (add a c) (add b d)
 let subi a b = addi a (negi b)
 let muli a b = caseInt2 a b \a b c d -> makeInt (add (mul a c) (mul b d)) (add (mul a d) (mul b c))
@@ -64,3 +68,11 @@ let lti n m = not (gteqi n m)
 let eqi n m = and (lteqi n m) (lteqi m n)
 let isNegativei n = lti n zeroi
 let isPositivei n = gti n zeroi
+
+let absi2nat n = snd (spliti n)
+let absi n = nat2int (absi2nat n)
+let gcdi2nat a b = gcd (absi2nat a) (absi2nat b)
+let lcmi2nat a b = lcm (absi2nat a) (absi2nat b)
+let gcdi a b = nat2int (gcdi2nat a b)
+let lcmi a b = nat2int (lcmi2nat a b)
+

@@ -130,7 +130,7 @@ const reify = (v: Val, t: Type): any => {
     const [a, b] = reify(v, TApp(TApp(TCon('Pair'), TCon('Int')), TCon('Nat')));
     const na = reify(a, TCon('Int'));
     const nb = reify(b, TCon('Nat'));
-    return [na, nb + 1n];
+    return [na, nb];
   }
   if (matchTApp(t, 'List')) {
     const cl = v as Clos;

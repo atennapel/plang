@@ -1788,7 +1788,7 @@ const reify = (v, t) => {
         const [a, b] = reify(v, types_1.TApp(types_1.TApp(types_1.TCon('Pair'), types_1.TCon('Int')), types_1.TCon('Nat')));
         const na = reify(a, types_1.TCon('Int'));
         const nb = reify(b, types_1.TCon('Nat'));
-        return [na, nb + 1n];
+        return [na, nb];
     }
     if (matchTApp(t, 'List')) {
         const cl = v;

@@ -12,3 +12,6 @@ TODO
 - pseudo-typeclass for Show
 - patterns for pairs and sums
 - utf8 instead of js chars
+
+Missing lib
+- simplify rat

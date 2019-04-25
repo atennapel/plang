@@ -136,3 +136,34 @@ let div = unsafeFix \rec n m ->
 let rem n m = sub n (mul (div n m) m)
 let divrem n m =
   (let d = div n m in pair d (sub n (mul d m)))
+
+let gcdR1 k = unsafeFix \rec d a b ->
+  if and (isEven a) (isEven b) then
+    rec (succ d) (div2 a) (div2 b)
+  else
+    k d a b
+let gcdR2 = unsafeFix \rec a b ->
+  if not (eq a b) then
+    (if isEven a then
+      rec (div2 a) b
+    else if isEven b then
+      rec a (div2 b)
+    else if gt a b then
+      rec (div2 (sub a b)) b
+    else
+      rec a (div2 (sub b a)))
+  else
+    a
+let gcd a b =
+  if isZero a then
+    b
+  else if isZero b then
+    a
+  else
+    gcdR1 (\d a b -> mul (gcdR2 a b) (pow2 d)) 0 a b
+let lcm a b =
+  if or (isZero a) (isZero b) then
+    zero
+  else
+    mul (div a (gcd a b)) b
+
