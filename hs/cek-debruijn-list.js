@@ -36,23 +36,6 @@ const showEnv = list => {
   return `[${r.join(', ')}]`;
 };
 
-const free = (term, fr = []) => {
-  if (term.tag === VAR) {
-    const ix = term.ix;
-    if (fr.indexOf(ix) < 0) fr.push(ix);
-    return ix;
-  }
-  if (term.tag === ABS) {
-    
-  }
-  if (term.tag === APP) {
-    const a = free(term.left, fr);
-    const b = free(term.right, fr);
-    return Math.max(a, b);
-  }
-  if (term.tag === EXEC) return free(term.body, fr);
-};
-
 const Clos = (abs, env) => ({ abs, env });
 
 const showClos = clos => `{${showTerm(clos.abs)}@${showEnv(clos.env)}}`;
@@ -109,10 +92,10 @@ const step = state => {
 };
 const steps = state => {
   let i = 0;
-  console.log(i, showTerm(state.term), state.cont.tag);
+  //console.log(i, showTerm(state.term), state.cont.tag);
   while (step(state)) {
     i++;
-    console.log(i, showTerm(state.term), state.cont.tag);
+    //console.log(i, showTerm(state.term), state.cont.tag);
   }
   return i;
 };
@@ -125,6 +108,15 @@ const ts = Abs(Abs(Abs(App(Var(1), app(Var(2), Var(1), Var(0))))));
 const tnil = Abs(Abs(Var(0)));
 const tcons = Abs(Abs(Abs(Abs(app(Var(1), Var(3), app(Var(2), Var(1), Var(0)))))));
 
+const reifyNat = t => {
+  let i = 0;
+  const term = app(t, Abs(Exec('inc', () => i++, Var(0))), tI);
+  let time = Date.now();
+  const n = steps(initial(term));
+  time = Date.now() - time;
+  console.log(n, time, i);
+  return i;
+};
 const reifyList = l => {
   const r = [];
   let i = 0;
@@ -141,11 +133,11 @@ const reifyList = l => {
   steps(state);
   return r.reverse();
 };
+const makeNat = n => {
+  let c = tz;
+  for (let i = 0; i < n; i++) c = app(ts, c);
+  return c;
+};
 
-const n = app(ts, app(ts, tz));
-const l = app(tcons, tz, app(tcons, app(ts, tz), app(tcons, n, tnil)));
-let i = 0;
-const arr = app(app(ts, app(ts, app(ts, tz))), Abs(Exec('inc', () => i++, Var(0))), tI);
-steps(initial(arr));
-console.log(i);
+const arr = reifyNat(makeNat(1000000));
 

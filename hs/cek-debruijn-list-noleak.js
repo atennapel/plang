@@ -30,13 +30,39 @@ const lookup = (env, ix) => {
 const showEnv = list => {
   const r = [];
   while (list.tag === CONS) {
-    r.push(showClos(list.head));
+    r.push(list.head ? showClos(list.head) : '_');
     list = list.tail;
   }
   return `[${r.join(', ')}]`;
 };
 
+const free = (term, fr = {}, under = 0) => {
+  if (term.tag === VAR) {
+    const ix = term.ix - under;
+    if (ix >= 0) fr[ix] = true;
+    return ix;
+  }
+  if (term.tag === ABS) {
+    const max = free(term.body, fr, under + 1);
+    return max;
+  }
+  if (term.tag === APP) {
+    const a = free(term.left, fr, under);
+    const b = free(term.right, fr, under);
+    return Math.max(a, b);
+  }
+  if (term.tag === EXEC) return free(term.body, fr, under);
+};
+const makeClosEnv = (fr, max, env, i = 0) =>
+  i > max || env.tag === NIL ? Nil :
+  Cons(fr[i] ? env.head : null, makeClosEnv(fr, max, env.tail, i + 1));
 const Clos = (abs, env) => ({ abs, env });
+const makeClos = (abs, env) => {
+  const fr = {};
+  const max = free(abs, fr);
+  const nenv = makeClosEnv(fr, max, env);
+  return Clos(abs, nenv);
+};
 
 const showClos = clos => `{${showTerm(clos.abs)}@${showEnv(clos.env)}}`;
 
@@ -84,7 +110,7 @@ const step = state => {
   }
   if (cont.tag === FUN) {
     state.term = cont.body;
-    state.env = Cons(Clos(term, env), cont.env);
+    state.env = Cons(makeClos(term, env), cont.env);
     state.cont = cont.rest;
     return true;
   }
@@ -92,10 +118,10 @@ const step = state => {
 };
 const steps = state => {
   let i = 0;
-  console.log(i, showTerm(state.term), state.cont.tag);
+  //console.log(i, showState(state));
   while (step(state)) {
     i++;
-    console.log(i, showTerm(state.term), state.cont.tag);
+    //console.log(i, showState(state));
   }
   return i;
 };
@@ -108,6 +134,15 @@ const ts = Abs(Abs(Abs(App(Var(1), app(Var(2), Var(1), Var(0))))));
 const tnil = Abs(Abs(Var(0)));
 const tcons = Abs(Abs(Abs(Abs(app(Var(1), Var(3), app(Var(2), Var(1), Var(0)))))));
 
+const reifyNat = t => {
+  let i = 0;
+  const term = app(t, Abs(Exec('inc', () => i++, Var(0))), tI);
+  let time = Date.now();
+  const n = steps(initial(term));
+  time = Date.now() - time;
+  console.log(n, time, i);
+  return i;
+};
 const reifyList = l => {
   const r = [];
   let i = 0;
@@ -125,10 +160,10 @@ const reifyList = l => {
   return r.reverse();
 };
 
-const n = app(ts, app(ts, tz));
-const l = app(tcons, tz, app(tcons, app(ts, tz), app(tcons, n, tnil)));
-let i = 0;
-const arr = app(app(ts, app(ts, app(ts, tz))), Abs(Exec('inc', () => i++, Var(0))), tI);
-steps(initial(arr));
-console.log(i);
+const makeNat = n => {
+  let c = tz;
+  for (let i = 0; i < n; i++) c = app(ts, c);
+  return c;
+};
 
+const arr = reifyNat(makeNat(1000000));
