@@ -1,0 +1,16 @@
+test church encoding of 1000000
+in ms
+
+debruijn-list         1800
+named-list            2300
+debruijn-arr          2400
+named-obj             2450
+debruijn-list-noleak  2650
+named-list-noleak     3400
+named-obj-noleak      3400
+debruijn-arr-noleak   3950
+
+TODO:
+named-list-arity
+named-list-arity-noleak
+
