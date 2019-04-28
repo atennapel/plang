@@ -1,6 +1,7 @@
 import { impossible, Name } from './util';
-import { Pat, Term, LitNat, LitInt, LitChar, App, Abs, PVar, PWildcard, appFrom, Var } from './terms';
-import { MFVar, MTerm, MApp, MAbs, MBVar, GEnv, MClos } from './machine.new';
+import { Pat, Term, LitNat, LitInt, LitChar, App, Abs, PVar, PWildcard, appFrom, Var, abs } from './terms';
+import { MFVar, MTerm, MApp, MAbs, MBVar, GEnv, MClos, reduce, makeClos, LNil } from './machine.new';
+import { Def } from './definitions';
 
 export const patToMachine = (pat: Pat): Name => {
   if (pat.tag === 'PWildcard') return '_';
@@ -70,13 +71,23 @@ export const termToMachine = (term: Term, map: CMap = {}, level: number = 0): MT
       c = MApp(MApp(tCons, termToMachine(LitChar(val[i]), map, level)), c);
     return c;
   }
-  console.log(term);
   return impossible('termToMachine');
 };
 
-export const reduce = (genv: GEnv, term: Term): { steps: number, clos: MClos } => {
+export const reduceTerm = (genv: GEnv, term: Term): MClos => {
   const mterm = termToMachine(term);
-  return reduce(genv, mterm as any);
+  return reduce(genv, mterm);
 };
-
-console.log(reduce({}, appFrom([ Abs(PVar('x'), Var('x')), Abs(PVar('x'), Var('x')) ])));
+export const reduceDefs = (global: GEnv, defs: Def[]): void => {
+  for (let i = 0, l = defs.length; i < l; i++) {
+    const d = defs[i];
+    if (d.tag === 'DType') {
+      global[d.name] = makeClos(MAbs(MBVar(0)), LNil);
+    } else if (d.tag === 'DLet') {
+      const n = d.name;
+      const t = abs(d.args, d.term);
+      const v = reduceTerm(global, t);
+      global[n] = v;
+    }
+  }
+};

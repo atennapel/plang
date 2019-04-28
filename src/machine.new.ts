@@ -1,4 +1,5 @@
 import { Name, impossible } from './util';
+import { log } from './config';
 
 // ast
 export type Ix = number;
@@ -221,21 +222,24 @@ export const step = (genv: GEnv, state: MState): boolean => {
   return false;
 };
 
-export const steps = (genv: GEnv, state: MState): number => {
-  let i = 0;
+export let stepCount = 0;
+export const resetStepCount = () => { stepCount = 0 };
+export const steps = (genv: GEnv, state: MState): MState => {
+  log(() => showMState(state));
   while (step(genv, state)) {
-    i++;
+    log(() => showMState(state));
+    stepCount++;
   }
-  return i;
+  return state;
 };
 
 export const initial = (term: MTerm): MState =>
   MState(term, LNil, MTop);
 
-export const reduce = (genv: GEnv, term: MTerm): { steps: number, clos: MClos } => {
+export const reduce = (genv: GEnv, term: MTerm): MClos => {
   const st = initial(term);
   const n = steps(genv, st);
   if (st.cont.tag !== 'MTop' || st.term.tag !== 'MAbs')
     throw new Error(`evaluation got stuck: ${showMState(st)}`);
-  return { steps: n, clos: makeClos(st.term, st.env) };
+  return makeClos(st.term, st.env);
 };
