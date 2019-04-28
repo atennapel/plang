@@ -6,6 +6,7 @@ Compile file with `npm start FILENAME`.
 
 TODO
 - fix positivity check
+- allow patterns in Let
 - implicit conversions: nat -> int, int -> rat
 - termination checker/structural recursion
 - list literals
