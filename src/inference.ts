@@ -10,12 +10,12 @@ import { Def, showDef } from './definitions';
 import { positivityCheck } from './positivity';
 import { List, toArray } from './List';
 
-const tBool = TCon('Bool');
-const tNat = TCon('Nat');
-const tInt = TCon('Int');
-const tRat = TCon('Rat');
-const tChar = TCon('Char');
-const tStr = TCon('Str');
+export const tBool = TCon('Bool');
+export const tNat = TCon('Nat');
+export const tInt = TCon('Int');
+export const tRat = TCon('Rat');
+export const tChar = TCon('Char');
+export const tStr = TCon('Str');
 
 type Expected = Check | Infer;
 interface Check {

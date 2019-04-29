@@ -43,6 +43,113 @@ exports.append = (a, b) => a.tag === 'Cons' ? exports.Cons(a.head, exports.appen
 },{}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const util_1 = require("./util");
+const terms_1 = require("./terms");
+const machine_new_1 = require("./machine.new");
+exports.patToMachine = (pat) => {
+    if (pat.tag === 'PWildcard')
+        return '_';
+    if (pat.tag === 'PVar')
+        return pat.name;
+    if (pat.tag === 'PAnn')
+        return exports.patToMachine(pat.pat);
+    if (pat.tag === 'PCon')
+        return exports.patToMachine(pat.pat);
+    return util_1.impossible('patToMachine');
+};
+const tIf = terms_1.Var('if');
+const tNil = machine_new_1.MFVar('nil');
+const tCons = machine_new_1.MFVar('cons');
+const tBZ = machine_new_1.MFVar('BZ');
+const tBT = machine_new_1.MFVar('unsafeBT');
+const tBTI = machine_new_1.MFVar('BTI');
+const tMakeInt = machine_new_1.MFVar('makeInt');
+const tRat = machine_new_1.MFVar('rat');
+exports.termToMachine = (term, map = {}, level = 0) => {
+    if (term.tag === 'Var') {
+        const ix = map[term.name];
+        if (typeof ix === 'number')
+            return machine_new_1.MBVar(level - ix - 1);
+        return machine_new_1.MFVar(term.name);
+    }
+    if (term.tag === 'Abs') {
+        const x = exports.patToMachine(term.pat);
+        const nmap = {};
+        for (let k in map)
+            nmap[k] = map[k];
+        nmap[x] = level;
+        return machine_new_1.MAbs(exports.termToMachine(term.body, nmap, level + 1));
+    }
+    if (term.tag === 'App')
+        return machine_new_1.MApp(exports.termToMachine(term.left, map, level), exports.termToMachine(term.right, map, level));
+    if (term.tag === 'Let')
+        return exports.termToMachine(terms_1.App(terms_1.Abs(terms_1.PVar(term.name), term.body), term.val), map, level);
+    if (term.tag === 'Ann')
+        return exports.termToMachine(term.term, map, level);
+    if (term.tag === 'If')
+        return exports.termToMachine(terms_1.appFrom([tIf, term.cond, terms_1.Abs(terms_1.PWildcard, term.ifTrue), terms_1.Abs(terms_1.PWildcard, term.ifFalse)]), map, level);
+    if (term.tag === 'LitNat') {
+        let n = BigInt(term.val);
+        const r = [];
+        while (n > 0n) {
+            if (n % 2n === 0n) {
+                n /= 2n;
+                r.push(tBT);
+            }
+            else {
+                n = (n - 1n) / 2n;
+                r.push(tBTI);
+            }
+        }
+        let c = tBZ;
+        for (let i = r.length - 1; i >= 0; i--)
+            c = machine_new_1.MApp(r[i], c);
+        return c;
+    }
+    if (term.tag === 'LitInt') {
+        let t = exports.termToMachine(terms_1.LitNat(term.val), map, level);
+        return term.neg ? machine_new_1.MApp(machine_new_1.MApp(tMakeInt, tBZ), t) : machine_new_1.MApp(machine_new_1.MApp(tMakeInt, t), tBZ);
+    }
+    if (term.tag === 'LitRat') {
+        const a = exports.termToMachine(terms_1.LitInt(term.val1, term.neg), map, level);
+        const b = exports.termToMachine(terms_1.LitNat(term.val2), map, level);
+        return machine_new_1.MApp(machine_new_1.MApp(tRat, a), b);
+    }
+    if (term.tag === 'LitChar') {
+        const n = term.val.charCodeAt(0);
+        return exports.termToMachine(terms_1.LitNat(`${n}`), map, level);
+    }
+    if (term.tag === 'LitStr') {
+        const val = term.val;
+        let c = tNil;
+        for (let i = val.length - 1; i >= 0; i--)
+            c = machine_new_1.MApp(machine_new_1.MApp(tCons, exports.termToMachine(terms_1.LitChar(val[i]), map, level)), c);
+        return c;
+    }
+    return util_1.impossible('termToMachine');
+};
+exports.reduceTerm = (genv, term) => {
+    const mterm = exports.termToMachine(term);
+    return machine_new_1.reduce(genv, mterm);
+};
+exports.reduceDefs = (global, defs) => {
+    for (let i = 0, l = defs.length; i < l; i++) {
+        const d = defs[i];
+        if (d.tag === 'DType') {
+            global[d.name] = machine_new_1.makeClos(machine_new_1.MAbs(machine_new_1.MBVar(0)), machine_new_1.LNil);
+        }
+        else if (d.tag === 'DLet') {
+            const n = d.name;
+            const t = terms_1.abs(d.args, d.term);
+            const v = exports.reduceTerm(global, t);
+            global[n] = v;
+        }
+    }
+};
+
+},{"./machine.new":10,"./terms":14,"./util":17}],3:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = {
     debug: false,
     showKinds: false,
@@ -57,7 +164,7 @@ exports.log = (msg) => {
         console.log(msg());
 };
 
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -98,7 +205,7 @@ exports.findDefType = (ds, name) => {
     return null;
 };
 
-},{"./kinds":8,"./terms":13,"./types":14}],4:[function(require,module,exports){
+},{"./kinds":9,"./terms":14,"./types":15}],5:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -153,7 +260,7 @@ const initialEnv = exports.Env({}, {
 exports.getInitialEnv = () => exports.cloneEnv(initialEnv);
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./List":1,"./kinds":8,"./types":14,"./util":16}],5:[function(require,module,exports){
+},{"./List":1,"./kinds":9,"./types":15,"./util":17}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isBrowser = typeof window !== 'undefined';
@@ -195,7 +302,7 @@ exports.restore = () => {
     }
 };
 
-},{"fs":18}],6:[function(require,module,exports){
+},{"fs":19}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -209,12 +316,12 @@ const config_1 = require("./config");
 const definitions_1 = require("./definitions");
 const positivity_1 = require("./positivity");
 const List_1 = require("./List");
-const tBool = types_1.TCon('Bool');
-const tNat = types_1.TCon('Nat');
-const tInt = types_1.TCon('Int');
-const tRat = types_1.TCon('Rat');
-const tChar = types_1.TCon('Char');
-const tStr = types_1.TCon('Str');
+exports.tBool = types_1.TCon('Bool');
+exports.tNat = types_1.TCon('Nat');
+exports.tInt = types_1.TCon('Int');
+exports.tRat = types_1.TCon('Rat');
+exports.tChar = types_1.TCon('Char');
+exports.tStr = types_1.TCon('Str');
 const Check = (type) => ({ tag: 'Check', type });
 const Infer = () => ({ tag: 'Infer', type: null });
 const showEx = (ex) => {
@@ -302,13 +409,13 @@ const tcRho = (env, term, ex) => {
     }
     if (term.tag === 'If') {
         if (ex.tag === 'Check') {
-            checkRho(env, term.cond, tBool);
+            checkRho(env, term.cond, exports.tBool);
             tcRho(env, term.ifTrue, ex);
             tcRho(env, term.ifFalse, ex);
             return;
         }
         else if (ex.tag === 'Infer') {
-            checkRho(env, term.cond, tBool);
+            checkRho(env, term.cond, exports.tBool);
             const t1 = inferRho(env, term.ifTrue);
             const t2 = inferRho(env, term.ifFalse);
             subsCheck(env, t1, t2);
@@ -318,23 +425,23 @@ const tcRho = (env, term, ex) => {
         }
     }
     if (term.tag === 'LitNat') {
-        instSigma(env, tNat, ex);
+        instSigma(env, exports.tNat, ex);
         return;
     }
     if (term.tag === 'LitInt') {
-        instSigma(env, tInt, ex);
+        instSigma(env, exports.tInt, ex);
         return;
     }
     if (term.tag === 'LitRat') {
-        instSigma(env, tRat, ex);
+        instSigma(env, exports.tRat, ex);
         return;
     }
     if (term.tag === 'LitChar') {
-        instSigma(env, tChar, ex);
+        instSigma(env, exports.tChar, ex);
         return;
     }
     if (term.tag === 'LitStr') {
-        instSigma(env, tStr, ex);
+        instSigma(env, exports.tStr, ex);
         return;
     }
     if (term.tag === 'Hole') {
@@ -473,7 +580,7 @@ exports.inferDefs = (env, ds) => {
         exports.inferDef(env, ds[i]);
 };
 
-},{"./List":1,"./config":2,"./definitions":3,"./env":4,"./kindInference":7,"./kinds":8,"./positivity":11,"./terms":13,"./types":14,"./unification":15,"./util":16}],7:[function(require,module,exports){
+},{"./List":1,"./config":3,"./definitions":4,"./env":5,"./kindInference":8,"./kinds":9,"./positivity":12,"./terms":14,"./types":15,"./unification":16,"./util":17}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -588,7 +695,7 @@ exports.kindOf = (env, t) => {
     return util_1.terr(`unexpected type ${types_1.showTy(t)} in kindOf`);
 };
 
-},{"./env":4,"./kinds":8,"./types":14,"./util":16}],8:[function(require,module,exports){
+},{"./env":5,"./kinds":9,"./types":15,"./util":17}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -650,291 +757,159 @@ exports.eqKind = (a, b) => {
     return false;
 };
 
-},{"./util":16}],9:[function(require,module,exports){
+},{"./util":17}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
-const terms_1 = require("./terms");
-const List_1 = require("./List");
 const config_1 = require("./config");
-exports.MVar = (name) => ({ tag: 'MVar', name });
+exports.MFVar = (name) => ({ tag: 'MFVar', name });
+exports.MBVar = (ix) => ({ tag: 'MBVar', ix });
 exports.MApp = (left, right) => ({ tag: 'MApp', left, right });
 exports.mappFrom = (ts) => ts.reduce(exports.MApp);
 function mapp(...ts) { return exports.mappFrom(ts); }
 exports.mapp = mapp;
 ;
-exports.MAbs = (name, body) => ({ tag: 'MAbs', name, body });
-exports.mabs = (ns, body) => ns.reduceRight((x, y) => exports.MAbs(y, x), body);
-exports.MAtom = (val) => ({ tag: 'MAtom', val });
-exports.MPair = (left, right) => ({ tag: 'MPair', left, right });
-exports.MPairC = (left, right) => ({ tag: 'MPairC', left, right });
+exports.MAbs = (body) => ({ tag: 'MAbs', body });
+exports.MExec = (name, fn, body) => ({ tag: 'MExec', name, fn, body });
 exports.showMTerm = (term) => {
-    if (term.tag === 'MVar')
-        return term.name;
-    if (term.tag === 'MAtom')
-        return term.val;
+    if (term.tag === 'MFVar')
+        return `${term.name}`;
+    if (term.tag === 'MBVar')
+        return `${term.ix}`;
     if (term.tag === 'MAbs')
-        return `(\\${term.name} -> ${exports.showMTerm(term.body)})`;
+        return `(\\${exports.showMTerm(term.body)})`;
     if (term.tag === 'MApp')
         return `(${exports.showMTerm(term.left)} ${exports.showMTerm(term.right)})`;
-    if (term.tag === 'MPair')
-        return `(${exports.showVal(term.left)}, ${exports.showVal(term.right)})`;
-    if (term.tag === 'MPairC')
-        return `(${exports.showMTerm(term.left)}, ${exports.showMTerm(term.right)})`;
+    if (term.tag === 'MExec')
+        return `(exec ${term.name} ${exports.showMTerm(term.body)})`;
     return util_1.impossible('showMTerm');
 };
-const freeMTerm = (term, fr = {}) => {
-    if (term.tag === 'MVar') {
-        fr[term.name] = true;
-        return fr;
+exports.LNil = { tag: 'LNil' };
+exports.LCons = (head, tail) => ({ tag: 'LCons', head, tail });
+const extend = (val, env) => exports.LCons(val, env);
+const lookup = (env, ix) => {
+    while (env.tag === 'LCons') {
+        if (ix-- === 0)
+            return env.head;
+        env = env.tail;
+    }
+    return null;
+};
+exports.showLEnv = (list) => {
+    const r = [];
+    while (list.tag === 'LCons') {
+        r.push(list.head ? exports.showMClos(list.head) : '_');
+        list = list.tail;
+    }
+    return `[${r.join(', ')}]`;
+};
+exports.MClos = (abs, env) => ({ abs, env });
+exports.showMClos = (clos) => `{${exports.showMTerm(clos.abs)}@${exports.showLEnv(clos.env)}}`;
+const free = (term, fr, under) => {
+    if (term.tag === 'MFVar')
+        return -1;
+    if (term.tag === 'MBVar') {
+        const ix = term.ix - under;
+        if (ix >= 0)
+            fr[ix] = true;
+        return ix;
     }
     if (term.tag === 'MAbs') {
-        freeMTerm(term.body, fr);
-        fr[term.name] = false;
-        return fr;
+        const max = free(term.body, fr, under + 1);
+        return max;
     }
     if (term.tag === 'MApp') {
-        freeMTerm(term.left, fr);
-        return freeMTerm(term.right, fr);
+        const a = free(term.left, fr, under);
+        const b = free(term.right, fr, under);
+        return Math.max(a, b);
     }
-    if (term.tag === 'MPairC') {
-        freeMTerm(term.left, fr);
-        return freeMTerm(term.right, fr);
-    }
-    return fr;
+    if (term.tag === 'MExec')
+        return free(term.body, fr, under);
+    return util_1.impossible('free');
 };
-exports.patToMachine = (pat) => {
-    if (pat.tag === 'PWildcard')
-        return '_';
-    if (pat.tag === 'PVar')
-        return pat.name;
-    if (pat.tag === 'PAnn')
-        return exports.patToMachine(pat.pat);
-    if (pat.tag === 'PCon')
-        return exports.patToMachine(pat.pat);
-    return util_1.impossible('patToMachine');
+const makeClosEnv = (fr, max, env, i) => i > max || env.tag === 'LNil' ? exports.LNil :
+    exports.LCons(fr[i] ? env.head : null, makeClosEnv(fr, max, env.tail, i + 1));
+exports.makeClos = (abs, env) => {
+    const fr = {};
+    const max = free(abs, fr, 0);
+    const nenv = makeClosEnv(fr, max, env, 0);
+    return exports.MClos(abs, nenv);
 };
-const tNil = exports.MVar('nil');
-const tCons = exports.MVar('cons');
-const tBZ = exports.MVar('BZ');
-const tBT = exports.MVar('unsafeBT');
-const tBTI = exports.MVar('BTI');
-const tMakeInt = exports.MVar('makeInt');
-const tRat = exports.MVar('rat');
-exports.termToMachine = (term) => {
-    if (term.tag === 'Var')
-        return exports.MVar(term.name);
-    if (term.tag === 'Abs')
-        return exports.MAbs(exports.patToMachine(term.pat), exports.termToMachine(term.body));
-    if (term.tag === 'App')
-        return exports.MApp(exports.termToMachine(term.left), exports.termToMachine(term.right));
-    if (term.tag === 'Let')
-        return exports.MApp(exports.MAbs(term.name, exports.termToMachine(term.body)), exports.termToMachine(term.val));
-    if (term.tag === 'Ann')
-        return exports.termToMachine(term.term);
-    if (term.tag === 'If')
-        return exports.MApp(exports.MApp(exports.MApp(exports.MVar('if'), exports.termToMachine(term.cond)), exports.MAbs('_', exports.termToMachine(term.ifTrue))), exports.MAbs('_', exports.termToMachine(term.ifFalse)));
-    if (term.tag === 'LitNat') {
-        let n = BigInt(term.val);
-        const r = [];
-        while (n > 0n) {
-            if (n % 2n === 0n) {
-                n /= 2n;
-                r.push(tBT);
-            }
-            else {
-                n = (n - 1n) / 2n;
-                r.push(tBTI);
-            }
-        }
-        let c = tBZ;
-        for (let i = r.length - 1; i >= 0; i--)
-            c = exports.MApp(r[i], c);
-        return c;
-    }
-    if (term.tag === 'LitInt') {
-        let t = exports.termToMachine(terms_1.LitNat(term.val));
-        return term.neg ? exports.MApp(exports.MApp(tMakeInt, tBZ), t) : exports.MApp(exports.MApp(tMakeInt, t), tBZ);
-    }
-    if (term.tag === 'LitRat') {
-        const a = exports.termToMachine(terms_1.LitInt(term.val1, term.neg));
-        const b = exports.termToMachine(terms_1.LitNat(term.val2));
-        return exports.MApp(exports.MApp(tRat, a), b);
-    }
-    if (term.tag === 'LitChar') {
-        const n = term.val.charCodeAt(0);
-        return exports.termToMachine(terms_1.LitNat(`${n}`));
-    }
-    if (term.tag === 'LitStr') {
-        const val = term.val;
-        let c = tNil;
-        for (let i = val.length - 1; i >= 0; i--)
-            c = exports.MApp(exports.MApp(tCons, exports.termToMachine(terms_1.LitChar(val[i]))), c);
-        return c;
-    }
-    return util_1.impossible('termToMachine');
+exports.MTop = { tag: 'MTop' };
+exports.MArg = (term, env, rest) => ({ tag: 'MArg', term, env, rest });
+exports.MFun = (body, env, rest) => ({ tag: 'MFun', body, env, rest });
+exports.showMCont = (cont) => {
+    if (cont.tag === 'MTop')
+        return 'Top';
+    if (cont.tag === 'MArg')
+        return `Arg(${exports.showMTerm(cont.term)}, ${exports.showLEnv(cont.env)}):${exports.showMCont(cont.rest)}`;
+    if (cont.tag === 'MFun')
+        return `Fun(${exports.showMTerm(cont.body)}, ${exports.showLEnv(cont.env)}):${exports.showMCont(cont.rest)}`;
+    return util_1.impossible('showMCont');
 };
-exports.Clos = (abs, env) => ({ tag: 'Clos', abs, env });
-exports.VAtom = (val) => ({ tag: 'VAtom', val });
-exports.VPair = (left, right) => ({ tag: 'VPair', left, right });
-exports.showVal = (v) => v.tag === 'VAtom' ? v.val :
-    v.tag === 'VPair' ? `(${exports.showVal(v.left)}, ${exports.showVal(v.right)})` :
-        `Clos(${exports.showMTerm(v.abs)}, ${exports.showEnv(v.env)})`;
-const extend = (env, k, v) => List_1.Cons([k, v], env);
-const lookup = (env, k) => {
-    const r = List_1.first(env, ([k2, _]) => k === k2);
-    if (r)
-        return r[1];
-    return null;
-};
-exports.showEnv = (env) => List_1.toString(env, ([k, v]) => `${k} = ${exports.showVal(v)}`);
-const FArg = (term, env) => ({ tag: 'FArg', term, env });
-const FFun = (abs, env) => ({ tag: 'FFun', abs, env });
-const FFst = (term, env) => ({ tag: 'FFst', term, env });
-const FSnd = (val) => ({ tag: 'FSnd', val });
-const showFrame = (f) => {
-    if (f.tag === 'FFun')
-        return `FFun(${exports.showMTerm(f.abs)}, ${exports.showEnv(f.env)})`;
-    if (f.tag === 'FArg')
-        return `FArg(${exports.showMTerm(f.term)}, ${exports.showEnv(f.env)})`;
-    if (f.tag === 'FFst')
-        return `FFst(${exports.showMTerm(f.term)}, ${exports.showEnv(f.env)})`;
-    if (f.tag === 'FSnd')
-        return `FSnd(${exports.showVal(f.val)})`;
-    return util_1.impossible('showFrame');
-};
-exports.State = (term, env = List_1.Nil, stack = List_1.Nil) => ({ term, env, stack });
-exports.showState = (s) => `State(${exports.showMTerm(s.term)}, ${exports.showEnv(s.env)}, ${List_1.toString(s.stack, showFrame)})`;
-exports.showStateMin = (s) => `State(${exports.showMTerm(s.term)}, ${s.stack.tag === 'Nil' ? '[]' : s.stack.head.tag})`;
-const makeClos = (term, env) => {
-    const f = freeMTerm(term);
-    const got = {};
-    const nenv = List_1.filter(env, ([x, _]) => {
-        const free = f[x];
-        if (free) {
-            if (!got[x]) {
-                got[x] = true;
-                return true;
-            }
-            return false;
-        }
-        return false;
-    });
-    // const nenv = filter(env, ([x, _]) => f[x]);
-    return exports.Clos(term, nenv);
-};
-const step = (state, global) => {
-    const { term, env, stack } = state;
-    if (term.tag === 'MVar') {
-        let v = lookup(env, term.name) || global[term.name];
+exports.MState = (term, env, cont) => ({ term, env, cont });
+exports.showMState = (st) => `(${exports.showMTerm(st.term)}, ${exports.showLEnv(st.env)}, ${exports.showMCont(st.cont)})`;
+// evaluation
+exports.step = (genv, state) => {
+    const { term, env, cont } = state;
+    if (term.tag === 'MFVar') {
+        const v = genv[term.name];
         if (!v)
-            throw new Error(`undefined var: ${term.name}`);
-        if (v.tag === 'Clos')
-            return exports.State(v.abs, v.env, stack);
-        return exports.State(v.tag === 'VAtom' ? exports.MAtom(v.val) : exports.MPair(v.left, v.right), env, stack);
+            return false;
+        state.term = v.abs;
+        state.env = v.env;
+        return true;
     }
-    if (term.tag === 'MApp')
-        return exports.State(term.left, env, List_1.Cons(FArg(term.right, env), stack));
-    if (term.tag === 'MPairC')
-        return exports.State(term.left, env, List_1.Cons(FFst(term.right, env), stack));
-    if (stack.tag === 'Nil')
-        return null;
-    const top = stack.head;
-    const tail = stack.tail;
-    if (term.tag === 'MAbs') {
-        if (top.tag === 'FArg')
-            return exports.State(top.term, top.env, List_1.Cons(FFun(term, env), tail));
-        if (top.tag === 'FFun') {
-            const { name, body } = top.abs;
-            return exports.State(body, extend(top.env, name, makeClos(term, env)), tail);
-        }
-        if (top.tag === 'FFst')
-            return exports.State(top.term, top.env, List_1.Cons(FSnd(makeClos(term, env)), tail));
-        if (top.tag === 'FSnd')
-            return exports.State(exports.MPair(top.val, makeClos(term, env)), env, tail);
+    if (term.tag === 'MBVar') {
+        const v = lookup(env, term.ix);
+        if (!v)
+            return false;
+        state.term = v.abs;
+        state.env = v.env;
+        return true;
     }
-    if (term.tag === 'MAtom') {
-        if (top.tag === 'FArg')
-            return null;
-        if (top.tag === 'FFun') {
-            const { name, body } = top.abs;
-            return exports.State(body, extend(top.env, name, exports.VAtom(term.val)), tail);
-        }
-        if (top.tag === 'FFst')
-            return exports.State(top.term, top.env, List_1.Cons(FSnd(exports.VAtom(term.val)), tail));
-        if (top.tag === 'FSnd')
-            return exports.State(exports.MPair(top.val, exports.VAtom(term.val)), env, tail);
+    if (term.tag === 'MApp') {
+        state.term = term.left;
+        state.cont = exports.MArg(term.right, env, cont);
+        return true;
     }
-    if (term.tag === 'MPair') {
-        if (top.tag === 'FArg')
-            return null;
-        if (top.tag === 'FFun') {
-            const { name, body } = top.abs;
-            return exports.State(body, extend(top.env, name, exports.VPair(term.left, term.right)), tail);
-        }
-        if (top.tag === 'FFst')
-            return exports.State(top.term, top.env, List_1.Cons(FSnd(exports.VPair(term.left, term.right)), tail));
-        if (top.tag === 'FSnd')
-            return exports.State(exports.MPair(top.val, exports.VPair(term.left, term.right)), env, tail);
+    if (term.tag === 'MExec') {
+        state.term = term.body;
+        return term.fn(state);
     }
-    return null;
+    if (cont.tag === 'MArg') {
+        state.term = cont.term;
+        state.env = cont.env;
+        state.cont = exports.MFun(term.body, env, cont.rest);
+        return true;
+    }
+    if (cont.tag === 'MFun') {
+        state.term = cont.body;
+        state.env = extend(exports.MClos(term, env), cont.env);
+        state.cont = cont.rest;
+        return true;
+    }
+    return false;
 };
 exports.stepCount = 0;
 exports.resetStepCount = () => { exports.stepCount = 0; };
-exports.steps = (state, global) => {
-    let c = state;
-    while (true) {
-        config_1.log(() => `${exports.stepCount}: ${exports.showStateMin(c)}`);
-        const next = step(c, global);
-        if (!next)
-            return c;
+exports.steps = (genv, state) => {
+    config_1.log(() => exports.showMState(state));
+    while (exports.step(genv, state)) {
+        config_1.log(() => exports.showMState(state));
         exports.stepCount++;
-        c = next;
     }
 };
-exports.stepsVal = (state, global) => {
-    const st = exports.steps(state, global);
-    const t = st.term;
-    return t.tag === 'MAtom' ? exports.VAtom(t.val) :
-        t.tag === 'MPair' ? exports.VPair(t.left, t.right) :
-            makeClos(t, st.env);
+exports.initial = (term) => exports.MState(term, exports.LNil, exports.MTop);
+exports.reduce = (genv, term) => {
+    const st = exports.initial(term);
+    exports.steps(genv, st);
+    if (st.cont.tag !== 'MTop' || st.term.tag !== 'MAbs')
+        throw new Error(`evaluation got stuck: ${exports.showMState(st)}`);
+    return exports.makeClos(st.term, st.env);
 };
-exports.runState = (term, global) => {
-    const m = exports.termToMachine(term);
-    return exports.steps(exports.State(m), global);
-};
-exports.runVal = (term, global) => {
-    const st = exports.runState(term, global);
-    const t = st.term;
-    return t.tag === 'MAtom' ? exports.VAtom(t.val) :
-        t.tag === 'MPair' ? exports.VPair(t.left, t.right) :
-            makeClos(t, st.env);
-};
-exports.runEnv = (defs, global) => {
-    for (let i = 0, l = defs.length; i < l; i++) {
-        const d = defs[i];
-        if (d.tag === 'DType') {
-            global[d.name] = exports.Clos(exports.MAbs('x', exports.MVar('x')), List_1.Nil);
-        }
-        else if (d.tag === 'DLet') {
-            const n = d.name;
-            const t = terms_1.abs(d.args, d.term);
-            const v = exports.runVal(t, global);
-            global[n] = v;
-        }
-    }
-};
-/*
-// testing
-const v = MVar;
-const z = mabs(['f', 'x'], v('x'));
-const s = mabs(['n', 'f', 'x'], mapp(v('f'), mapp(v('n'), v('f'), v('x'))));
-const inc = mabs(['x'], MPairC(MAtom('S'), v('x')));
-const st = mapp(mapp(s, mapp(s, z)), inc, MAtom('Z'));
-steps(State(st));
-*/
 
-},{"./List":1,"./config":2,"./terms":13,"./util":16}],10:[function(require,module,exports){
+},{"./config":3,"./util":17}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1651,7 +1626,7 @@ exports.parseDefs = (sc, map) => {
     return parseParensDefs(ts, map);
 };
 
-},{"./config":2,"./definitions":3,"./import":5,"./kinds":8,"./terms":13,"./types":14}],11:[function(require,module,exports){
+},{"./config":3,"./definitions":4,"./import":6,"./kinds":9,"./terms":14,"./types":15}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1680,7 +1655,7 @@ exports.positivityCheck = (c, t) => {
         exports.positivityCheckArg(c, args[i]);
 };
 
-},{"./types":14,"./util":16}],12:[function(require,module,exports){
+},{"./types":15,"./util":17}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1689,10 +1664,11 @@ const terms_1 = require("./terms");
 const types_1 = require("./types");
 const inference_1 = require("./inference");
 const parser_1 = require("./parser");
-const machine_1 = require("./machine");
 const definitions_1 = require("./definitions");
 const kinds_1 = require("./kinds");
-const List_1 = require("./List");
+const machine_new_1 = require("./machine.new");
+const compilerMachine_1 = require("./compilerMachine");
+const util_1 = require("./util");
 const HELP = `
   commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval
 `.trim();
@@ -1702,161 +1678,47 @@ const cenv = {
     venv: {},
     defs: [],
 };
-const _part = machine_1.MAbs('x', machine_1.MApp(machine_1.MVar('f'), machine_1.MAbs('v', machine_1.MApp(machine_1.MApp(machine_1.MVar('x'), machine_1.MVar('x')), machine_1.MVar('v')))));
-const _ycomb = machine_1.MAbs('f', machine_1.MApp(_part, _part));
-const _yval = machine_1.Clos(_ycomb, List_1.Nil);
+const _part = machine_new_1.MAbs(machine_new_1.MApp(machine_new_1.MBVar(1), machine_new_1.MAbs(machine_new_1.MApp(machine_new_1.MApp(machine_new_1.MBVar(1), machine_new_1.MBVar(1)), machine_new_1.MBVar(0)))));
+const _ycomb = machine_new_1.MAbs(machine_new_1.MApp(_part, _part));
+const _yval = machine_new_1.makeClos(_ycomb, machine_new_1.LNil);
 const setupEnv = () => {
     cenv.tenv.global.unsafeFix = types_1.tforall([['t', kinds_1.kType]], types_1.tfunFrom([types_1.tfunFrom([types_1.TVar('t'), types_1.TVar('t')]), types_1.TVar('t')]));
     cenv.venv.unsafeFix = _yval;
 };
 setupEnv();
-const _showR = (x) => {
-    if (typeof x === 'function')
-        return '[Fn]';
-    if (typeof x === 'string')
-        return JSON.stringify(x);
-    if (Array.isArray(x))
-        return `[${x.map(_showR).join(', ')}]`;
-    if (typeof x === 'object' && typeof x._tag === 'string') {
-        if (x._tag === 'Pair')
-            return `(Pair ${_showR(x.val[0])} ${_showR(x.val[1])})`;
-        return x.val === null ? x._tag : `(${x._tag} ${_showR(x.val)})`;
-    }
-    return '' + x;
-};
-const _show = (x, t) => {
-    if (t.tag === 'TCon' && t.name === 'Bool')
-        return x('true')('false');
-    if (t.tag === 'TCon' && t.name === 'Nat')
-        return `${x((x) => x + 1)(0)}`;
-    if (t.tag === 'TCon' && t.name === 'Str') {
-        const r = [];
-        x(r)((n) => (r) => {
-            r.push(String.fromCharCode(n((x) => x + 1)(0)));
-            return r;
-        });
-        return JSON.stringify(r.reverse().join(''));
-    }
-    if (t.tag === 'TApp' && t.left.tag === 'TCon' && t.left.name === 'List') {
-        const ty = t.right;
-        const r = [];
-        x(r)((y) => (r) => {
-            r.push(_show(y, ty));
-            return r;
-        });
-        return `[${r.reverse().join(', ')}]`;
-    }
-    return _showR(x);
-};
+const _id = machine_new_1.MAbs(machine_new_1.MBVar(0));
+const _iterBNat = machine_new_1.MFVar('iterBNat');
+const _if = machine_new_1.MFVar('if');
+const _casePair = machine_new_1.MFVar('casePair');
 const matchTCon = (t, name) => t.tag === 'TCon' && t.name === name;
 const matchTApp = (t, name) => t.tag === 'TApp' && t.left.tag === 'TCon' && t.left.name === name;
 const matchTApp2 = (t, name) => t.tag === 'TApp' && t.left.tag === 'TApp' && t.left.left.tag === 'TCon' &&
     t.left.left.name === name;
 const reify = (v, t) => {
     if (matchTCon(t, 'Nat')) {
-        const cl = v;
-        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataNat'), cl.abs, machine_1.MAtom('Z'), machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('T'), machine_1.MVar('x'))), machine_1.MAbs('x', machine_1.MPairC(machine_1.MAtom('TI'), machine_1.MVar('x')))), cl.env);
-        let c = machine_1.stepsVal(st, cenv.venv);
-        const ar = [];
-        while (c.tag === 'VPair') {
-            let a = c.left.val;
-            ar.push(a === 'T' ? 0n : a === 'TI' ? 1n : 0n);
-            c = c.right;
-        }
         let n = 0n;
-        for (let i = ar.length - 1; i >= 0; i--)
-            n = (n * 2n) + ar[i];
+        const mt = machine_new_1.mapp(_iterBNat, v.abs, machine_new_1.MAbs(_id), machine_new_1.MAbs(machine_new_1.MApp(machine_new_1.MApp(machine_new_1.MBVar(0), _id), machine_new_1.MExec('twice', () => { n *= 2n; return true; }, _id))), machine_new_1.MAbs(machine_new_1.MApp(machine_new_1.MApp(machine_new_1.MBVar(0), _id), machine_new_1.MExec('twicePlusOne', () => { n = (n * 2n) + 1n; return true; }, _id))));
+        const st = machine_new_1.MState(mt, v.env, machine_new_1.MTop);
+        machine_new_1.steps(cenv.venv, st);
         return n;
     }
     if (matchTCon(t, 'Bool')) {
-        const cl = v;
-        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cond'), cl.abs, machine_1.MAtom('T'), machine_1.MAtom('F')), cl.env);
-        let c = machine_1.stepsVal(st, cenv.venv);
-        return c.tag === 'VAtom' && c.val === 'T';
+        let b = false;
+        const mt = machine_new_1.mapp(_if, v.abs, machine_new_1.MAbs(machine_new_1.MExec('true', () => { b = true; return true; }, _id)), _id);
+        const st = machine_new_1.MState(mt, v.env, machine_new_1.MTop);
+        machine_new_1.steps(cenv.venv, st);
+        return b;
     }
-    if (matchTCon(t, 'Char')) {
-        const n = reify(v, types_1.TCon('Nat'));
-        return String.fromCharCode(n);
-    }
-    if (matchTCon(t, 'Int')) {
-        const [a, b] = reify(v, types_1.TApp(types_1.TApp(types_1.TCon('Pair'), types_1.TCon('Nat')), types_1.TCon('Nat')));
-        const na = reify(a, types_1.TCon('Nat'));
-        const nb = reify(b, types_1.TCon('Nat'));
-        return na - nb;
-    }
-    if (matchTCon(t, 'Rat')) {
-        const [a, b] = reify(v, types_1.TApp(types_1.TApp(types_1.TCon('Pair'), types_1.TCon('Int')), types_1.TCon('Nat')));
-        const na = reify(a, types_1.TCon('Int'));
-        const nb = reify(b, types_1.TCon('Nat'));
-        return [na, nb];
-    }
-    if (matchTApp(t, 'List')) {
-        const cl = v;
-        const st = machine_1.State(machine_1.mapp(machine_1.MVar('cataList'), cl.abs, machine_1.MAtom('Nil'), machine_1.mabs(['h', 'r'], machine_1.MPairC(machine_1.MVar('h'), machine_1.MVar('r')))), cl.env);
-        let c = machine_1.stepsVal(st, cenv.venv);
-        const r = [];
-        while (c.tag === 'VPair') {
-            r.push(c.left);
-            c = c.right;
-        }
-        return r;
-    }
-    if (matchTCon(t, 'Str')) {
-        const l = reify(v, types_1.TApp(types_1.TCon('List'), types_1.TCon('Nat')));
-        return l.map((v) => String.fromCharCode(reify(v, types_1.TCon('Nat')))).join('');
-    }
-    if (matchTApp2(t, 'Pair')) {
-        const cl = v;
-        const st = machine_1.State(machine_1.mapp(cl.abs, machine_1.mabs(['x', 'y'], machine_1.MPairC(machine_1.MVar('x'), machine_1.MVar('y')))), cl.env);
-        const c = machine_1.stepsVal(st, cenv.venv);
-        return [c.left, c.right];
-    }
-    if (matchTApp2(t, 'Sum')) {
-        const cl = v;
-        const st = machine_1.State(machine_1.mapp(cl.abs, machine_1.mabs(['x'], machine_1.MPairC(machine_1.MAtom('L'), machine_1.MVar('x'))), machine_1.mabs(['x'], machine_1.MPairC(machine_1.MAtom('R'), machine_1.MVar('x')))), cl.env);
-        const c = machine_1.stepsVal(st, cenv.venv);
-        const tag = c.left.val;
-        return [tag, c.right];
-    }
-    if (v.tag === 'Clos')
-        return `*closure*`;
-    return '?';
+    return util_1.impossible('reify');
 };
-const _showVal = (v, t) => {
-    if (matchTCon(t, 'Unit'))
-        return '()';
+const showVal = (v, t) => {
     if (matchTCon(t, 'Nat'))
         return `${reify(v, t)}`;
-    if (matchTCon(t, 'Int'))
-        return `${reify(v, t)}`;
-    if (matchTCon(t, 'Rat')) {
-        const [a, b] = reify(v, t);
-        return `${a}/${b}`;
-    }
     if (matchTCon(t, 'Bool'))
         return `${reify(v, t)}`;
     if (matchTCon(t, 'Char'))
-        return `'${JSON.stringify(reify(v, t)).slice(1, -1)}'`;
-    if (matchTApp(t, 'List'))
-        return `[${reify(v, t).map((x) => _showVal(x, t.right)).join(', ')}]`;
-    if (matchTCon(t, 'Str'))
-        return JSON.stringify(reify(v, t));
-    if (matchTApp2(t, 'Pair')) {
-        const [a, b] = reify(v, t);
-        const sa = _showVal(a, t.left.right);
-        const sb = _showVal(b, t.right);
-        return `(${sa}, ${sb})`;
-    }
-    if (matchTApp2(t, 'Sum')) {
-        const [tag, val] = reify(v, t);
-        const str = tag === 'L' ?
-            _showVal(val, t.left.right) : _showVal(val, t.right);
-        return `(${tag} ${str})`;
-    }
-    if (v.tag === 'Clos') {
-        return `*closure*`;
-    }
-    return '?';
+        return `'${JSON.stringify(String.fromCharCode(Number(reify(v, inference_1.tNat)))).slice(1, -1)}'`;
+    return machine_new_1.showMClos(v);
 };
 exports.init = () => { };
 exports.run = (_s, _cb) => {
@@ -1912,11 +1774,11 @@ exports.run = (_s, _cb) => {
                 let itime = Date.now();
                 inference_1.inferDefs(cenv.tenv, _ds);
                 itime = Date.now() - itime;
-                machine_1.resetStepCount();
+                machine_new_1.resetStepCount();
                 let etime = Date.now();
                 cenv.defs = cenv.defs.concat(_ds);
-                machine_1.runEnv(_ds, cenv.venv);
-                const esteps = machine_1.stepCount;
+                compilerMachine_1.reduceDefs(cenv.venv, _ds);
+                const esteps = machine_new_1.stepCount;
                 etime = Date.now() - etime;
                 cenv.importmap = importmap;
                 return _cb(`defined ${_ds.map(d => d.name).join(' ')}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/total:${ptime + itime + etime}ms(${esteps}steps))` : ''}`);
@@ -1938,12 +1800,12 @@ exports.run = (_s, _cb) => {
             let ptime = Date.now();
             const _e = parser_1.parse(rest);
             ptime = Date.now() - ptime;
-            machine_1.resetStepCount();
+            machine_new_1.resetStepCount();
             let etime = Date.now();
-            const _v = machine_1.runVal(_e, cenv.venv);
+            const _v = compilerMachine_1.reduceTerm(cenv.venv, _e);
             etime = Date.now() - etime;
-            const esteps = machine_1.stepCount;
-            return _cb(`${machine_1.showVal(_v)}${config_1.config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
+            const esteps = machine_new_1.stepCount;
+            return _cb(`${machine_new_1.showMClos(_v)}${config_1.config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
         }
         let ptime = Date.now();
         const _e = parser_1.parse(_s);
@@ -1953,15 +1815,15 @@ exports.run = (_s, _cb) => {
         const _t = inference_1.infer(cenv.tenv, _e);
         itime = Date.now() - itime;
         config_1.log(() => types_1.showTy(_t));
-        machine_1.resetStepCount();
+        machine_new_1.resetStepCount();
         let etime = Date.now();
-        const _v = machine_1.runVal(_e, cenv.venv);
+        const _v = compilerMachine_1.reduceTerm(cenv.venv, _e);
         etime = Date.now() - etime;
-        const esteps = machine_1.stepCount;
-        machine_1.resetStepCount();
+        const esteps = machine_new_1.stepCount;
+        machine_new_1.resetStepCount();
         let rtime = Date.now();
-        const rv = _showVal(_v, _t);
-        const rsteps = machine_1.stepCount;
+        const rv = showVal(_v, _t);
+        const rsteps = machine_new_1.stepCount;
         rtime = Date.now() - rtime;
         return _cb(`${rv} : ${types_1.showTy(_t)}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/reification:${rtime}ms(${rsteps}steps)/total:${ptime + itime + etime + rtime}ms(${esteps + rsteps}steps))` : ''}`);
     }
@@ -1971,7 +1833,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./List":1,"./config":2,"./definitions":3,"./env":4,"./inference":6,"./kinds":8,"./machine":9,"./parser":10,"./terms":13,"./types":14}],13:[function(require,module,exports){
+},{"./compilerMachine":2,"./config":3,"./definitions":4,"./env":5,"./inference":7,"./kinds":9,"./machine.new":10,"./parser":11,"./terms":14,"./types":15,"./util":17}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -2033,7 +1895,7 @@ exports.showTerm = (t) => {
     return util_1.impossible('showTerm');
 };
 
-},{"./types":14,"./util":16}],14:[function(require,module,exports){
+},{"./types":15,"./util":17}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -2202,7 +2064,7 @@ exports.quantify = (tms, ty) => {
     return exports.TForall(tvs, ks, exports.prune(ty));
 };
 
-},{"./config":2,"./kinds":8,"./util":16}],15:[function(require,module,exports){
+},{"./config":3,"./kinds":9,"./util":17}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -2256,7 +2118,7 @@ exports.unifyTFun = (env, ty) => {
     return fn;
 };
 
-},{"./config":2,"./kindInference":7,"./kinds":8,"./types":14,"./util":16}],16:[function(require,module,exports){
+},{"./config":3,"./kindInference":8,"./kinds":9,"./types":15,"./util":17}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -2282,12 +2144,12 @@ exports.skolemCheck = (sk, ty) => {
         return exports.skolemCheck(sk, ty.type);
 };
 
-},{"./kinds":8,"./types":14}],17:[function(require,module,exports){
+},{"./kinds":9,"./types":15}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const repl_1 = require("./repl");
+const repl_new_1 = require("./repl.new");
 function getOutput(s, cb) {
-    repl_1.run(s, cb);
+    repl_new_1.run(s, cb);
 }
 var hist = [], index = -1;
 var input = document.getElementById('input');
@@ -2299,7 +2161,7 @@ window.addEventListener('resize', onresize);
 onresize();
 addResult("REPL");
 // getOutput(':i', addResult);
-repl_1.init();
+repl_new_1.init();
 input.focus();
 input.onkeydown = function (keyEvent) {
     var val = input.value;
@@ -2342,6 +2204,6 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":12}],18:[function(require,module,exports){
+},{"./repl.new":13}],19:[function(require,module,exports){
 
-},{}]},{},[17]);
+},{}]},{},[18]);

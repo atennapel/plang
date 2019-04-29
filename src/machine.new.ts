@@ -224,13 +224,12 @@ export const step = (genv: GEnv, state: MState): boolean => {
 
 export let stepCount = 0;
 export const resetStepCount = () => { stepCount = 0 };
-export const steps = (genv: GEnv, state: MState): MState => {
+export const steps = (genv: GEnv, state: MState): void => {
   log(() => showMState(state));
   while (step(genv, state)) {
     log(() => showMState(state));
     stepCount++;
   }
-  return state;
 };
 
 export const initial = (term: MTerm): MState =>
@@ -238,7 +237,7 @@ export const initial = (term: MTerm): MState =>
 
 export const reduce = (genv: GEnv, term: MTerm): MClos => {
   const st = initial(term);
-  const n = steps(genv, st);
+  steps(genv, st);
   if (st.cont.tag !== 'MTop' || st.term.tag !== 'MAbs')
     throw new Error(`evaluation got stuck: ${showMState(st)}`);
   return makeClos(st.term, st.env);

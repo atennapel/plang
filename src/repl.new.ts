@@ -1,13 +1,14 @@
 import { config, log } from './config';
 import { Env as TEnv, showEnv, getInitialEnv } from './env';
 import { showTerm } from './terms';
-import { showTy, Type, tforall, tfunFrom, TVar } from './types';
-import { infer, inferDefs } from './inference';
+import { showTy, Type, tforall, tfunFrom, TVar, TCon, TApp } from './types';
+import { infer, inferDefs, tNat } from './inference';
 import { parse, parseDefs, ImportMap } from './parser';
 import { Def, showDef, findDef, findDefType } from './definitions';
 import { kType } from './kinds';
-import { GEnv, MClos, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount } from './machine.new';
+import { GEnv, MClos, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount, MState, MTop, mapp, MFVar, steps, MExec } from './machine.new';
 import { reduceDefs, reduceTerm } from './compilerMachine';
+import { Name, impossible } from './util';
 
 const HELP = `
   commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval
@@ -30,7 +31,50 @@ const setupEnv = () => {
 };
 setupEnv();
 
+const _id = MAbs(MBVar(0));
+const _iterBNat = MFVar('iterBNat');
+const _if = MFVar('if');
+const _casePair = MFVar('casePair');
+
+const matchTCon = (t: Type, name: Name): t is TCon =>
+  t.tag === 'TCon' && t.name === name;
+const matchTApp = (t: Type, name: Name): t is TApp =>
+  t.tag === 'TApp' && t.left.tag === 'TCon' && t.left.name === name;
+const matchTApp2 = (t: Type, name: Name): t is TApp =>
+  t.tag === 'TApp' && t.left.tag === 'TApp' && t.left.left.tag === 'TCon' &&
+    t.left.left.name === name;
+const reify = (v: MClos, t: Type): any => {
+  if (matchTCon(t, 'Nat')) {
+    let n = 0n;
+    const mt = mapp(
+      _iterBNat,
+      v.abs,
+      MAbs(_id),
+      MAbs(MApp(MApp(MBVar(0), _id), MExec('twice', () => { n *= 2n; return true }, _id))),
+      MAbs(MApp(MApp(MBVar(0), _id), MExec('twicePlusOne', () => { n = (n * 2n) + 1n; return true }, _id))),
+    );
+    const st = MState(mt, v.env, MTop);
+    steps(cenv.venv, st);
+    return n;
+  }
+  if (matchTCon(t, 'Bool')) {
+    let b = false;
+    const mt = mapp(
+      _if,
+      v.abs,
+      MAbs(MExec('true', () => { b = true; return true }, _id)),
+      _id,
+    );
+    const st = MState(mt, v.env, MTop);
+    steps(cenv.venv, st);
+    return b;
+  }
+  return impossible('reify');
+};
 const showVal = (v: MClos, t: Type): string => {
+  if (matchTCon(t, 'Nat')) return `${reify(v, t)}`;
+  if (matchTCon(t, 'Bool')) return `${reify(v, t)}`;
+  if (matchTCon(t, 'Char')) return `'${JSON.stringify(String.fromCharCode(Number(reify(v, tNat)))).slice(1, -1)}'`;
   return showMClos(v);
 };
 
