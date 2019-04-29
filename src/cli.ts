@@ -1,4 +1,4 @@
-import { run, init } from './repl.new';
+import { run, init } from './repl';
 import { parseDefs } from './parser';
 import { inferDefs } from './inference';
 import { getInitialEnv } from './env';

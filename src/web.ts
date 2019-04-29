@@ -1,4 +1,4 @@
-import { run, init } from './repl.new';
+import { run, init } from './repl';
 
 function getOutput(s: string, cb: (msg: string, err?: boolean) => void): void {
   run(s, cb);

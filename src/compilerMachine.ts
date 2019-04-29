@@ -1,6 +1,6 @@
 import { impossible, Name } from './util';
 import { Pat, Term, LitNat, LitInt, LitChar, App, Abs, PVar, PWildcard, appFrom, Var, abs } from './terms';
-import { MFVar, MTerm, MApp, MAbs, MBVar, GEnv, MClos, reduce, makeClos, LNil } from './machine.new';
+import { MFVar, MTerm, MApp, MAbs, MBVar, GEnv, MClos, reduce, makeClos, LNil } from './machine';
 import { Def } from './definitions';
 
 export const patToMachine = (pat: Pat): Name => {
