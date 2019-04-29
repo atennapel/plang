@@ -24,7 +24,7 @@ let isNonEmpty l = not (isEmpty l)
 let wrap x = cons x nil
 
 let append = flip (foldr cons)
-let reverse = foldr (\h r -> append r (wrap h)) nil
+let reverse l = (unsafeFix \rec l a -> caseList l (\() -> a) (\h t -> rec t (cons h a))) l nil
 
 let monoidList = monoid nil append
 let fold m = foldr (mappend m) (munit m)
