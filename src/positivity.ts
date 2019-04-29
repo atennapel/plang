@@ -1,26 +1,27 @@
-import { Type, flattenTFun, isTFun } from './types';
+import { Type, isTFun, containsTCon, showTy } from './types';
 import { terr } from './util';
+import { log } from './config';
 
-export const positivityCheckArg = (c: string, t: Type, b = true): void => {
+export const positivityCheck = (c: string, t: Type, b: boolean = false): void => {
+  log(() => `positivityCheck ${c} ${showTy(t)} ${b}`);
   if (isTFun(t)) {
-    positivityCheckArg(c, t.left.right, !b);
-    positivityCheckArg(c, t.right, b);
+    positivityCheck(c, t.left.right, !b);
+    positivityCheck(c, t.right, b);
+    return;
+  }
+  if (t.tag === 'TForall') {
+    positivityCheck(c, t.type, b);
     return;
   }
   if (t.tag === 'TApp') {
-    positivityCheckArg(c, t.left, b);
-    positivityCheckArg(c, t.right, b);
+    positivityCheck(c, t.left, b);
+    if (containsTCon(c, t.right))
+      return terr(`positivity check failed: ${c}`);
     return;
   }
-  if (t.tag === 'TCon' && t.name === c) {
-    if (!b) return terr(`positivity check failed: ${c}`);
+  if (t.tag === 'TCon') {
+    if (t.name !== c) return;
+    if (b) return terr(`positivity check failed: ${c}`);
     return;
   }
-};
-
-export const positivityCheck = (c: string, t: Type) => {
-  const ty = t.tag === 'TForall' ? t.type : t;
-  const args = flattenTFun(ty).slice(0, -1);
-  for (let i = 0; i < args.length; i++)
-    positivityCheckArg(c, args[i]);
 };

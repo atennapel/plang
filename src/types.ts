@@ -180,6 +180,13 @@ export const prune = (ty: Type): Type => {
   return ty;
 };
 
+export const containsTCon = (c: string, t: Type): boolean => {
+  if (t.tag === 'TCon') return t.name === c;
+  if (t.tag === 'TApp') return containsTCon(c, t.left) || containsTCon(c, t.right);
+  if (t.tag === 'TForall') return containsTCon(c, t.type);
+  return false;
+};
+
 export const occursTMeta = (x: TMeta, t: Type): boolean => {
   if (x === t) return true;
   if (t.tag === 'TMeta' && t.type)

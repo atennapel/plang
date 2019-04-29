@@ -273,7 +273,7 @@ export const inferDef = (env: Env, def: Def): void => {
     const nenv = cloneEnv(env);
     nenv.tcons[tname] = freshKMeta();
     const ti = inferKind(nenv, ty);
-    positivityCheck(tname, ty);
+    positivityCheck(tname, t);
     env.global[tname] = ti;
     env.tcons[tname] = pruneKind(nenv.tcons[tname]);
     return;

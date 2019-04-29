@@ -560,7 +560,7 @@ exports.inferDef = (env, def) => {
         const nenv = env_1.cloneEnv(env);
         nenv.tcons[tname] = util_1.freshKMeta();
         const ti = kindInference_1.inferKind(nenv, ty);
-        positivity_1.positivityCheck(tname, ty);
+        positivity_1.positivityCheck(tname, t);
         env.global[tname] = ti;
         env.tcons[tname] = kinds_1.pruneKind(nenv.tcons[tname]);
         return;
@@ -1639,31 +1639,34 @@ exports.parseDefs = (sc, map) => {
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
 const util_1 = require("./util");
-exports.positivityCheckArg = (c, t, b = true) => {
+const config_1 = require("./config");
+exports.positivityCheck = (c, t, b = false) => {
+    config_1.log(() => `positivityCheck ${c} ${types_1.showTy(t)} ${b}`);
     if (types_1.isTFun(t)) {
-        exports.positivityCheckArg(c, t.left.right, !b);
-        exports.positivityCheckArg(c, t.right, b);
+        exports.positivityCheck(c, t.left.right, !b);
+        exports.positivityCheck(c, t.right, b);
+        return;
+    }
+    if (t.tag === 'TForall') {
+        exports.positivityCheck(c, t.type, b);
         return;
     }
     if (t.tag === 'TApp') {
-        exports.positivityCheckArg(c, t.left, b);
-        exports.positivityCheckArg(c, t.right, b);
+        exports.positivityCheck(c, t.left, b);
+        if (types_1.containsTCon(c, t.right))
+            return util_1.terr(`positivity check failed: ${c}`);
         return;
     }
-    if (t.tag === 'TCon' && t.name === c) {
-        if (!b)
+    if (t.tag === 'TCon') {
+        if (t.name !== c)
+            return;
+        if (b)
             return util_1.terr(`positivity check failed: ${c}`);
         return;
     }
 };
-exports.positivityCheck = (c, t) => {
-    const ty = t.tag === 'TForall' ? t.type : t;
-    const args = types_1.flattenTFun(ty).slice(0, -1);
-    for (let i = 0; i < args.length; i++)
-        exports.positivityCheckArg(c, args[i]);
-};
 
-},{"./types":16,"./util":18}],13:[function(require,module,exports){
+},{"./config":3,"./types":16,"./util":18}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const machine_1 = require("./machine");
@@ -2088,6 +2091,15 @@ exports.prune = (ty) => {
     if (ty.tag === 'TForall')
         return exports.TForall(ty.names, ty.kinds, exports.prune(ty.type));
     return ty;
+};
+exports.containsTCon = (c, t) => {
+    if (t.tag === 'TCon')
+        return t.name === c;
+    if (t.tag === 'TApp')
+        return exports.containsTCon(c, t.left) || exports.containsTCon(c, t.right);
+    if (t.tag === 'TForall')
+        return exports.containsTCon(c, t.type);
+    return false;
 };
 exports.occursTMeta = (x, t) => {
     if (x === t)
