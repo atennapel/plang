@@ -1,14 +1,14 @@
 import { config, log } from './config';
 import { Env as TEnv, showEnv, getInitialEnv } from './env';
 import { showTerm } from './terms';
-import { showTy, Type, tforall, tfunFrom, TVar, TCon, TApp } from './types';
-import { infer, inferDefs, tNat } from './inference';
+import { showTy, tforall, tfunFrom, TVar } from './types';
+import { infer, inferDefs } from './inference';
 import { parse, parseDefs, ImportMap } from './parser';
 import { Def, showDef, findDef, findDefType } from './definitions';
 import { kType } from './kinds';
-import { GEnv, MClos, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount, MState, MTop, mapp, MFVar, steps, MExec, showMState } from './machine';
+import { GEnv, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount } from './machine';
 import { reduceDefs, reduceTerm } from './compilerMachine';
-import { Name, impossible } from './util';
+import { showReifyClos } from './reification';
 
 const HELP = `
   commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval
@@ -30,130 +30,6 @@ const setupEnv = () => {
   cenv.venv.unsafeFix = _yval;
 };
 setupEnv();
-
-const _id = MAbs(MBVar(0));
-const _iterBNat = MFVar('iterBNat');
-const _if = MFVar('if');
-const _casePair = MFVar('casePair');
-const _caseSum = MFVar('caseSum');
-const _foldr = MFVar('foldr');
-
-const matchTCon = (t: Type, name: Name): t is TCon =>
-  t.tag === 'TCon' && t.name === name;
-const matchTApp = (t: Type, name: Name): t is TApp =>
-  t.tag === 'TApp' && t.left.tag === 'TCon' && t.left.name === name;
-const matchTApp2 = (t: Type, name: Name): t is TApp =>
-  t.tag === 'TApp' && t.left.tag === 'TApp' && t.left.left.tag === 'TCon' &&
-    t.left.left.name === name;
-const reify = (v: MClos, t: Type): any => {
-  if (matchTCon(t, 'Nat')) {
-    let n = 0n;
-    const mt = mapp(
-      _iterBNat,
-      v.abs,
-      MAbs(_id),
-      MAbs(MApp(MApp(MBVar(0), _id), MExec('twice', () => { n *= 2n; return true }, _id))),
-      MAbs(MApp(MApp(MBVar(0), _id), MExec('twicePlusOne', () => { n = (n * 2n) + 1n; return true }, _id))),
-    );
-    const st = MState(mt, v.env, MTop);
-    steps(cenv.venv, st);
-    return n;
-  }
-  if (matchTCon(t, 'Int')) {
-    const [a, b] = reify(v, TApp(TApp(TCon('Pair'), TCon('Nat')), TCon('Nat')));
-    const na = reify(a, TCon('Nat'));
-    const nb = reify(b, TCon('Nat'));
-    return na - nb;
-  }
-  if (matchTCon(t, 'Rat')) {
-    const [a, b] = reify(v, TApp(TApp(TCon('Pair'), TCon('Int')), TCon('Nat')));
-    const na = reify(a, TCon('Int'));
-    const nb = reify(b, TCon('Nat'));
-    return [na, nb];
-  }
-  if (matchTCon(t, 'Bool')) {
-    let b = false;
-    const mt = mapp(
-      _if,
-      v.abs,
-      MAbs(MExec('true', () => { b = true; return true }, _id)),
-      _id,
-    );
-    const st = MState(mt, v.env, MTop);
-    steps(cenv.venv, st);
-    return b;
-  }
-  if (matchTApp2(t, 'Pair')) {
-    let p: [any, any] = [null, null];
-    const mt = mapp(
-      _casePair,
-      v.abs,
-      MAbs(MAbs(mapp(
-        _id,
-        MExec('fst', st => { p[0] = makeClos(st.term as MAbs, st.env); return true }, MBVar(1)),
-        MExec('snd', st => { p[1] = makeClos(st.term as MAbs, st.env); return true }, MBVar(0))))),
-    );
-    const st = MState(mt, v.env, MTop);
-    steps(cenv.venv, st);
-    return p;
-  }
-  if (matchTApp2(t, 'Sum')) {
-    let s: [boolean, any] = [false, null];
-    const mt = mapp(
-      _caseSum,
-      v.abs,
-      MAbs(MExec('inl', st => { s[0] = true; s[1] = makeClos(st.term as MAbs, st.env); return true }, MBVar(0))),
-      MAbs(MExec('inr', st => { s[1] = makeClos(st.term as MAbs, st.env); return true }, MBVar(0))),
-    );
-    const st = MState(mt, v.env, MTop);
-    steps(cenv.venv, st);
-    return s;
-  }
-  if (matchTApp(t, 'List')) {
-    const a: MClos[] = [];
-    const mt = mapp(
-      _foldr,
-      MAbs(MAbs(MExec('push', st => { a.push(makeClos(st.term as MAbs, st.env)); return true }, MBVar(1)))),
-      _id,
-      v.abs,
-    );
-    const st = MState(mt, v.env, MTop);
-    steps(cenv.venv, st);
-    return a.reverse();
-  }
-  if (matchTCon(t, 'Str')) {
-    const l = reify(v, TApp(TCon('List'), TCon('Nat')));
-    return l.map((v: MClos) => String.fromCharCode(Number(reify(v, TCon('Nat'))))).join('');
-  }
-  return impossible('reify');
-};
-const showVal = (v: MClos, t: Type): string => {
-  if (matchTCon(t, 'Unit')) return '()';
-  if (matchTCon(t, 'Bool')) return `${reify(v, t)}`;
-  if (matchTCon(t, 'Nat')) return `${reify(v, t)}`;
-  if (matchTCon(t, 'Int')) return `${reify(v, t)}`;
-  if (matchTCon(t, 'Rat')) {
-    const [a, b] = reify(v, t);
-    return `${a}/${b}`;
-  }
-  if (matchTCon(t, 'Char')) return `'${JSON.stringify(String.fromCharCode(Number(reify(v, tNat)))).slice(1, -1)}'`;
-  if (matchTApp2(t, 'Pair')) {
-    const [a, b] = reify(v, t);
-    const sa = showVal(a, (t.left as any).right);
-    const sb = showVal(b, t.right);
-    return `(${sa}, ${sb})`;
-  }
-  if (matchTApp2(t, 'Sum')) {
-    const [a, b] = reify(v, t);
-    const s = a ? showVal(b, (t.left as any).right) : showVal(b, t.right);
-    return `(${a ? 'L' : 'R'} ${s})`;
-  }
-  if (matchTApp(t, 'List')) {
-    return `[${reify(v, t).map((x: MClos) => showVal(x, t.right)).join(', ')}]`;
-  }
-  if (matchTCon(t, 'Str')) return JSON.stringify(reify(v, t));
-  return showMClos(v);
-};
 
 export const init = () => {};
 export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
@@ -255,7 +131,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     const esteps = stepCount;
     resetStepCount();
     let rtime = Date.now();
-    const rv = showVal(_v, _t);
+    const rv = showReifyClos(_v, _t, cenv.venv);
     const rsteps = stepCount;
     rtime = Date.now() - rtime;
     return _cb(`${rv} : ${showTy(_t)}${config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/reification:${rtime}ms(${rsteps}steps)/total:${ptime+itime+etime+rtime}ms(${esteps+rsteps}steps))` : ''}`);
@@ -264,4 +140,3 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
     return _cb(`${_err}`, true);
   }
 };
-

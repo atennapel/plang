@@ -147,7 +147,7 @@ exports.reduceDefs = (global, defs) => {
     }
 };
 
-},{"./machine":10,"./terms":14,"./util":17}],3:[function(require,module,exports){
+},{"./machine":10,"./terms":15,"./util":18}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = {
@@ -205,7 +205,7 @@ exports.findDefType = (ds, name) => {
     return null;
 };
 
-},{"./kinds":9,"./terms":14,"./types":15}],5:[function(require,module,exports){
+},{"./kinds":9,"./terms":15,"./types":16}],5:[function(require,module,exports){
 (function (global){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -260,7 +260,7 @@ const initialEnv = exports.Env({}, {
 exports.getInitialEnv = () => exports.cloneEnv(initialEnv);
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./List":1,"./kinds":9,"./types":15,"./util":17}],6:[function(require,module,exports){
+},{"./List":1,"./kinds":9,"./types":16,"./util":18}],6:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isBrowser = typeof window !== 'undefined';
@@ -302,7 +302,7 @@ exports.restore = () => {
     }
 };
 
-},{"fs":19}],7:[function(require,module,exports){
+},{"fs":20}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -580,7 +580,7 @@ exports.inferDefs = (env, ds) => {
         exports.inferDef(env, ds[i]);
 };
 
-},{"./List":1,"./config":3,"./definitions":4,"./env":5,"./kindInference":8,"./kinds":9,"./positivity":12,"./terms":14,"./types":15,"./unification":16,"./util":17}],8:[function(require,module,exports){
+},{"./List":1,"./config":3,"./definitions":4,"./env":5,"./kindInference":8,"./kinds":9,"./positivity":12,"./terms":15,"./types":16,"./unification":17,"./util":18}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -695,7 +695,7 @@ exports.kindOf = (env, t) => {
     return util_1.terr(`unexpected type ${types_1.showTy(t)} in kindOf`);
 };
 
-},{"./env":5,"./kinds":9,"./types":15,"./util":17}],9:[function(require,module,exports){
+},{"./env":5,"./kinds":9,"./types":16,"./util":18}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -757,7 +757,7 @@ exports.eqKind = (a, b) => {
     return false;
 };
 
-},{"./util":17}],10:[function(require,module,exports){
+},{"./util":18}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -917,7 +917,7 @@ exports.reduce = (genv, term) => {
     return exports.makeClos(st.term, st.env);
 };
 
-},{"./config":3,"./util":17}],11:[function(require,module,exports){
+},{"./config":3,"./util":18}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1634,7 +1634,7 @@ exports.parseDefs = (sc, map) => {
     return parseParensDefs(ts, map);
 };
 
-},{"./config":3,"./definitions":4,"./import":6,"./kinds":9,"./terms":14,"./types":15}],12:[function(require,module,exports){
+},{"./config":3,"./definitions":4,"./import":6,"./kinds":9,"./terms":15,"./types":16}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -1663,7 +1663,112 @@ exports.positivityCheck = (c, t) => {
         exports.positivityCheckArg(c, args[i]);
 };
 
-},{"./types":15,"./util":17}],13:[function(require,module,exports){
+},{"./types":16,"./util":18}],13:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const machine_1 = require("./machine");
+const types_1 = require("./types");
+const util_1 = require("./util");
+const inference_1 = require("./inference");
+const _id = machine_1.MAbs(machine_1.MBVar(0));
+const _iterBNat = machine_1.MFVar('iterBNat');
+const _if = machine_1.MFVar('if');
+const _casePair = machine_1.MFVar('casePair');
+const _caseSum = machine_1.MFVar('caseSum');
+const _foldr = machine_1.MFVar('foldr');
+const matchTCon = (t, name) => t.tag === 'TCon' && t.name === name;
+const matchTApp = (t, name) => t.tag === 'TApp' && t.left.tag === 'TCon' && t.left.name === name;
+const matchTApp2 = (t, name) => t.tag === 'TApp' && t.left.tag === 'TApp' && t.left.left.tag === 'TCon' &&
+    t.left.left.name === name;
+exports.reify = (v, t, env) => {
+    if (matchTCon(t, 'Nat')) {
+        let n = 0n;
+        const mt = machine_1.mapp(_iterBNat, v.abs, machine_1.MAbs(_id), machine_1.MAbs(machine_1.MApp(machine_1.MApp(machine_1.MBVar(0), _id), machine_1.MExec('twice', () => { n *= 2n; return true; }, _id))), machine_1.MAbs(machine_1.MApp(machine_1.MApp(machine_1.MBVar(0), _id), machine_1.MExec('twicePlusOne', () => { n = (n * 2n) + 1n; return true; }, _id))));
+        const st = machine_1.MState(mt, v.env, machine_1.MTop);
+        machine_1.steps(env, st);
+        return n;
+    }
+    if (matchTCon(t, 'Int')) {
+        const [a, b] = exports.reify(v, types_1.TApp(types_1.TApp(types_1.TCon('Pair'), types_1.TCon('Nat')), types_1.TCon('Nat')), env);
+        const na = exports.reify(a, types_1.TCon('Nat'), env);
+        const nb = exports.reify(b, types_1.TCon('Nat'), env);
+        return na - nb;
+    }
+    if (matchTCon(t, 'Rat')) {
+        const [a, b] = exports.reify(v, types_1.TApp(types_1.TApp(types_1.TCon('Pair'), types_1.TCon('Int')), types_1.TCon('Nat')), env);
+        const na = exports.reify(a, types_1.TCon('Int'), env);
+        const nb = exports.reify(b, types_1.TCon('Nat'), env);
+        return [na, nb];
+    }
+    if (matchTCon(t, 'Bool')) {
+        let b = false;
+        const mt = machine_1.mapp(_if, v.abs, machine_1.MAbs(machine_1.MExec('true', () => { b = true; return true; }, _id)), _id);
+        const st = machine_1.MState(mt, v.env, machine_1.MTop);
+        machine_1.steps(env, st);
+        return b;
+    }
+    if (matchTApp2(t, 'Pair')) {
+        let p = [null, null];
+        const mt = machine_1.mapp(_casePair, v.abs, machine_1.MAbs(machine_1.MAbs(machine_1.mapp(_id, machine_1.MExec('fst', st => { p[0] = machine_1.makeClos(st.term, st.env); return true; }, machine_1.MBVar(1)), machine_1.MExec('snd', st => { p[1] = machine_1.makeClos(st.term, st.env); return true; }, machine_1.MBVar(0))))));
+        const st = machine_1.MState(mt, v.env, machine_1.MTop);
+        machine_1.steps(env, st);
+        return p;
+    }
+    if (matchTApp2(t, 'Sum')) {
+        let s = [false, null];
+        const mt = machine_1.mapp(_caseSum, v.abs, machine_1.MAbs(machine_1.MExec('inl', st => { s[0] = true; s[1] = machine_1.makeClos(st.term, st.env); return true; }, machine_1.MBVar(0))), machine_1.MAbs(machine_1.MExec('inr', st => { s[1] = machine_1.makeClos(st.term, st.env); return true; }, machine_1.MBVar(0))));
+        const st = machine_1.MState(mt, v.env, machine_1.MTop);
+        machine_1.steps(env, st);
+        return s;
+    }
+    if (matchTApp(t, 'List')) {
+        const a = [];
+        const mt = machine_1.mapp(_foldr, machine_1.MAbs(machine_1.MAbs(machine_1.MExec('push', st => { a.push(machine_1.makeClos(st.term, st.env)); return true; }, machine_1.MBVar(1)))), _id, v.abs);
+        const st = machine_1.MState(mt, v.env, machine_1.MTop);
+        machine_1.steps(env, st);
+        return a.reverse();
+    }
+    if (matchTCon(t, 'Str')) {
+        const l = exports.reify(v, types_1.TApp(types_1.TCon('List'), types_1.TCon('Nat')), env);
+        return l.map((v) => String.fromCharCode(Number(exports.reify(v, types_1.TCon('Nat'), env)))).join('');
+    }
+    return util_1.impossible('reify');
+};
+exports.showReifyClos = (v, t, env) => {
+    if (matchTCon(t, 'Unit'))
+        return '()';
+    if (matchTCon(t, 'Bool'))
+        return `${exports.reify(v, t, env)}`;
+    if (matchTCon(t, 'Nat'))
+        return `${exports.reify(v, t, env)}`;
+    if (matchTCon(t, 'Int'))
+        return `${exports.reify(v, t, env)}`;
+    if (matchTCon(t, 'Rat')) {
+        const [a, b] = exports.reify(v, t, env);
+        return `${a}/${b}`;
+    }
+    if (matchTCon(t, 'Char'))
+        return `'${JSON.stringify(String.fromCharCode(Number(exports.reify(v, inference_1.tNat, env)))).slice(1, -1)}'`;
+    if (matchTApp2(t, 'Pair')) {
+        const [a, b] = exports.reify(v, t, env);
+        const sa = exports.showReifyClos(a, t.left.right, env);
+        const sb = exports.showReifyClos(b, t.right, env);
+        return `(${sa}, ${sb})`;
+    }
+    if (matchTApp2(t, 'Sum')) {
+        const [a, b] = exports.reify(v, t, env);
+        const s = a ? exports.showReifyClos(b, t.left.right, env) : exports.showReifyClos(b, t.right, env);
+        return `(${a ? 'L' : 'R'} ${s})`;
+    }
+    if (matchTApp(t, 'List')) {
+        return `[${exports.reify(v, t, env).map((x) => exports.showReifyClos(x, t.right, env)).join(', ')}]`;
+    }
+    if (matchTCon(t, 'Str'))
+        return JSON.stringify(exports.reify(v, t, env));
+    return machine_1.showMClos(v);
+};
+
+},{"./inference":7,"./machine":10,"./types":16,"./util":18}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1676,7 +1781,7 @@ const definitions_1 = require("./definitions");
 const kinds_1 = require("./kinds");
 const machine_1 = require("./machine");
 const compilerMachine_1 = require("./compilerMachine");
-const util_1 = require("./util");
+const reification_1 = require("./reification");
 const HELP = `
   commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval
 `.trim();
@@ -1694,103 +1799,6 @@ const setupEnv = () => {
     cenv.venv.unsafeFix = _yval;
 };
 setupEnv();
-const _id = machine_1.MAbs(machine_1.MBVar(0));
-const _iterBNat = machine_1.MFVar('iterBNat');
-const _if = machine_1.MFVar('if');
-const _casePair = machine_1.MFVar('casePair');
-const _caseSum = machine_1.MFVar('caseSum');
-const _foldr = machine_1.MFVar('foldr');
-const matchTCon = (t, name) => t.tag === 'TCon' && t.name === name;
-const matchTApp = (t, name) => t.tag === 'TApp' && t.left.tag === 'TCon' && t.left.name === name;
-const matchTApp2 = (t, name) => t.tag === 'TApp' && t.left.tag === 'TApp' && t.left.left.tag === 'TCon' &&
-    t.left.left.name === name;
-const reify = (v, t) => {
-    if (matchTCon(t, 'Nat')) {
-        let n = 0n;
-        const mt = machine_1.mapp(_iterBNat, v.abs, machine_1.MAbs(_id), machine_1.MAbs(machine_1.MApp(machine_1.MApp(machine_1.MBVar(0), _id), machine_1.MExec('twice', () => { n *= 2n; return true; }, _id))), machine_1.MAbs(machine_1.MApp(machine_1.MApp(machine_1.MBVar(0), _id), machine_1.MExec('twicePlusOne', () => { n = (n * 2n) + 1n; return true; }, _id))));
-        const st = machine_1.MState(mt, v.env, machine_1.MTop);
-        machine_1.steps(cenv.venv, st);
-        return n;
-    }
-    if (matchTCon(t, 'Int')) {
-        const [a, b] = reify(v, types_1.TApp(types_1.TApp(types_1.TCon('Pair'), types_1.TCon('Nat')), types_1.TCon('Nat')));
-        const na = reify(a, types_1.TCon('Nat'));
-        const nb = reify(b, types_1.TCon('Nat'));
-        return na - nb;
-    }
-    if (matchTCon(t, 'Rat')) {
-        const [a, b] = reify(v, types_1.TApp(types_1.TApp(types_1.TCon('Pair'), types_1.TCon('Int')), types_1.TCon('Nat')));
-        const na = reify(a, types_1.TCon('Int'));
-        const nb = reify(b, types_1.TCon('Nat'));
-        return [na, nb];
-    }
-    if (matchTCon(t, 'Bool')) {
-        let b = false;
-        const mt = machine_1.mapp(_if, v.abs, machine_1.MAbs(machine_1.MExec('true', () => { b = true; return true; }, _id)), _id);
-        const st = machine_1.MState(mt, v.env, machine_1.MTop);
-        machine_1.steps(cenv.venv, st);
-        return b;
-    }
-    if (matchTApp2(t, 'Pair')) {
-        let p = [null, null];
-        const mt = machine_1.mapp(_casePair, v.abs, machine_1.MAbs(machine_1.MAbs(machine_1.mapp(_id, machine_1.MExec('fst', st => { p[0] = machine_1.makeClos(st.term, st.env); return true; }, machine_1.MBVar(1)), machine_1.MExec('snd', st => { p[1] = machine_1.makeClos(st.term, st.env); return true; }, machine_1.MBVar(0))))));
-        const st = machine_1.MState(mt, v.env, machine_1.MTop);
-        machine_1.steps(cenv.venv, st);
-        return p;
-    }
-    if (matchTApp2(t, 'Sum')) {
-        let s = [false, null];
-        const mt = machine_1.mapp(_caseSum, v.abs, machine_1.MAbs(machine_1.MExec('inl', st => { s[0] = true; s[1] = machine_1.makeClos(st.term, st.env); return true; }, machine_1.MBVar(0))), machine_1.MAbs(machine_1.MExec('inr', st => { s[1] = machine_1.makeClos(st.term, st.env); return true; }, machine_1.MBVar(0))));
-        const st = machine_1.MState(mt, v.env, machine_1.MTop);
-        machine_1.steps(cenv.venv, st);
-        return s;
-    }
-    if (matchTApp(t, 'List')) {
-        const a = [];
-        const mt = machine_1.mapp(_foldr, machine_1.MAbs(machine_1.MAbs(machine_1.MExec('push', st => { a.push(machine_1.makeClos(st.term, st.env)); return true; }, machine_1.MBVar(1)))), _id, v.abs);
-        const st = machine_1.MState(mt, v.env, machine_1.MTop);
-        machine_1.steps(cenv.venv, st);
-        return a.reverse();
-    }
-    if (matchTCon(t, 'Str')) {
-        const l = reify(v, types_1.TApp(types_1.TCon('List'), types_1.TCon('Nat')));
-        return l.map((v) => String.fromCharCode(Number(reify(v, types_1.TCon('Nat'))))).join('');
-    }
-    return util_1.impossible('reify');
-};
-const showVal = (v, t) => {
-    if (matchTCon(t, 'Unit'))
-        return '()';
-    if (matchTCon(t, 'Bool'))
-        return `${reify(v, t)}`;
-    if (matchTCon(t, 'Nat'))
-        return `${reify(v, t)}`;
-    if (matchTCon(t, 'Int'))
-        return `${reify(v, t)}`;
-    if (matchTCon(t, 'Rat')) {
-        const [a, b] = reify(v, t);
-        return `${a}/${b}`;
-    }
-    if (matchTCon(t, 'Char'))
-        return `'${JSON.stringify(String.fromCharCode(Number(reify(v, inference_1.tNat)))).slice(1, -1)}'`;
-    if (matchTApp2(t, 'Pair')) {
-        const [a, b] = reify(v, t);
-        const sa = showVal(a, t.left.right);
-        const sb = showVal(b, t.right);
-        return `(${sa}, ${sb})`;
-    }
-    if (matchTApp2(t, 'Sum')) {
-        const [a, b] = reify(v, t);
-        const s = a ? showVal(b, t.left.right) : showVal(b, t.right);
-        return `(${a ? 'L' : 'R'} ${s})`;
-    }
-    if (matchTApp(t, 'List')) {
-        return `[${reify(v, t).map((x) => showVal(x, t.right)).join(', ')}]`;
-    }
-    if (matchTCon(t, 'Str'))
-        return JSON.stringify(reify(v, t));
-    return machine_1.showMClos(v);
-};
 exports.init = () => { };
 exports.run = (_s, _cb) => {
     try {
@@ -1893,7 +1901,7 @@ exports.run = (_s, _cb) => {
         const esteps = machine_1.stepCount;
         machine_1.resetStepCount();
         let rtime = Date.now();
-        const rv = showVal(_v, _t);
+        const rv = reification_1.showReifyClos(_v, _t, cenv.venv);
         const rsteps = machine_1.stepCount;
         rtime = Date.now() - rtime;
         return _cb(`${rv} : ${types_1.showTy(_t)}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/evaluation:${etime}ms(${esteps}steps)/reification:${rtime}ms(${rsteps}steps)/total:${ptime + itime + etime + rtime}ms(${esteps + rsteps}steps))` : ''}`);
@@ -1904,7 +1912,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./compilerMachine":2,"./config":3,"./definitions":4,"./env":5,"./inference":7,"./kinds":9,"./machine":10,"./parser":11,"./terms":14,"./types":15,"./util":17}],14:[function(require,module,exports){
+},{"./compilerMachine":2,"./config":3,"./definitions":4,"./env":5,"./inference":7,"./kinds":9,"./machine":10,"./parser":11,"./reification":13,"./terms":15,"./types":16}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -1966,7 +1974,7 @@ exports.showTerm = (t) => {
     return util_1.impossible('showTerm');
 };
 
-},{"./types":15,"./util":17}],15:[function(require,module,exports){
+},{"./types":16,"./util":18}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -2135,7 +2143,7 @@ exports.quantify = (tms, ty) => {
     return exports.TForall(tvs, ks, exports.prune(ty));
 };
 
-},{"./config":3,"./kinds":9,"./util":17}],16:[function(require,module,exports){
+},{"./config":3,"./kinds":9,"./util":18}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const types_1 = require("./types");
@@ -2189,7 +2197,7 @@ exports.unifyTFun = (env, ty) => {
     return fn;
 };
 
-},{"./config":3,"./kindInference":8,"./kinds":9,"./types":15,"./util":17}],17:[function(require,module,exports){
+},{"./config":3,"./kindInference":8,"./kinds":9,"./types":16,"./util":18}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const kinds_1 = require("./kinds");
@@ -2215,7 +2223,7 @@ exports.skolemCheck = (sk, ty) => {
         return exports.skolemCheck(sk, ty.type);
 };
 
-},{"./kinds":9,"./types":15}],18:[function(require,module,exports){
+},{"./kinds":9,"./types":16}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
@@ -2275,6 +2283,6 @@ function addResult(msg, err) {
     return divout;
 }
 
-},{"./repl":13}],19:[function(require,module,exports){
+},{"./repl":14}],20:[function(require,module,exports){
 
-},{}]},{},[18]);
+},{}]},{},[19]);
