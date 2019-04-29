@@ -1,4 +1,5 @@
-; parigot-encoded lists
+; scott-encoded lists
+; uses unsafeFix
 import combinators
 import basic
 import bool
@@ -6,13 +7,14 @@ import monoid
 import functor
 import nat
 
-type List t = forall r. (() -> r) -> (t -> List t -> (() -> r) -> r) -> r
-let recList (List f) = f
-let caseList l fn fc = recList l fn (\h t _ -> fc h t)
-let cataList l fn fc = recList l (\() -> fn) (\h _ r -> fc h (r ()))
+type List t = forall r. (() -> r) -> (t -> List t -> r) -> r
+let caseList (List f) = f
+
+let foldr f i = unsafeFix \rec l ->
+  caseList l (\() -> i) (\h t -> f h (rec t))
 
 let nil = List \fn fc -> fn ()
-let cons h t = List \fn fc -> fc h t (\() -> recList t fn fc)
+let cons h t = List \fn fc -> fc h t
 
 let tail l = caseList l (\() -> nil) (\_ t -> t)
 
@@ -21,7 +23,6 @@ let isNonEmpty l = not (isEmpty l)
 
 let wrap x = cons x nil
 
-let foldr f i l = cataList l i f
 let append = flip (foldr cons)
 let reverse = foldr (\h r -> append r (wrap h)) nil
 
