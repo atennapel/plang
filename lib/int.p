@@ -53,11 +53,10 @@ let monoidMuli = monoid onei muli
 
 let sqi n = muli n n
 
-let powi n = unsafeFix \rec m ->
-  caseBNat m
-    (\() -> onei)
-    (\mm -> sqi (rec mm))
-    (\mm -> muli n (sqi (rec mm)))
+let powi n m = iterBNat m
+  (\() -> onei)
+  (\r -> sqi (r ()))
+  (\r -> muli n (sqi (r ())))
 
 let isZeroi n = caseInt n eq
 let isNonZeroi n = not (isZeroi n)

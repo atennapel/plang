@@ -20,6 +20,8 @@ let rat a b = simplifyr (makeRat a b)
 
 let nat2rat n = makeRat (nat2int n) one
 let int2rat n = makeRat n one
+let rat2int n = caseRat n \a b -> divi a (nat2int b)
+let rat2nat n = int2nat (rat2int n)
 
 let zeror = makeRat zeroi one
 let oner = makeRat onei one
@@ -39,3 +41,27 @@ let subr a b = addr a (negr b)
 let mulr a b = caseRat2 a b \a b c d ->
   rat (muli a c) (mul b d)
 
+let sqr n = mulr n n
+
+let powr n m = iterBNat m
+  (\() -> oner)
+  (\r -> sqr (r ()))
+  (\r -> mulr n (sqr (r ())))
+
+let monoidAddr = monoid zeror addr
+let monoidMulr = monoid oner mulr
+
+let recipr n = caseRat n \a b ->
+  (let s = spliti a in makeRat (negifnat (fst s) b) (snd s))
+let divr a b = mulr a (recipr b)
+
+let isZeror n = caseRat n \a _ -> isZeroi a
+let isNonZeror n = not (isZeror n)
+let lteqr n m = isZeror (subr n m)
+let gteqr n m = isZeror (subr m n)
+let gtr n m = not (lteqr n m)
+let ltr n m = not (gteqr n m)
+let eqr n m = and (lteqr n m) (lteqr m n)
+let isNegativer n = ltr n zeror
+let isPositiver n = gtr n zeror
+let absr n = caseRat n \a b -> makeRat (nat2int b) (absi2nat a)

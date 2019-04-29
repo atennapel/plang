@@ -15,4 +15,3 @@ import str
 
 import leibniz
 import iso
-import convert
