@@ -83,7 +83,7 @@ exports.termToMachine = (term, map = {}, level = 0) => {
     if (term.tag === 'App')
         return machine_1.MApp(exports.termToMachine(term.left, map, level), exports.termToMachine(term.right, map, level));
     if (term.tag === 'Let')
-        return exports.termToMachine(terms_1.App(terms_1.Abs(terms_1.PVar(term.name), term.body), term.val), map, level);
+        return exports.termToMachine(terms_1.App(terms_1.Abs(term.pat, term.body), term.val), map, level);
     if (term.tag === 'Ann')
         return exports.termToMachine(term.term, map, level);
     if (term.tag === 'If')
@@ -399,8 +399,15 @@ const tcRho = (env, term, ex) => {
     }
     if (term.tag === 'Let') {
         const ty = inferSigma(env, term.val);
-        const nenv = env_1.extendVar(env, term.name, ty);
-        return tcRho(nenv, term.body, ex);
+        if (term.pat.tag === 'PVar') {
+            const nenv = env_1.extendVar(env, term.pat.name, ty);
+            return tcRho(nenv, term.body, ex);
+        }
+        else {
+            const vars = checkPatSigma(env, term.pat, ty);
+            const nenv = env_1.extendVars(env, vars);
+            return tcRho(nenv, term.body, ex);
+        }
     }
     if (term.tag === 'Ann') {
         const type = kindInference_1.inferKind(env, term.type);
@@ -451,6 +458,10 @@ const tcRho = (env, term, ex) => {
         return;
     }
     return util_1.impossible('tcRho');
+};
+const checkPatSigma = (env, pat, ty) => {
+    const rho = instantiate(ty);
+    return checkPat(env, pat, rho);
 };
 const checkPat = (env, pat, ty) => tcPat(env, pat, Check(ty));
 const inferPat = (env, pat) => {
@@ -1387,9 +1398,10 @@ const parseParens = (ts) => {
     if (matchVarT('let', ts[0])) {
         if (ts.length < 2)
             return err(`let without name`);
-        if (ts[1].tag !== 'VarT' || isCon(ts[0].val))
-            return err(`invalid name for let`);
-        const name = ts[1].val;
+        const names = parsePat(ts[1]);
+        if (names.length !== 1)
+            return err(`too many/few patterns in let`);
+        const name = names[0];
         const args = [];
         let i = 2;
         while (true) {
@@ -1925,7 +1937,7 @@ exports.App = (left, right) => ({ tag: 'App', left, right });
 exports.appFrom = (ts) => ts.reduce(exports.App);
 exports.Abs = (pat, body) => ({ tag: 'Abs', pat, body });
 exports.abs = (ns, body) => ns.reduceRight((x, y) => exports.Abs(y, x), body);
-exports.Let = (name, val, body) => ({ tag: 'Let', name, val, body });
+exports.Let = (pat, val, body) => ({ tag: 'Let', pat, val, body });
 exports.Ann = (term, type) => ({ tag: 'Ann', term, type });
 exports.If = (cond, ifTrue, ifFalse) => ({ tag: 'If', cond, ifTrue, ifFalse });
 exports.LitNat = (val) => ({ tag: 'LitNat', val });
@@ -1959,7 +1971,7 @@ exports.showTerm = (t) => {
     if (t.tag === 'Ann')
         return `(${exports.showTerm(t.term)} : ${types_1.showTy(t.type)})`;
     if (t.tag === 'Let')
-        return `(let ${t.name} = ${exports.showTerm(t.val)} in ${exports.showTerm(t.body)})`;
+        return `(let ${exports.showPat(t.pat)} = ${exports.showTerm(t.val)} in ${exports.showTerm(t.body)})`;
     if (t.tag === 'If')
         return `(if ${exports.showTerm(t.cond)} then ${exports.showTerm(t.ifTrue)} else ${exports.showTerm(t.ifFalse)})`;
     if (t.tag === 'LitNat')

@@ -36,7 +36,7 @@ export const termToMachine = (term: Term, map: CMap = {}, level: number = 0): MT
     return MAbs(termToMachine(term.body, nmap, level + 1));
   }
   if (term.tag === 'App') return MApp(termToMachine(term.left, map, level), termToMachine(term.right, map, level));
-  if (term.tag === 'Let') return termToMachine(App(Abs(PVar(term.name), term.body), term.val), map, level);
+  if (term.tag === 'Let') return termToMachine(App(Abs(term.pat, term.body), term.val), map, level);
   if (term.tag === 'Ann') return termToMachine(term.term, map, level);
   if (term.tag === 'If')
     return termToMachine(appFrom([ tIf, term.cond, Abs(PWildcard, term.ifTrue), Abs(PWildcard, term.ifFalse) ]), map, level);

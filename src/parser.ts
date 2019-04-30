@@ -425,9 +425,9 @@ const parseParens = (ts: Token[]): Term => {
   }
   if (matchVarT('let', ts[0])) {
     if (ts.length < 2) return err(`let without name`);
-    if (ts[1].tag !== 'VarT' || isCon(ts[0].val as string))
-      return err(`invalid name for let`);
-    const name = ts[1].val as string;
+    const names = parsePat(ts[1]);
+    if (names.length !== 1) return err(`too many/few patterns in let`);
+    const name = names[0];
     const args: Pat[] = [];
     let i = 2;
     while (true) {

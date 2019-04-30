@@ -1,7 +1,7 @@
 import { Type, showTy, TVMap, substTVar, TSkol, isTFun, TFun, prune, tmetas, quantify, tfunFrom, tappFrom, TCon, TVar, tforall } from './types';
 import { impossible, freshTMeta, freshTSkol, terr, resetId, skolemCheck, Name, freshKMeta } from './util';
 import { Env, tmetasEnv, skolemCheckEnv, lookupVar, extendVar, extendVars, lookupTCon, cloneEnv } from './env';
-import { Term, showTerm, Pat, showPat, abs } from './terms';
+import { Term, showTerm, Pat, showPat, abs, PVar } from './terms';
 import { unifyTFun, unify } from './unification';
 import { inferKind } from './kindInference';
 import { kType, Kind, pruneKind } from './kinds';
@@ -103,8 +103,14 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
   }
   if (term.tag === 'Let') {
     const ty = inferSigma(env, term.val);
-    const nenv = extendVar(env, term.name, ty);
-    return tcRho(nenv, term.body, ex);
+    if (term.pat.tag === 'PVar') {
+      const nenv = extendVar(env, term.pat.name, ty);
+      return tcRho(nenv, term.body, ex);
+    } else {
+      const vars = checkPatSigma(env, term.pat, ty);
+      const nenv = extendVars(env, vars);
+      return tcRho(nenv, term.body, ex);
+    }
   }
   if (term.tag === 'Ann') {
     const type = inferKind(env, term.type);
@@ -154,6 +160,11 @@ const tcRho = (env: Env, term: Term, ex: Expected): void => {
     return;
   }
   return impossible('tcRho');
+};
+
+const checkPatSigma = (env: Env, pat: Pat, ty: Type): [Name, Type][] => {
+  const rho = instantiate(ty);
+  return checkPat(env, pat, rho);
 };
 
 const checkPat = (env: Env, pat: Pat, ty: Type): [Name, Type][] =>

@@ -5,7 +5,7 @@ Start REPL with `npm start`.
 Compile file with `npm start FILENAME`.
 
 TODO
-- allow patterns in Let
+- let inference: skolemize or instantiate?
 - implicit conversions: nat -> int, int -> rat
 - termination checker/structural recursion
 - list literals

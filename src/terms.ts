@@ -43,12 +43,12 @@ export const abs = (ns: Pat[], body: Term) =>
 
 export interface Let {
   readonly tag: 'Let';
-  readonly name: Name;
+  readonly pat: Pat;
   readonly val: Term;
   readonly body: Term;
 }
-export const Let = (name: Name, val: Term, body: Term): Let =>
-  ({ tag: 'Let', name, val, body });
+export const Let = (pat: Pat, val: Term, body: Term): Let =>
+  ({ tag: 'Let', pat, val, body });
 
 export interface Ann {
   readonly tag: 'Ann';
@@ -164,7 +164,7 @@ export const showTerm = (t: Term): string => {
   if (t.tag === 'Ann')
     return `(${showTerm(t.term)} : ${showTy(t.type)})`;
   if (t.tag === 'Let')
-    return `(let ${t.name} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
+    return `(let ${showPat(t.pat)} = ${showTerm(t.val)} in ${showTerm(t.body)})`;
   if (t.tag === 'If')
     return `(if ${showTerm(t.cond)} then ${showTerm(t.ifTrue)} else ${showTerm(t.ifFalse)})`;
   if (t.tag === 'LitNat')
