@@ -9,7 +9,8 @@ export type MTerm
   | MFVar
   | MAbs
   | MApp
-  | MExec;
+  | MExec
+  | MClosExpr;
 
 export interface MFVar {
   readonly tag: 'MFVar';
@@ -50,12 +51,19 @@ export interface MExec {
 export const MExec = (name: string, fn: (state: MState, exec: MExec) => boolean, body: MTerm): MExec =>
   ({ tag: 'MExec', name, fn, body });
 
+export interface MClosExpr {
+  readonly tag: 'MClosExpr';
+  readonly clos: MClos;
+}
+export const MClosExpr = (clos: MClos): MClosExpr => ({ tag: 'MClosExpr', clos });
+
 export const showMTerm = (term: MTerm): string => {
   if (term.tag === 'MFVar') return `${term.name}`;
   if (term.tag === 'MBVar') return `${term.ix}`;
   if (term.tag === 'MAbs') return `(\\${showMTerm(term.body)})`;
   if (term.tag === 'MApp') return `(${showMTerm(term.left)} ${showMTerm(term.right)})`;
   if (term.tag === 'MExec') return `(exec ${term.name} ${showMTerm(term.body)})`;
+  if (term.tag === 'MClosExpr') return showMClos(term.clos);
   return impossible('showMTerm');
 };
 
@@ -95,6 +103,10 @@ export const showLEnv = (list: LEnv): string => {
   return `[${r.join(', ')}]`;
 };
 
+export const mapLEnv = (env: LEnv, fn: (clos: MClos) => MClos): LEnv =>
+  env.tag === 'LCons' ? LCons(env.head && fn(env.head), mapLEnv(env.tail, fn)) :
+  env;
+
 // closures
 export interface MClos {
   readonly abs: MAbs;
@@ -107,6 +119,28 @@ export const showMClos = (clos: MClos) =>
   `{${showMTerm(clos.abs)}@${showLEnv(clos.env)}}`;
 
 type MFree = { [key: string]: boolean };
+const freeVarsMClos = (clos: MClos, fr: MFree): void => {
+  freeVars(clos.abs, fr);
+  freeVarsEnv(clos.env, fr);
+};
+const freeVarsEnv = (env: LEnv, fr: MFree): void => {
+  let c = env;
+  while (c.tag === 'LCons') {
+    const cclos = c.head;
+    if (cclos) {
+      freeVars(cclos.abs, fr);
+      freeVarsEnv(cclos.env, fr);
+    }
+    c = c.tail;
+  }
+};
+const freeVars = (term: MTerm, fr: MFree): void => {
+  if (term.tag === 'MFVar') { fr[term.name] = true; return }
+  if (term.tag === 'MAbs') return freeVars(term.body, fr);
+  if (term.tag === 'MApp') { freeVars(term.left, fr); return freeVars(term.right, fr) }
+  if (term.tag === 'MExec') return freeVars(term.body, fr);
+  if (term.tag === 'MClosExpr') { freeVarsMClos(term.clos, fr); return }
+};
 const free = (term: MTerm, fr: MFree, under: number): number => {
   if (term.tag === 'MFVar') return -1;
   if (term.tag === 'MBVar') {
@@ -124,6 +158,7 @@ const free = (term: MTerm, fr: MFree, under: number): number => {
     return Math.max(a, b);
   }
   if (term.tag === 'MExec') return free(term.body, fr, under);
+  if (term.tag === 'MClosExpr') return -1;
   return impossible('free');
 };
 const makeClosEnv = (fr: MFree, max: number, env: LEnv, i: number): LEnv =>
@@ -207,6 +242,12 @@ export const step = (genv: GEnv, state: MState): boolean => {
     state.env = v.env;
     return true;
   }
+  if (term.tag === 'MClosExpr') {
+    const clos = term.clos;
+    state.term = clos.abs;
+    state.env = clos.env;
+    return true;
+  }
   if (term.tag === 'MApp') {
     state.term = term.left;
     state.cont = MArg(term.right, env, cont);
@@ -255,4 +296,44 @@ export const reduce = (genv: GEnv, term: MTerm): MClos => {
   if (st.cont.tag !== 'MTop' || st.term.tag !== 'MAbs')
     throw new Error(`evaluation got stuck: ${showMState(st)}`);
   return makeClos(st.term, st.env);
+};
+
+export interface ClosPackage {
+  clos: MClos;
+  env: GEnv;
+}
+export const makeClosPackage = (clos: MClos, genv: GEnv): ClosPackage => {
+  const fr: GEnv = {};
+  freeVarsMClos(clos, fr as any as MFree);
+  for (let k in fr) freeVarsMClos(genv[k], fr as any as MFree);
+  for (let k in fr) fr[k] = genv[k];
+  return { clos, env: fr };
+};
+export const showClosPackage = (p: ClosPackage): string => {
+  const m = [];
+  for (let k in p.env) m.push(`${k}: ${showMClos(p.env[k])}`);
+  return `(${showMClos(p.clos)}, {${m.join(', ')}})`;
+};
+
+export const flattenMClos = (genv: GEnv, clos: MClos, mem: { [key: string]: MTerm } = {}): MClos => {
+  const abs = flattenMTerm(genv, clos.abs, mem);
+  const env = mapLEnv(clos.env, c => flattenMClos(genv, c, mem));
+  return MClos(abs as MAbs, env);
+};
+export const flattenMTerm = (genv: GEnv, term: MTerm, mem: { [key: string]: MTerm } = {}): MTerm => {
+  if (term.tag === 'MFVar') {
+    if (mem[term.name]) return mem[term.name];
+    if (genv[term.name]) {
+      const f = MClosExpr(flattenMClos(genv, genv[term.name], mem));
+      mem[term.name] = f;
+      return f;
+    }
+    return term;
+  }
+  if (term.tag === 'MBVar') return term;
+  if (term.tag === 'MAbs') return MAbs(flattenMTerm(genv, term.body, mem));
+  if (term.tag === 'MApp') return MApp(flattenMTerm(genv, term.left, mem), flattenMTerm(genv, term.right, mem));
+  if (term.tag === 'MExec') return flattenMTerm(genv, term.body, mem);
+  if (term.tag === 'MClosExpr') return MClosExpr(flattenMClos(genv, term.clos, mem));
+  return impossible('showMTerm');
 };

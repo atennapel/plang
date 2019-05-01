@@ -782,6 +782,7 @@ exports.mapp = mapp;
 ;
 exports.MAbs = (body) => ({ tag: 'MAbs', body });
 exports.MExec = (name, fn, body) => ({ tag: 'MExec', name, fn, body });
+exports.MClosExpr = (clos) => ({ tag: 'MClosExpr', clos });
 exports.showMTerm = (term) => {
     if (term.tag === 'MFVar')
         return `${term.name}`;
@@ -793,6 +794,8 @@ exports.showMTerm = (term) => {
         return `(${exports.showMTerm(term.left)} ${exports.showMTerm(term.right)})`;
     if (term.tag === 'MExec')
         return `(exec ${term.name} ${exports.showMTerm(term.body)})`;
+    if (term.tag === 'MClosExpr')
+        return exports.showMClos(term.clos);
     return util_1.impossible('showMTerm');
 };
 exports.LNil = { tag: 'LNil' };
@@ -814,8 +817,43 @@ exports.showLEnv = (list) => {
     }
     return `[${r.join(', ')}]`;
 };
+exports.mapLEnv = (env, fn) => env.tag === 'LCons' ? exports.LCons(env.head && fn(env.head), exports.mapLEnv(env.tail, fn)) :
+    env;
 exports.MClos = (abs, env) => ({ abs, env });
 exports.showMClos = (clos) => `{${exports.showMTerm(clos.abs)}@${exports.showLEnv(clos.env)}}`;
+const freeVarsMClos = (clos, fr) => {
+    freeVars(clos.abs, fr);
+    freeVarsEnv(clos.env, fr);
+};
+const freeVarsEnv = (env, fr) => {
+    let c = env;
+    while (c.tag === 'LCons') {
+        const cclos = c.head;
+        if (cclos) {
+            freeVars(cclos.abs, fr);
+            freeVarsEnv(cclos.env, fr);
+        }
+        c = c.tail;
+    }
+};
+const freeVars = (term, fr) => {
+    if (term.tag === 'MFVar') {
+        fr[term.name] = true;
+        return;
+    }
+    if (term.tag === 'MAbs')
+        return freeVars(term.body, fr);
+    if (term.tag === 'MApp') {
+        freeVars(term.left, fr);
+        return freeVars(term.right, fr);
+    }
+    if (term.tag === 'MExec')
+        return freeVars(term.body, fr);
+    if (term.tag === 'MClosExpr') {
+        freeVarsMClos(term.clos, fr);
+        return;
+    }
+};
 const free = (term, fr, under) => {
     if (term.tag === 'MFVar')
         return -1;
@@ -836,6 +874,8 @@ const free = (term, fr, under) => {
     }
     if (term.tag === 'MExec')
         return free(term.body, fr, under);
+    if (term.tag === 'MClosExpr')
+        return -1;
     return util_1.impossible('free');
 };
 const makeClosEnv = (fr, max, env, i) => i > max || env.tag === 'LNil' ? exports.LNil :
@@ -882,6 +922,12 @@ exports.step = (genv, state) => {
         state.env = v.env;
         return true;
     }
+    if (term.tag === 'MClosExpr') {
+        const clos = term.clos;
+        state.term = clos.abs;
+        state.env = clos.env;
+        return true;
+    }
     if (term.tag === 'MApp') {
         state.term = term.left;
         state.cont = exports.MArg(term.right, env, cont);
@@ -926,6 +972,49 @@ exports.reduce = (genv, term) => {
     if (st.cont.tag !== 'MTop' || st.term.tag !== 'MAbs')
         throw new Error(`evaluation got stuck: ${exports.showMState(st)}`);
     return exports.makeClos(st.term, st.env);
+};
+exports.makeClosPackage = (clos, genv) => {
+    const fr = {};
+    freeVarsMClos(clos, fr);
+    for (let k in fr)
+        freeVarsMClos(genv[k], fr);
+    for (let k in fr)
+        fr[k] = genv[k];
+    return { clos, env: fr };
+};
+exports.showClosPackage = (p) => {
+    const m = [];
+    for (let k in p.env)
+        m.push(`${k}: ${exports.showMClos(p.env[k])}`);
+    return `(${exports.showMClos(p.clos)}, {${m.join(', ')}})`;
+};
+exports.flattenMClos = (genv, clos, mem = {}) => {
+    const abs = exports.flattenMTerm(genv, clos.abs, mem);
+    const env = exports.mapLEnv(clos.env, c => exports.flattenMClos(genv, c, mem));
+    return exports.MClos(abs, env);
+};
+exports.flattenMTerm = (genv, term, mem = {}) => {
+    if (term.tag === 'MFVar') {
+        if (mem[term.name])
+            return mem[term.name];
+        if (genv[term.name]) {
+            const f = exports.MClosExpr(exports.flattenMClos(genv, genv[term.name], mem));
+            mem[term.name] = f;
+            return f;
+        }
+        return term;
+    }
+    if (term.tag === 'MBVar')
+        return term;
+    if (term.tag === 'MAbs')
+        return exports.MAbs(exports.flattenMTerm(genv, term.body, mem));
+    if (term.tag === 'MApp')
+        return exports.MApp(exports.flattenMTerm(genv, term.left, mem), exports.flattenMTerm(genv, term.right, mem));
+    if (term.tag === 'MExec')
+        return exports.flattenMTerm(genv, term.body, mem);
+    if (term.tag === 'MClosExpr')
+        return exports.MClosExpr(exports.flattenMClos(genv, term.clos, mem));
+    return util_1.impossible('showMTerm');
 };
 
 },{"./config":3,"./util":18}],11:[function(require,module,exports){
@@ -1889,7 +1978,8 @@ exports.run = (_s, _cb) => {
             itime = Date.now() - itime;
             return _cb(`${types_1.showTy(_t)}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/total:${ptime + itime}ms)` : ''}`);
         }
-        if (_s.startsWith(':eval ')) {
+        if (_s.startsWith(':eval ') || _s.startsWith(':pack ') || _s.startsWith(':flat ')) {
+            const mode = _s.startsWith(':eval') ? 0 : _s.startsWith(':pack') ? 1 : 2;
             const rest = _s.slice(5);
             let ptime = Date.now();
             const _e = parser_1.parse(rest);
@@ -1899,7 +1989,7 @@ exports.run = (_s, _cb) => {
             const _v = compilerMachine_1.reduceTerm(cenv.venv, _e);
             etime = Date.now() - etime;
             const esteps = machine_1.stepCount;
-            return _cb(`${machine_1.showMClos(_v)}${config_1.config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
+            return _cb(`${mode === 0 ? machine_1.showMClos(_v) : mode === 1 ? machine_1.showClosPackage(machine_1.makeClosPackage(_v, cenv.venv)) : machine_1.showMClos(machine_1.flattenMClos(cenv.venv, _v))}${config_1.config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
         }
         let ptime = Date.now();
         const _e = parser_1.parse(_s);

@@ -6,12 +6,12 @@ import { infer, inferDefs } from './inference';
 import { parse, parseDefs, ImportMap } from './parser';
 import { Def, showDef, findDef, findDefType } from './definitions';
 import { kType } from './kinds';
-import { GEnv, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount } from './machine';
+import { GEnv, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount, makeClosPackage, showClosPackage, flattenMClos } from './machine';
 import { reduceDefs, reduceTerm } from './compilerMachine';
 import { showReifyClos } from './reification';
 
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval :pack :flat
 `.trim();
 
 export type ReplState = { importmap: ImportMap, tenv: TEnv, venv: GEnv, defs: Def[] };
@@ -104,7 +104,8 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       itime = Date.now() - itime;
       return _cb(`${showTy(_t)}${config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/total:${ptime+itime}ms)` : ''}`);
     }
-    if (_s.startsWith(':eval ')) {
+    if (_s.startsWith(':eval ') || _s.startsWith(':pack ') || _s.startsWith(':flat ')) {
+      const mode = _s.startsWith(':eval') ? 0 : _s.startsWith(':pack') ? 1 : 2;
       const rest = _s.slice(5);
       let ptime = Date.now();
       const _e = parse(rest);
@@ -114,7 +115,7 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       const _v = reduceTerm(cenv.venv, _e);
       etime = Date.now() - etime;
       const esteps = stepCount;
-      return _cb(`${showMClos(_v)}${config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
+      return _cb(`${mode === 0 ? showMClos(_v) : mode === 1 ? showClosPackage(makeClosPackage(_v, cenv.venv)) : showMClos(flattenMClos(cenv.venv, _v))}${config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
     }
     let ptime = Date.now();
     const _e = parse(_s);
