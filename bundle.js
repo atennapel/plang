@@ -39,6 +39,15 @@ exports.toArray = (l, fn) => {
     return r;
 };
 exports.append = (a, b) => a.tag === 'Cons' ? exports.Cons(a.head, exports.append(a.tail, b)) : b;
+exports.mapList = (l, fn) => l.tag === 'Cons' ? exports.Cons(fn(l.head), exports.mapList(l.tail, fn)) : l;
+exports.lookupList = (l, i) => {
+    while (l.tag === 'Cons') {
+        if (i-- === 0)
+            return l.head;
+        l = l.tail;
+    }
+    return null;
+};
 
 },{}],2:[function(require,module,exports){
 "use strict";
@@ -773,6 +782,7 @@ exports.eqKind = (a, b) => {
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
 const config_1 = require("./config");
+const List_1 = require("./List");
 exports.MFVar = (name) => ({ tag: 'MFVar', name });
 exports.MBVar = (ix) => ({ tag: 'MBVar', ix });
 exports.MApp = (left, right) => ({ tag: 'MApp', left, right });
@@ -819,6 +829,7 @@ exports.showLEnv = (list) => {
 };
 exports.mapLEnv = (env, fn) => env.tag === 'LCons' ? exports.LCons(env.head && fn(env.head), exports.mapLEnv(env.tail, fn)) :
     env;
+exports.mapLEnvToList = (env, fn) => env.tag === 'LCons' ? List_1.Cons(fn(env.head), exports.mapLEnvToList(env.tail, fn)) : List_1.Nil;
 exports.MClos = (abs, env) => ({ abs, env });
 exports.showMClos = (clos) => `{${exports.showMTerm(clos.abs)}@${exports.showLEnv(clos.env)}}`;
 const freeVarsMClos = (clos, fr) => {
@@ -1014,10 +1025,34 @@ exports.flattenMTerm = (genv, term, mem = {}) => {
         return exports.flattenMTerm(genv, term.body, mem);
     if (term.tag === 'MClosExpr')
         return exports.MClosExpr(exports.flattenMClos(genv, term.clos, mem));
-    return util_1.impossible('showMTerm');
+    return util_1.impossible('flattenMTerm');
+};
+exports.mclosToLC = (genv, clos, mem = {}) => exports.mtermToLC(genv, exports.mapLEnvToList(clos.env, c => c && exports.mclosToLC(genv, c, mem)), clos.abs, mem);
+exports.mtermToLC = (genv, lenv, term, mem = {}) => {
+    if (term.tag === 'MFVar') {
+        if (mem[term.name])
+            return mem[term.name];
+        if (genv[term.name]) {
+            const f = exports.mclosToLC(genv, genv[term.name], mem);
+            mem[term.name] = f;
+            return f;
+        }
+        return term;
+    }
+    if (term.tag === 'MBVar')
+        return List_1.lookupList(lenv, term.ix) || term;
+    if (term.tag === 'MAbs')
+        return exports.MAbs(exports.mtermToLC(genv, List_1.Cons(null, lenv), term.body, mem));
+    if (term.tag === 'MApp')
+        return exports.MApp(exports.mtermToLC(genv, lenv, term.left, mem), exports.mtermToLC(genv, lenv, term.right, mem));
+    if (term.tag === 'MExec')
+        return exports.mtermToLC(genv, lenv, term.body, mem);
+    if (term.tag === 'MClosExpr')
+        return exports.mclosToLC(genv, term.clos, mem);
+    return util_1.impossible('mtermToLC');
 };
 
-},{"./config":3,"./util":18}],11:[function(require,module,exports){
+},{"./List":1,"./config":3,"./util":18}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1887,7 +1922,7 @@ const machine_1 = require("./machine");
 const compilerMachine_1 = require("./compilerMachine");
 const reification_1 = require("./reification");
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval :pack :flat :pure
 `.trim();
 const cenv = {
     importmap: {},
@@ -1978,8 +2013,8 @@ exports.run = (_s, _cb) => {
             itime = Date.now() - itime;
             return _cb(`${types_1.showTy(_t)}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/total:${ptime + itime}ms)` : ''}`);
         }
-        if (_s.startsWith(':eval ') || _s.startsWith(':pack ') || _s.startsWith(':flat ')) {
-            const mode = _s.startsWith(':eval') ? 0 : _s.startsWith(':pack') ? 1 : 2;
+        if (_s.startsWith(':eval ') || _s.startsWith(':pack ') || _s.startsWith(':flat ') || _s.startsWith(':pure ')) {
+            const mode = _s.startsWith(':eval') ? 0 : _s.startsWith(':pack') ? 1 : _s.startsWith(':flat') ? 2 : 3;
             const rest = _s.slice(5);
             let ptime = Date.now();
             const _e = parser_1.parse(rest);
@@ -1989,7 +2024,11 @@ exports.run = (_s, _cb) => {
             const _v = compilerMachine_1.reduceTerm(cenv.venv, _e);
             etime = Date.now() - etime;
             const esteps = machine_1.stepCount;
-            return _cb(`${mode === 0 ? machine_1.showMClos(_v) : mode === 1 ? machine_1.showClosPackage(machine_1.makeClosPackage(_v, cenv.venv)) : machine_1.showMClos(machine_1.flattenMClos(cenv.venv, _v))}${config_1.config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
+            const show = mode === 0 ? machine_1.showMClos(_v) :
+                mode === 1 ? machine_1.showClosPackage(machine_1.makeClosPackage(_v, cenv.venv)) :
+                    mode === 2 ? machine_1.showMClos(machine_1.flattenMClos(cenv.venv, _v)) :
+                        machine_1.showMTerm(machine_1.mclosToLC(cenv.venv, _v));
+            return _cb(`${show}${config_1.config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
         }
         let ptime = Date.now();
         const _e = parser_1.parse(_s);

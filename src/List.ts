@@ -53,3 +53,14 @@ export const toArray = <T, R>(l: List<T>, fn: (val: T) => R): R[] => {
 
 export const append = <T>(a: List<T>, b: List<T>): List<T> =>
   a.tag === 'Cons' ? Cons(a.head, append(a.tail, b)) : b;
+
+export const mapList = <T, R>(l: List<T>, fn: (val: T) => R): List<R> =>
+  l.tag === 'Cons' ? Cons(fn(l.head), mapList(l.tail, fn)) : l;
+
+export const lookupList = <T>(l: List<T>, i: number): T | null => {
+  while (l.tag === 'Cons') {
+    if (i-- === 0) return l.head;
+    l = l.tail;
+  }
+  return null;
+};

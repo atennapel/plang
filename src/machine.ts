@@ -1,5 +1,6 @@
 import { Name, impossible } from './util';
 import { log } from './config';
+import { List, Nil, Cons, lookupList } from './List';
 
 // ast
 export type Ix = number;
@@ -106,6 +107,8 @@ export const showLEnv = (list: LEnv): string => {
 export const mapLEnv = (env: LEnv, fn: (clos: MClos) => MClos): LEnv =>
   env.tag === 'LCons' ? LCons(env.head && fn(env.head), mapLEnv(env.tail, fn)) :
   env;
+export const mapLEnvToList = <T>(env: LEnv, fn: (x: MClos | null) => T): List<T> =>
+  env.tag === 'LCons' ? Cons(fn(env.head), mapLEnvToList(env.tail, fn)) : Nil;
 
 // closures
 export interface MClos {
@@ -335,5 +338,25 @@ export const flattenMTerm = (genv: GEnv, term: MTerm, mem: { [key: string]: MTer
   if (term.tag === 'MApp') return MApp(flattenMTerm(genv, term.left, mem), flattenMTerm(genv, term.right, mem));
   if (term.tag === 'MExec') return flattenMTerm(genv, term.body, mem);
   if (term.tag === 'MClosExpr') return MClosExpr(flattenMClos(genv, term.clos, mem));
-  return impossible('showMTerm');
+  return impossible('flattenMTerm');
+};
+
+export const mclosToLC = (genv: GEnv, clos: MClos, mem: { [key: string]: MTerm } = {}): MTerm =>
+  mtermToLC(genv, mapLEnvToList(clos.env, c => c && mclosToLC(genv, c, mem)), clos.abs, mem);
+export const mtermToLC = (genv: GEnv, lenv: List<MTerm | null>, term: MTerm, mem: { [key: string]: MTerm } = {}): MTerm => {
+  if (term.tag === 'MFVar') {
+    if (mem[term.name]) return mem[term.name];
+    if (genv[term.name]) {
+      const f = mclosToLC(genv, genv[term.name], mem);
+      mem[term.name] = f;
+      return f;
+    }
+    return term;
+  }
+  if (term.tag === 'MBVar') return lookupList(lenv, term.ix) || term;
+  if (term.tag === 'MAbs') return MAbs(mtermToLC(genv, Cons(null, lenv), term.body, mem));
+  if (term.tag === 'MApp') return MApp(mtermToLC(genv, lenv, term.left, mem), mtermToLC(genv, lenv, term.right, mem));
+  if (term.tag === 'MExec') return mtermToLC(genv, lenv, term.body, mem);
+  if (term.tag === 'MClosExpr') return mclosToLC(genv, term.clos, mem);
+  return impossible('mtermToLC');
 };
