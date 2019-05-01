@@ -360,3 +360,11 @@ export const mtermToLC = (genv: GEnv, lenv: List<MTerm | null>, term: MTerm, mem
   if (term.tag === 'MClosExpr') return mclosToLC(genv, term.clos, mem);
   return impossible('mtermToLC');
 };
+
+export const mclosToBLC = (genv: GEnv, clos: MClos): string => mtermToBLC(mclosToLC(genv, clos));
+export const mtermToBLC = (term: MTerm): string => {
+  if (term.tag === 'MBVar') return `${Array.from({ length: term.ix + 1 }, () => '1').join('')}0`;
+  if (term.tag === 'MAbs') return `00${mtermToBLC(term.body)}`;
+  if (term.tag === 'MApp') return `01${mtermToBLC(term.left)}${mtermToBLC(term.right)}`;
+  return impossible('mtermToBLC');
+};

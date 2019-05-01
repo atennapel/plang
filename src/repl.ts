@@ -6,12 +6,13 @@ import { infer, inferDefs } from './inference';
 import { parse, parseDefs, ImportMap } from './parser';
 import { Def, showDef, findDef, findDefType } from './definitions';
 import { kType } from './kinds';
-import { GEnv, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount, makeClosPackage, showClosPackage, flattenMClos, showMTerm, mclosToLC } from './machine';
+import { GEnv, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount, makeClosPackage, showClosPackage, flattenMClos, showMTerm, mclosToLC, mclosToBLC } from './machine';
 import { reduceDefs, reduceTerm } from './compilerMachine';
 import { showReifyClos } from './reification';
+import { binToHex, binToASCII, binToBase64 } from './util';
 
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval :pack :flat :pure
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval :pack :flat :pure :bblc :hblc :ablc :cblc
 `.trim();
 
 export type ReplState = { importmap: ImportMap, tenv: TEnv, venv: GEnv, defs: Def[] };
@@ -104,8 +105,18 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
       itime = Date.now() - itime;
       return _cb(`${showTy(_t)}${config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/total:${ptime+itime}ms)` : ''}`);
     }
-    if (_s.startsWith(':eval ') || _s.startsWith(':pack ') || _s.startsWith(':flat ') || _s.startsWith(':pure ')) {
-      const mode = _s.startsWith(':eval') ? 0 : _s.startsWith(':pack') ? 1 : _s.startsWith(':flat') ? 2 : 3;
+    if (_s.startsWith(':eval ') || _s.startsWith(':pack ') || _s.startsWith(':flat ') ||
+        _s.startsWith(':pure ') || _s.startsWith(':bblc ') || _s.startsWith(':hblc') ||
+        _s.startsWith(':ablc ') || _s.startsWith(':cblc')) {
+      const mode =
+        _s.startsWith(':eval') ? 0 :
+        _s.startsWith(':pack') ? 1 :
+        _s.startsWith(':flat') ? 2 :
+        _s.startsWith(':pure') ? 3 :
+        _s.startsWith(':bblc') ? 4 :
+        _s.startsWith(':hblc') ? 5 :
+        _s.startsWith(':ablc') ? 6 :
+        7;
       const rest = _s.slice(5);
       let ptime = Date.now();
       const _e = parse(rest);
@@ -119,7 +130,11 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
         mode === 0 ? showMClos(_v) :
         mode === 1 ? showClosPackage(makeClosPackage(_v, cenv.venv)) :
         mode === 2 ? showMClos(flattenMClos(cenv.venv, _v)) :
-        showMTerm(mclosToLC(cenv.venv, _v));
+        mode === 3 ? showMTerm(mclosToLC(cenv.venv, _v)) :
+        mode === 4 ? mclosToBLC(cenv.venv, _v) :
+        mode === 5 ? binToHex(mclosToBLC(cenv.venv, _v)) :
+        mode === 6 ? binToASCII(mclosToBLC(cenv.venv, _v)) :
+        binToBase64(mclosToBLC(cenv.venv, _v));
       return _cb(`${show}${config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
     }
     let ptime = Date.now();

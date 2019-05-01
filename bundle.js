@@ -1051,6 +1051,16 @@ exports.mtermToLC = (genv, lenv, term, mem = {}) => {
         return exports.mclosToLC(genv, term.clos, mem);
     return util_1.impossible('mtermToLC');
 };
+exports.mclosToBLC = (genv, clos) => exports.mtermToBLC(exports.mclosToLC(genv, clos));
+exports.mtermToBLC = (term) => {
+    if (term.tag === 'MBVar')
+        return `${Array.from({ length: term.ix + 1 }, () => '1').join('')}0`;
+    if (term.tag === 'MAbs')
+        return `00${exports.mtermToBLC(term.body)}`;
+    if (term.tag === 'MApp')
+        return `01${exports.mtermToBLC(term.left)}${exports.mtermToBLC(term.right)}`;
+    return util_1.impossible('mtermToBLC');
+};
 
 },{"./List":1,"./config":3,"./util":18}],11:[function(require,module,exports){
 "use strict";
@@ -1921,8 +1931,9 @@ const kinds_1 = require("./kinds");
 const machine_1 = require("./machine");
 const compilerMachine_1 = require("./compilerMachine");
 const reification_1 = require("./reification");
+const util_1 = require("./util");
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval :pack :flat :pure
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval :pack :flat :pure :bblc :hblc :ablc :cblc
 `.trim();
 const cenv = {
     importmap: {},
@@ -2013,8 +2024,17 @@ exports.run = (_s, _cb) => {
             itime = Date.now() - itime;
             return _cb(`${types_1.showTy(_t)}${config_1.config.time ? ` (parsing:${ptime}ms/typechecking:${itime}ms/total:${ptime + itime}ms)` : ''}`);
         }
-        if (_s.startsWith(':eval ') || _s.startsWith(':pack ') || _s.startsWith(':flat ') || _s.startsWith(':pure ')) {
-            const mode = _s.startsWith(':eval') ? 0 : _s.startsWith(':pack') ? 1 : _s.startsWith(':flat') ? 2 : 3;
+        if (_s.startsWith(':eval ') || _s.startsWith(':pack ') || _s.startsWith(':flat ') ||
+            _s.startsWith(':pure ') || _s.startsWith(':bblc ') || _s.startsWith(':hblc') ||
+            _s.startsWith(':ablc ') || _s.startsWith(':cblc')) {
+            const mode = _s.startsWith(':eval') ? 0 :
+                _s.startsWith(':pack') ? 1 :
+                    _s.startsWith(':flat') ? 2 :
+                        _s.startsWith(':pure') ? 3 :
+                            _s.startsWith(':bblc') ? 4 :
+                                _s.startsWith(':hblc') ? 5 :
+                                    _s.startsWith(':ablc') ? 6 :
+                                        7;
             const rest = _s.slice(5);
             let ptime = Date.now();
             const _e = parser_1.parse(rest);
@@ -2027,7 +2047,11 @@ exports.run = (_s, _cb) => {
             const show = mode === 0 ? machine_1.showMClos(_v) :
                 mode === 1 ? machine_1.showClosPackage(machine_1.makeClosPackage(_v, cenv.venv)) :
                     mode === 2 ? machine_1.showMClos(machine_1.flattenMClos(cenv.venv, _v)) :
-                        machine_1.showMTerm(machine_1.mclosToLC(cenv.venv, _v));
+                        mode === 3 ? machine_1.showMTerm(machine_1.mclosToLC(cenv.venv, _v)) :
+                            mode === 4 ? machine_1.mclosToBLC(cenv.venv, _v) :
+                                mode === 5 ? util_1.binToHex(machine_1.mclosToBLC(cenv.venv, _v)) :
+                                    mode === 6 ? util_1.binToASCII(machine_1.mclosToBLC(cenv.venv, _v)) :
+                                        util_1.binToBase64(machine_1.mclosToBLC(cenv.venv, _v));
             return _cb(`${show}${config_1.config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
         }
         let ptime = Date.now();
@@ -2056,7 +2080,7 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./compilerMachine":2,"./config":3,"./definitions":4,"./env":5,"./inference":7,"./kinds":9,"./machine":10,"./parser":11,"./reification":13,"./terms":15,"./types":16}],15:[function(require,module,exports){
+},{"./compilerMachine":2,"./config":3,"./definitions":4,"./env":5,"./inference":7,"./kinds":9,"./machine":10,"./parser":11,"./reification":13,"./terms":15,"./types":16,"./util":18}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -2375,6 +2399,47 @@ exports.skolemCheck = (sk, ty) => {
     if (ty.tag === 'TForall')
         return exports.skolemCheck(sk, ty.type);
 };
+const HEX = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+exports.binToHex = (s) => {
+    const r = [];
+    for (let i = 0, l = s.length; i < l; i += 4) {
+        let t = s.slice(i, i + 4);
+        if (t.length === 0)
+            t = '0000';
+        else if (t.length === 1)
+            t = `${t}000`;
+        else if (t.length === 2)
+            t = `${t}00`;
+        else if (t.length === 3)
+            t = `${t}0`;
+        const x = parseInt(t, 2);
+        r.push(HEX[x]);
+    }
+    return r.join('');
+};
+exports.binToASCII = (s) => {
+    const r = [];
+    for (let i = 0, l = s.length; i < l; i += 7) {
+        let t = s.slice(i, i + 7);
+        if (t.length === 0)
+            t = '0000000';
+        else if (t.length === 1)
+            t = `${t}000000`;
+        else if (t.length === 2)
+            t = `${t}00000`;
+        else if (t.length === 3)
+            t = `${t}0000`;
+        else if (t.length === 4)
+            t = `${t}000`;
+        else if (t.length === 5)
+            t = `${t}00`;
+        else if (t.length === 6)
+            t = `${t}0`;
+        r.push(String.fromCharCode(parseInt(t, 2)));
+    }
+    return r.join('');
+};
+exports.binToBase64 = (s) => btoa(exports.binToASCII(s));
 
 },{"./kinds":9,"./types":16}],19:[function(require,module,exports){
 "use strict";
