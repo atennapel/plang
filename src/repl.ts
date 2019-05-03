@@ -59,7 +59,7 @@ const runIO = (
         const clos = makeClos(st.term as MAbs, st.env);
         const t = termToMachine(LitStr(msg));
         const io = reduce(cenv.venv, MApp(MClosExpr(clos), t));
-        setTimeout(() => runIO(io, _t, _cb, output, input, st.cont), 1);
+        setTimeout(() => runIO(io, _t, _cb, output, input, st.cont), 10);
       });
       return false;
     }, MBVar(0))),
@@ -71,7 +71,7 @@ const runIO = (
         return true;
       }, MBVar(1)),
       MExec('putLine2', st => {
-        setTimeout(() => runIO(makeClos(st.term as MAbs, st.env), _t, _cb, output, input, st.cont), 1);
+        setTimeout(() => runIO(makeClos(st.term as MAbs, st.env), _t, _cb, output, input, st.cont), 10);
         return false;
       }, MBVar(0))))),
   );
