@@ -1,19 +1,21 @@
 import { config, log } from './config';
 import { Env as TEnv, showEnv, getInitialEnv } from './env';
-import { showTerm } from './terms';
-import { showTy, tforall, tfunFrom, TVar } from './types';
-import { infer, inferDefs } from './inference';
+import { showTerm, LitStr } from './terms';
+import { showTy, tforall, tfunFrom, TVar, Type } from './types';
+import { infer, inferDefs, tStr } from './inference';
 import { parse, parseDefs, ImportMap } from './parser';
 import { Def, showDef, findDef, findDefType } from './definitions';
 import { kType } from './kinds';
-import { GEnv, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount, makeClosPackage, showClosPackage, flattenMClos, showMTerm, mclosToLC, mclosToBLC } from './machine';
-import { reduceDefs, reduceTerm } from './compilerMachine';
-import { showReifyClos } from './reification';
+import { GEnv, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount, makeClosPackage, showClosPackage, flattenMClos, showMTerm, mclosToLC, mclosToBLC, MFVar, MState, MTop, mapp, steps, MExec, MClos, MClosExpr, reduce } from './machine';
+import { reduceDefs, reduceTerm, termToMachine } from './compilerMachine';
+import { showReifyClos, reify } from './reification';
 import { binToHex, binToASCII, binToBase64 } from './util';
 
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval :pack :flat :pure :bblc :hblc :ablc :cblc
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval :pack :flat :pure :bblc :hblc :ablc :cblc :io
 `.trim();
+
+const _caseIO = MFVar('caseIO');
 
 export type ReplState = { importmap: ImportMap, tenv: TEnv, venv: GEnv, defs: Def[] };
 const cenv: ReplState = {
@@ -32,8 +34,58 @@ const setupEnv = () => {
 };
 setupEnv();
 
+const runIO = (
+  _v: MClos,
+  _t: Type,
+  _cb: (msg: string, err?: boolean) => void,
+  output: (msg: string) => void,
+  input: (cb: (msg: string) => void) => void,
+) => {
+  let str: MClos | null = null;
+  const mt = mapp(
+    _caseIO,
+    _v.abs,
+    MAbs(MExec('return', st => {
+      const t = makeClos(st.term as MAbs, st.env);
+      resetStepCount();
+      let rtime = Date.now();
+      const rv = showReifyClos(t, _t, cenv.venv);
+      rtime = Date.now() - rtime;
+      _cb(`${rv} : ${showTy(_t)}`);
+      return false;
+    }, MBVar(0))),
+    MAbs(MExec('getLine', st => {
+      input(msg => {
+        const clos = makeClos(st.term as MAbs, st.env);
+        const t = termToMachine(LitStr(msg));
+        const io = reduce(cenv.venv, MApp(MClosExpr(clos), t));
+        setImmediate(() => runIO(io, _t, _cb, output, input));
+      });
+      return false;
+    }, MBVar(0))),
+    MAbs(MAbs(mapp(MAbs(MAbs(MBVar(0))),
+      MExec('putLine1', st => {
+        str = makeClos(st.term as MAbs, st.env);
+        const rstr = reify(str, tStr, cenv.venv);
+        output(rstr);
+        return true;
+      }, MBVar(1)),
+      MExec('putLine2', st => {
+        setImmediate(() => runIO(makeClos(st.term as MAbs, st.env), _t, _cb, output, input));
+        return false;
+      }, MBVar(0))))),
+  );
+  const st = MState(mt, _v.env, MTop);
+  steps(cenv.venv, st);
+}
+
 export const init = () => {};
-export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
+export const run = (
+  _s: string,
+  _cb: (msg: string, err?: boolean) => void,
+  output: (msg: string) => void,
+  input: (cb: (msg: string) => void) => void,
+) => {
   try {
     if (_s === ':help' || _s === ':h')
       return _cb(HELP);
@@ -136,6 +188,16 @@ export const run = (_s: string, _cb: (msg: string, err?: boolean) => void) => {
         mode === 6 ? binToASCII(mclosToBLC(cenv.venv, _v)) :
         binToBase64(mclosToBLC(cenv.venv, _v));
       return _cb(`${show}${config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
+    }
+    if (_s.startsWith(':io ')) {
+      const rest = _s.slice(3);
+      const _e = parse(rest);
+      const _t = infer(cenv.tenv, _e);
+      if (_t.tag !== 'TApp' || _t.left.tag !== 'TCon' || _t.left.name !== 'IO')
+        throw `Expected IO but got: ${showTy(_t)}`;
+      const _v = reduceTerm(cenv.venv, _e);
+      runIO(_v, _t.right, _cb, output, input);
+      return;
     }
     let ptime = Date.now();
     const _e = parse(_s);

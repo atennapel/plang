@@ -1,9 +1,5 @@
 import { run, init } from './repl';
 
-function getOutput(s: string, cb: (msg: string, err?: boolean) => void): void {
-  run(s, cb);
-}
-
 var hist: any[] = [], index = -1;
 var input: any = document.getElementById('input');
 var content: any = document.getElementById('content');
@@ -29,7 +25,7 @@ input.onkeydown = function(keyEvent: any) {
 			div.innerHTML = val;
 			div.className = 'line input';
 			content.insertBefore(div, input);
-			getOutput(txt, addResult);
+			run(txt, addResult, msg => addResult(msg), cb => { const x = prompt('prompt:') || ''; cb(x) });
 		}
 	} else if(keyEvent.keyCode === 38 && index > 0) {
 		keyEvent.preventDefault();

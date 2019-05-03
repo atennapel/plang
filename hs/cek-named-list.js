@@ -125,7 +125,5 @@ const makeNat = n => {
   return c;
 };
 
-const test = () => reifyNat(makeNat(1000000));
-
-setTimeout(test, 2000);
+reifyNat(makeNat(1000000));
 

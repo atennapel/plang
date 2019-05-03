@@ -1920,6 +1920,7 @@ exports.showReifyClos = (v, t, env) => {
 };
 
 },{"./inference":7,"./machine":10,"./types":16,"./util":18}],14:[function(require,module,exports){
+(function (setImmediate){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
@@ -1935,8 +1936,9 @@ const compilerMachine_1 = require("./compilerMachine");
 const reification_1 = require("./reification");
 const util_1 = require("./util");
 const HELP = `
-  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval :pack :flat :pure :bblc :hblc :ablc :cblc
+  commands :help :env :showKinds :debug :time :reset :let :type :import :t :perf :showdefs :showdef :showtype :eval :pack :flat :pure :bblc :hblc :ablc :cblc :io
 `.trim();
+const _caseIO = machine_1.MFVar('caseIO');
 const cenv = {
     importmap: {},
     tenv: env_1.getInitialEnv(),
@@ -1951,8 +1953,38 @@ const setupEnv = () => {
     cenv.venv.unsafeFix = _yval;
 };
 setupEnv();
+const runIO = (_v, _t, _cb, output, input) => {
+    let str = null;
+    const mt = machine_1.mapp(_caseIO, _v.abs, machine_1.MAbs(machine_1.MExec('return', st => {
+        const t = machine_1.makeClos(st.term, st.env);
+        machine_1.resetStepCount();
+        let rtime = Date.now();
+        const rv = reification_1.showReifyClos(t, _t, cenv.venv);
+        rtime = Date.now() - rtime;
+        _cb(`${rv} : ${types_1.showTy(_t)}`);
+        return false;
+    }, machine_1.MBVar(0))), machine_1.MAbs(machine_1.MExec('getLine', st => {
+        input(msg => {
+            const clos = machine_1.makeClos(st.term, st.env);
+            const t = compilerMachine_1.termToMachine(terms_1.LitStr(msg));
+            const io = machine_1.reduce(cenv.venv, machine_1.MApp(machine_1.MClosExpr(clos), t));
+            setImmediate(() => runIO(io, _t, _cb, output, input));
+        });
+        return false;
+    }, machine_1.MBVar(0))), machine_1.MAbs(machine_1.MAbs(machine_1.mapp(machine_1.MAbs(machine_1.MAbs(machine_1.MBVar(0))), machine_1.MExec('putLine1', st => {
+        str = machine_1.makeClos(st.term, st.env);
+        const rstr = reification_1.reify(str, inference_1.tStr, cenv.venv);
+        output(rstr);
+        return true;
+    }, machine_1.MBVar(1)), machine_1.MExec('putLine2', st => {
+        setImmediate(() => runIO(machine_1.makeClos(st.term, st.env), _t, _cb, output, input));
+        return false;
+    }, machine_1.MBVar(0))))));
+    const st = machine_1.MState(mt, _v.env, machine_1.MTop);
+    machine_1.steps(cenv.venv, st);
+};
 exports.init = () => { };
-exports.run = (_s, _cb) => {
+exports.run = (_s, _cb, output, input) => {
     try {
         if (_s === ':help' || _s === ':h')
             return _cb(HELP);
@@ -2056,6 +2088,16 @@ exports.run = (_s, _cb) => {
                                         util_1.binToBase64(machine_1.mclosToBLC(cenv.venv, _v));
             return _cb(`${show}${config_1.config.time ? ` (parsing:${ptime}ms/evaluation:${etime}ms(${esteps}steps))` : ''}`);
         }
+        if (_s.startsWith(':io ')) {
+            const rest = _s.slice(3);
+            const _e = parser_1.parse(rest);
+            const _t = inference_1.infer(cenv.tenv, _e);
+            if (_t.tag !== 'TApp' || _t.left.tag !== 'TCon' || _t.left.name !== 'IO')
+                throw `Expected IO but got: ${types_1.showTy(_t)}`;
+            const _v = compilerMachine_1.reduceTerm(cenv.venv, _e);
+            runIO(_v, _t.right, _cb, output, input);
+            return;
+        }
         let ptime = Date.now();
         const _e = parser_1.parse(_s);
         ptime = Date.now() - ptime;
@@ -2082,7 +2124,8 @@ exports.run = (_s, _cb) => {
     }
 };
 
-},{"./compilerMachine":2,"./config":3,"./definitions":4,"./env":5,"./inference":7,"./kinds":9,"./machine":10,"./parser":11,"./reification":13,"./terms":15,"./types":16,"./util":18}],15:[function(require,module,exports){
+}).call(this,require("timers").setImmediate)
+},{"./compilerMachine":2,"./config":3,"./definitions":4,"./env":5,"./inference":7,"./kinds":9,"./machine":10,"./parser":11,"./reification":13,"./terms":15,"./types":16,"./util":18,"timers":22}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const util_1 = require("./util");
@@ -2447,9 +2490,6 @@ exports.binToBase64 = (s) => btoa(exports.binToASCII(s));
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const repl_1 = require("./repl");
-function getOutput(s, cb) {
-    repl_1.run(s, cb);
-}
 var hist = [], index = -1;
 var input = document.getElementById('input');
 var content = document.getElementById('content');
@@ -2475,7 +2515,7 @@ input.onkeydown = function (keyEvent) {
             div.innerHTML = val;
             div.className = 'line input';
             content.insertBefore(div, input);
-            getOutput(txt, addResult);
+            repl_1.run(txt, addResult, msg => addResult(msg), cb => { const x = prompt('prompt:') || ''; cb(x); });
         }
     }
     else if (keyEvent.keyCode === 38 && index > 0) {
@@ -2505,4 +2545,269 @@ function addResult(msg, err) {
 
 },{"./repl":14}],20:[function(require,module,exports){
 
-},{}]},{},[19]);
+},{}],21:[function(require,module,exports){
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],22:[function(require,module,exports){
+(function (setImmediate,clearImmediate){
+var nextTick = require('process/browser.js').nextTick;
+var apply = Function.prototype.apply;
+var slice = Array.prototype.slice;
+var immediateIds = {};
+var nextImmediateId = 0;
+
+// DOM APIs, for completeness
+
+exports.setTimeout = function() {
+  return new Timeout(apply.call(setTimeout, window, arguments), clearTimeout);
+};
+exports.setInterval = function() {
+  return new Timeout(apply.call(setInterval, window, arguments), clearInterval);
+};
+exports.clearTimeout =
+exports.clearInterval = function(timeout) { timeout.close(); };
+
+function Timeout(id, clearFn) {
+  this._id = id;
+  this._clearFn = clearFn;
+}
+Timeout.prototype.unref = Timeout.prototype.ref = function() {};
+Timeout.prototype.close = function() {
+  this._clearFn.call(window, this._id);
+};
+
+// Does not start the time, just sets up the members needed.
+exports.enroll = function(item, msecs) {
+  clearTimeout(item._idleTimeoutId);
+  item._idleTimeout = msecs;
+};
+
+exports.unenroll = function(item) {
+  clearTimeout(item._idleTimeoutId);
+  item._idleTimeout = -1;
+};
+
+exports._unrefActive = exports.active = function(item) {
+  clearTimeout(item._idleTimeoutId);
+
+  var msecs = item._idleTimeout;
+  if (msecs >= 0) {
+    item._idleTimeoutId = setTimeout(function onTimeout() {
+      if (item._onTimeout)
+        item._onTimeout();
+    }, msecs);
+  }
+};
+
+// That's not how node.js implements it but the exposed api is the same.
+exports.setImmediate = typeof setImmediate === "function" ? setImmediate : function(fn) {
+  var id = nextImmediateId++;
+  var args = arguments.length < 2 ? false : slice.call(arguments, 1);
+
+  immediateIds[id] = true;
+
+  nextTick(function onNextTick() {
+    if (immediateIds[id]) {
+      // fn.call() is faster so we optimize for the common use-case
+      // @see http://jsperf.com/call-apply-segu
+      if (args) {
+        fn.apply(null, args);
+      } else {
+        fn.call(null);
+      }
+      // Prevent ids from leaking
+      exports.clearImmediate(id);
+    }
+  });
+
+  return id;
+};
+
+exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate : function(id) {
+  delete immediateIds[id];
+};
+}).call(this,require("timers").setImmediate,require("timers").clearImmediate)
+},{"process/browser.js":21,"timers":22}]},{},[19]);

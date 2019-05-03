@@ -38,7 +38,9 @@ if (process.argv[2]) {
       run(_i, (s: string, e?: boolean) => {
         console.log(s);
         setImmediate(_input, 0);
-      });
+      },
+      (s: string) => console.log(s),
+      (cb: (s: string) => void) => _readline.question('prompt: ', cb));
     });
   };
   init();
