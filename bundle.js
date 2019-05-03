@@ -1973,7 +1973,8 @@ const runIO = (_v, _t, _cb, output, input, cont = machine_1.MTop) => {
         const str = machine_1.makeClos(st.term, st.env);
         const rstr = reification_1.reify(str, inference_1.tStr, cenv.venv);
         output(rstr);
-        return true;
+        setTimeout(() => { machine_1.steps(cenv.venv, st); }, 10);
+        return false;
     }, machine_1.MBVar(1)), machine_1.MExec('putLine2', st => {
         setTimeout(() => runIO(machine_1.makeClos(st.term, st.env), _t, _cb, output, input, st.cont), 10);
         return false;
