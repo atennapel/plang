@@ -125,5 +125,6 @@ export const showReifyClos = (v: MClos, t: Type, env: GEnv): string => {
     return `[${reify(v, t, env).map((x: MClos) => showReifyClos(x, t.right, env)).join(', ')}]`;
   }
   if (matchTCon(t, 'Str')) return JSON.stringify(reify(v, t, env));
+  if (matchTApp(t, 'IO')) return 'IO';
   return showMClos(v);
 };

@@ -1914,6 +1914,8 @@ exports.showReifyClos = (v, t, env) => {
     }
     if (matchTCon(t, 'Str'))
         return JSON.stringify(exports.reify(v, t, env));
+    if (matchTApp(t, 'IO'))
+        return 'IO';
     return machine_1.showMClos(v);
 };
 
