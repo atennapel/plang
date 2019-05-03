@@ -1,4 +1,5 @@
 import functor
+import monad
 
 type GR t = (forall r. (r -> r) -> r) -> t
 let unGR (GR f) = f
@@ -10,6 +11,7 @@ let bindGR f x = joinGR (mapGR f x)
 let apGR f x = bindGR (\arg -> mapGR (\fn -> fn arg) f) x
 
 let functorGR = Functor mapGR
+let monadGR = Monad \f -> f functorGR returnGR bindGR
 
 let fix f = GR \fix -> fix f
 let fix1 f x = GR \fix -> fix f x

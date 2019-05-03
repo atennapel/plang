@@ -5,6 +5,7 @@ import basic
 import bool
 import monoid
 import functor
+import monad
 import nat
 
 type List t = forall r. (() -> r) -> (t -> List t -> r) -> r
@@ -31,6 +32,9 @@ let fold m = foldr (mappend m) (munit m)
 
 let mapList f l = foldr (\h r -> cons (f h) r) nil l
 let functorList = Functor mapList
+
+let bindList f = unsafeFix \rec l -> caseList l (\() -> nil) (\h t -> append (f h) (rec t))
+let monadList = Monad \f -> f functorList wrap bindList
 
 let repeat n x = iterNat n (cons x) nil
 let range n = reverse (recNat n (\n r -> cons n r) nil)
