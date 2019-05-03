@@ -1966,7 +1966,7 @@ const runIO = (_v, _t, _cb, output, input, cont = machine_1.MTop) => {
             const clos = machine_1.makeClos(st.term, st.env);
             const t = compilerMachine_1.termToMachine(terms_1.LitStr(msg));
             const io = machine_1.reduce(cenv.venv, machine_1.MApp(machine_1.MClosExpr(clos), t));
-            setTimeout(() => runIO(io, _t, _cb, output, input, st.cont), 0);
+            setTimeout(() => runIO(io, _t, _cb, output, input, st.cont), 1);
         });
         return false;
     }, machine_1.MBVar(0))), machine_1.MAbs(machine_1.MAbs(machine_1.mapp(machine_1.MAbs(machine_1.MAbs(machine_1.MBVar(0))), machine_1.MExec('putLine1', st => {
@@ -1975,7 +1975,7 @@ const runIO = (_v, _t, _cb, output, input, cont = machine_1.MTop) => {
         output(rstr);
         return true;
     }, machine_1.MBVar(1)), machine_1.MExec('putLine2', st => {
-        setTimeout(() => runIO(machine_1.makeClos(st.term, st.env), _t, _cb, output, input, st.cont), 0);
+        setTimeout(() => runIO(machine_1.makeClos(st.term, st.env), _t, _cb, output, input, st.cont), 1);
         return false;
     }, machine_1.MBVar(0))))));
     const st = machine_1.MState(mt, _v.env, cont);
