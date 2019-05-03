@@ -446,7 +446,7 @@ const parseParens = (ts: Token[]): Term => {
     }
     const body = parseParens(bodyts);
     const rest = parseParens(ts.slice(i));
-    return Let(name, args.length > 0 ? abs(args.slice(1), body) : body , rest);
+    return Let(name, args.length > 0 ? abs(args, body) : body , rest);
   }
   if (matchVarT('if', ts[0])) {
     let i = 1;

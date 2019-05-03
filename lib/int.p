@@ -3,6 +3,7 @@ import basic
 import bool
 import monoid
 import nat
+import eq
 
 ; integer k is (a, b) where k = a - b
 type Int = Pair Nat Nat
@@ -58,7 +59,7 @@ let powi n m = iterBNat m
   (\r -> sqi (r ()))
   (\r -> muli n (sqi (r ())))
 
-let isZeroi n = caseInt n eq
+let isZeroi n = caseInt n eqn
 let isNonZeroi n = not (isZeroi n)
 let lteqi n m = isZeroi (subi n m)
 let gteqi n m = isZeroi (subi m n)
@@ -67,6 +68,8 @@ let lti n m = not (gteqi n m)
 let eqi n m = and (lteqi n m) (lteqi m n)
 let isNegativei n = lti n zeroi
 let isPositivei n = gti n zeroi
+
+let eqInt = Eq eqi
 
 let absi2nat n = snd (spliti n)
 let absi n = nat2int (absi2nat n)

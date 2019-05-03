@@ -4,6 +4,7 @@ import bool
 import monoid
 import nat
 import int
+import eq
 
 ; rational number q is (k, a) where q = k / a
 type Rat = Pair Int Nat
@@ -65,3 +66,5 @@ let eqr n m = and (lteqr n m) (lteqr m n)
 let isNegativer n = ltr n zeror
 let isPositiver n = gtr n zeror
 let absr n = caseRat n \a b -> makeRat (nat2int b) (absi2nat a)
+
+let eqRat = Eq eqr

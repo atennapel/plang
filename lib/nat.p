@@ -5,6 +5,7 @@ import combinators
 import basic
 import bool
 import monoid
+import eq
 
 type Nat = forall t. (() -> t) -> (Nat -> t) -> (Nat -> t) -> t
 let caseBNat (Nat f) = f
@@ -96,7 +97,7 @@ let gteq n m = isZero (sub m n)
 let gt n m = not (lteq n m)
 let lt n m = not (gteq n m)
 
-let eq = unsafeFix \rec n m ->
+let eqn = unsafeFix \rec n m ->
   caseBNat n
     (\() -> isZero m)
     (\nn -> caseBNat m
@@ -107,6 +108,7 @@ let eq = unsafeFix \rec n m ->
       (\() -> false)
       (\mm -> false)
       (\mm -> rec nn mm))
+let eqNat = Eq eqn
 
 let divOdd n = (unsafeFix \rec n m ->
   let x = sub n m in
@@ -143,7 +145,7 @@ let gcdR1 k = unsafeFix \rec d a b ->
   else
     k d a b
 let gcdR2 = unsafeFix \rec a b ->
-  if not (eq a b) then
+  if not (eqn a b) then
     (if isEven a then
       rec (div2 a) b
     else if isEven b then

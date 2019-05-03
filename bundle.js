@@ -1559,7 +1559,7 @@ const parseParens = (ts) => {
         }
         const body = parseParens(bodyts);
         const rest = parseParens(ts.slice(i));
-        return terms_1.Let(name, args.length > 0 ? terms_1.abs(args.slice(1), body) : body, rest);
+        return terms_1.Let(name, args.length > 0 ? terms_1.abs(args, body) : body, rest);
     }
     if (matchVarT('if', ts[0])) {
         let i = 1;

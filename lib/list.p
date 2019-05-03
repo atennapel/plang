@@ -37,3 +37,9 @@ let range n = reverse (recNat n (\n r -> cons n r) nil)
 
 let sum = foldr add zero
 let product = foldr mul one
+
+let eqList q = Eq (unsafeFix \rec la lb ->
+  caseList la
+    (\() -> caseList lb (\() -> true) (\_ _ -> false))
+    (\h1 t1 -> caseList lb (\() -> false) (\h2 t2 ->
+      if eq q h1 h2 then rec t1 t2 else false)))
