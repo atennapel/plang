@@ -1953,8 +1953,7 @@ const setupEnv = () => {
     cenv.venv.unsafeFix = _yval;
 };
 setupEnv();
-const runIO = (_v, _t, _cb, output, input) => {
-    let str = null;
+const runIO = (_v, _t, _cb, output, input, cont = machine_1.MTop) => {
     const mt = machine_1.mapp(_caseIO, _v.abs, machine_1.MAbs(machine_1.MExec('return', st => {
         const t = machine_1.makeClos(st.term, st.env);
         machine_1.resetStepCount();
@@ -1968,19 +1967,19 @@ const runIO = (_v, _t, _cb, output, input) => {
             const clos = machine_1.makeClos(st.term, st.env);
             const t = compilerMachine_1.termToMachine(terms_1.LitStr(msg));
             const io = machine_1.reduce(cenv.venv, machine_1.MApp(machine_1.MClosExpr(clos), t));
-            setImmediate(() => runIO(io, _t, _cb, output, input));
+            setImmediate(() => runIO(io, _t, _cb, output, input, st.cont));
         });
         return false;
     }, machine_1.MBVar(0))), machine_1.MAbs(machine_1.MAbs(machine_1.mapp(machine_1.MAbs(machine_1.MAbs(machine_1.MBVar(0))), machine_1.MExec('putLine1', st => {
-        str = machine_1.makeClos(st.term, st.env);
+        const str = machine_1.makeClos(st.term, st.env);
         const rstr = reification_1.reify(str, inference_1.tStr, cenv.venv);
         output(rstr);
         return true;
     }, machine_1.MBVar(1)), machine_1.MExec('putLine2', st => {
-        setImmediate(() => runIO(machine_1.makeClos(st.term, st.env), _t, _cb, output, input));
+        setImmediate(() => runIO(machine_1.makeClos(st.term, st.env), _t, _cb, output, input, st.cont));
         return false;
     }, machine_1.MBVar(0))))));
-    const st = machine_1.MState(mt, _v.env, machine_1.MTop);
+    const st = machine_1.MState(mt, _v.env, cont);
     machine_1.steps(cenv.venv, st);
 };
 exports.init = () => { };

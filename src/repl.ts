@@ -6,7 +6,7 @@ import { infer, inferDefs, tStr } from './inference';
 import { parse, parseDefs, ImportMap } from './parser';
 import { Def, showDef, findDef, findDefType } from './definitions';
 import { kType } from './kinds';
-import { GEnv, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount, makeClosPackage, showClosPackage, flattenMClos, showMTerm, mclosToLC, mclosToBLC, MFVar, MState, MTop, mapp, steps, MExec, MClos, MClosExpr, reduce } from './machine';
+import { GEnv, showMClos, makeClos, LNil, MAbs, MApp, MBVar, resetStepCount, stepCount, makeClosPackage, showClosPackage, flattenMClos, showMTerm, mclosToLC, mclosToBLC, MFVar, MState, MTop, mapp, steps, MExec, MClos, MClosExpr, reduce, MCont } from './machine';
 import { reduceDefs, reduceTerm, termToMachine } from './compilerMachine';
 import { showReifyClos, reify } from './reification';
 import { binToHex, binToASCII, binToBase64 } from './util';
@@ -40,8 +40,8 @@ const runIO = (
   _cb: (msg: string, err?: boolean) => void,
   output: (msg: string) => void,
   input: (cb: (msg: string) => void) => void,
+  cont: MCont = MTop,
 ) => {
-  let str: MClos | null = null;
   const mt = mapp(
     _caseIO,
     _v.abs,
@@ -59,23 +59,23 @@ const runIO = (
         const clos = makeClos(st.term as MAbs, st.env);
         const t = termToMachine(LitStr(msg));
         const io = reduce(cenv.venv, MApp(MClosExpr(clos), t));
-        setImmediate(() => runIO(io, _t, _cb, output, input));
+        setImmediate(() => runIO(io, _t, _cb, output, input, st.cont));
       });
       return false;
     }, MBVar(0))),
     MAbs(MAbs(mapp(MAbs(MAbs(MBVar(0))),
       MExec('putLine1', st => {
-        str = makeClos(st.term as MAbs, st.env);
+        const str = makeClos(st.term as MAbs, st.env);
         const rstr = reify(str, tStr, cenv.venv);
         output(rstr);
         return true;
       }, MBVar(1)),
       MExec('putLine2', st => {
-        setImmediate(() => runIO(makeClos(st.term as MAbs, st.env), _t, _cb, output, input));
+        setImmediate(() => runIO(makeClos(st.term as MAbs, st.env), _t, _cb, output, input, st.cont));
         return false;
       }, MBVar(0))))),
   );
-  const st = MState(mt, _v.env, MTop);
+  const st = MState(mt, _v.env, cont);
   steps(cenv.venv, st);
 }
 
